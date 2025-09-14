@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Settings — ComicManager{% endblock %}
+{% block nav_settings %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-3xl">
+
+  <h1 class="text-3xl font-bold">Settings</h1>
+
+  <form method="post" action="/settings/update/">
+    {% csrf_token %}
+
+    {% for group, settings in grouped.items %}
+    <div class="card bg-base-200 mb-6">
+      <div class="card-body">
+        <h2 class="card-title">{{ group }}</h2>
+        <div class="space-y-4">
+          {% for setting in settings %}
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text font-medium">{{ setting.label }}</span>
+              {% if setting.help_text %}
+              <span class="label-text-alt text-base-content/50">{{ setting.help_text }}</span>
+              {% endif %}
+            </label>
+            {% if setting.type == "bool" %}
+              <input type="checkbox" name="{{ setting.key }}"
+                class="toggle toggle-primary"
+                {% if setting.typed_value %}checked{% endif %}
+                value="true">
+            {% elif setting.type == "secret" %}
+              <input type="password" name="{{ setting.key }}"
+                value="{{ setting.value }}"
+                class="input input-bordered w-full font-mono">
+            {% else %}
+              <input type="text" name="{{ setting.key }}"
+                value="{{ setting.value }}"
+                class="input input-bordered w-full {% if setting.type == 'path' %}font-mono{% endif %}">
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+  </form>
+
+</div>
+{% endblock %}

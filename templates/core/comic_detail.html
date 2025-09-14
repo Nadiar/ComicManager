@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}{{ comic.series }} #{{ comic.number }} — ComicManager{% endblock %}
+{% block nav_comics %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex justify-between items-start">
+    <div>
+      <h1 class="text-3xl font-bold">{{ comic.series|default:"Unknown Series" }} #{{ comic.number|default:"?" }}</h1>
+      {% if comic.title %}
+      <p class="text-lg text-base-content/70 mt-1">{{ comic.title }}</p>
+      {% endif %}
+      <div class="flex gap-2 mt-2">
+        <span class="badge badge-lg {% if comic.state == 'written' %}badge-success{% elif comic.state == 'new' %}badge-warning{% else %}badge-info{% endif %}">
+          {{ comic.state }}
+        </span>
+        <span class="badge badge-lg badge-outline">{{ comic.medium }}</span>
+        {% if comic.publisher %}
+        <span class="badge badge-lg">{{ comic.publisher }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <a href="/comics/{{ comic.pk }}/edit/" class="btn btn-primary">Edit</a>
+      <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="btn btn-ghost">Back to List</a>
+    </div>
+  </div>
+
+  {% if comic.is_digital and comparison %}
+  <!-- Metadata Comparison Table (Digital comics only) -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-xl mb-4">Metadata Comparison</h2>
+      <p class="text-sm text-base-content/60 mb-4">
+        Comparing database values with ComicInfo.xml from the file.
+        {% if not xml_data %}
+        <span class="text-warning">No ComicInfo.xml found in file.</span>
+        {% endif %}
+      </p>
+
+      <div class="overflow-x-auto">
+        <table class="table table-zebra">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>Database</th>
+              <th>ComicInfo.xml</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in comparison %}
+            <tr class="{% if item.status == 'differ' %}bg-warning/10{% elif item.status == 'db_only' %}bg-info/10{% elif item.status == 'xml_only' %}bg-error/10{% endif %}">
+              <td class="font-medium">{{ item.label }}</td>
+              <td class="max-w-xs">
+                {% if item.db_value %}
+                <span class="{% if item.status == 'differ' %}text-warning{% endif %}">
+                  {{ item.db_value|truncatechars:100 }}
+                </span>
+                {% else %}
+                <span class="text-base-content/30">-</span>
+                {% endif %}
+              </td>
+              <td class="max-w-xs">
+                {% if item.xml_value %}
+                <span class="{% if item.status == 'differ' %}text-warning{% endif %}">
+                  {{ item.xml_value|truncatechars:100 }}
+                </span>
+                {% else %}
+                <span class="text-base-content/30">-</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if item.status == 'match' %}
+                <span class="badge badge-success badge-sm">Match</span>
+                {% elif item.status == 'differ' %}
+                <span class="badge badge-warning badge-sm">Different</span>
+                {% elif item.status == 'db_only' %}
+                <span class="badge badge-info badge-sm">DB Only</span>
+                {% elif item.status == 'xml_only' %}
+                <span class="badge badge-error badge-sm">XML Only</span>
+                {% else %}
+                <span class="badge badge-ghost badge-sm">Empty</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if comic.is_physical or not comparison %}
+  <!-- Simple Field Display (Physical comics or when no comparison) -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-xl mb-4">Comic Metadata</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Core Info -->
+        <div class="space-y-2">
+          <h3 class="font-semibold text-primary">Core Info</h3>
+          <div><span class="text-base-content/60">Series:</span> {{ comic.series|default:"-" }}</div>
+          <div><span class="text-base-content/60">Number:</span> {{ comic.number|default:"-" }}</div>
+          <div><span class="text-base-content/60">Title:</span> {{ comic.title|default:"-" }}</div>
+          <div><span class="text-base-content/60">Volume:</span> {{ comic.volume|default:"-" }}</div>
+          <div><span class="text-base-content/60">Count:</span> {{ comic.count|default:"-" }}</div>
+        </div>
+
+        <!-- Publication -->
+        <div class="space-y-2">
+          <h3 class="font-semibold text-primary">Publication</h3>
+          <div><span class="text-base-content/60">Publisher:</span> {{ comic.publisher|default:"-" }}</div>
+          <div><span class="text-base-content/60">Year:</span> {{ comic.year|default:"-" }}</div>
+          <div><span class="text-base-content/60">Month:</span> {{ comic.month|default:"-" }}</div>
+          <div><span class="text-base-content/60">Day:</span> {{ comic.day|default:"-" }}</div>
+          <div><span class="text-base-content/60">Format:</span> {{ comic.format|default:"-" }}</div>
+        </div>
+
+        <!-- Classification -->
+        <div class="space-y-2">
+          <h3 class="font-semibold text-primary">Classification</h3>
+          <div><span class="text-base-content/60">Genre:</span> {{ comic.genre|default:"-" }}</div>
+          <div><span class="text-base-content/60">Series Group:</span> {{ comic.series_group|default:"-" }}</div>
+          <div><span class="text-base-content/60">Main Character:</span> {{ comic.main_character_or_team|default:"-" }}</div>
+        </div>
+      </div>
+
+      {% if comic.summary %}
+      <div class="mt-4">
+        <h3 class="font-semibold text-primary mb-2">Summary</h3>
+        <p class="text-sm">{{ comic.summary }}</p>
+      </div>
+      {% endif %}
+
+      <!-- Credits -->
+      <div class="mt-4">
+        <h3 class="font-semibold text-primary mb-2">Credits</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-sm">
+          {% if comic.writer %}<div><span class="text-base-content/60">Writer:</span> {{ comic.writer }}</div>{% endif %}
+          {% if comic.penciller %}<div><span class="text-base-content/60">Penciller:</span> {{ comic.penciller }}</div>{% endif %}
+          {% if comic.inker %}<div><span class="text-base-content/60">Inker:</span> {{ comic.inker }}</div>{% endif %}
+          {% if comic.colorist %}<div><span class="text-base-content/60">Colorist:</span> {{ comic.colorist }}</div>{% endif %}
+          {% if comic.letterer %}<div><span class="text-base-content/60">Letterer:</span> {{ comic.letterer }}</div>{% endif %}
+          {% if comic.cover_artist %}<div><span class="text-base-content/60">Cover Artist:</span> {{ comic.cover_artist }}</div>{% endif %}
+          {% if comic.editor %}<div><span class="text-base-content/60">Editor:</span> {{ comic.editor }}</div>{% endif %}
+        </div>
+      </div>
+
+      {% if comic.characters %}
+      <div class="mt-4">
+        <h3 class="font-semibold text-primary mb-2">Characters</h3>
+        <p class="text-sm">{{ comic.characters }}</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- File & System Info -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-xl mb-4">File & System Info</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div class="space-y-2">
+          <h3 class="font-semibold text-primary">File Details</h3>
+          {% if comic.file_path %}
+          <div><span class="text-base-content/60">Path:</span> <code class="text-xs">{{ comic.file_path }}</code></div>
+          {% else %}
+          <div><span class="text-base-content/60">Path:</span> <span class="text-warning">No file (physical comic)</span></div>
+          {% endif %}
+          <div><span class="text-base-content/60">Format:</span> {{ comic.file_format|default:"-" }}</div>
+          <div><span class="text-base-content/60">Size:</span> {% if comic.file_size %}{{ comic.file_size|filesizeformat }}{% else %}-{% endif %}</div>
+          <div><span class="text-base-content/60">Pages:</span> {{ comic.page_count|default:"-" }}</div>
+        </div>
+
+        <div class="space-y-2">
+          <h3 class="font-semibold text-primary">System Info</h3>
+          <div><span class="text-base-content/60">ID:</span> <code class="text-xs">{{ comic.pk }}</code></div>
+          <div><span class="text-base-content/60">State:</span> {{ comic.state }}</div>
+          <div><span class="text-base-content/60">Medium:</span> {{ comic.medium }}</div>
+          <div><span class="text-base-content/60">Imported:</span> {{ comic.imported_at|date:"Y-m-d H:i" }}</div>
+          <div><span class="text-base-content/60">Updated:</span> {{ comic.updated_at|date:"Y-m-d H:i" }}</div>
+        </div>
+
+        {% if comic.phash or comic.ahash %}
+        <div class="space-y-2">
+          <h3 class="font-semibold text-primary">Cover Hashes</h3>
+          {% if comic.phash %}<div><span class="text-base-content/60">pHash:</span> <code class="text-xs">{{ comic.phash }}</code></div>{% endif %}
+          {% if comic.ahash %}<div><span class="text-base-content/60">aHash:</span> <code class="text-xs">{{ comic.ahash }}</code></div>{% endif %}
+        </div>
+        {% endif %}
+
+        {% if comic.custom_values %}
+        <div class="space-y-2">
+          <h3 class="font-semibold text-primary">Custom Values</h3>
+          {% for key, value in comic.custom_values.items %}
+          <div><span class="text-base-content/60">{{ key }}:</span> {{ value }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      {% if comic.has_flags %}
+      <div class="mt-4">
+        <h3 class="font-semibold text-primary mb-2">Flags</h3>
+        <div class="flex flex-wrap gap-2">
+          {% for flag in comic.flag_list %}
+          <span class="badge badge-warning">{{ flag }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {% if comic.web %}
+      <div class="mt-4">
+        <a href="{{ comic.web }}" target="_blank" class="btn btn-sm btn-outline">
+          View on ComicVine
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

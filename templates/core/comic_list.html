@@ -1,0 +1,1015 @@
+{% extends "base.html" %}
+{% block title %}Comics{% if current_state %} ({{ current_state }}){% endif %}{% if current_flag %} ({{ flag_label }}){% endif %} — ComicManager{% endblock %}
+{% block nav_comics %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <div class="flex justify-between items-center">
+    <div class="flex items-center gap-3">
+      <h1 class="text-3xl font-bold">Comics</h1>
+      {% if current_state %}
+      <span class="badge badge-lg badge-primary">{{ current_state }}</span>
+      {% endif %}
+      {% if current_flag %}
+      <span class="badge badge-lg badge-warning">{{ flag_label }}</span>
+      {% endif %}
+      {% if current_state or current_flag %}
+      <a href="/comics/" class="btn btn-xs btn-ghost">Clear filter</a>
+      {% endif %}
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="badge badge-neutral">{{ comics|length }} shown</span>
+      {% if current_state == 'new' and comics %}
+      <button
+        type="button"
+        id="accept-all-btn"
+        class="btn btn-sm btn-success"
+        onclick="acceptAllComics(this)"
+      >
+        Accept All
+      </button>
+      {% endif %}
+      {% if current_state == 'imported' and comics %}
+      <label class="label cursor-pointer gap-2 mr-2">
+        <span class="label-text text-sm">Confirm each</span>
+        <input type="checkbox" id="confirm-scrape-checkbox" class="checkbox checkbox-sm" />
+      </label>
+      <button
+        type="button"
+        id="scrape-all-btn"
+        class="btn btn-sm btn-secondary"
+        onclick="scrapeAllComics(this)"
+      >
+        Scrape All
+      </button>
+      {% endif %}
+      {% if needs_conversion_count > 0 %}
+      <button
+        type="button"
+        id="convert-all-btn"
+        class="btn btn-sm btn-primary"
+        onclick="convertAllComics(this)"
+      >
+        Convert All CBR ({{ needs_conversion_count }})
+      </button>
+      {% endif %}
+      {% if current_state == 'counted' and comics %}
+      <button
+        type="button"
+        id="tag-all-btn"
+        class="btn btn-sm btn-accent"
+        onclick="tagAllComics(this)"
+      >
+        Tag All
+      </button>
+      {% endif %}
+      {% if current_state == 'formatted' and comics %}
+      <button
+        type="button"
+        id="deduplicate-all-btn"
+        class="btn btn-sm btn-secondary"
+        onclick="deduplicateAllComics(this)"
+      >
+        Deduplicate All
+      </button>
+      {% endif %}
+      {% if current_state == 'deduplicated' and comics %}
+      <button
+        type="button"
+        id="organize-all-btn"
+        class="btn btn-sm btn-info"
+        onclick="organizeAllComics(this)"
+      >
+        Organize All
+      </button>
+      {% endif %}
+      {% if current_state == 'organized' and comics %}
+      <button
+        type="button"
+        id="write-all-btn"
+        class="btn btn-sm btn-success"
+        onclick="writeAllComics(this)"
+      >
+        Write All
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if comics %}
+  <div class="overflow-x-auto">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Series</th>
+          <th>#</th>
+          {% if current_state == 'counted' or current_state == 'formatted' or current_state == 'organized' or current_state == 'written' %}
+          <th>Count</th>
+          {% endif %}
+          <th>Title</th>
+          <th>Volume</th>
+          <th>Year</th>
+          <th>Publisher</th>
+          <th>Format</th>
+          <th>Pages</th>
+          <th>State</th>
+          <th>Flags</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for comic in comics %}
+        <tr class="hover">
+          {% if comic.state == 'new' %}
+          <!-- Show proposed values for new comics -->
+          <td class="font-medium">
+            <span class="text-warning">{{ comic.proposed_series|default:"-" }}</span>
+          </td>
+          <td><span class="text-warning">{{ comic.proposed_number|default:"-" }}</span></td>
+          <td class="max-w-xs truncate text-base-content/50">{{ comic.file_path|default:"-" }}</td>
+          <td><span class="text-warning">{{ comic.proposed_volume|default:"-" }}</span></td>
+          <td><span class="text-warning">{{ comic.proposed_year|default:"-" }}</span></td>
+          {% else %}
+          <!-- Show confirmed values for processed comics -->
+          <td class="font-medium">{{ comic.series|default:"-" }}</td>
+          <td>{{ comic.number|default:"-" }}</td>
+          {% if current_state == 'counted' or current_state == 'formatted' or current_state == 'organized' or current_state == 'written' %}
+          <td>{{ comic.count|default:"-" }}</td>
+          {% endif %}
+          <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
+          <td>{{ comic.volume|default:"-" }}</td>
+          <td>{{ comic.year|default:"-" }}</td>
+          {% endif %}
+          <td>{{ comic.publisher|default:"-" }}</td>
+          <td>{{ comic.format|default:"-" }}</td>
+          <td>{{ comic.page_count|default:"-" }}</td>
+          <td>
+            <span class="badge badge-sm
+              {% if comic.state == 'written' %}badge-success
+              {% elif comic.state == 'new' %}badge-warning
+              {% else %}badge-info{% endif %}">
+              {{ comic.state }}
+            </span>
+          </td>
+          <td>
+            {% if comic.has_flags %}
+            <div class="flex flex-wrap gap-1">
+              {% for flag in comic.flag_list %}
+              <span class="badge badge-xs badge-error">{{ flag }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+          </td>
+          <td class="flex gap-1">
+            <a href="/comics/{{ comic.pk }}/" class="btn btn-xs btn-ghost btn-outline">Info</a>
+            {% if comic.state == 'new' %}
+            <button
+              type="button"
+              class="btn btn-xs btn-success"
+              onclick="acceptComic('{{ comic.pk }}', this)"
+            >
+              Accept
+            </button>
+            {% endif %}
+            {% if comic.state == 'imported' %}
+            <button
+              type="button"
+              class="btn btn-xs btn-secondary"
+              onclick="scrapeComic('{{ comic.pk }}', this)"
+            >
+              Scrape
+            </button>
+            {% endif %}
+            {% if comic.flags.needs_conversion %}
+            <button
+              type="button"
+              class="btn btn-xs btn-primary"
+              onclick="convertComic('{{ comic.pk }}', this)"
+            >
+              Convert
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    {% if current_state %}
+    <span>No comics in state "{{ current_state }}".</span>
+    <a href="/comics/" class="link">View all comics</a>
+    {% elif current_flag %}
+    <span>No comics with flag "{{ flag_label }}".</span>
+    <a href="/comics/" class="link">View all comics</a>
+    {% else %}
+    <span>No comics found. Import your library using:</span>
+    <code class="ml-2">docker compose run --rm web python manage.py import_library</code>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- Scrape Confirmation Modal -->
+<dialog id="scrape-modal" class="modal">
+  <div class="modal-box max-w-4xl mx-auto">
+    <h3 class="font-bold text-lg mb-4">
+      Select Match for: <span id="modal-comic-title"></span>
+    </h3>
+
+    <!-- Two-column layout: Local cover on left, matches on right -->
+    <div class="flex gap-6">
+      <!-- Local comic cover -->
+      <div class="flex-shrink-0 w-48">
+        <div class="text-sm font-semibold mb-2 text-center">Your Comic</div>
+        <div id="modal-local-cover" class="bg-base-300 rounded-lg overflow-hidden flex items-center justify-center min-h-72">
+          <img id="local-cover-img" src="" alt="Local Cover" class="max-w-full max-h-72 object-contain" />
+        </div>
+        <div id="modal-local-info" class="text-xs text-center mt-2 text-base-content/70"></div>
+      </div>
+
+      <!-- Matches grid -->
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold mb-2">ComicVine Matches (click to select)</div>
+        <div id="modal-matches" class="grid grid-cols-1 lg:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto pr-2">
+          <!-- Matches will be inserted here -->
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-loading" class="flex justify-center py-8">
+      <span class="loading loading-spinner loading-lg"></span>
+    </div>
+    <div id="modal-error" class="alert alert-error hidden mt-4">
+      <span id="modal-error-text"></span>
+    </div>
+    <div class="modal-action">
+      <button class="btn btn-ghost" onclick="closeScrapeModal()">Cancel</button>
+      <button class="btn btn-warning" onclick="skipCurrentComic()">Skip</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<style>
+/* Center modal properly - only when open */
+#scrape-modal[open] {
+  display: grid;
+  place-items: center;
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 1rem;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+}
+#scrape-modal:not([open]) {
+  display: none;
+}
+#scrape-modal > .modal-box {
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+/* Constrain cover images in modal cards */
+#modal-matches .cover-img {
+  max-height: 12rem;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+/* Better card styling */
+#modal-matches .card {
+  min-width: 180px;
+}
+</style>
+
+<script>
+function getCsrfToken() {
+  const name = 'csrftoken';
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+    const [key, value] = cookie.trim().split('=');
+    if (key === name) return value;
+  }
+  return '';
+}
+
+function acceptAllComics(btn) {
+  if (!confirm('Accept all comics and move them to "imported" state?')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Accepting...';
+
+  fetch('/comics/accept-all/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-neutral');
+      btn.innerHTML = `Done (${data.accepted} accepted, ${data.skipped} skipped)`;
+
+      // Reload page after 1.5 seconds to show updated data
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function acceptComic(pk, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+  fetch(`/comics/${pk}/accept/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Update the row to show success
+      const row = btn.closest('tr');
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-neutral');
+      btn.innerHTML = 'Accepted';
+
+      // Update state badge
+      const stateBadge = row.querySelector('td:nth-child(9) .badge');
+      if (stateBadge) {
+        stateBadge.classList.remove('badge-warning');
+        stateBadge.classList.add('badge-info');
+        stateBadge.textContent = 'imported';
+      }
+
+      // Update the proposed values styling (remove warning color)
+      row.querySelectorAll('.text-warning').forEach(el => {
+        el.classList.remove('text-warning');
+      });
+    } else {
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = data.error;
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+// Scrape state for confirmation mode
+let scrapeQueue = [];
+let currentScrapeBtn = null;
+let scrapeStats = { matched: 0, skipped: 0, failed: 0 };
+
+function scrapeAllComics(btn) {
+  const confirmEach = document.getElementById('confirm-scrape-checkbox')?.checked;
+
+  if (confirmEach) {
+    // Confirmation mode: collect all comic IDs and process one by one
+    const rows = document.querySelectorAll('tbody tr');
+    scrapeQueue = [];
+    rows.forEach(row => {
+      const scrapeBtn = row.querySelector('button[onclick^="scrapeComic"]');
+      if (scrapeBtn) {
+        const match = scrapeBtn.getAttribute('onclick').match(/scrapeComic\('([^']+)'/);
+        if (match) {
+          scrapeQueue.push({ pk: match[1], btn: scrapeBtn, row: row });
+        }
+      }
+    });
+
+    if (scrapeQueue.length === 0) {
+      alert('No comics to scrape');
+      return;
+    }
+
+    scrapeStats = { matched: 0, skipped: 0, failed: 0 };
+    btn.disabled = true;
+    btn.innerHTML = `<span class="loading loading-spinner loading-sm"></span> 0/${scrapeQueue.length}`;
+    currentScrapeBtn = btn;
+
+    // Start processing first comic
+    processNextScrape();
+  } else {
+    // Auto mode: scrape all without confirmation
+    if (!confirm('Scrape all imported comics against ComicVine? This may take a while.')) {
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Scraping...';
+
+    fetch('/comics/scrape-all/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-success');
+        btn.innerHTML = `Done (${data.matched} matched, ${data.failed} failed)`;
+
+        if (data.errors && data.errors.length > 0) {
+          alert(`Scraping complete with ${data.failed} failure(s):\n\n${data.errors.join('\n')}`);
+        }
+
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-error');
+        btn.innerHTML = 'Error';
+        btn.disabled = false;
+      }
+    })
+    .catch(err => {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = err.toString();
+      btn.disabled = false;
+    });
+  }
+}
+
+function processNextScrape() {
+  if (scrapeQueue.length === 0) {
+    // Done with all comics
+    if (currentScrapeBtn) {
+      currentScrapeBtn.classList.remove('btn-secondary');
+      currentScrapeBtn.classList.add('btn-success');
+      currentScrapeBtn.innerHTML = `Done (${scrapeStats.matched} matched, ${scrapeStats.skipped} skipped)`;
+    }
+    setTimeout(() => window.location.reload(), 1500);
+    return;
+  }
+
+  const total = scrapeStats.matched + scrapeStats.skipped + scrapeStats.failed + scrapeQueue.length;
+  const processed = scrapeStats.matched + scrapeStats.skipped + scrapeStats.failed;
+  if (currentScrapeBtn) {
+    currentScrapeBtn.innerHTML = `<span class="loading loading-spinner loading-sm"></span> ${processed}/${total}`;
+  }
+
+  const item = scrapeQueue[0];
+  openScrapeModal(item.pk, item.btn);
+}
+
+function scrapeComic(pk, btn) {
+  const confirmEach = document.getElementById('confirm-scrape-checkbox')?.checked;
+
+  if (confirmEach) {
+    // Show modal with matches
+    openScrapeModal(pk, btn);
+  } else {
+    // Auto-scrape without confirmation
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+    fetch(`/comics/${pk}/scrape/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        updateRowAfterScrape(btn, data);
+      } else {
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-error');
+        btn.innerHTML = 'Failed';
+        btn.title = data.error;
+        btn.disabled = false;
+      }
+    })
+    .catch(err => {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = err.toString();
+      btn.disabled = false;
+    });
+  }
+}
+
+function openScrapeModal(pk, btn) {
+  const modal = document.getElementById('scrape-modal');
+  const matchesDiv = document.getElementById('modal-matches');
+  const loadingDiv = document.getElementById('modal-loading');
+  const errorDiv = document.getElementById('modal-error');
+  const localCoverImg = document.getElementById('local-cover-img');
+  const localInfoDiv = document.getElementById('modal-local-info');
+
+  // Store current comic info
+  modal.dataset.comicPk = pk;
+  modal.dataset.btnId = btn.id || '';
+  window._currentScrapeBtn = btn;
+
+  // Reset modal state
+  matchesDiv.innerHTML = '';
+  loadingDiv.classList.remove('hidden');
+  errorDiv.classList.add('hidden');
+  document.getElementById('modal-comic-title').textContent = 'Loading...';
+  localInfoDiv.textContent = '';
+
+  // Load local comic cover
+  localCoverImg.src = `/comics/${pk}/cover/`;
+  localCoverImg.onerror = () => {
+    localCoverImg.src = '';
+    localCoverImg.alt = 'Cover unavailable';
+    localCoverImg.parentElement.innerHTML = '<div class="h-72 flex items-center justify-center text-base-content/50 text-sm">Cover unavailable</div>';
+  };
+
+  modal.showModal();
+
+  // Fetch preview matches
+  fetch(`/comics/${pk}/scrape/preview/`)
+    .then(response => response.json())
+    .then(data => {
+      loadingDiv.classList.add('hidden');
+
+      if (!data.success) {
+        errorDiv.classList.remove('hidden');
+        document.getElementById('modal-error-text').textContent = data.error;
+        return;
+      }
+
+      document.getElementById('modal-comic-title').textContent =
+        `${data.comic.series} #${data.comic.number}`;
+
+      // Show local comic info
+      document.getElementById('modal-local-info').textContent =
+        `${data.comic.series} #${data.comic.number}`;
+
+      if (data.matches.length === 0) {
+        matchesDiv.innerHTML = '<div class="col-span-full text-center text-warning py-4">No matches found</div>';
+        return;
+      }
+
+      // Render match cards
+      data.matches.forEach((match, idx) => {
+        const card = document.createElement('div');
+        card.className = `card bg-base-300 cursor-pointer hover:ring-2 hover:ring-primary transition-all border border-base-content/10 ${match.recommended ? 'ring-2 ring-success' : ''}`;
+
+        // Handle multiple covers
+        const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
+        const hasMultipleCovers = covers.length > 1;
+        const coverContainerId = `cover-container-${idx}`;
+
+        card.innerHTML = `
+          <figure class="px-4 pt-4 relative h-52 bg-base-100/50 rounded-t-xl">
+            <div id="${coverContainerId}" class="flex justify-center items-center w-full h-48">
+              ${covers.length > 0
+                ? `<img src="${covers[0]}" alt="Cover" class="rounded-lg max-h-48 max-w-full object-contain cover-img shadow-md" data-covers='${JSON.stringify(covers)}' data-cover-idx="0" />`
+                : '<div class="h-48 w-full bg-base-300 rounded-lg flex items-center justify-center text-base-content/50 text-sm">No cover</div>'
+              }
+            </div>
+            ${hasMultipleCovers ? `
+              <div class="absolute bottom-2 left-0 right-0 flex justify-center gap-2">
+                <button type="button" class="btn btn-circle btn-sm btn-primary cover-nav" data-dir="prev" data-target="${coverContainerId}">‹</button>
+                <span class="text-sm font-medium bg-base-100 px-3 py-1 rounded-full cover-counter shadow">1 / ${covers.length}</span>
+                <button type="button" class="btn btn-circle btn-sm btn-primary cover-nav" data-dir="next" data-target="${coverContainerId}">›</button>
+              </div>
+            ` : ''}
+          </figure>
+          <div class="card-body p-4 gap-2">
+            <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
+            <p class="text-sm text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
+            ${match.title ? `<p class="text-sm text-base-content/70 line-clamp-2">${match.title}</p>` : ''}
+            <div class="flex flex-wrap gap-2 mt-2">
+              <span class="badge ${match.recommended ? 'badge-success' : 'badge-outline'}">${match.match_type}</span>
+              ${match.recommended ? '<span class="badge badge-success">Best Match</span>' : ''}
+            </div>
+          </div>
+        `;
+
+        // Add click handler for selection (exclude cover nav buttons)
+        card.addEventListener('click', (e) => {
+          if (!e.target.closest('.cover-nav')) {
+            selectMatch(pk, match.issue_id);
+          }
+        });
+
+        matchesDiv.appendChild(card);
+      });
+
+      // Add cover navigation event listeners
+      matchesDiv.querySelectorAll('.cover-nav').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const containerId = btn.dataset.target;
+          const container = document.getElementById(containerId);
+          const img = container.querySelector('.cover-img');
+          if (!img) return;
+
+          const covers = JSON.parse(img.dataset.covers);
+          let idx = parseInt(img.dataset.coverIdx);
+
+          if (btn.dataset.dir === 'next') {
+            idx = (idx + 1) % covers.length;
+          } else {
+            idx = (idx - 1 + covers.length) % covers.length;
+          }
+
+          // URLs are already scaled in data-covers
+          img.src = covers[idx];
+          img.dataset.coverIdx = idx;
+
+          // Update counter
+          const counter = btn.parentElement.querySelector('.cover-counter');
+          if (counter) {
+            counter.textContent = `${idx + 1} / ${covers.length}`;
+          }
+        });
+      });
+    })
+    .catch(err => {
+      loadingDiv.classList.add('hidden');
+      errorDiv.classList.remove('hidden');
+      document.getElementById('modal-error-text').textContent = err.toString();
+    });
+}
+
+function closeScrapeModal() {
+  document.getElementById('scrape-modal').close();
+  window._currentScrapeBtn = null;
+}
+
+function selectMatch(comicPk, issueId) {
+  const modal = document.getElementById('scrape-modal');
+  const btn = window._currentScrapeBtn;
+
+  closeScrapeModal();
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+  }
+
+  // Send scrape request with selected issue ID
+  const formData = new FormData();
+  formData.append('cv_issue_id', issueId);
+
+  fetch(`/comics/${comicPk}/scrape/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    },
+    body: formData,
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success && btn) {
+      updateRowAfterScrape(btn, data);
+      scrapeStats.matched++;
+    } else if (btn) {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Failed';
+      btn.title = data.error;
+      scrapeStats.failed++;
+    }
+
+    // Process next in queue if in batch mode
+    if (scrapeQueue.length > 0) {
+      scrapeQueue.shift();
+      processNextScrape();
+    }
+  })
+  .catch(err => {
+    if (btn) {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = err.toString();
+    }
+    scrapeStats.failed++;
+
+    if (scrapeQueue.length > 0) {
+      scrapeQueue.shift();
+      processNextScrape();
+    }
+  });
+}
+
+function skipCurrentComic() {
+  closeScrapeModal();
+
+  const btn = window._currentScrapeBtn;
+  if (btn) {
+    btn.classList.remove('btn-secondary');
+    btn.classList.add('btn-warning');
+    btn.innerHTML = 'Skipped';
+  }
+
+  scrapeStats.skipped++;
+
+  // Process next in queue if in batch mode
+  if (scrapeQueue.length > 0) {
+    scrapeQueue.shift();
+    processNextScrape();
+  }
+}
+
+function updateRowAfterScrape(btn, data) {
+  const row = btn.closest('tr');
+  btn.classList.remove('btn-secondary');
+  btn.classList.add('btn-success');
+  btn.innerHTML = 'Done';
+
+  // Update state badge (now goes directly to 'counted')
+  const stateBadge = row.querySelector('td:nth-child(9) .badge');
+  if (stateBadge) {
+    stateBadge.textContent = 'counted';
+  }
+
+  // Update publisher if available
+  if (data.match && data.match.publisher) {
+    const publisherCell = row.querySelector('td:nth-child(6)');
+    if (publisherCell) {
+      publisherCell.textContent = data.match.publisher;
+    }
+  }
+}
+
+function convertAllComics(btn) {
+  if (!confirm('Convert all CBR/CB7 files to CBZ? This may take a while.')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Converting...';
+
+  fetch('/comics/convert-all/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-success');
+      btn.innerHTML = `Done (${data.converted} converted)`;
+
+      if (data.errors && data.errors.length > 0) {
+        alert(`Conversion complete with ${data.errors.length} error(s):\n\n${data.errors.join('\n')}`);
+      }
+
+      // Reload page after 1.5 seconds to show updated data
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function convertComic(pk, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+  fetch(`/comics/${pk}/convert/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Update the row to show success
+      const row = btn.closest('tr');
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-success');
+      btn.innerHTML = 'Done';
+
+      // Remove the needs_conversion badge
+      const badges = row.querySelectorAll('.badge-error');
+      badges.forEach(badge => {
+        if (badge.textContent === 'needs_conversion') {
+          badge.remove();
+        }
+      });
+
+      // Update format column
+      const formatCell = row.querySelector('td:nth-child(7)');
+      if (formatCell) {
+        formatCell.textContent = 'cbz';
+      }
+    } else {
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = data.error;
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function tagAllComics(btn) {
+  if (!confirm('Apply tagging (publisher rules + format detection) to all counted comics?')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Tagging...';
+
+  fetch('/comics/tag-all/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-accent');
+      btn.classList.add('btn-success');
+      btn.innerHTML = `Done (${data.tagged} tagged)`;
+
+      // Reload page after 1.5 seconds to show updated data
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      btn.classList.remove('btn-accent');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-accent');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function deduplicateAllComics(btn) {
+  if (!confirm('Process deduplication for all formatted comics?')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Processing...';
+
+  fetch('/comics/deduplicate-all/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-success');
+      btn.innerHTML = `Done (${data.deduplicated} processed)`;
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-secondary');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function organizeAllComics(btn) {
+  if (!confirm('Organize all deduplicated comics?')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Organizing...';
+
+  fetch('/comics/organize-all/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-success');
+      btn.innerHTML = `Done (${data.organized} organized)`;
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-info');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function writeAllComics(btn) {
+  if (!confirm('Write ComicInfo.xml for all organized comics? This will update the files.')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Writing...';
+
+  fetch('/comics/write-all/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-neutral');
+      btn.innerHTML = `Done (${data.written} written)`;
+
+      if (data.errors && data.errors.length > 0) {
+        alert(`Write complete with ${data.errors.length} error(s):\n\n${data.errors.join('\n')}`);
+      }
+
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+</script>
+{% endblock %}

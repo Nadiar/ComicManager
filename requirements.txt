@@ -1,0 +1,13 @@
+django>=5.1
+psycopg[binary]>=3.2
+celery[redis]>=5.4
+django-celery-beat>=2.7
+django-celery-results>=2.5
+redis>=5.2
+gunicorn>=23.0
+python-dotenv>=1.0
+imagehash>=4.3
+Pillow>=11.0
+python-magic>=0.4
+django-htmx>=1.21
+patool>=3.0

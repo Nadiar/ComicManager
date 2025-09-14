@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — ComicManager{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <h1 class="text-3xl font-bold">Dashboard</h1>
+
+  <!-- Stats row -->
+  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="stat bg-base-200 rounded-box">
+      <div class="stat-title">Total Comics</div>
+      <div class="stat-value text-primary">{{ stats.total }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box">
+      <div class="stat-title">Digital</div>
+      <div class="stat-value">{{ stats.digital }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box">
+      <div class="stat-title">Physical</div>
+      <div class="stat-value">{{ stats.physical }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box">
+      <div class="stat-title">New / Unprocessed</div>
+      <div class="stat-value text-warning">{{ stats.new }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box">
+      <div class="stat-title">Complete</div>
+      <div class="stat-value text-success">{{ stats.written }}</div>
+    </div>
+  </div>
+
+  <!-- Workflow Pipeline -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Workflow Pipeline</h2>
+      <div class="overflow-x-auto">
+        <ul class="steps steps-horizontal w-full">
+          {% for stage in pipeline %}
+          <li class="step {% if stage.count > 0 %}step-primary{% endif %}" data-content="{{ stage.count }}">
+            <div class="text-xs mt-1">{{ stage.label }}</div>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <!-- Pipeline details table -->
+      <div class="overflow-x-auto mt-4">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Stage</th>
+              <th>Description</th>
+              <th class="text-right">Count</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for stage in pipeline %}
+            <tr class="{% if stage.count > 0 %}bg-base-300{% endif %}">
+              <td class="font-medium">{{ stage.label }}</td>
+              <td class="text-base-content/60">{{ stage.description }}</td>
+              <td class="text-right">
+                {% if stage.count > 0 %}
+                <span class="badge badge-primary">{{ stage.count }}</span>
+                {% else %}
+                <span class="text-base-content/40">0</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if stage.count > 0 %}
+                <a href="/comics/?state={{ stage.state }}" class="btn btn-xs btn-ghost">View</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Review Queue -->
+  {% if flagged_count > 0 %}
+  <div class="card bg-base-200 border border-warning">
+    <div class="card-body">
+      <div class="flex justify-between items-center">
+        <h2 class="card-title text-warning">Review Queue</h2>
+        <span class="badge badge-warning">{{ flagged_count }} comics need attention</span>
+      </div>
+
+      <div class="overflow-x-auto mt-2">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Issue</th>
+              <th>Description</th>
+              <th class="text-right">Count</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in review_queue %}
+            {% if item.count > 0 %}
+            <tr class="bg-base-300">
+              <td class="font-medium">
+                {% if item.action == 'delete' %}
+                <span class="text-error">{{ item.label }}</span>
+                {% elif item.action == 'convert' %}
+                <span class="text-info">{{ item.label }}</span>
+                {% else %}
+                <span class="text-warning">{{ item.label }}</span>
+                {% endif %}
+              </td>
+              <td class="text-base-content/60">{{ item.description }}</td>
+              <td class="text-right">
+                <span class="badge badge-warning">{{ item.count }}</span>
+              </td>
+              <td>
+                <a href="/comics/?flag={{ item.flag }}" class="btn btn-xs btn-ghost">View</a>
+              </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

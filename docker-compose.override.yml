@@ -1,0 +1,48 @@
+services:
+
+  web:
+    build: .                          # build locally instead of pulling image
+    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-dev}
+    command: >
+      python manage.py runserver 0.0.0.0:8000
+    environment:
+      - DEBUG=True
+    volumes:
+      - ./untagged:/comics/untagged
+      - ./Comics:/comics/library
+      - ./data/comicvine.db:/cv_db/comicvine.db:ro
+      - .:/app                        # mount entire source — changes reload instantly
+      - ./static:/app/static          # override base static mount for dev
+    ports:
+      - "8000:8000"
+
+  worker:
+    build: .
+    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-dev}
+    command: >
+      celery -A comicmanager worker
+        --loglevel=debug
+        --queues=import,scrape,organize,write
+        --concurrency=2
+    environment:
+      - DEBUG=True
+    volumes:
+      - ./untagged:/comics/untagged
+      - ./Comics:/comics/library
+      - ./data/comicvine.db:/cv_db/comicvine.db:ro
+      - .:/app                        # same source mount — worker reloads too
+
+  beat:
+    build: .
+    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-dev}
+    environment:
+      - DEBUG=True
+    volumes:
+      - .:/app
+
+  css:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npx tailwindcss -i ./static/css/input.css -o ./static/css/main.css --watch"
+    volumes:
+      - .:/app                        # watch source files for class changes

@@ -1,0 +1,13 @@
+{
+  "name": "comicmanager",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -i ./static/css/input.css -o ./static/css/main.css --minify",
+    "watch:css": "tailwindcss -i ./static/css/input.css -o ./static/css/main.css --watch"
+  },
+  "dependencies": {
+    "@tailwindcss/cli": "^4",
+    "daisyui": "^5",
+    "tailwindcss": "^4"
+  }
+}

@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Scraper — ComicManager{% endblock %}
+{% block nav_scraper %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex justify-between items-center">
+    <h1 class="text-3xl font-bold">Scraper</h1>
+    <div class="flex gap-2">
+      <span class="badge badge-warning">{{ stats.new }} new</span>
+      <span class="badge badge-success">{{ stats.scraped }} scraped</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Test Scraper (Dry Run)</h2>
+      <p class="text-sm text-base-content/60">
+        Run the scraper in dry-run mode to test matching without making changes.
+      </p>
+
+      <div class="flex flex-wrap gap-4 items-end mt-4">
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Limit</span>
+          </label>
+          <select id="scrape-limit" class="select select-bordered select-sm w-24">
+            <option value="2" selected>2</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Max Hash Distance</span>
+          </label>
+          <select id="scrape-distance" class="select select-bordered select-sm w-24">
+            <option value="5">5</option>
+            <option value="8">8</option>
+            <option value="10" selected>10</option>
+            <option value="12">12</option>
+            <option value="15">15</option>
+          </select>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-primary"
+          onclick="runDryRun()"
+        >
+          Run Dry Run
+        </button>
+
+        <span id="loading" class="loading loading-spinner loading-md hidden"></span>
+      </div>
+
+<script>
+function runDryRun() {
+  const limit = document.getElementById('scrape-limit').value;
+  const distance = document.getElementById('scrape-distance').value;
+  const output = document.getElementById('output');
+  const loading = document.getElementById('loading');
+
+  loading.classList.remove('hidden');
+  output.innerHTML = '<div class="text-base-content/50">Loading...</div>';
+
+  fetch(`/scraper/dry-run/?limit=${limit}&max_distance=${distance}`)
+    .then(response => response.text())
+    .then(html => {
+      output.innerHTML = html;
+      loading.classList.add('hidden');
+    })
+    .catch(err => {
+      output.innerHTML = '<div class="text-error">Error: ' + err + '</div>';
+      loading.classList.add('hidden');
+    });
+}
+</script>
+    </div>
+  </div>
+
+  <!-- Output -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Output</h2>
+      <div id="output" class="min-h-[200px] max-h-[70vh] overflow-y-auto bg-base-300 rounded-lg p-4">
+        <div class="text-base-content/50 text-center py-8">
+          Click "Run Dry Run" to test the scraper
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comics to scrape -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Comics to Scrape ({{ comics|length }})</h2>
+
+      {% if comics %}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Series</th>
+              <th>#</th>
+              <th>Year</th>
+              <th>File</th>
+              <th>Flags</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for comic in comics %}
+            <tr class="hover">
+              <td class="font-medium">{{ comic.proposed_series|default:"-" }}</td>
+              <td>{{ comic.proposed_number|default:"-" }}</td>
+              <td>{{ comic.proposed_year|default:"-" }}</td>
+              <td class="text-xs text-base-content/50 max-w-xs truncate">{{ comic.file_path }}</td>
+              <td>
+                {% if comic.has_flags %}
+                <div class="flex flex-wrap gap-1">
+                  {% for flag in comic.flag_list %}
+                  <span class="badge badge-xs badge-error">{{ flag }}</span>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="alert alert-info">
+        <span>No comics to scrape. All comics are already processed or none have been imported.</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

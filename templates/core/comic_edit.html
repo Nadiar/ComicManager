@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Edit: {{ comic.series }} #{{ comic.number }} — ComicManager{% endblock %}
+{% block nav_comics %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex justify-between items-start">
+    <div>
+      <h1 class="text-3xl font-bold">Edit: {{ comic.series|default:"Unknown Series" }} #{{ comic.number|default:"?" }}</h1>
+      {% if comic.title %}
+      <p class="text-lg text-base-content/70 mt-1">{{ comic.title }}</p>
+      {% endif %}
+      <div class="flex gap-2 mt-2">
+        <span class="badge badge-lg badge-outline">{{ comic.medium }}</span>
+        {% if comic.is_digital %}
+        <span class="badge badge-lg badge-info">Will update ComicInfo.xml</span>
+        {% else %}
+        <span class="badge badge-lg badge-warning">Database only (no file)</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <a href="/comics/{{ comic.pk }}/" class="btn btn-ghost">Cancel</a>
+    </div>
+  </div>
+
+  <form method="POST" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Core Info -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-4">Core Info</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Series</span></label>
+            <input type="text" name="series" value="{{ comic.series|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Number</span></label>
+            <input type="text" name="number" value="{{ comic.number|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Title</span></label>
+            <input type="text" name="title" value="{{ comic.title|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Volume (Year)</span></label>
+            <input type="number" name="volume" value="{{ comic.volume|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Count (Total Issues)</span></label>
+            <input type="number" name="count" value="{{ comic.count|default:'' }}" class="input input-bordered" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Publication -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-4">Publication</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Publisher</span></label>
+            <input type="text" name="publisher" value="{{ comic.publisher|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Year</span></label>
+            <input type="number" name="year" value="{{ comic.year|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Month</span></label>
+            <input type="number" name="month" value="{{ comic.month|default:'' }}" min="1" max="12" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Day</span></label>
+            <input type="number" name="day" value="{{ comic.day|default:'' }}" min="1" max="31" class="input input-bordered" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Classification -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-4">Classification</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Format</span></label>
+            <input type="text" name="format" value="{{ comic.format|default:'' }}" class="input input-bordered" placeholder="e.g. TPB, Annual, One-Shot" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Genre</span></label>
+            <input type="text" name="genre" value="{{ comic.genre|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Series Group</span></label>
+            <input type="text" name="series_group" value="{{ comic.series_group|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Main Character/Team</span></label>
+            <input type="text" name="main_character_or_team" value="{{ comic.main_character_or_team|default:'' }}" class="input input-bordered" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary & Notes -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-4">Summary & Notes</h2>
+        <div class="space-y-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Summary</span></label>
+            <textarea name="summary" class="textarea textarea-bordered h-32">{{ comic.summary|default:'' }}</textarea>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Notes</span></label>
+            <textarea name="notes" class="textarea textarea-bordered h-24">{{ comic.notes|default:'' }}</textarea>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Characters (comma-separated)</span></label>
+            <textarea name="characters" class="textarea textarea-bordered">{{ comic.characters|default:'' }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Credits -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-4">Credits</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Writer</span></label>
+            <input type="text" name="writer" value="{{ comic.writer|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Penciller</span></label>
+            <input type="text" name="penciller" value="{{ comic.penciller|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Inker</span></label>
+            <input type="text" name="inker" value="{{ comic.inker|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Colorist</span></label>
+            <input type="text" name="colorist" value="{{ comic.colorist|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Letterer</span></label>
+            <input type="text" name="letterer" value="{{ comic.letterer|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Cover Artist</span></label>
+            <input type="text" name="cover_artist" value="{{ comic.cover_artist|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Editor</span></label>
+            <input type="text" name="editor" value="{{ comic.editor|default:'' }}" class="input input-bordered" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Other -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-4">Other</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Web URL</span></label>
+            <input type="url" name="web" value="{{ comic.web|default:'' }}" class="input input-bordered" />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Scan Information</span></label>
+            <input type="text" name="scan_information" value="{{ comic.scan_information|default:'' }}" class="input input-bordered" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex justify-end gap-2">
+      <a href="/comics/{{ comic.pk }}/" class="btn btn-ghost">Cancel</a>
+      <button type="submit" class="btn btn-primary">
+        Save Changes
+        {% if comic.is_digital %}
+        (DB + XML)
+        {% endif %}
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

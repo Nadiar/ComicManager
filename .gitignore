@@ -174,3 +174,17 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+
+# local 
+data/*
+node_*
+untagged/*
+Comics/*
+*.md 
+*.zip
+*.cbz
+*.cbr 
+Screenshot*.png 
+*.dat 
+ComicInfo.xml 
+*.code-workspace
