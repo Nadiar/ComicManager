@@ -6,8 +6,9 @@ Matches comics against the local ComicVine SQLite database using:
 2. Metadata matching (series name + issue number)
 """
 
+import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from django.conf import settings
@@ -31,6 +32,80 @@ class CVMatch:
     cover_urls: Optional[list[str]] = None  # All cover URLs for this issue (variants)
     match_type: str = ""  # 'phash', 'ahash', 'metadata'
     match_score: int = 0  # hamming distance for hash, 0 for exact metadata
+
+    # Credits extracted from JSON columns
+    characters: Optional[str] = None  # Comma-separated character names
+    writer: Optional[str] = None
+    penciller: Optional[str] = None
+    inker: Optional[str] = None
+    colorist: Optional[str] = None
+    letterer: Optional[str] = None
+    cover_artist: Optional[str] = None
+    editor: Optional[str] = None
+
+    # Additional metadata
+    web: Optional[str] = None  # ComicVine site_detail_url
+    teams: Optional[str] = None  # Comma-separated team names
+    locations: Optional[str] = None  # Comma-separated location names
+    story_arcs: Optional[str] = None  # Comma-separated story arc names
+
+
+def _parse_credits_json(person_credits_json: str) -> dict[str, list[str]]:
+    """
+    Parse person_credits JSON and extract names by role.
+
+    Returns dict like:
+    {
+        "writer": ["Joshua Williamson"],
+        "artist": ["Bruno Redondo", "Caio Filipe"],
+        "colorist": ["Adriano Lucas"],
+        "letterer": ["Ariana Maher"],
+        "cover": ["Jamal Campbell", "Lee Bermejo"],
+        "editor": ["Paul Kaminski"],
+    }
+    """
+    if not person_credits_json:
+        return {}
+
+    try:
+        credits = json.loads(person_credits_json)
+    except json.JSONDecodeError:
+        return {}
+
+    roles: dict[str, list[str]] = {}
+    for person in credits:
+        name = person.get("name", "")
+        role_str = person.get("role", "")
+        if not name or not role_str:
+            continue
+
+        # Role can be comma-separated like "artist, cover" or "editor, assistant"
+        for role in role_str.split(","):
+            role = role.strip().lower()
+            if role:
+                if role not in roles:
+                    roles[role] = []
+                if name not in roles[role]:
+                    roles[role].append(name)
+
+    return roles
+
+
+def _parse_entity_json(entity_json: str) -> list[str]:
+    """
+    Parse character_credits, team_credits, location_credits, or story_arc_credits JSON.
+
+    Returns list of names.
+    """
+    if not entity_json:
+        return []
+
+    try:
+        entities = json.loads(entity_json)
+    except json.JSONDecodeError:
+        return []
+
+    return [e.get("name", "") for e in entities if e.get("name")]
 
 
 class ComicVineScraper:
@@ -302,7 +377,7 @@ class ComicVineScraper:
         return matches
 
     def get_issue_details(self, issue_id: int) -> Optional[CVMatch]:
-        """Get full details for a specific issue by ID."""
+        """Get full details for a specific issue by ID, including credits."""
         conn = self._get_connection()
         cursor = conn.cursor()
 
@@ -315,6 +390,12 @@ class ComicVineScraper:
                 i.cover_date,
                 i.description,
                 i.image_url,
+                i.site_detail_url,
+                i.character_credits,
+                i.person_credits,
+                i.team_credits,
+                i.location_credits,
+                i.story_arc_credits,
                 v.name as series,
                 v.start_year,
                 v.count_of_issues,
@@ -335,6 +416,23 @@ class ComicVineScraper:
         cover_urls = self.get_all_covers(issue_id)
         conn.close()
 
+        # Parse credits JSON
+        person_credits = _parse_credits_json(row[9])  # person_credits
+        characters = _parse_entity_json(row[8])  # character_credits
+        teams = _parse_entity_json(row[10])  # team_credits
+        locations = _parse_entity_json(row[11])  # location_credits
+        story_arcs = _parse_entity_json(row[12])  # story_arc_credits
+
+        # Map roles to fields - artist can mean penciller and/or inker
+        writers = person_credits.get("writer", [])
+        artists = person_credits.get("artist", [])
+        pencillers = person_credits.get("penciller", []) or artists
+        inkers = person_credits.get("inker", []) or artists
+        colorists = person_credits.get("colorist", [])
+        letterers = person_credits.get("letterer", [])
+        cover_artists = person_credits.get("cover", [])
+        editors = person_credits.get("editor", [])
+
         return CVMatch(
             issue_id=row[0],
             volume_id=row[1],
@@ -343,14 +441,28 @@ class ComicVineScraper:
             cover_date=row[4],
             description=row[5],
             image_url=row[6],
-            series=row[7],
-            start_year=row[8],
-            issue_count=row[9],
-            publisher=row[10],
+            series=row[13],  # v.name
+            start_year=row[14],  # v.start_year
+            issue_count=row[15],  # v.count_of_issues
+            publisher=row[16],  # p.name
             cover_url=cover_urls[0] if cover_urls else None,
             cover_urls=cover_urls,
             match_type="direct",
             match_score=0,
+            # Credits
+            characters=", ".join(characters) if characters else None,
+            writer=", ".join(writers) if writers else None,
+            penciller=", ".join(pencillers) if pencillers else None,
+            inker=", ".join(inkers) if inkers else None,
+            colorist=", ".join(colorists) if colorists else None,
+            letterer=", ".join(letterers) if letterers else None,
+            cover_artist=", ".join(cover_artists) if cover_artists else None,
+            editor=", ".join(editors) if editors else None,
+            # Additional metadata
+            web=row[7],  # site_detail_url
+            teams=", ".join(teams) if teams else None,
+            locations=", ".join(locations) if locations else None,
+            story_arcs=", ".join(story_arcs) if story_arcs else None,
         )
 
     def get_all_covers(self, issue_id: int) -> list[str]:
@@ -365,6 +477,67 @@ class ComicVineScraper:
         covers = [row[0] for row in cursor.fetchall()]
         conn.close()
         return covers
+
+    def enrich_match_with_credits(self, match: CVMatch) -> CVMatch:
+        """
+        Enrich a match with credits, characters, and other detailed metadata.
+
+        This is called after a match is selected to populate the full details
+        that aren't fetched during the initial hash/metadata search.
+        """
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT
+                site_detail_url,
+                character_credits,
+                person_credits,
+                team_credits,
+                location_credits,
+                story_arc_credits
+            FROM cv_issue
+            WHERE id = ?
+        """, (match.issue_id,))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return match
+
+        # Parse credits JSON
+        person_credits = _parse_credits_json(row[2])  # person_credits
+        characters = _parse_entity_json(row[1])  # character_credits
+        teams = _parse_entity_json(row[3])  # team_credits
+        locations = _parse_entity_json(row[4])  # location_credits
+        story_arcs = _parse_entity_json(row[5])  # story_arc_credits
+
+        # Map roles to fields - artist can mean penciller and/or inker
+        writers = person_credits.get("writer", [])
+        artists = person_credits.get("artist", [])
+        pencillers = person_credits.get("penciller", []) or artists
+        inkers = person_credits.get("inker", []) or artists
+        colorists = person_credits.get("colorist", [])
+        letterers = person_credits.get("letterer", [])
+        cover_artists = person_credits.get("cover", [])
+        editors = person_credits.get("editor", [])
+
+        # Update match with credits
+        match.web = row[0]
+        match.characters = ", ".join(characters) if characters else None
+        match.writer = ", ".join(writers) if writers else None
+        match.penciller = ", ".join(pencillers) if pencillers else None
+        match.inker = ", ".join(inkers) if inkers else None
+        match.colorist = ", ".join(colorists) if colorists else None
+        match.letterer = ", ".join(letterers) if letterers else None
+        match.cover_artist = ", ".join(cover_artists) if cover_artists else None
+        match.editor = ", ".join(editors) if editors else None
+        match.teams = ", ".join(teams) if teams else None
+        match.locations = ", ".join(locations) if locations else None
+        match.story_arcs = ", ".join(story_arcs) if story_arcs else None
+
+        return match
 
     def enrich_matches_with_covers(self, matches: list[CVMatch]) -> list[CVMatch]:
         """Add all cover URLs to each match."""

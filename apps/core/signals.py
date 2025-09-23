@@ -32,6 +32,9 @@ def seed_default_settings(sender, **kwargs):
         dict(key="library_dir",           label="Organized library folder",    type="path",   group="Library",    help_text="Where the Library Organizer moves finished comics", value="/comics/library"),
         dict(key="cv_db_path",            label="ComicVine SQLite DB path",    type="path",   group="Library",    help_text="Path to your local ComicVine SQLite index", value="/cv_db/comicvine.db"),
         dict(key="dry_run_organizer",     label="Dry-run Library Organizer",   type="bool",   group="Library",    help_text="Preview moves without touching any files", value="true"),
+        # Format Detection
+        dict(key="one_shot_max_count",       label="One-Shot Max Count",       type="int", group="Format", help_text="Comics with count <= this value are One-Shot (default: 1)", value="1"),
+        dict(key="limited_series_max_count", label="Limited Series Max Count", type="int", group="Format", help_text="Comics with count <= this (but > One-Shot max) are Limited Series; above = Main Series (default: 15)", value="15"),
     ]
 
     for d in defaults:

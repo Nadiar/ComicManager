@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Duplicate Group: {{ group.match_key }} - ComicManager{% endblock %}
+{% block nav_comics %}{% endblock %}
+
+{% block content %}
+<div class="space-y-6" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+  <!-- Header -->
+  <div class="flex justify-between items-center">
+    <div>
+      <div class="text-sm breadcrumbs mb-2">
+        <ul>
+          <li><a href="{% url 'duplicates:review' %}">Duplicate Review</a></li>
+          <li>{{ group.match_key|truncatechars:40 }}</li>
+        </ul>
+      </div>
+      <h1 class="text-2xl font-bold">{{ group.match_key }}</h1>
+      <p class="text-base-content/70">
+        {{ group.get_detection_method_display }} &bull;
+        {{ comics|length }} comic{{ comics|length|pluralize }} pending
+        {% if group.status != 'pending' %}
+        &bull; <span class="badge badge-success">{{ group.get_status_display }}</span>
+        {% endif %}
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'duplicates:review' %}" class="btn btn-ghost btn-sm">Back to Review</a>
+      {% if group.status == 'pending' %}
+      <button
+        class="btn btn-info btn-sm"
+        hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
+        hx-vals='{"action": "keep_all"}'
+        hx-target="body"
+        hx-confirm="Keep all comics as intentional (not duplicates)?"
+      >
+        Keep All
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if group.status == 'pending' %}
+  <!-- Side-by-side comparison cards -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for item in comics %}
+    <div class="card bg-base-200 shadow-lg">
+      <figure class="px-4 pt-4">
+        <div class="bg-base-300 rounded-lg w-full aspect-[2/3] flex items-center justify-center overflow-hidden">
+          {% if item.comic.file_path %}
+          <img
+            src="{% url 'core:cover' item.comic.pk %}"
+            alt="Cover"
+            class="max-w-full max-h-full object-contain"
+            loading="lazy"
+          />
+          {% else %}
+          <span class="text-4xl">📖</span>
+          {% endif %}
+        </div>
+      </figure>
+      <div class="card-body p-4">
+        <h2 class="card-title text-base">
+          {{ item.comic.series|default:"Unknown" }}
+          {% if item.comic.number %}#{{ item.comic.number }}{% endif %}
+        </h2>
+
+        <div class="text-sm space-y-1">
+          <div class="flex justify-between">
+            <span class="text-base-content/60">Volume:</span>
+            <span>{{ item.comic.volume|default:"-" }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-base-content/60">Publisher:</span>
+            <span>{{ item.comic.publisher|default:"-" }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-base-content/60">Format:</span>
+            <span>
+              {% if item.comic.format %}
+              <span class="badge badge-sm">{{ item.comic.format }}</span>
+              {% else %}-{% endif %}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-base-content/60">CV Issue:</span>
+            <span class="font-mono text-xs">
+              {{ item.comic.custom_values.comicvine_issue|default:"-" }}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-base-content/60">File Size:</span>
+            <span>
+              {% if item.comic.file_size %}
+              {% widthratio item.comic.file_size 1048576 1 %} MB
+              {% else %}-{% endif %}
+            </span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-base-content/60">Pages:</span>
+            <span>{{ item.comic.page_count|default:"-" }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-base-content/60">Scrape Source:</span>
+            <span>
+              {% if item.comic.custom_values.scrape_source %}
+              <span class="badge badge-xs">{{ item.comic.custom_values.scrape_source }}</span>
+              {% else %}-{% endif %}
+            </span>
+          </div>
+          {% if item.membership.phash_distance is not None %}
+          <div class="flex justify-between">
+            <span class="text-base-content/60">Hash Distance:</span>
+            <span>{{ item.membership.phash_distance }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="text-xs text-base-content/50 mt-2 truncate" title="{{ item.comic.file_path }}">
+          {{ item.comic.file_path|default:"No file" }}
+        </div>
+
+        <div class="card-actions justify-end mt-4">
+          <a href="{% url 'core:detail' item.comic.pk %}" class="btn btn-xs btn-ghost">
+            View
+          </a>
+          <button
+            class="btn btn-xs btn-success"
+            hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
+            hx-vals='{"action": "keep", "comic_id": "{{ item.comic.pk }}"}'
+            hx-target="body"
+          >
+            Keep
+          </button>
+          <button
+            class="btn btn-xs btn-warning"
+            hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
+            hx-vals='{"action": "requeue", "comic_id": "{{ item.comic.pk }}"}'
+            hx-target="body"
+            hx-confirm="Send back to imported state for re-scraping?"
+          >
+            Re-Q
+          </button>
+          <button
+            class="btn btn-xs btn-error"
+            hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
+            hx-vals='{"action": "delete", "comic_id": "{{ item.comic.pk }}"}'
+            hx-target="body"
+            hx-confirm="DELETE this file and record? Cannot be undone!"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full">
+      <div class="alert alert-success">
+        <span>All comics in this group have been resolved.</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-success">
+    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <span>
+      This duplicate group has been {{ group.get_status_display|lower }}.
+      {% if group.kept_comic %}
+      Kept: {{ group.kept_comic }}
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

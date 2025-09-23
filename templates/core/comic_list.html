@@ -189,6 +189,42 @@
               Convert
             </button>
             {% endif %}
+            {% if comic.state == 'counted' %}
+            <button
+              type="button"
+              class="btn btn-xs btn-accent"
+              onclick="tagComic('{{ comic.pk }}', this)"
+            >
+              Tag
+            </button>
+            {% endif %}
+            {% if comic.state == 'tagged' %}
+            <button
+              type="button"
+              class="btn btn-xs btn-info"
+              onclick="formatComic('{{ comic.pk }}', this)"
+            >
+              Format
+            </button>
+            {% endif %}
+            {% if comic.state == 'deduplicated' %}
+            <button
+              type="button"
+              class="btn btn-xs btn-secondary"
+              onclick="organizeComic('{{ comic.pk }}', this)"
+            >
+              Organize
+            </button>
+            {% endif %}
+            {% if comic.state == 'organized' %}
+            <button
+              type="button"
+              class="btn btn-xs btn-success"
+              onclick="writeComic('{{ comic.pk }}', this)"
+            >
+              Write
+            </button>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -254,6 +290,160 @@
   </form>
 </dialog>
 
+<!-- Tagging Results Modal -->
+<dialog id="tag-result-modal" class="modal">
+  <div class="modal-box max-w-2xl bg-base-100 shadow-xl border border-base-300">
+    <h3 class="font-bold text-lg mb-4">
+      Tagging Results: <span id="tag-modal-comic-title"></span>
+    </h3>
+
+    <div id="tag-modal-content">
+      <!-- Summary -->
+      <div id="tag-modal-summary" class="mb-4">
+        <div class="flex gap-4 text-sm">
+          <div class="stat bg-base-200 rounded-box p-3">
+            <div class="stat-title text-xs">Matched Rules</div>
+            <div class="stat-value text-lg text-primary" id="tag-matched-count">0</div>
+          </div>
+          <div class="stat bg-base-200 rounded-box p-3">
+            <div class="stat-title text-xs">Changes Made</div>
+            <div class="stat-value text-lg text-success" id="tag-changes-count">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Matched Rulesets -->
+      <div id="tag-rulesets-section" class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">Matched Rulesets</h4>
+        <div id="tag-rulesets-list" class="flex flex-wrap gap-2">
+          <!-- Ruleset badges inserted here -->
+        </div>
+      </div>
+
+      <!-- Changes Table -->
+      <div id="tag-changes-section">
+        <h4 class="font-semibold text-sm mb-2">Field Changes</h4>
+        <div class="overflow-x-auto">
+          <table class="table table-sm table-zebra">
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Action</th>
+                <th>Value</th>
+                <th>By Rule</th>
+              </tr>
+            </thead>
+            <tbody id="tag-changes-table">
+              <!-- Changes inserted here -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- No matches message -->
+      <div id="tag-no-matches" class="alert alert-info hidden">
+        <span>No matching rulesets found. Comic state was advanced to "tagged".</span>
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <button class="btn btn-primary" onclick="closeTagModal()">OK</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<!-- Format Detection Results Modal -->
+<dialog id="format-result-modal" class="modal">
+  <div class="modal-box max-w-xl bg-base-100 shadow-xl border border-base-300">
+    <h3 class="font-bold text-lg mb-4">
+      Format Detection: <span id="format-modal-comic-title"></span>
+    </h3>
+
+    <div id="format-modal-content">
+      <!-- Source text checked -->
+      <div class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">Text Analyzed</h4>
+        <div class="bg-base-200 p-3 rounded-lg text-sm">
+          <div><span class="text-base-content/60">Series:</span> <span id="format-series" class="font-medium"></span></div>
+          <div><span class="text-base-content/60">Title:</span> <span id="format-title" class="font-medium"></span></div>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">Result</h4>
+        <div id="format-result-box" class="alert">
+          <span id="format-result-text"></span>
+        </div>
+      </div>
+
+      <!-- Patterns checked -->
+      <div>
+        <h4 class="font-semibold text-sm mb-2">Patterns Checked</h4>
+        <div class="grid grid-cols-2 gap-2" id="format-patterns-list">
+          <!-- Patterns inserted here -->
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <button class="btn btn-primary" onclick="closeFormatModal()">OK</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<!-- Organize Results Modal -->
+<dialog id="organize-result-modal" class="modal">
+  <div class="modal-box max-w-2xl bg-base-100 shadow-xl border border-base-300">
+    <h3 class="font-bold text-lg mb-4">
+      Organization Results: <span id="organize-modal-comic-title"></span>
+    </h3>
+
+    <div id="organize-modal-content">
+      <!-- Profile Used -->
+      <div class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">Profile Used</h4>
+        <div class="bg-base-200 p-3 rounded-lg">
+          <span id="organize-profile" class="font-medium text-primary"></span>
+        </div>
+      </div>
+
+      <!-- Paths -->
+      <div class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">File Paths</h4>
+        <div class="bg-base-200 p-3 rounded-lg text-sm space-y-2">
+          <div>
+            <span class="text-base-content/60">From:</span>
+            <div id="organize-old-path" class="font-mono text-xs break-all mt-1"></div>
+          </div>
+          <div>
+            <span class="text-base-content/60">To:</span>
+            <div id="organize-new-path" class="font-mono text-xs break-all mt-1 text-success"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div id="organize-result-box" class="alert">
+        <span id="organize-result-text"></span>
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <button class="btn btn-primary" onclick="closeOrganizeModal()">OK</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
 <style>
 /* Center modal properly - only when open */
 #scrape-modal[open] {
@@ -287,6 +477,78 @@
 /* Better card styling */
 #modal-matches .card {
   min-width: 180px;
+}
+/* Tag result modal styling */
+#tag-result-modal[open] {
+  display: grid;
+  place-items: center;
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 1rem;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+}
+#tag-result-modal:not([open]) {
+  display: none;
+}
+#tag-result-modal > .modal-box {
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid oklch(var(--bc) / 0.2);
+  background-color: oklch(var(--b1));
+}
+/* Format result modal styling */
+#format-result-modal[open] {
+  display: grid;
+  place-items: center;
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 1rem;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+}
+#format-result-modal:not([open]) {
+  display: none;
+}
+#format-result-modal > .modal-box {
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid oklch(var(--bc) / 0.2);
+  background-color: oklch(var(--b1));
+}
+/* Organize result modal styling */
+#organize-result-modal[open] {
+  display: grid;
+  place-items: center;
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 1rem;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+}
+#organize-result-modal:not([open]) {
+  display: none;
+}
+#organize-result-modal > .modal-box {
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 1px solid oklch(var(--bc) / 0.2);
+  background-color: oklch(var(--b1));
 }
 </style>
 
@@ -859,8 +1121,56 @@ function convertComic(pk, btn) {
   });
 }
 
+function tagComic(pk, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+  // Get comic title from the row for display
+  const row = btn.closest('tr');
+  const seriesCell = row.querySelector('td:first-child');
+  const numberCell = row.querySelector('td:nth-child(2)');
+  const comicTitle = `${seriesCell?.textContent || 'Unknown'} #${numberCell?.textContent || '?'}`;
+
+  fetch(`/comics/${pk}/tag/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-accent');
+      btn.classList.add('btn-success');
+      btn.innerHTML = 'Tagged';
+
+      // Update state badge
+      const stateBadge = row.querySelector('td .badge-info, td .badge-warning');
+      if (stateBadge) {
+        stateBadge.textContent = 'tagged';
+      }
+
+      // Show results modal
+      showTagResultModal(comicTitle, data);
+    } else {
+      btn.classList.remove('btn-accent');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = data.error || 'Failed to tag';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-accent');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
 function tagAllComics(btn) {
-  if (!confirm('Apply tagging (publisher rules + format detection) to all counted comics?')) {
+  if (!confirm('Apply DataManager tagging rules to all counted comics?')) {
     return;
   }
 
@@ -891,6 +1201,54 @@ function tagAllComics(btn) {
   })
   .catch(err => {
     btn.classList.remove('btn-accent');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function formatComic(pk, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+  // Get comic title from the row for display
+  const row = btn.closest('tr');
+  const seriesCell = row.querySelector('td:first-child');
+  const numberCell = row.querySelector('td:nth-child(2)');
+  const comicTitle = `${seriesCell?.textContent || 'Unknown'} #${numberCell?.textContent || '?'}`;
+
+  fetch(`/comics/${pk}/format/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-success');
+      btn.innerHTML = 'Formatted';
+
+      // Update state badge
+      const stateBadge = row.querySelector('td .badge-info');
+      if (stateBadge) {
+        stateBadge.textContent = 'formatted';
+      }
+
+      // Show results modal
+      showFormatResultModal(comicTitle, data);
+    } else {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = data.error || 'Failed to format';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-info');
     btn.classList.add('btn-error');
     btn.innerHTML = 'Error';
     btn.title = err.toString();
@@ -936,7 +1294,7 @@ function deduplicateAllComics(btn) {
 }
 
 function organizeAllComics(btn) {
-  if (!confirm('Organize all deduplicated comics?')) {
+  if (!confirm('Organize all deduplicated comics? Files will be moved to the library folder.')) {
     return;
   }
 
@@ -954,7 +1312,12 @@ function organizeAllComics(btn) {
     if (data.success) {
       btn.classList.remove('btn-info');
       btn.classList.add('btn-success');
-      btn.innerHTML = `Done (${data.organized} organized)`;
+      btn.innerHTML = `Done (${data.total_moved} moved)`;
+
+      if (data.total_errors > 0) {
+        alert(`Organization complete. Moved ${data.total_moved} files. Errors: ${data.total_errors}`);
+      }
+
       setTimeout(() => window.location.reload(), 1500);
     } else {
       btn.classList.remove('btn-info');
@@ -1005,6 +1368,250 @@ function writeAllComics(btn) {
     }
   })
   .catch(err => {
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+// Tagging result modal functions
+function showTagResultModal(comicTitle, data) {
+  const modal = document.getElementById('tag-result-modal');
+
+  // Set title
+  document.getElementById('tag-modal-comic-title').textContent = comicTitle;
+
+  // Set counts
+  const matchedCount = data.matched_rulesets?.length || 0;
+  const changesCount = data.changes?.length || 0;
+  document.getElementById('tag-matched-count').textContent = matchedCount;
+  document.getElementById('tag-changes-count').textContent = changesCount;
+
+  // Show/hide sections based on whether there were matches
+  const rulesetsSection = document.getElementById('tag-rulesets-section');
+  const changesSection = document.getElementById('tag-changes-section');
+  const noMatchesDiv = document.getElementById('tag-no-matches');
+
+  if (matchedCount === 0) {
+    rulesetsSection.classList.add('hidden');
+    changesSection.classList.add('hidden');
+    noMatchesDiv.classList.remove('hidden');
+  } else {
+    rulesetsSection.classList.remove('hidden');
+    changesSection.classList.remove('hidden');
+    noMatchesDiv.classList.add('hidden');
+
+    // Populate rulesets list
+    const rulesetsList = document.getElementById('tag-rulesets-list');
+    rulesetsList.innerHTML = data.matched_rulesets.map(name =>
+      `<span class="badge badge-primary badge-outline">${escapeHtml(name)}</span>`
+    ).join('');
+
+    // Populate changes table
+    const changesTable = document.getElementById('tag-changes-table');
+    if (changesCount > 0) {
+      changesTable.innerHTML = data.changes.map(change => `
+        <tr>
+          <td class="font-medium">${escapeHtml(change.field)}</td>
+          <td>
+            <span class="badge badge-sm ${getActionBadgeClass(change.modifier)}">${escapeHtml(change.modifier)}</span>
+          </td>
+          <td class="max-w-xs truncate" title="${escapeHtml(change.new_value || '')}">${escapeHtml(change.new_value || '')}</td>
+          <td class="text-xs text-base-content/60">${escapeHtml(change.ruleset_name || '')}</td>
+        </tr>
+      `).join('');
+    } else {
+      changesTable.innerHTML = '<tr><td colspan="4" class="text-center text-base-content/50">No field changes (rules matched but no modifications needed)</td></tr>';
+    }
+  }
+
+  modal.showModal();
+}
+
+function getActionBadgeClass(action) {
+  switch (action) {
+    case 'SetValue': return 'badge-success';
+    case 'Add': return 'badge-info';
+    case 'Remove': return 'badge-warning';
+    case 'Replace': return 'badge-secondary';
+    default: return 'badge-ghost';
+  }
+}
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function closeTagModal() {
+  document.getElementById('tag-result-modal').close();
+}
+
+// Format result modal functions
+function showFormatResultModal(comicTitle, data) {
+  const modal = document.getElementById('format-result-modal');
+
+  // Set title
+  document.getElementById('format-modal-comic-title').textContent = comicTitle;
+
+  // Set series/title that was analyzed
+  document.getElementById('format-series').textContent = data.series || '(none)';
+  document.getElementById('format-title').textContent = data.title || '(none)';
+
+  // Set result
+  const resultBox = document.getElementById('format-result-box');
+  const resultText = document.getElementById('format-result-text');
+
+  if (data.detected_format) {
+    resultBox.className = 'alert alert-success';
+    if (data.format_changed) {
+      resultText.innerHTML = `Format detected: <strong>${escapeHtml(data.detected_format)}</strong>`;
+    } else {
+      resultText.innerHTML = `Format already set to: <strong>${escapeHtml(data.new_format)}</strong>`;
+    }
+  } else {
+    resultBox.className = 'alert alert-info';
+    resultText.textContent = 'No format pattern matched. State advanced to "formatted".';
+  }
+
+  // Show patterns checked
+  const patternsList = document.getElementById('format-patterns-list');
+  patternsList.innerHTML = data.patterns_checked.map(p => `
+    <div class="flex items-center gap-2 text-sm ${p.matched ? 'text-success font-medium' : 'text-base-content/50'}">
+      <span class="${p.matched ? 'text-success' : 'text-base-content/30'}">${p.matched ? '✓' : '○'}</span>
+      <span>${escapeHtml(p.pattern)}</span>
+    </div>
+  `).join('');
+
+  modal.showModal();
+}
+
+function closeFormatModal() {
+  document.getElementById('format-result-modal').close();
+}
+
+// Organize single comic
+function organizeComic(pk, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+  // Get comic title from the row for display
+  const row = btn.closest('tr');
+  const seriesCell = row.querySelector('td:first-child');
+  const numberCell = row.querySelector('td:nth-child(2)');
+  const comicTitle = `${seriesCell?.textContent || 'Unknown'} #${numberCell?.textContent || '?'}`;
+
+  fetch(`/comics/${pk}/organize/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-success');
+      btn.innerHTML = 'Organized';
+
+      // Update state badge
+      const stateBadge = row.querySelector('td .badge-info');
+      if (stateBadge) {
+        stateBadge.textContent = 'organized';
+      }
+
+      // Show results modal
+      showOrganizeResultModal(comicTitle, data);
+    } else {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = data.error || 'Failed to organize';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-secondary');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+// Organize result modal functions
+function showOrganizeResultModal(comicTitle, data) {
+  const modal = document.getElementById('organize-result-modal');
+
+  // Set title
+  document.getElementById('organize-modal-comic-title').textContent = comicTitle;
+
+  // Set profile
+  document.getElementById('organize-profile').textContent = data.profile || '(fallback)';
+
+  // Set paths
+  document.getElementById('organize-old-path').textContent = data.old_path || '(none)';
+  document.getElementById('organize-new-path').textContent = data.new_path || '(none)';
+
+  // Set result message
+  const resultBox = document.getElementById('organize-result-box');
+  const resultText = document.getElementById('organize-result-text');
+
+  if (data.moved) {
+    resultBox.className = 'alert alert-success';
+    resultText.textContent = 'File moved to library location.';
+  } else {
+    resultBox.className = 'alert alert-info';
+    resultText.textContent = data.message || 'File already in correct location.';
+  }
+
+  modal.showModal();
+}
+
+function closeOrganizeModal() {
+  document.getElementById('organize-result-modal').close();
+}
+
+// Write single comic
+function writeComic(pk, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+  const row = btn.closest('tr');
+
+  fetch(`/comics/${pk}/write/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-neutral');
+      btn.innerHTML = 'Written';
+
+      // Update state badge
+      const stateBadge = row.querySelector('td .badge-info');
+      if (stateBadge) {
+        stateBadge.classList.remove('badge-info');
+        stateBadge.classList.add('badge-success');
+        stateBadge.textContent = 'written';
+      }
+    } else {
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = data.error || 'Failed to write';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-success');
     btn.classList.add('btn-error');
     btn.innerHTML = 'Error';
     btn.title = err.toString();

@@ -1,1 +1,199 @@
-# Views for organizer — to be implemented
+"""
+Library Organizer Views - Profile management and organization operations.
+"""
+
+import os
+from django.http import JsonResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.http import require_POST, require_GET
+from django.contrib import messages
+
+from apps.core.models import Comic
+
+from .models import OrganizerProfile
+from .parser import import_profiles
+from .services import (
+    organize_comic,
+    organize_all_comics,
+    preview_organization,
+    get_organization_stats,
+)
+
+
+# ============================================================================
+# Profile CRUD Views
+# ============================================================================
+
+def profile_list(request):
+    """List all organizer profiles."""
+    profiles = OrganizerProfile.objects.all().order_by('priority')
+    stats = get_organization_stats()
+
+    return render(request, 'organizer/profile_list.html', {
+        'profiles': profiles,
+        'stats': stats,
+    })
+
+
+def profile_detail(request, pk):
+    """View a single profile's details."""
+    profile = get_object_or_404(OrganizerProfile, pk=pk)
+
+    return render(request, 'organizer/profile_detail.html', {
+        'profile': profile,
+    })
+
+
+def profile_create(request):
+    """Create a new profile."""
+    if request.method == 'POST':
+        # Handle form submission
+        profile = OrganizerProfile.objects.create(
+            name=request.POST.get('name', 'New Profile'),
+            priority=OrganizerProfile.objects.count(),
+            folder_template=request.POST.get('folder_template', '{<publisher>}/{<series>}'),
+            file_template=request.POST.get('file_template', '{<series>} #{<number3>}'),
+            base_folder=request.POST.get('base_folder', '/comics/library'),
+            illegal_characters=OrganizerProfile.get_default_illegal_characters(),
+            months=OrganizerProfile.get_default_months(),
+        )
+        messages.success(request, f'Profile "{profile.name}" created.')
+        return redirect('organizer:profile_edit', pk=profile.pk)
+
+    return render(request, 'organizer/profile_form.html', {
+        'profile': None,
+        'is_create': True,
+    })
+
+
+def profile_edit(request, pk):
+    """Edit an existing profile."""
+    profile = get_object_or_404(OrganizerProfile, pk=pk)
+
+    if request.method == 'POST':
+        profile.name = request.POST.get('name', profile.name)
+        profile.folder_template = request.POST.get('folder_template', profile.folder_template)
+        profile.file_template = request.POST.get('file_template', profile.file_template)
+        profile.base_folder = request.POST.get('base_folder', profile.base_folder)
+        profile.is_enabled = request.POST.get('is_enabled') == 'on'
+        profile.save()
+
+        messages.success(request, f'Profile "{profile.name}" updated.')
+        return redirect('organizer:profile_list')
+
+    return render(request, 'organizer/profile_form.html', {
+        'profile': profile,
+        'is_create': False,
+    })
+
+
+@require_POST
+def profile_delete(request, pk):
+    """Delete a profile."""
+    profile = get_object_or_404(OrganizerProfile, pk=pk)
+    name = profile.name
+    profile.delete()
+
+    messages.success(request, f'Profile "{name}" deleted.')
+    return redirect('organizer:profile_list')
+
+
+@require_POST
+def profile_duplicate(request, pk):
+    """Duplicate a profile."""
+    profile = get_object_or_404(OrganizerProfile, pk=pk)
+
+    new_profile = OrganizerProfile.objects.create(
+        name=f"{profile.name} (Copy)",
+        priority=OrganizerProfile.objects.count(),
+        folder_template=profile.folder_template,
+        file_template=profile.file_template,
+        base_folder=profile.base_folder,
+        exclude_rules=profile.exclude_rules,
+        illegal_characters=profile.illegal_characters,
+        months=profile.months,
+        remove_empty_folder=profile.remove_empty_folder,
+        auto_space_fields=profile.auto_space_fields,
+        replace_multiple_spaces=profile.replace_multiple_spaces,
+    )
+
+    messages.success(request, f'Profile duplicated as "{new_profile.name}".')
+    return redirect('organizer:profile_edit', pk=new_profile.pk)
+
+
+@require_POST
+def profile_toggle(request, pk):
+    """Toggle profile enabled/disabled."""
+    profile = get_object_or_404(OrganizerProfile, pk=pk)
+    profile.is_enabled = not profile.is_enabled
+    profile.save()
+
+    status = "enabled" if profile.is_enabled else "disabled"
+    return JsonResponse({
+        'success': True,
+        'message': f'Profile "{profile.name}" {status}.',
+        'is_enabled': profile.is_enabled,
+    })
+
+
+# ============================================================================
+# Import/Export Views
+# ============================================================================
+
+def import_view(request):
+    """Import profiles from a .lop file."""
+    if request.method == 'POST':
+        uploaded_file = request.FILES.get('lop_file')
+
+        if not uploaded_file:
+            messages.error(request, 'No file uploaded.')
+            return redirect('organizer:import')
+
+        # Save uploaded file temporarily
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.lop') as tmp:
+            for chunk in uploaded_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        try:
+            clear_existing = request.POST.get('clear_existing') == 'on'
+            result = import_profiles(tmp_path, clear_existing=clear_existing)
+
+            if result['success']:
+                messages.success(
+                    request,
+                    f"Imported {result['imported_count']} profiles. "
+                    f"Deleted {result['deleted_count']} existing profiles."
+                )
+            else:
+                messages.error(request, f"Import failed: {result.get('error', 'Unknown error')}")
+
+        except Exception as e:
+            messages.error(request, f"Import failed: {str(e)}")
+
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+
+        return redirect('organizer:profile_list')
+
+    return render(request, 'organizer/import.html', {
+        'existing_count': OrganizerProfile.objects.count(),
+    })
+
+
+# ============================================================================
+# Preview View
+# ============================================================================
+
+@require_GET
+def preview_view(request, pk):
+    """Preview where a comic would be organized."""
+    comic = get_object_or_404(Comic, pk=pk)
+    preview = preview_organization(comic)
+
+    return JsonResponse(preview)

@@ -22,10 +22,88 @@
       </div>
     </div>
     <div class="flex gap-2">
+      <!-- Actions Dropdown -->
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-secondary">
+          Actions
+          <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+          </svg>
+        </div>
+        <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-10 w-52 p-2 shadow-lg border border-base-300">
+          <li class="menu-title"><span>Workflow Actions</span></li>
+          {% if comic.is_digital %}
+          <li>
+            <a href="/comics/{{ comic.pk }}/scrape/preview/?force=1">
+              <span class="badge badge-xs badge-secondary">1</span> Re-scrape
+            </a>
+          </li>
+          {% endif %}
+          <li>
+            <button onclick="runAction('tag')" id="action-tag">
+              <span class="badge badge-xs badge-accent">2</span> Re-tag
+            </button>
+          </li>
+          <li>
+            <button onclick="runAction('format')" id="action-format">
+              <span class="badge badge-xs badge-info">3</span> Re-format
+            </button>
+          </li>
+          {% if comic.is_digital %}
+          <li>
+            <button onclick="runAction('organize')" id="action-organize">
+              <span class="badge badge-xs badge-warning">4</span> Re-organize
+            </button>
+          </li>
+          <li>
+            <button onclick="runAction('write')" id="action-write">
+              <span class="badge badge-xs badge-success">5</span> Write to File
+            </button>
+          </li>
+          {% endif %}
+          <li class="menu-title mt-2"><span>Other</span></li>
+          <li>
+            <button onclick="runAction('refresh-credits')" id="action-refresh-credits">
+              Refresh Credits from CV
+            </button>
+          </li>
+          <li class="menu-title mt-2"><span class="text-error">Danger Zone</span></li>
+          <li>
+            <button onclick="deleteComic()" id="action-delete" class="text-error hover:bg-error hover:text-error-content">
+              Delete Comic
+            </button>
+          </li>
+        </ul>
+      </div>
       <a href="/comics/{{ comic.pk }}/edit/" class="btn btn-primary">Edit</a>
       <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="btn btn-ghost">Back to List</a>
     </div>
   </div>
+
+  {% if comic.state == 'organized' or comic.state == 'written' %}
+  {% if reorganize_preview %}
+  <!-- Re-organize Preview -->
+  <div class="alert {% if reorganize_preview.would_move %}alert-info{% else %}alert-success{% endif %}">
+    <div class="flex-1">
+      <p class="font-semibold">
+        {% if reorganize_preview.would_move %}
+        Path Change Preview (Profile: {{ reorganize_preview.selected_profile }})
+        {% else %}
+        File is in correct location (Profile: {{ reorganize_preview.selected_profile }})
+        {% endif %}
+      </p>
+      {% if reorganize_preview.would_move %}
+      <p class="text-sm mt-1">
+        <span class="text-base-content/60">Current:</span> <code class="text-xs">{{ reorganize_preview.old_path }}</code>
+      </p>
+      <p class="text-sm">
+        <span class="text-base-content/60">Target:</span> <code class="text-xs">{{ reorganize_preview.new_path }}</code>
+      </p>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}
 
   {% if comic.is_digital and comparison %}
   <!-- Metadata Comparison Table (Digital comics only) -->
@@ -226,4 +304,179 @@
     </div>
   </div>
 </div>
+
+<script>
+const comicPk = '{{ comic.pk }}';
+const csrfToken = '{{ csrf_token }}';
+
+// Action endpoints mapping
+const actionEndpoints = {
+  'scrape': `/comics/${comicPk}/force-scrape/`,
+  'tag': `/comics/${comicPk}/force-tag/`,
+  'format': `/comics/${comicPk}/force-format/`,
+  'organize': `/comics/${comicPk}/force-organize/`,
+  'write': `/comics/${comicPk}/force-write/`,
+  'refresh-credits': `/comics/${comicPk}/refresh-credits/`,
+};
+
+const actionLabels = {
+  'scrape': 'Re-scraping...',
+  'tag': 'Re-tagging...',
+  'format': 'Re-formatting...',
+  'organize': 'Re-organizing...',
+  'write': 'Writing...',
+  'refresh-credits': 'Refreshing...',
+};
+
+async function runAction(action) {
+  const btn = document.getElementById(`action-${action}`);
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = `<span class="loading loading-spinner loading-xs"></span> ${actionLabels[action] || 'Processing...'}`;
+  btn.disabled = true;
+
+  // Close the dropdown
+  document.activeElement.blur();
+
+  try {
+    const response = await fetch(actionEndpoints[action], {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Show success and reload to reflect changes
+      btn.innerHTML = '<span class="text-success">Done!</span>';
+      setTimeout(() => location.reload(), 800);
+    } else {
+      btn.innerHTML = '<span class="text-error">Error</span>';
+      alert('Error: ' + (data.error || 'Unknown error'));
+      setTimeout(() => {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+      }, 2000);
+    }
+  } catch (err) {
+    btn.innerHTML = '<span class="text-error">Error</span>';
+    alert('Network error: ' + err.message);
+    setTimeout(() => {
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+    }, 2000);
+  }
+}
+
+async function deleteComic() {
+  const confirmMsg = `DELETE this comic?\n\n` +
+    `Series: {{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}\n` +
+    `File: {{ comic.file_path|default:"No file" }}\n\n` +
+    `This will permanently delete the database record` +
+    `{% if comic.file_path %} AND the file from disk{% endif %}.\n\n` +
+    `This cannot be undone!`;
+
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+
+  const btn = document.getElementById('action-delete');
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Deleting...';
+  btn.disabled = true;
+
+  // Close the dropdown
+  document.activeElement.blur();
+
+  try {
+    const response = await fetch(`/comics/${comicPk}/delete/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      btn.innerHTML = '<span class="text-success">Deleted!</span>';
+      // Redirect to comic list after deletion
+      setTimeout(() => {
+        window.location.href = '/comics/';
+      }, 500);
+    } else {
+      btn.innerHTML = '<span class="text-error">Error</span>';
+      alert('Error: ' + (data.error || 'Unknown error'));
+      setTimeout(() => {
+        btn.innerHTML = 'Delete Comic';
+        btn.disabled = false;
+      }, 2000);
+    }
+  } catch (err) {
+    btn.innerHTML = '<span class="text-error">Error</span>';
+    alert('Network error: ' + err.message);
+    setTimeout(() => {
+      btn.innerHTML = 'Delete Comic';
+      btn.disabled = false;
+    }, 2000);
+  }
+}
+
+async function reorganizeComic(pk) {
+  const btn = document.getElementById('reorganize-btn');
+  const originalText = btn.textContent;
+  btn.textContent = 'Moving...';
+  btn.disabled = true;
+
+  try {
+    const response = await fetch(`/comics/${pk}/reorganize/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      if (data.moved) {
+        btn.textContent = 'Moved!';
+        btn.classList.remove('btn-warning');
+        btn.classList.add('btn-success');
+        // Reload page to show updated path
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        btn.textContent = 'Already correct';
+        btn.classList.remove('btn-warning');
+        btn.classList.add('btn-info');
+      }
+    } else {
+      btn.textContent = 'Error';
+      btn.classList.remove('btn-warning');
+      btn.classList.add('btn-error');
+      alert('Error: ' + data.error);
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.classList.remove('btn-error');
+        btn.classList.add('btn-warning');
+        btn.disabled = false;
+      }, 2000);
+    }
+  } catch (err) {
+    btn.textContent = 'Error';
+    btn.classList.remove('btn-warning');
+    btn.classList.add('btn-error');
+    alert('Network error: ' + err.message);
+    setTimeout(() => {
+      btn.textContent = originalText;
+      btn.classList.remove('btn-error');
+      btn.classList.add('btn-warning');
+      btn.disabled = false;
+    }, 2000);
+  }
+}
+</script>
 {% endblock %}

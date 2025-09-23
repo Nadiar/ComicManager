@@ -99,3 +99,38 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 UNTAGGED_DIR = os.environ.get("UNTAGGED_DIR", "/comics/untagged")
 LIBRARY_DIR = os.environ.get("LIBRARY_DIR", "/comics/library")
 CV_DB_PATH = os.environ.get("CV_DB_PATH", "/cv_db/comicvine.db")
+
+# Logging
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "[{asctime}] {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
+        },
+    },
+    "loggers": {
+        "apps.duplicates": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "apps.organizer": {
+            "handlers": ["console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "apps.scraper": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}

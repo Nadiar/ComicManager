@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.name }} — Organizer — ComicManager{% endblock %}
+{% block nav_organizer %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-3xl font-bold">{{ profile.name }}</h1>
+      <p class="text-base-content/60">Priority: {{ profile.priority }}</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Back to List</a>
+      <a href="{% url 'organizer:profile_edit' profile.pk %}" class="btn btn-primary">Edit</a>
+    </div>
+  </div>
+
+  <!-- Status Badge -->
+  <div class="flex gap-2">
+    {% if profile.is_enabled %}
+    <span class="badge badge-success">Enabled</span>
+    {% else %}
+    <span class="badge badge-ghost">Disabled</span>
+    {% endif %}
+  </div>
+
+  <!-- Templates -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Templates</h2>
+
+      <div class="space-y-4">
+        <div>
+          <label class="label">
+            <span class="label-text font-medium">Folder Template</span>
+          </label>
+          <div class="bg-base-300 p-3 rounded-lg font-mono text-sm break-all">
+            {{ profile.folder_template }}
+          </div>
+        </div>
+
+        <div>
+          <label class="label">
+            <span class="label-text font-medium">File Template</span>
+          </label>
+          <div class="bg-base-300 p-3 rounded-lg font-mono text-sm break-all">
+            {{ profile.file_template }}
+          </div>
+        </div>
+
+        <div>
+          <label class="label">
+            <span class="label-text font-medium">Base Folder</span>
+          </label>
+          <div class="bg-base-300 p-3 rounded-lg font-mono text-sm">
+            {{ profile.base_folder }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Matching Rules -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Matching Rules</h2>
+
+      {% if profile.exclude_rules.rules %}
+      <div class="text-sm text-base-content/60 mb-4">
+        Mode: <span class="badge badge-sm badge-outline">{{ profile.exclude_rules.mode }}</span>
+        Operator: <span class="badge badge-sm badge-outline">{{ profile.exclude_rules.operator }}</span>
+      </div>
+
+      <div class="space-y-2">
+        {% for rule in profile.exclude_rules.rules %}
+        {% include "organizer/_rule_display.html" with rule=rule %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-base-content/60">No rules defined - this profile matches all comics.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Actions</h2>
+      <div class="flex gap-2">
+        <form method="post" action="{% url 'organizer:profile_duplicate' profile.pk %}" class="inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline">Duplicate</button>
+        </form>
+        <form method="post" action="{% url 'organizer:profile_delete' profile.pk %}" class="inline" onsubmit="return confirm('Delete this profile?')">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-error btn-outline">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

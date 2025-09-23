@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Import Profiles — Organizer — ComicManager{% endblock %}
+{% block nav_organizer %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="flex justify-between items-center">
+    <h1 class="text-3xl font-bold">Import Organizer Profiles</h1>
+    <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Cancel</a>
+  </div>
+
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Import .lop File</h2>
+      <p class="text-base-content/60">
+        Upload a ComicRack Library Organizer profile file (.lop) to import profiles.
+      </p>
+
+      <form method="post" enctype="multipart/form-data" class="space-y-4 mt-4">
+        {% csrf_token %}
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Select .lop file</span>
+          </label>
+          <input
+            type="file"
+            name="lop_file"
+            accept=".lop,.xml"
+            class="file-input file-input-bordered w-full"
+            required
+          >
+        </div>
+
+        {% if existing_count > 0 %}
+        <div class="alert alert-warning">
+          <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+          <span>You have {{ existing_count }} existing profile(s).</span>
+        </div>
+
+        <div class="form-control">
+          <label class="cursor-pointer label justify-start gap-4">
+            <input
+              type="checkbox"
+              name="clear_existing"
+              checked
+              class="checkbox checkbox-warning"
+            >
+            <span class="label-text">Delete existing profiles before import</span>
+          </label>
+          <label class="label">
+            <span class="label-text-alt text-base-content/60">
+              If unchecked, imported profiles will be added alongside existing ones
+            </span>
+          </label>
+        </div>
+        {% endif %}
+
+        <div class="flex gap-2">
+          <button type="submit" class="btn btn-primary">Import</button>
+          <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">About .lop Files</h2>
+      <p class="text-sm text-base-content/60">
+        The .lop (Library Organizer Profile) file is an XML format used by ComicRack
+        to define how comics should be organized into folders. Each profile contains:
+      </p>
+      <ul class="list-disc list-inside text-sm text-base-content/60 mt-2 space-y-1">
+        <li>Folder and file templates with placeholders</li>
+        <li>Matching rules to determine which comics use this profile</li>
+        <li>Character replacement mappings for filesystem safety</li>
+        <li>Month name mappings for date formatting</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}{% if is_create %}New Profile{% else %}Edit {{ profile.name }}{% endif %} — Organizer — ComicManager{% endblock %}
+{% block nav_organizer %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="flex justify-between items-center">
+    <h1 class="text-3xl font-bold">
+      {% if is_create %}New Profile{% else %}Edit Profile{% endif %}
+    </h1>
+    <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Cancel</a>
+  </div>
+
+  <form method="post" class="space-y-6">
+    {% csrf_token %}
+
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title">Basic Settings</h2>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Name</span>
+          </label>
+          <input
+            type="text"
+            name="name"
+            value="{{ profile.name|default:'' }}"
+            class="input input-bordered"
+            placeholder="Profile name"
+            required
+          >
+        </div>
+
+        {% if not is_create %}
+        <div class="form-control">
+          <label class="cursor-pointer label justify-start gap-4">
+            <input
+              type="checkbox"
+              name="is_enabled"
+              {% if profile.is_enabled %}checked{% endif %}
+              class="checkbox checkbox-primary"
+            >
+            <span class="label-text">Enabled</span>
+          </label>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title">Templates</h2>
+        <p class="text-sm text-base-content/60">
+          Use placeholders like <code class="text-primary">{&lt;series&gt;}</code>,
+          <code class="text-primary">{&lt;publisher&gt;}</code>,
+          <code class="text-primary">{#&lt;number3&gt;}</code> (padded to 3 digits),
+          <code class="text-primary">{&lt;Custom(First Series)&gt;}</code>
+        </p>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Folder Template</span>
+          </label>
+          <input
+            type="text"
+            name="folder_template"
+            value="{{ profile.folder_template|default:'{<publisher>}/{<series>}' }}"
+            class="input input-bordered font-mono text-sm"
+            placeholder="{<publisher>}/{<series>} ({<volume0>})"
+          >
+          <label class="label">
+            <span class="label-text-alt">Path segments separated by / or \</span>
+          </label>
+        </div>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">File Template</span>
+          </label>
+          <input
+            type="text"
+            name="file_template"
+            value="{{ profile.file_template|default:'{<series>} #{<number3>}' }}"
+            class="input input-bordered font-mono text-sm"
+            placeholder="{<series>} #{<number3>} [{<year>}]"
+          >
+          <label class="label">
+            <span class="label-text-alt">Filename without extension</span>
+          </label>
+        </div>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Base Folder</span>
+          </label>
+          <input
+            type="text"
+            name="base_folder"
+            value="{{ profile.base_folder|default:'/comics/library' }}"
+            class="input input-bordered font-mono text-sm"
+            placeholder="/comics/library"
+          >
+          <label class="label">
+            <span class="label-text-alt">Root folder for organized comics (inside container)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Template Reference -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title">Template Reference</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
+          <div><code class="text-primary">{&lt;series&gt;}</code> Series name</div>
+          <div><code class="text-primary">{&lt;publisher&gt;}</code> Publisher</div>
+          <div><code class="text-primary">{&lt;format&gt;}</code> Format (TPB, etc)</div>
+          <div><code class="text-primary">{&lt;volume&gt;}</code> Volume number</div>
+          <div><code class="text-primary">{&lt;volume0&gt;}</code> Volume (default 0)</div>
+          <div><code class="text-primary">{&lt;number&gt;}</code> Issue number</div>
+          <div><code class="text-primary">{#&lt;number3&gt;}</code> Number padded (001)</div>
+          <div><code class="text-primary">{&lt;year&gt;}</code> Year</div>
+          <div><code class="text-primary">{&lt;month&gt;}</code> Month name</div>
+          <div><code class="text-primary">{&lt;seriesgroup&gt;}</code> Series group</div>
+          <div><code class="text-primary">{&lt;maincharacter&gt;}</code> Main character</div>
+          <div><code class="text-primary">{&lt;Custom(X)&gt;}</code> Custom value</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">
+        {% if is_create %}Create Profile{% else %}Save Changes{% endif %}
+      </button>
+      <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+
+</div>
+{% endblock %}

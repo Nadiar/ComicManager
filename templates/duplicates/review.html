@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Duplicate Review - ComicManager{% endblock %}
+{% block nav_comics %}{% endblock %}
+
+{% block content %}
+<div class="space-y-6" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+  <!-- Header -->
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-3xl font-bold">Duplicate Review</h1>
+      <p class="text-base-content/70">
+        {{ total_pending }} duplicate group{{ total_pending|pluralize }} pending review
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'duplicates:history' %}" class="btn btn-ghost btn-sm">View History</a>
+      <button
+        id="scan-all-btn"
+        class="btn btn-secondary btn-sm"
+        onclick="scanAll(this)"
+        title="Scan ALL comics regardless of state (catches existing duplicates)"
+      >
+        Scan All Comics
+      </button>
+      <button
+        id="detect-btn"
+        class="btn btn-primary btn-sm"
+        onclick="runDetection(this)"
+      >
+        Run Detection
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats shadow bg-base-200 w-full">
+    <div class="stat">
+      <div class="stat-title">Pending Groups</div>
+      <div class="stat-value text-warning">{{ stats.pending_groups }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Resolved</div>
+      <div class="stat-value text-success">{{ stats.resolved_groups }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Intentional</div>
+      <div class="stat-value text-info">{{ stats.intentional_groups }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Formatted Comics</div>
+      <div class="stat-value">{{ stats.formatted_comics }}</div>
+      <div class="stat-desc">Awaiting detection</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Deduplicated</div>
+      <div class="stat-value text-success">{{ stats.deduplicated_comics }}</div>
+    </div>
+  </div>
+
+  <!-- CV ID Duplicates -->
+  {% if cv_groups %}
+  <div class="card bg-base-200">
+    <div class="card-body p-4">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <span class="badge badge-error">{{ cv_groups|length }}</span>
+            ComicVine ID Matches
+          </h3>
+          <p class="text-sm text-base-content/70">Same ComicVine issue ID, multiple digital copies</p>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        {% for group in cv_groups %}
+        {% include "duplicates/partials/group_card.html" with group=group %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Metadata Duplicates -->
+  {% if meta_groups %}
+  <div class="card bg-base-200">
+    <div class="card-body p-4">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <span class="badge badge-warning">{{ meta_groups|length }}</span>
+            Metadata Matches
+          </h3>
+          <p class="text-sm text-base-content/70">Same series/number/volume (possible mis-tags)</p>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        {% for group in meta_groups %}
+        {% include "duplicates/partials/group_card.html" with group=group %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- pHash Duplicates -->
+  {% if phash_groups %}
+  <div class="card bg-base-200">
+    <div class="card-body p-4">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <span class="badge badge-info">{{ phash_groups|length }}</span>
+            Cover Hash Matches
+          </h3>
+          <p class="text-sm text-base-content/70">Similar cover images (pHash similarity)</p>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        {% for group in phash_groups %}
+        {% include "duplicates/partials/group_card.html" with group=group %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not cv_groups and not meta_groups and not phash_groups %}
+  <div class="alert alert-info">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+    </svg>
+    <span>
+      No pending duplicate groups.
+      {% if stats.formatted_comics > 0 %}
+      Click "Run Detection" to scan {{ stats.formatted_comics }} formatted comic{{ stats.formatted_comics|pluralize }} for duplicates.
+      {% else %}
+      No comics in 'formatted' state to scan.
+      {% endif %}
+    </span>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Lightbox Modal -->
+<dialog id="cover-lightbox" class="modal">
+  <div class="modal-box max-w-3xl p-2 bg-base-300">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10">✕</button>
+    </form>
+    <h3 class="font-bold text-lg mb-2 px-2" id="lightbox-title"></h3>
+    <img id="lightbox-image" src="" alt="Cover" class="w-full h-auto rounded" />
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<script>
+// Cover lightbox - use event delegation for HTMX compatibility
+document.addEventListener('click', function(e) {
+  if (e.target.classList.contains('cover-thumb')) {
+    const src = e.target.dataset.fullSrc;
+    const title = e.target.dataset.title;
+    const modal = document.getElementById('cover-lightbox');
+    document.getElementById('lightbox-image').src = src;
+    document.getElementById('lightbox-title').textContent = title;
+    modal.showModal();
+  }
+});
+
+function getCsrfToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+         document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1] ||
+         '{{ csrf_token }}';
+}
+
+async function runDetection(btn) {
+  if (!confirm('Run duplicate detection on all formatted comics?')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Detecting...';
+
+  try {
+    const resp = await fetch('{% url "duplicates:detect" %}', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+      },
+    });
+    const data = await resp.json();
+
+    if (data.success) {
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-success');
+      btn.innerHTML = `Done! ${data.groups_created} groups, ${data.advanced} advanced`;
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.disabled = false;
+  }
+}
+
+async function scanAll(btn) {
+  if (!confirm('Scan ALL digital comics for duplicates regardless of state? This catches existing duplicates that already passed through the workflow.')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Scanning...';
+
+  try {
+    const resp = await fetch('{% url "duplicates:scan_all" %}', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+      },
+    });
+    const data = await resp.json();
+
+    if (data.success) {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-success');
+      btn.innerHTML = `Found ${data.groups_created} groups (CV:${data.by_cv_id}, Meta:${data.by_metadata}, Hash:${data.by_phash})`;
+      setTimeout(() => location.reload(), 2000);
+    } else {
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

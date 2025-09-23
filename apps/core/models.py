@@ -15,7 +15,7 @@ class Comic(models.Model):
     STATE_IMPORTED      = "imported"
     STATE_SCRAPED       = "scraped"
     STATE_COUNTED       = "counted"
-    STATE_TAGGED        = "tagged"
+    STATE_TAGGED        = "tagged"        # Phase 4: DataManager rules applied
     STATE_FORMATTED     = "formatted"
     STATE_DEDUPLICATED  = "deduplicated"
     STATE_ORGANIZED     = "organized"
@@ -25,7 +25,7 @@ class Comic(models.Model):
         (STATE_IMPORTED,     "Imported"),
         (STATE_SCRAPED,      "Scraped"),
         (STATE_COUNTED,      "Counted"),
-        (STATE_TAGGED,       "Tagged"),
+        (STATE_TAGGED,       "Tagged"),       # Phase 4: DataManager
         (STATE_FORMATTED,    "Formatted"),
         (STATE_DEDUPLICATED, "Deduplicated"),
         (STATE_ORGANIZED,    "Organized"),
@@ -100,6 +100,19 @@ class Comic(models.Model):
         on_delete=models.SET_NULL,
         related_name="duplicates",
     )
+    duplicate_group = models.ForeignKey(
+        "duplicates.DuplicateGroup",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="member_comics",
+    )
+
+    # Re-format tracking (when count changes for count-based formats)
+    needs_reformat = models.BooleanField(default=False, db_index=True)
+
+    # Count-based format types that can change when issue count changes
+    COUNT_BASED_FORMATS = frozenset({"One-Shot", "Limited Series", "Main Series"})
 
     # Library Organizer
     last_organized_path = models.CharField(max_length=1024, null=True, blank=True)

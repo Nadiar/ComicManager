@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST
 from .models import Comic
 from apps.scraper.comicvine import ComicVineScraper
 from apps.scraper.hasher import extract_cover_hashes, extract_cover_image
+from .services import scan_untagged_folder
 
 
 # Flag display names for the UI
@@ -63,6 +64,7 @@ def comic_detail(request, pk):
     comic = get_object_or_404(Comic, pk=pk)
     xml_data = None
     comparison = None
+    reorganize_preview = None
 
     # For digital comics, try to read ComicInfo.xml from the file
     if comic.is_digital and comic.file_path:
@@ -71,10 +73,16 @@ def comic_detail(request, pk):
             if xml_data is not None:
                 comparison = compare_db_vs_xml(comic, xml_data)
 
+    # For organized/written comics, show reorganize preview
+    if comic.state in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
+        from apps.organizer.services import preview_organization
+        reorganize_preview = preview_organization(comic)
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
         "xml_data": xml_data,
         "comparison": comparison,
+        "reorganize_preview": reorganize_preview,
     })
 
 
@@ -324,10 +332,14 @@ def scrape_preview(request, pk):
     Preview scrape matches for a comic without applying them.
 
     Returns a list of potential matches with cover URLs for user review.
+
+    Query params:
+        force=1: Skip state check (for re-scraping comics in any state)
     """
     comic = get_object_or_404(Comic, pk=pk)
 
-    if comic.state != Comic.STATE_IMPORTED:
+    force = request.GET.get("force") == "1"
+    if not force and comic.state != Comic.STATE_IMPORTED:
         return JsonResponse({
             "success": False,
             "error": f"Comic is not in 'imported' state (current: {comic.state})"
@@ -468,8 +480,8 @@ def scrape_comic(request, pk):
             "error": "No match found in ComicVine database"
         }, status=404)
 
-    # Apply match to comic
-    _apply_match(comic, match)
+    # Apply match to comic (pass scraper to enrich with credits if needed)
+    _apply_match(comic, match, scraper)
 
     return JsonResponse({
         "success": True,
@@ -514,7 +526,7 @@ def scrape_all_comics(request):
             match = _try_metadata_match(comic, scraper)
 
         if match:
-            _apply_match(comic, match)
+            _apply_match(comic, match, scraper)
             matched += 1
         else:
             failed += 1
@@ -633,8 +645,12 @@ def _series_matches(proposed, matched):
     return False
 
 
-def _apply_match(comic, match):
+def _apply_match(comic, match, scraper=None):
     """Apply ComicVine match data to comic and update state."""
+    # If match doesn't have credits, enrich it first
+    if scraper and not match.characters and not match.writer:
+        scraper.enrich_match_with_credits(match)
+
     comic.series = match.series
     comic.number = match.issue_number
     comic.title = match.title
@@ -661,6 +677,28 @@ def _apply_match(comic, match):
     if match.description:
         comic.summary = match.description
 
+    # Apply credits
+    if match.characters:
+        comic.characters = match.characters
+    if match.writer:
+        comic.writer = match.writer
+    if match.penciller:
+        comic.penciller = match.penciller
+    if match.inker:
+        comic.inker = match.inker
+    if match.colorist:
+        comic.colorist = match.colorist
+    if match.letterer:
+        comic.letterer = match.letterer
+    if match.cover_artist:
+        comic.cover_artist = match.cover_artist
+    if match.editor:
+        comic.editor = match.editor
+
+    # Apply web URL
+    if match.web:
+        comic.web = match.web
+
     comic.custom_values["comicvine_issue"] = str(match.issue_id)
     comic.custom_values["comicvine_volume"] = str(match.volume_id)
     if match.issue_count:
@@ -685,7 +723,24 @@ def _update_volume_issue_count(volume_id: str, new_count: int, exclude_pk=None):
     When a new issue is scraped with an updated count, all other issues
     in the same volume need their count updated. The actual ComicInfo.xml
     files will be updated during the 'write' phase.
+
+    Also flags comics for re-formatting if their count-based format would change.
     """
+    from .models import get_setting
+
+    # Get thresholds for format classification
+    one_shot_max = get_setting("one_shot_max_count", 1)
+    limited_max = get_setting("limited_series_max_count", 15)
+
+    def _get_count_format(count):
+        """Determine format based on count."""
+        if count <= one_shot_max:
+            return "One-Shot"
+        elif count <= limited_max:
+            return "Limited Series"
+        else:
+            return "Main Series"
+
     # Find all comics with the same comicvine_volume
     comics_in_volume = Comic.objects.filter(
         custom_values__comicvine_volume=volume_id
@@ -702,6 +757,13 @@ def _update_volume_issue_count(volume_id: str, new_count: int, exclude_pk=None):
             comic.custom_values["comicvine_issue_count"] = str(new_count)
             # Mark that this comic needs its ComicInfo.xml rewritten
             comic.flags["count_updated"] = True
+
+            # Check if format needs recalculation for count-based formats
+            if comic.format in Comic.COUNT_BASED_FORMATS:
+                new_format = _get_count_format(new_count)
+                if comic.format != new_format:
+                    comic.needs_reformat = True
+
             comic.save()
             updated += 1
 
@@ -709,7 +771,78 @@ def _update_volume_issue_count(volume_id: str, new_count: int, exclude_pk=None):
 
 
 # =============================================================================
-# Phase 4-5: Tagging (Publisher Management + Format Detection)
+# Phase 4: DataManager Tagging (Publisher Management)
+# =============================================================================
+
+
+@require_POST
+def tag_comic(request, pk):
+    """
+    Apply DataManager rules to a single comic.
+
+    This is Phase 4 of the workflow: counted -> tagged
+    """
+    from apps.tagging.services import tag_comic as tagging_service_tag_comic
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    result = tagging_service_tag_comic(comic)
+
+    if not result["success"]:
+        return JsonResponse({
+            "success": False,
+            "error": result["message"]
+        }, status=400)
+
+    return JsonResponse({
+        "success": True,
+        "message": result["message"],
+        "matched_rulesets": result["matched_rulesets"],
+        "changes": result["changes"],
+        "changes_count": len(result["changes"]),
+        "state": comic.state,
+    })
+
+
+@require_POST
+def tag_all_comics(request):
+    """
+    Apply DataManager rules to all comics in 'counted' state.
+
+    This is Phase 4 of the workflow: counted -> tagged
+    """
+    from apps.tagging.services import tag_all_comics as tagging_service_tag_all
+
+    result = tagging_service_tag_all()
+
+    return JsonResponse({
+        "success": result["success"],
+        "message": result["message"],
+        "total_processed": result["total_processed"],
+        "total_matched": result["total_matched"],
+        "total_changes": result["total_changes"],
+    })
+
+
+def tag_preview(request, pk):
+    """
+    Preview which DataManager rules would match a comic.
+
+    Returns matching rulesets and their potential changes without applying them.
+    """
+    from apps.tagging.services import preview_tagging
+
+    comic = get_object_or_404(Comic, pk=pk)
+    preview = preview_tagging(comic)
+
+    return JsonResponse({
+        "success": True,
+        **preview,
+    })
+
+
+# =============================================================================
+# Phase 5: Format Detection (TPB, Annual, etc.)
 # =============================================================================
 
 # Format patterns for auto-detection
@@ -728,68 +861,272 @@ FORMAT_PATTERNS = [
 
 
 def _detect_format(comic) -> str | None:
-    """Auto-detect comic format from series name or title."""
+    """
+    Auto-detect comic format from series name, title, or issue count.
+
+    Detection priority:
+    1. Special formats (TPB, HC, Omnibus, Annual, etc.) from series/title text
+    2. If no special format found, classify by issue count using configurable thresholds:
+       - One-Shot: count <= one_shot_max_count (default: 1)
+       - Limited Series: count <= limited_series_max_count (default: 15)
+       - Main Series: count > limited_series_max_count
+    """
+    from .models import get_setting
+
     text_to_check = f"{comic.series or ''} {comic.title or ''}"
 
+    # First check for special formats in series/title
     for pattern, format_name in FORMAT_PATTERNS:
         if re.search(pattern, text_to_check, re.IGNORECASE):
             return format_name
 
+    # If no special format found, classify by issue count
+    if comic.count is not None:
+        one_shot_max = get_setting("one_shot_max_count", 1)
+        limited_max = get_setting("limited_series_max_count", 15)
+
+        if comic.count <= one_shot_max:
+            return "One-Shot"
+        elif comic.count <= limited_max:
+            return "Limited Series"
+        else:
+            return "Main Series"
+
     return None
 
 
-def _apply_tagging(comic):
+def _apply_format_detection(comic):
     """
-    Apply publisher rules and format detection to a comic.
+    Apply format detection to a comic.
 
-    Phase 4: Publisher Management (DataManager rules) - placeholder for now
-    Phase 5: Format Tagging - auto-detect TPB, Annual, etc.
+    This is Phase 5 of the workflow: tagged -> formatted
     """
-    # Phase 5: Format detection
     detected_format = _detect_format(comic)
     if detected_format:
         comic.format = detected_format
 
-    # Transition to formatted state (skipping tagged since we combine phases)
     comic.state = Comic.STATE_FORMATTED
     comic.save()
 
 
 @require_POST
-def tag_comic(request, pk):
-    """Tag a single comic (apply publisher rules + format detection)."""
+def format_comic(request, pk):
+    """
+    Apply format detection to a single comic.
+
+    This is Phase 5 of the workflow: tagged -> formatted
+    """
     comic = get_object_or_404(Comic, pk=pk)
 
-    if comic.state != Comic.STATE_COUNTED:
+    if comic.state != Comic.STATE_TAGGED:
         return JsonResponse({
             "success": False,
-            "error": f"Comic is not in 'counted' state (current: {comic.state})"
+            "error": f"Comic is not in 'tagged' state (current: {comic.state})"
         }, status=400)
 
-    _apply_tagging(comic)
+    old_format = comic.format
+    detected_format = _detect_format(comic)
+
+    if detected_format:
+        comic.format = detected_format
+
+    comic.state = Comic.STATE_FORMATTED
+    comic.save()
+
+    # Build list of patterns that were checked
+    patterns_checked = [
+        {"pattern": "TPB / Trade Paperback", "matched": detected_format == "TPB"},
+        {"pattern": "HC / Hardcover", "matched": detected_format == "HC"},
+        {"pattern": "Annual", "matched": detected_format == "Annual"},
+        {"pattern": "Special", "matched": detected_format == "Special"},
+        {"pattern": "One-Shot (text)", "matched": detected_format == "One-Shot" and "one" in f"{comic.series or ''} {comic.title or ''}".lower()},
+        {"pattern": "Giant-Size", "matched": detected_format == "Giant-Size"},
+        {"pattern": "King-Size", "matched": detected_format == "King-Size"},
+        {"pattern": "Omnibus", "matched": detected_format == "Omnibus"},
+        {"pattern": "Deluxe", "matched": detected_format == "Deluxe"},
+        {"pattern": "Director's Cut", "matched": detected_format == "Director's Cut"},
+        {"pattern": f"One-Shot (count=1)", "matched": detected_format == "One-Shot" and comic.count == 1},
+        {"pattern": f"Limited Series (count 2-15)", "matched": detected_format == "Limited Series"},
+        {"pattern": f"Main Series (count>15)", "matched": detected_format == "Main Series"},
+    ]
 
     return JsonResponse({
         "success": True,
-        "format": comic.format,
+        "old_format": old_format,
+        "new_format": comic.format,
+        "detected_format": detected_format,
+        "format_changed": old_format != comic.format,
+        "patterns_checked": patterns_checked,
+        "series": comic.series,
+        "title": comic.title,
+        "count": comic.count,
         "state": comic.state,
     })
 
 
 @require_POST
-def tag_all_comics(request):
-    """Tag all comics in 'counted' state."""
-    comics = Comic.objects.filter(state=Comic.STATE_COUNTED)
+def format_all_comics(request):
+    """
+    Apply format detection to all comics in 'tagged' state.
+
+    This is Phase 5 of the workflow: tagged -> formatted
+    """
+    comics = Comic.objects.filter(state=Comic.STATE_TAGGED)
     total = comics.count()
 
-    tagged = 0
+    formatted = 0
     for comic in comics:
-        _apply_tagging(comic)
-        tagged += 1
+        _apply_format_detection(comic)
+        formatted += 1
 
     return JsonResponse({
         "success": True,
-        "tagged": tagged,
+        "formatted": formatted,
         "total": total,
+    })
+
+
+# Format types in display order: (display_name, url_slug)
+FORMAT_DISPLAY_ORDER = [
+    ("TPB", "tpb"),
+    ("HC", "hc"),
+    ("Omnibus", "omnibus"),
+    ("Deluxe", "deluxe"),
+    ("Director's Cut", "directors-cut"),
+    ("Annual", "annual"),
+    ("Special", "special"),
+    ("Giant-Size", "giant-size"),
+    ("King-Size", "king-size"),
+    ("One-Shot", "one-shot"),
+    ("Limited Series", "limited-series"),
+    ("Main Series", "main-series"),
+    (None, "unknown"),  # No format detected
+]
+
+# Reverse mapping: slug -> format name
+FORMAT_SLUG_TO_NAME = {slug: name for name, slug in FORMAT_DISPLAY_ORDER}
+
+
+def format_review(request):
+    """
+    Display grouped format review page.
+
+    Shows all comics in 'tagged' state grouped by their detected format,
+    plus any comics needing re-format (from any state).
+    """
+    from collections import defaultdict
+
+    # Get comics in 'tagged' state
+    tagged_comics = Comic.objects.filter(state=Comic.STATE_TAGGED).order_by("series", "volume", "number")
+
+    # Get comics needing re-format (any state)
+    reformat_comics = list(Comic.objects.filter(needs_reformat=True).order_by("series", "volume", "number"))
+
+    # Group tagged comics by detected format
+    grouped = defaultdict(list)
+    for comic in tagged_comics:
+        detected = _detect_format(comic)
+        grouped[detected].append(comic)
+
+    # Build format groups in display order with comics included
+    format_groups = []
+    for format_name, slug in FORMAT_DISPLAY_ORDER:
+        comics = grouped.get(format_name, [])
+        if comics:
+            # Determine if this is a count-based or text-based format
+            is_count_based = format_name in Comic.COUNT_BASED_FORMATS if format_name else False
+            format_groups.append({
+                "name": format_name or "Unknown",
+                "slug": slug,
+                "count": len(comics),
+                "comics": comics,
+                "is_count_based": is_count_based,
+            })
+
+    # Build re-format group if any
+    reformat_group = None
+    if reformat_comics:
+        reformat_group = {
+            "name": "Needs Re-format",
+            "slug": "needs-reformat",
+            "count": len(reformat_comics),
+            "comics": reformat_comics,
+        }
+
+    return render(request, "core/format_review.html", {
+        "format_groups": format_groups,
+        "reformat_group": reformat_group,
+        "total_tagged": tagged_comics.count(),
+        "total_reformat": len(reformat_comics),
+    })
+
+
+def format_group_comics(request, format_type):
+    """
+    HTMX partial: return comics table for a format group.
+    """
+    format_name = FORMAT_SLUG_TO_NAME.get(format_type)
+
+    if format_type == "needs-reformat":
+        comics = Comic.objects.filter(needs_reformat=True).order_by("series", "number")
+    else:
+        # Get tagged comics and filter by detected format
+        tagged_comics = Comic.objects.filter(state=Comic.STATE_TAGGED)
+        comics = [c for c in tagged_comics if _detect_format(c) == format_name]
+        comics.sort(key=lambda c: (c.series or "", c.number or ""))
+
+    return render(request, "core/partials/format_group_comics.html", {
+        "comics": comics,
+        "format_type": format_type,
+    })
+
+
+@require_POST
+def accept_format_group(request, format_type):
+    """
+    Accept all comics of a specific format type.
+
+    For regular formats: applies the format and advances to STATE_FORMATTED.
+    For "needs-reformat": recalculates format and clears the flag.
+    """
+    format_name = FORMAT_SLUG_TO_NAME.get(format_type)
+
+    if format_type == "needs-reformat":
+        # Handle re-format: recalculate and clear flag
+        comics = Comic.objects.filter(needs_reformat=True)
+        processed = 0
+        for comic in comics:
+            new_format = _detect_format(comic)
+            if new_format:
+                comic.format = new_format
+            comic.needs_reformat = False
+            comic.save()
+            processed += 1
+
+        return render(request, "core/partials/format_accepted.html", {
+            "processed": processed,
+            "format": "Re-formatted",
+            "is_reformat": True,
+        })
+
+    # Regular format acceptance
+    tagged_comics = Comic.objects.filter(state=Comic.STATE_TAGGED)
+
+    processed = 0
+    for comic in tagged_comics:
+        detected = _detect_format(comic)
+        # Only process comics matching this format type
+        if detected == format_name:
+            if format_name:
+                comic.format = format_name
+            comic.state = Comic.STATE_FORMATTED
+            comic.save()
+            processed += 1
+
+    return render(request, "core/partials/format_accepted.html", {
+        "processed": processed,
+        "format": format_name or "Unknown",
+        "is_reformat": False,
     })
 
 
@@ -861,24 +1198,53 @@ def deduplicate_all_comics(request):
     """
     Process all comics in 'formatted' state through deduplication.
 
-    For now, this is a placeholder that simply advances the state.
-    Real duplicate detection logic can be added later.
+    Runs duplicate detection and returns results. Comics without duplicates
+    advance to deduplicated state. Comics with duplicates need manual review
+    at /duplicates/.
     """
-    comics = Comic.objects.filter(state=Comic.STATE_FORMATTED)
-    total = comics.count()
+    from apps.duplicates.services import run_duplicate_detection
 
-    deduplicated = 0
-    for comic in comics:
-        # TODO: Implement actual duplicate detection logic
-        # For now, just advance the state
-        comic.state = Comic.STATE_DEDUPLICATED
-        comic.save()
-        deduplicated += 1
+    result = run_duplicate_detection()
+
+    return JsonResponse({
+        "success": result["success"],
+        "message": result.get("message", ""),
+        "total_comics": result.get("total_comics", 0),
+        "groups_created": result.get("groups_created", 0),
+        "by_cv_id": result.get("by_cv_id", 0),
+        "by_metadata": result.get("by_metadata", 0),
+        "by_phash": result.get("by_phash", 0),
+        "advanced": result.get("advanced", 0),
+    })
+
+
+@require_POST
+def organize_comic(request, pk):
+    """
+    Organize a single comic - move file to library location.
+
+    This is Phase 7 of the workflow: deduplicated -> organized
+    """
+    from apps.organizer.services import organize_comic as organizer_service_organize
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    result = organizer_service_organize(comic)
+
+    if not result["success"]:
+        return JsonResponse({
+            "success": False,
+            "error": result["message"]
+        }, status=400)
 
     return JsonResponse({
         "success": True,
-        "deduplicated": deduplicated,
-        "total": total,
+        "message": result["message"],
+        "profile": result["profile"],
+        "old_path": result["old_path"],
+        "new_path": result["new_path"],
+        "moved": result["moved"],
+        "state": comic.state,
     })
 
 
@@ -887,24 +1253,158 @@ def organize_all_comics(request):
     """
     Process all comics in 'deduplicated' state through organization.
 
-    For now, this is a placeholder that simply advances the state.
-    Real file organization logic can be added later.
+    This is Phase 7 of the workflow: deduplicated -> organized
+    Uses the Library Organizer profiles to determine destination paths.
     """
-    comics = Comic.objects.filter(state=Comic.STATE_DEDUPLICATED)
-    total = comics.count()
+    from apps.organizer.services import organize_all_comics as organizer_service_organize_all
 
-    organized = 0
-    for comic in comics:
-        # TODO: Implement actual file organization logic
-        # For now, just advance the state
-        comic.state = Comic.STATE_ORGANIZED
+    result = organizer_service_organize_all()
+
+    return JsonResponse({
+        "success": result["success"],
+        "message": result["message"],
+        "total_processed": result["total_processed"],
+        "total_moved": result["total_moved"],
+        "total_errors": result["total_errors"],
+    })
+
+
+@require_POST
+def reorganize_comic(request, pk):
+    """
+    Re-organize a comic that's already been organized or written.
+
+    This allows moving a comic to a new location if its metadata
+    (like format, series_group, etc.) has changed after organization.
+    """
+    from apps.organizer.services import preview_organization, LIBRARY_BASE
+    import os
+    import shutil
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    # Only allow re-organizing comics that have been organized
+    if comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
+        return JsonResponse({
+            "success": False,
+            "error": f"Comic must be in 'organized' or 'written' state (current: {comic.state})"
+        }, status=400)
+
+    # Physical comics have no file to move
+    if comic.medium == Comic.MEDIUM_PHYSICAL:
+        return JsonResponse({
+            "success": True,
+            "message": "Physical comic - no file to reorganize",
+            "moved": False,
+        })
+
+    # Preview where the comic should go
+    preview = preview_organization(comic)
+    old_path = comic.file_path
+    new_path = preview["new_path"]
+
+    # Check if file needs to move
+    if os.path.abspath(old_path) == os.path.abspath(new_path):
+        return JsonResponse({
+            "success": True,
+            "message": "File is already in the correct location",
+            "old_path": old_path,
+            "new_path": new_path,
+            "moved": False,
+            "profile": preview["selected_profile"],
+        })
+
+    # Verify source file exists
+    if not os.path.exists(old_path):
+        return JsonResponse({
+            "success": False,
+            "error": f"Source file not found: {old_path}"
+        }, status=400)
+
+    # Perform the move
+    try:
+        # Create destination directory
+        new_folder = os.path.dirname(new_path)
+        os.makedirs(new_folder, exist_ok=True)
+
+        # Move the file
+        shutil.move(old_path, new_path)
+
+        # Try to remove empty source directories
+        try:
+            old_dir = os.path.dirname(old_path)
+            while old_dir and old_dir != LIBRARY_BASE:
+                if os.path.isdir(old_dir) and not os.listdir(old_dir):
+                    os.rmdir(old_dir)
+                    old_dir = os.path.dirname(old_dir)
+                else:
+                    break
+        except OSError:
+            pass  # Ignore errors when cleaning up directories
+
+        # Update comic record
+        comic.file_path = new_path
+        comic.last_organized_path = new_path
         comic.save()
-        organized += 1
+
+        return JsonResponse({
+            "success": True,
+            "message": "Comic reorganized successfully",
+            "old_path": old_path,
+            "new_path": new_path,
+            "moved": True,
+            "profile": preview["selected_profile"],
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "error": f"Failed to move file: {str(e)}"
+        }, status=500)
+
+
+@require_POST
+def write_comic(request, pk):
+    """
+    Write ComicInfo.xml for a single comic in 'organized' state.
+
+    This updates the ComicInfo.xml inside the CBZ file with the
+    current database values, then advances to 'written' state.
+    """
+    from .utils import write_comicinfo_xml
+    from django.utils import timezone
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if comic.state != Comic.STATE_ORGANIZED:
+        return JsonResponse({
+            "success": False,
+            "error": f"Comic must be in 'organized' state (current: {comic.state})"
+        }, status=400)
+
+    # For digital comics with CBZ files, write the XML
+    if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
+        success = write_comicinfo_xml(comic.file_path, comic)
+        if not success:
+            return JsonResponse({
+                "success": False,
+                "error": "Failed to write ComicInfo.xml"
+            }, status=500)
+
+    # Advance state and record write time
+    comic.state = Comic.STATE_WRITTEN
+    comic.last_written = timezone.now()
+
+    # Clear the count_updated flag if set
+    if comic.flags.get("count_updated"):
+        comic.flags.pop("count_updated", None)
+
+    comic.save()
 
     return JsonResponse({
         "success": True,
-        "organized": organized,
-        "total": total,
+        "message": "ComicInfo.xml written successfully",
+        "state": comic.state,
     })
 
 
@@ -949,4 +1449,393 @@ def write_all_comics(request):
         "written": written,
         "total": total,
         "errors": errors,
+    })
+
+
+# =============================================================================
+# Force Actions - Allow re-running workflow steps on any comic
+# =============================================================================
+
+@require_POST
+def force_scrape(request, pk):
+    """
+    Force re-scrape a comic against ComicVine, regardless of current state.
+    Uses the stored comicvine_issue ID if available, otherwise tries matching.
+    """
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital:
+        return JsonResponse({
+            "success": False,
+            "error": "Cannot scrape physical comics"
+        }, status=400)
+
+    scraper = ComicVineScraper()
+    match = None
+
+    # If we have a stored CV issue ID, use it directly
+    cv_issue_id = comic.custom_values.get("comicvine_issue")
+    if cv_issue_id:
+        match = scraper.get_issue_details(int(cv_issue_id))
+        if match:
+            match.match_type = "refresh"
+
+    # Otherwise try to find a new match
+    if not match:
+        if comic.file_path:
+            match = _try_hash_match(comic, scraper, max_distance=10)
+        if not match:
+            match = _try_metadata_match(comic, scraper)
+
+    if not match:
+        return JsonResponse({
+            "success": False,
+            "error": "No match found in ComicVine database"
+        }, status=404)
+
+    # Apply the match (this also enriches with credits)
+    _apply_match(comic, match, scraper)
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Re-scraped: {match.series} #{match.issue_number}",
+        "new_state": comic.state,
+    })
+
+
+@require_POST
+def force_tag(request, pk):
+    """
+    Force re-tag a comic with DataManager rules, regardless of current state.
+    """
+    from apps.tagging.services import tag_comic as apply_tagging_rules
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    # Apply tagging rules
+    result = apply_tagging_rules(comic)
+
+    # Advance state if needed (to at least tagged)
+    if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
+        comic.state = Comic.STATE_TAGGED
+
+    comic.save()
+
+    return JsonResponse({
+        "success": True,
+        "message": "Tagging rules applied",
+        "matched_rulesets": result.get("matched_rulesets", []),
+        "changes": result.get("changes", []),
+        "new_state": comic.state,
+    })
+
+
+@require_POST
+def force_format(request, pk):
+    """
+    Force re-detect format for a comic, regardless of current state.
+    """
+    comic = get_object_or_404(Comic, pk=pk)
+
+    old_format = comic.format
+    detected = _detect_format(comic)
+
+    if detected:
+        comic.format = detected
+
+    # Advance state if needed (to at least formatted)
+    if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
+                       Comic.STATE_COUNTED, Comic.STATE_TAGGED):
+        comic.state = Comic.STATE_FORMATTED
+
+    # Clear needs_reformat flag
+    comic.needs_reformat = False
+    comic.save()
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Format: {comic.format or 'None'}",
+        "old_format": old_format,
+        "new_format": comic.format,
+        "format_changed": old_format != comic.format,
+        "new_state": comic.state,
+    })
+
+
+@require_POST
+def force_organize(request, pk):
+    """
+    Force re-organize a comic (move to correct library path), regardless of current state.
+    """
+    from apps.organizer.services import preview_organization, LIBRARY_BASE
+    import shutil
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return JsonResponse({
+            "success": False,
+            "error": "Cannot organize physical comics or comics without file path"
+        }, status=400)
+
+    # Verify file exists
+    if not os.path.exists(comic.file_path):
+        return JsonResponse({
+            "success": False,
+            "error": f"File not found: {comic.file_path}"
+        }, status=400)
+
+    # Get the preview to determine destination path
+    try:
+        preview = preview_organization(comic)
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "error": f"Failed to calculate destination: {str(e)}"
+        }, status=500)
+
+    old_path = comic.file_path
+    new_path = preview["new_path"]
+
+    # Check if file needs to move
+    if os.path.abspath(old_path) == os.path.abspath(new_path):
+        return JsonResponse({
+            "success": True,
+            "message": "File is already in the correct location",
+            "moved": False,
+            "old_path": old_path,
+            "new_path": new_path,
+            "new_state": comic.state,
+        })
+
+    # Perform the move
+    try:
+        # Create destination directory
+        new_folder = os.path.dirname(new_path)
+        os.makedirs(new_folder, exist_ok=True)
+
+        # Handle collision
+        if os.path.exists(new_path):
+            base, ext = os.path.splitext(new_path)
+            counter = 1
+            while os.path.exists(new_path):
+                new_path = f"{base}_{counter}{ext}"
+                counter += 1
+
+        # Move the file
+        shutil.move(old_path, new_path)
+
+        # Try to remove empty source directories
+        try:
+            old_dir = os.path.dirname(old_path)
+            while old_dir and old_dir != LIBRARY_BASE and old_dir != "/comics/untagged":
+                if os.path.isdir(old_dir) and not os.listdir(old_dir):
+                    os.rmdir(old_dir)
+                    old_dir = os.path.dirname(old_dir)
+                else:
+                    break
+        except OSError:
+            pass  # Ignore errors when cleaning up directories
+
+        # Update comic record
+        comic.file_path = new_path
+        comic.last_organized_path = new_path
+        # Only change state if it was deduplicated
+        if comic.state == Comic.STATE_DEDUPLICATED:
+            comic.state = Comic.STATE_ORGANIZED
+        comic.save()
+
+        return JsonResponse({
+            "success": True,
+            "message": "Comic organized",
+            "moved": True,
+            "old_path": old_path,
+            "new_path": new_path,
+            "new_state": comic.state,
+        })
+
+    except Exception as e:
+        return JsonResponse({
+            "success": False,
+            "error": f"Failed to move file: {str(e)}"
+        }, status=500)
+
+
+@require_POST
+def refresh_credits(request, pk):
+    """
+    Refresh credits from ComicVine database without re-scraping other metadata.
+    """
+    comic = get_object_or_404(Comic, pk=pk)
+
+    cv_issue_id = comic.custom_values.get("comicvine_issue")
+    if not cv_issue_id:
+        return JsonResponse({
+            "success": False,
+            "error": "No ComicVine issue ID stored for this comic"
+        }, status=400)
+
+    scraper = ComicVineScraper()
+    match = scraper.get_issue_details(int(cv_issue_id))
+
+    if not match:
+        return JsonResponse({
+            "success": False,
+            "error": f"Issue {cv_issue_id} not found in ComicVine database"
+        }, status=404)
+
+    # Update only credits and web URL
+    changes = []
+
+    if match.characters and match.characters != comic.characters:
+        comic.characters = match.characters
+        changes.append("characters")
+    if match.writer and match.writer != comic.writer:
+        comic.writer = match.writer
+        changes.append("writer")
+    if match.penciller and match.penciller != comic.penciller:
+        comic.penciller = match.penciller
+        changes.append("penciller")
+    if match.inker and match.inker != comic.inker:
+        comic.inker = match.inker
+        changes.append("inker")
+    if match.colorist and match.colorist != comic.colorist:
+        comic.colorist = match.colorist
+        changes.append("colorist")
+    if match.letterer and match.letterer != comic.letterer:
+        comic.letterer = match.letterer
+        changes.append("letterer")
+    if match.cover_artist and match.cover_artist != comic.cover_artist:
+        comic.cover_artist = match.cover_artist
+        changes.append("cover_artist")
+    if match.editor and match.editor != comic.editor:
+        comic.editor = match.editor
+        changes.append("editor")
+    if match.web and match.web != comic.web:
+        comic.web = match.web
+        changes.append("web")
+
+    comic.save()
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Updated {len(changes)} field(s)" if changes else "No changes needed",
+        "changes": changes,
+    })
+
+
+@require_POST
+def force_write(request, pk):
+    """
+    Force write ComicInfo.xml for a comic, regardless of current state.
+    """
+    from .utils import write_comicinfo_xml
+    from django.utils import timezone
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital:
+        return JsonResponse({
+            "success": False,
+            "error": "Cannot write to physical comics"
+        }, status=400)
+
+    if not comic.file_path or not comic.file_path.lower().endswith('.cbz'):
+        return JsonResponse({
+            "success": False,
+            "error": "Comic has no CBZ file"
+        }, status=400)
+
+    success = write_comicinfo_xml(comic.file_path, comic)
+    if not success:
+        return JsonResponse({
+            "success": False,
+            "error": "Failed to write ComicInfo.xml"
+        }, status=500)
+
+    # Update state to written if it was organized
+    if comic.state == Comic.STATE_ORGANIZED:
+        comic.state = Comic.STATE_WRITTEN
+
+    comic.last_written = timezone.now()
+
+    # Clear the count_updated flag if set
+    if comic.flags.get("count_updated"):
+        comic.flags.pop("count_updated", None)
+
+    comic.save()
+
+    return JsonResponse({
+        "success": True,
+        "message": "ComicInfo.xml written successfully",
+        "new_state": comic.state,
+    })
+
+
+# =============================================================================
+# Scan Untagged Folder
+# =============================================================================
+
+@require_POST
+def scan_untagged(request):
+    """
+    Scan the untagged folder for new comics and import them.
+
+    This is Phase 1 of the workflow: scanning files -> 'new' state
+    """
+    result = scan_untagged_folder()
+
+    return JsonResponse({
+        "success": result["success"],
+        "imported": result["imported"],
+        "skipped": result["skipped"],
+        "cleaned": result["cleaned"],
+        "errors": result.get("errors", [])[:10],  # Limit error list
+        "message": f"Imported {result['imported']} comics, skipped {result['skipped']}" +
+                   (f", cleaned {result['cleaned']} missing" if result['cleaned'] else ""),
+    })
+
+
+# =============================================================================
+# Delete Comic
+# =============================================================================
+
+@require_POST
+def delete_comic(request, pk):
+    """
+    Hard delete a comic: remove file from disk AND delete DB record.
+    """
+    comic = get_object_or_404(Comic, pk=pk)
+
+    comic_str = str(comic)
+    file_path = comic.file_path
+    file_deleted = False
+
+    # Delete file from disk if it exists
+    if file_path and os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            file_deleted = True
+
+            # Try to remove empty parent directories
+            parent_dir = os.path.dirname(file_path)
+            while parent_dir and parent_dir not in ("/comics", "/comics/library", "/comics/untagged"):
+                if os.path.isdir(parent_dir) and not os.listdir(parent_dir):
+                    os.rmdir(parent_dir)
+                    parent_dir = os.path.dirname(parent_dir)
+                else:
+                    break
+        except OSError as e:
+            return JsonResponse({
+                "success": False,
+                "error": f"Failed to delete file: {str(e)}"
+            }, status=500)
+
+    # Delete the comic record
+    comic.delete()
+
+    return JsonResponse({
+        "success": True,
+        "message": f"Deleted: {comic_str}" + (" (file removed)" if file_deleted else " (no file)"),
+        "file_deleted": file_deleted,
     })

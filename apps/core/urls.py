@@ -5,10 +5,15 @@ app_name = "core"
 
 urlpatterns = [
     path("", views.comic_list, name="list"),
+    path("scan-untagged/", views.scan_untagged, name="scan_untagged"),
     path("convert-all/", views.convert_all_cbr, name="convert_all"),
     path("accept-all/", views.accept_all_comics, name="accept_all"),
     path("scrape-all/", views.scrape_all_comics, name="scrape_all"),
     path("tag-all/", views.tag_all_comics, name="tag_all"),
+    path("format-all/", views.format_all_comics, name="format_all"),
+    path("format/", views.format_review, name="format_review"),
+    path("format/accept/<slug:format_type>/", views.accept_format_group, name="format_accept"),
+    path("format/comics/<slug:format_type>/", views.format_group_comics, name="format_group_comics"),
     path("deduplicate-all/", views.deduplicate_all_comics, name="deduplicate_all"),
     path("organize-all/", views.organize_all_comics, name="organize_all"),
     path("write-all/", views.write_all_comics, name="write_all"),
@@ -20,4 +25,17 @@ urlpatterns = [
     path("<uuid:pk>/scrape/", views.scrape_comic, name="scrape"),
     path("<uuid:pk>/scrape/preview/", views.scrape_preview, name="scrape_preview"),
     path("<uuid:pk>/tag/", views.tag_comic, name="tag"),
+    path("<uuid:pk>/tag/preview/", views.tag_preview, name="tag_preview"),
+    path("<uuid:pk>/format/", views.format_comic, name="format"),
+    path("<uuid:pk>/organize/", views.organize_comic, name="organize"),
+    path("<uuid:pk>/reorganize/", views.reorganize_comic, name="reorganize"),
+    path("<uuid:pk>/write/", views.write_comic, name="write"),
+    # Force actions (re-run workflow steps regardless of state)
+    path("<uuid:pk>/force-scrape/", views.force_scrape, name="force_scrape"),
+    path("<uuid:pk>/force-tag/", views.force_tag, name="force_tag"),
+    path("<uuid:pk>/force-format/", views.force_format, name="force_format"),
+    path("<uuid:pk>/force-organize/", views.force_organize, name="force_organize"),
+    path("<uuid:pk>/force-write/", views.force_write, name="force_write"),
+    path("<uuid:pk>/refresh-credits/", views.refresh_credits, name="refresh_credits"),
+    path("<uuid:pk>/delete/", views.delete_comic, name="delete"),
 ]

@@ -1,0 +1,24 @@
+<div class="alert alert-success" id="group-{{ group.id }}">
+  <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+  <div>
+    <div class="font-bold">Group Resolved: {{ group.match_key }}</div>
+    <div class="text-sm">
+      {% if action == 'keep_all' %}
+      All comics marked as intentional (not duplicates) and advanced to deduplicated.
+      {% elif action == 'keep' %}
+      Comic kept and advanced to deduplicated.
+      {% if result.message %}{{ result.message }}{% endif %}
+      {% elif action == 'requeue' %}
+      Comic sent back to imported state for re-scraping.
+      {% if result.message %}{{ result.message }}{% endif %}
+      {% elif action == 'delete' %}
+      Comic file and record deleted.
+      {% if result.message %}{{ result.message }}{% endif %}
+      {% else %}
+      Resolution complete.
+      {% endif %}
+    </div>
+  </div>
+</div>

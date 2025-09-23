@@ -188,3 +188,4 @@ Screenshot*.png
 *.dat 
 ComicInfo.xml 
 *.code-workspace
+*.lop

@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Format Review - ComicManager{% endblock %}
+{% block nav_comics %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+  <!-- Header -->
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-3xl font-bold">Format Review</h1>
+      <p class="text-base-content/70">
+        {{ total_tagged }} comic{{ total_tagged|pluralize }} in tagged state
+        {% if total_reformat %}, {{ total_reformat }} need{{ total_reformat|pluralize:",s" }} re-formatting{% endif %}
+      </p>
+    </div>
+    <a href="/" class="btn btn-ghost btn-sm">Back to Dashboard</a>
+  </div>
+
+  <!-- Re-format section (if any) -->
+  {% if reformat_group %}
+  <div class="card bg-warning/10 border border-warning">
+    <div class="card-body p-4">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h3 class="font-bold text-warning text-lg">{{ reformat_group.name }}</h3>
+          <p class="text-sm text-base-content/70">Issue count changed, format may need updating</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="badge badge-warning badge-lg">{{ reformat_group.count }}</span>
+          <button
+            type="button"
+            class="btn btn-sm btn-warning"
+            hx-post="{% url 'core:format_accept' reformat_group.slug %}"
+            hx-target="closest .card"
+            hx-swap="outerHTML"
+          >
+            Re-format All
+          </button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="table table-sm table-zebra">
+          <thead>
+            <tr>
+              <th>Series</th>
+              <th>Vol</th>
+              <th>#</th>
+              <th>Count</th>
+              <th>Title</th>
+              <th>Publisher</th>
+              <th>Current Format</th>
+              <th>State</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for comic in reformat_group.comics %}
+            <tr class="hover">
+              <td class="font-medium">
+                <a href="{% url 'core:detail' comic.pk %}" class="link link-primary">
+                  {{ comic.series|default:"-" }}
+                </a>
+              </td>
+              <td>{{ comic.volume|default:"-" }}</td>
+              <td>{{ comic.number|default:"-" }}</td>
+              <td>{{ comic.count|default:"-" }}</td>
+              <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
+              <td>{{ comic.publisher|default:"-" }}</td>
+              <td>
+                {% if comic.format %}
+                <span class="badge badge-sm badge-outline">{{ comic.format }}</span>
+                {% else %}
+                <span class="text-base-content/40">-</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge badge-sm badge-info">{{ comic.state }}</span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Format groups -->
+  {% for group in format_groups %}
+  <div class="card bg-base-200">
+    <div class="card-body p-4">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h3 class="font-bold text-lg">{{ group.name }}</h3>
+          <p class="text-sm text-base-content/70">
+            {% if group.is_count_based %}
+            Count-based classification
+            {% elif group.name == "Unknown" %}
+            No pattern matched, no issue count
+            {% else %}
+            Detected from series/title text
+            {% endif %}
+          </p>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="badge badge-primary badge-lg">{{ group.count }}</span>
+          <button
+            type="button"
+            class="btn btn-sm btn-success"
+            hx-post="{% url 'core:format_accept' group.slug %}"
+            hx-target="closest .card"
+            hx-swap="outerHTML"
+          >
+            Accept {{ group.name }}
+          </button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="table table-sm table-zebra">
+          <thead>
+            <tr>
+              <th>Series</th>
+              <th>Vol</th>
+              <th>#</th>
+              <th>Count</th>
+              <th>Title</th>
+              <th>Publisher</th>
+              <th>Current Format</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for comic in group.comics %}
+            <tr class="hover">
+              <td class="font-medium">
+                <a href="{% url 'core:detail' comic.pk %}" class="link link-primary">
+                  {{ comic.series|default:"-" }}
+                </a>
+              </td>
+              <td>{{ comic.volume|default:"-" }}</td>
+              <td>{{ comic.number|default:"-" }}</td>
+              <td>{{ comic.count|default:"-" }}</td>
+              <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
+              <td>{{ comic.publisher|default:"-" }}</td>
+              <td>
+                {% if comic.format %}
+                <span class="badge badge-sm badge-outline">{{ comic.format }}</span>
+                {% else %}
+                <span class="text-base-content/40">-</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% empty %}
+  <div class="alert alert-info">
+    <span>No comics in "tagged" state ready for format detection.</span>
+    <a href="/" class="link link-primary">Return to Dashboard</a>
+  </div>
+  {% endfor %}
+
+</div>
+{% endblock %}

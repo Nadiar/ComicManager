@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}{{ action }} Ruleset - DataManager{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="text-sm breadcrumbs mb-2">
+    <ul>
+      <li><a href="{% url 'tagging:ruleset_list' %}">Rulesets</a></li>
+      <li>{{ action }} Ruleset</li>
+    </ul>
+  </div>
+  <h1 class="text-2xl font-bold">{{ action }} Ruleset</h1>
+</div>
+
+<form method="post" class="space-y-6">
+  {% csrf_token %}
+
+  <!-- Basic Info -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Basic Information</h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Name *</span>
+          </label>
+          <input type="text" name="name" value="{{ ruleset.name|default:'' }}" required class="input input-bordered" placeholder="e.g., Green Lantern">
+        </div>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Group Path</span>
+          </label>
+          <input type="text" name="group_path" value="{{ ruleset.group_path|default:'' }}" class="input input-bordered" placeholder="e.g., DC Series Groups/Cosmic/OA">
+        </div>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Mode</span>
+          </label>
+          <select name="mode" class="select select-bordered">
+            {% for value, label in mode_choices %}
+            <option value="{{ value }}" {% if ruleset.mode == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">Priority</span>
+          </label>
+          <input type="number" name="priority" value="{{ ruleset.priority|default:0 }}" class="input input-bordered" placeholder="0">
+          <label class="label">
+            <span class="label-text-alt">Lower = evaluated earlier</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-control">
+        <label class="label">
+          <span class="label-text">Comment</span>
+        </label>
+        <textarea name="comment" rows="2" class="textarea textarea-bordered" placeholder="Optional notes about this ruleset">{{ ruleset.comment|default:'' }}</textarea>
+      </div>
+
+      <div class="form-control">
+        <label class="label cursor-pointer justify-start gap-4">
+          <input type="checkbox" name="is_enabled" class="checkbox checkbox-primary" {% if ruleset.is_enabled or not ruleset %}checked{% endif %}>
+          <span class="label-text">Enabled</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rules -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <div class="flex justify-between items-center">
+        <h2 class="card-title">Rules (Conditions)</h2>
+        <button type="button" onclick="addRule()" class="btn btn-sm btn-outline">Add Rule</button>
+      </div>
+      <p class="text-sm text-base-content/70">Define conditions that must match for this ruleset to apply.</p>
+
+      <div id="rules-container" class="space-y-3 mt-4">
+        {% if ruleset.rules %}
+          {% for rule in ruleset.rules %}
+          <div class="rule-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg">
+            <select name="rule_field_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+              <option value="">Select field...</option>
+              {% for field in field_options %}
+              <option value="{{ field }}" {% if rule.field == field %}selected{% endif %}>{{ field }}</option>
+              {% endfor %}
+            </select>
+            <select name="rule_modifier_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+              <option value="">Select modifier...</option>
+              {% for mod in rule_modifier_options %}
+              <option value="{{ mod }}" {% if rule.modifier == mod %}selected{% endif %}>{{ mod }}</option>
+              {% endfor %}
+            </select>
+            <input type="text" name="rule_value_{{ forloop.counter0 }}" value="{{ rule.value }}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value (use || for multiple)">
+            <button type="button" onclick="this.closest('.rule-row').remove()" class="btn btn-ghost btn-sm btn-square text-error">×</button>
+          </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <div class="flex justify-between items-center">
+        <h2 class="card-title">Actions</h2>
+        <button type="button" onclick="addAction()" class="btn btn-sm btn-outline">Add Action</button>
+      </div>
+      <p class="text-sm text-base-content/70">Define changes to apply when rules match.</p>
+
+      <div id="actions-container" class="space-y-3 mt-4">
+        {% if ruleset.actions %}
+          {% for action in ruleset.actions %}
+          <div class="action-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg">
+            <select name="action_field_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+              <option value="">Select field...</option>
+              {% for field in field_options %}
+              <option value="{{ field }}" {% if action.field == field %}selected{% endif %}>{{ field }}</option>
+              {% endfor %}
+            </select>
+            <select name="action_modifier_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+              <option value="">Select modifier...</option>
+              {% for mod in action_modifier_options %}
+              <option value="{{ mod }}" {% if action.modifier == mod %}selected{% endif %}>{{ mod }}</option>
+              {% endfor %}
+            </select>
+            <input type="text" name="action_value_{{ forloop.counter0 }}" value="{{ action.value }}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value">
+            <button type="button" onclick="this.closest('.action-row').remove()" class="btn btn-ghost btn-sm btn-square text-error">×</button>
+          </div>
+          {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Submit -->
+  <div class="flex justify-end gap-2">
+    <a href="{% url 'tagging:ruleset_list' %}" class="btn btn-ghost">Cancel</a>
+    <button type="submit" class="btn btn-primary">Save Ruleset</button>
+  </div>
+</form>
+
+<script>
+const fieldOptions = {{ field_options|safe }};
+const ruleModifierOptions = {{ rule_modifier_options|safe }};
+const actionModifierOptions = {{ action_modifier_options|safe }};
+
+let ruleIndex = {{ ruleset.rules|length|default:0 }};
+let actionIndex = {{ ruleset.actions|length|default:0 }};
+
+function addRule() {
+  const container = document.getElementById('rules-container');
+  const row = document.createElement('div');
+  row.className = 'rule-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg';
+  row.innerHTML = `
+    <select name="rule_field_${ruleIndex}" class="select select-bordered select-sm w-40">
+      <option value="">Select field...</option>
+      ${fieldOptions.map(f => `<option value="${f}">${f}</option>`).join('')}
+    </select>
+    <select name="rule_modifier_${ruleIndex}" class="select select-bordered select-sm w-40">
+      <option value="">Select modifier...</option>
+      ${ruleModifierOptions.map(m => `<option value="${m}">${m}</option>`).join('')}
+    </select>
+    <input type="text" name="rule_value_${ruleIndex}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value (use || for multiple)">
+    <button type="button" onclick="this.closest('.rule-row').remove()" class="btn btn-ghost btn-sm btn-square text-error">×</button>
+  `;
+  container.appendChild(row);
+  ruleIndex++;
+}
+
+function addAction() {
+  const container = document.getElementById('actions-container');
+  const row = document.createElement('div');
+  row.className = 'action-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg';
+  row.innerHTML = `
+    <select name="action_field_${actionIndex}" class="select select-bordered select-sm w-40">
+      <option value="">Select field...</option>
+      ${fieldOptions.map(f => `<option value="${f}">${f}</option>`).join('')}
+    </select>
+    <select name="action_modifier_${actionIndex}" class="select select-bordered select-sm w-40">
+      <option value="">Select modifier...</option>
+      ${actionModifierOptions.map(m => `<option value="${m}">${m}</option>`).join('')}
+    </select>
+    <input type="text" name="action_value_${actionIndex}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value">
+    <button type="button" onclick="this.closest('.action-row').remove()" class="btn btn-ghost btn-sm btn-square text-error">×</button>
+  `;
+  container.appendChild(row);
+  actionIndex++;
+}
+</script>
+{% endblock %}

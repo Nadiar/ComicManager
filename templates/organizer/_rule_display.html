@@ -1,0 +1,21 @@
+{% comment %}
+Recursive template for displaying a rule or rule group.
+Expects: rule (dict with type, field, operator, value OR type=group with nested rules)
+{% endcomment %}
+
+{% if rule.type == "group" %}
+<div class="pl-4 border-l-2 border-base-300 space-y-2">
+  <div class="text-xs text-base-content/50 uppercase">
+    {{ rule.operator }} of:
+  </div>
+  {% for subrule in rule.rules %}
+  {% include "organizer/_rule_display.html" with rule=subrule %}
+  {% endfor %}
+</div>
+{% else %}
+<div class="flex items-center gap-2 text-sm">
+  <span class="badge badge-sm badge-primary">{{ rule.field }}</span>
+  <span class="text-base-content/60">{{ rule.operator }}</span>
+  <span class="font-medium">{{ rule.value }}</span>
+</div>
+{% endif %}

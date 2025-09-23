@@ -1,0 +1,49 @@
+<div class="overflow-x-auto">
+  <table class="table table-sm table-zebra">
+    <thead>
+      <tr>
+        <th>Series</th>
+        <th>#</th>
+        <th>Count</th>
+        <th>Title</th>
+        <th>Publisher</th>
+        <th>Current Format</th>
+        <th>State</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for comic in comics %}
+      <tr class="hover">
+        <td class="font-medium">
+          <a href="{% url 'core:detail' comic.pk %}" class="link link-primary">
+            {{ comic.series|default:"-" }}
+          </a>
+        </td>
+        <td>{{ comic.number|default:"-" }}</td>
+        <td>{{ comic.count|default:"-" }}</td>
+        <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
+        <td>{{ comic.publisher|default:"-" }}</td>
+        <td>
+          {% if comic.format %}
+          <span class="badge badge-sm badge-outline">{{ comic.format }}</span>
+          {% else %}
+          <span class="text-base-content/40">-</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="badge badge-sm badge-info">{{ comic.state }}</span>
+          {% if comic.needs_reformat %}
+          <span class="badge badge-sm badge-warning">needs reformat</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="7" class="text-center py-4 text-base-content/50">
+          No comics in this group
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

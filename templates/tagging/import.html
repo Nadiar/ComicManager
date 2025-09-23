@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}Import DataManager Rules{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="text-sm breadcrumbs mb-2">
+    <ul>
+      <li><a href="{% url 'tagging:ruleset_list' %}">Rulesets</a></li>
+      <li>Import</li>
+    </ul>
+  </div>
+  <h1 class="text-2xl font-bold">Import DataManager Rules</h1>
+</div>
+
+<div class="max-w-2xl">
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <p class="mb-4">
+        Upload a ComicRack DataManager XML file (<code>dataman.dat</code>) to import rulesets.
+        This will parse the nested group/ruleset structure and create database records.
+      </p>
+
+      {% if total_rulesets > 0 %}
+      <div class="alert alert-warning mb-4">
+        <span>You currently have {{ total_rulesets }} rulesets in the database.</span>
+      </div>
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data" class="space-y-4">
+        {% csrf_token %}
+
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text">DataManager XML File</span>
+          </label>
+          <input type="file" name="file" accept=".dat,.xml" required class="file-input file-input-bordered w-full">
+          <label class="label">
+            <span class="label-text-alt">Accepts .dat or .xml files</span>
+          </label>
+        </div>
+
+        <div class="form-control">
+          <label class="label cursor-pointer justify-start gap-4">
+            <input type="checkbox" name="clear_existing" class="checkbox checkbox-warning">
+            <div>
+              <span class="label-text">Clear existing rulesets before import</span>
+              <p class="text-xs text-base-content/50">Warning: This will delete all current rulesets!</p>
+            </div>
+          </label>
+        </div>
+
+        <div class="flex gap-2">
+          <button type="submit" class="btn btn-primary">Import</button>
+          <a href="{% url 'tagging:ruleset_list' %}" class="btn btn-ghost">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card bg-base-200 mt-6">
+    <div class="card-body">
+      <h2 class="card-title text-lg">Import Notes</h2>
+      <ul class="list-disc list-inside space-y-1 text-sm text-base-content/80">
+        <li>Rulesets are imported with their original priority order preserved</li>
+        <li>Group paths are flattened (e.g., "DC Series Groups/Cosmic/OA")</li>
+        <li>Duplicate rulesets (same name + group path) are skipped</li>
+        <li>Disabled sections in the XML are not imported</li>
+        <li>After import, all rules are fully editable via the web UI</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -53,7 +53,7 @@
               <th>Stage</th>
               <th>Description</th>
               <th class="text-right">Count</th>
-              <th></th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -68,9 +68,41 @@
                 <span class="text-base-content/40">0</span>
                 {% endif %}
               </td>
-              <td>
+              <td class="flex gap-1">
                 {% if stage.count > 0 %}
                 <a href="/comics/?state={{ stage.state }}" class="btn btn-xs btn-ghost">View</a>
+                {% endif %}
+
+                {% if stage.state == 'new' %}
+                <button onclick="runAction('/comics/scan-untagged/', this)" class="btn btn-xs btn-info">Scan Untagged</button>
+                {% if stage.count > 0 %}
+                <button onclick="runAction('/comics/accept-all/', this)" class="btn btn-xs btn-success">Accept All</button>
+                {% endif %}
+                {% endif %}
+
+                {% if stage.state == 'imported' and stage.count > 0 %}
+                <button onclick="runAction('/comics/scrape-all/', this)" class="btn btn-xs btn-success">Scrape All</button>
+                {% endif %}
+
+                {% if stage.state == 'counted' and stage.count > 0 %}
+                <button onclick="runAction('/comics/tag-all/', this)" class="btn btn-xs btn-success">Tag All</button>
+                {% endif %}
+
+                {% if stage.state == 'tagged' and stage.count > 0 %}
+                <a href="{% url 'core:format_review' %}" class="btn btn-xs btn-success">Review Formats</a>
+                {% endif %}
+
+                {% if stage.state == 'formatted' and stage.count > 0 %}
+                <a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-info">Review Dupes</a>
+                <button onclick="runAction('/comics/deduplicate-all/', this)" class="btn btn-xs btn-success">Detect Dupes</button>
+                {% endif %}
+
+                {% if stage.state == 'deduplicated' and stage.count > 0 %}
+                <button onclick="runAction('/comics/organize-all/', this)" class="btn btn-xs btn-success">Organize All</button>
+                {% endif %}
+
+                {% if stage.state == 'organized' and stage.count > 0 %}
+                <button onclick="runAction('/comics/write-all/', this)" class="btn btn-xs btn-success">Write All</button>
                 {% endif %}
               </td>
             </tr>
@@ -80,6 +112,48 @@
       </div>
     </div>
   </div>
+
+<script>
+function getCsrfToken() {
+  return document.querySelector('meta[name="csrf-token"]')?.content ||
+         document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+}
+
+async function runAction(url, btn) {
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+        'Content-Type': 'application/json',
+      },
+    });
+    const data = await resp.json();
+
+    if (data.success) {
+      btn.textContent = 'Done!';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-info');
+      // Reload page after short delay to show updated counts
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      btn.textContent = 'Error';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-error');
+      console.error(data);
+    }
+  } catch (err) {
+    btn.textContent = 'Error';
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-error');
+    console.error(err);
+  }
+}
+</script>
 
   <!-- Review Queue -->
   {% if flagged_count > 0 %}

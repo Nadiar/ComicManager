@@ -1,0 +1,136 @@
+<div class="card bg-base-300" id="group-{{ group.id }}">
+  <div class="card-body p-4">
+    <div class="flex justify-between items-start">
+      <div>
+        <h4 class="font-medium text-lg">{{ group.match_key }}</h4>
+        <p class="text-sm text-base-content/60">
+          {{ group.comic_count }} comic{{ group.comic_count|pluralize }} &bull;
+          {{ group.detection_method_display }}
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <a href="{% url 'duplicates:group_detail' group.id %}" class="btn btn-xs btn-ghost">
+          Details
+        </a>
+        <button
+          class="btn btn-xs btn-info"
+          hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
+          hx-vals='{"action": "keep_all"}'
+          hx-target="#group-{{ group.id }}"
+          hx-swap="outerHTML"
+          hx-confirm="Keep all comics in this group as intentional (not duplicates)?"
+        >
+          Keep All
+        </button>
+      </div>
+    </div>
+
+    <!-- Comics table -->
+    <div class="overflow-x-auto mt-3">
+      <table class="table table-sm table-zebra">
+        <thead>
+          <tr>
+            <th class="w-28">Cover</th>
+            <th class="w-36">Actions</th>
+            <th>Series</th>
+            <th>#</th>
+            <th>Vol</th>
+            <th>Format</th>
+            <th>CV Issue</th>
+            <th>Size</th>
+            <th>Pages</th>
+            {% if group.detection_method == 'phash' %}<th>Distance</th>{% endif %}
+            <th>Source</th>
+            <th>File Path</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for comic in group.comics %}
+          <tr class="hover">
+            <td class="p-1">
+              <img
+                src="{% url 'core:cover' comic.id %}"
+                alt="Cover"
+                class="w-24 h-auto rounded cursor-pointer hover:opacity-80 transition-opacity cover-thumb"
+                loading="lazy"
+                data-full-src="{% url 'core:cover' comic.id %}"
+                data-title="{{ comic.series|default:'-' }} #{{ comic.number|default:'?' }}"
+              />
+            </td>
+            <td>
+              <div class="flex gap-1">
+                <button
+                  class="btn btn-xs btn-success"
+                  hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
+                  hx-vals='{"action": "keep", "comic_id": "{{ comic.id }}"}'
+                  hx-target="#group-{{ group.id }}"
+                  hx-swap="outerHTML"
+                  title="Keep this comic, advance to deduplicated"
+                >
+                  Keep
+                </button>
+                <button
+                  class="btn btn-xs btn-warning"
+                  hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
+                  hx-vals='{"action": "requeue", "comic_id": "{{ comic.id }}"}'
+                  hx-target="#group-{{ group.id }}"
+                  hx-swap="outerHTML"
+                  hx-confirm="Send this comic back to imported state for re-scraping?"
+                  title="Re-queue for re-scraping"
+                >
+                  Re-Q
+                </button>
+                <button
+                  class="btn btn-xs btn-error"
+                  hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
+                  hx-vals='{"action": "delete", "comic_id": "{{ comic.id }}"}'
+                  hx-target="#group-{{ group.id }}"
+                  hx-swap="outerHTML"
+                  hx-confirm="DELETE this comic file and database record? This cannot be undone!"
+                  title="Delete file and record"
+                >
+                  Del
+                </button>
+              </div>
+            </td>
+            <td>
+              <a href="{% url 'core:detail' comic.id %}" class="link link-primary">
+                {{ comic.series|default:"-"|truncatechars:30 }}
+              </a>
+            </td>
+            <td>{{ comic.number|default:"-" }}</td>
+            <td>{{ comic.volume|default:"-" }}</td>
+            <td>
+              {% if comic.format %}
+              <span class="badge badge-sm badge-outline">{{ comic.format }}</span>
+              {% else %}-{% endif %}
+            </td>
+            <td>
+              {% if comic.cv_issue %}
+              <span class="font-mono text-xs">{{ comic.cv_issue }}</span>
+              {% else %}-{% endif %}
+            </td>
+            <td class="text-right">
+              {% if comic.file_size %}
+              {% widthratio comic.file_size 1048576 1 %} MB
+              {% else %}-{% endif %}
+            </td>
+            <td class="text-right">{{ comic.page_count|default:"-" }}</td>
+            {% if group.detection_method == 'phash' %}
+            <td class="text-center">{{ comic.phash_distance|default:"0" }}</td>
+            {% endif %}
+            <td>
+              {% if comic.scrape_source %}
+              <span class="badge badge-xs">{{ comic.scrape_source }}</span>
+              {% else %}-{% endif %}
+            </td>
+            <td class="text-xs text-base-content/70 max-w-xs truncate" title="{{ comic.file_path }}">
+              {{ comic.file_path|default:"-" }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
