@@ -189,3 +189,4 @@ Screenshot*.png
 ComicInfo.xml 
 *.code-workspace
 *.lop
+*.claude
