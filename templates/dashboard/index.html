@@ -89,7 +89,8 @@
                 {% endif %}
 
                 {% if stage.state == 'tagged' and stage.count > 0 %}
-                <a href="{% url 'core:format_review' %}" class="btn btn-xs btn-success">Review Formats</a>
+                <button onclick="runAction('/comics/format-all/', this)" class="btn btn-xs btn-success">Format All</button>
+                <a href="{% url 'core:format_review' %}" class="btn btn-xs btn-info">Review Formats</a>
                 {% endif %}
 
                 {% if stage.state == 'formatted' and stage.count > 0 %}

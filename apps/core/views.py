@@ -23,6 +23,18 @@ FLAG_LABELS = {
     "needs_conversion": "Needs Conversion",
 }
 
+# Workflow states in order (for navigation)
+WORKFLOW_STATES = [
+    ("new", "New"),
+    ("imported", "Imported"),
+    ("counted", "Counted"),
+    ("tagged", "Tagged"),
+    ("formatted", "Formatted"),
+    ("deduplicated", "Deduplicated"),
+    ("organized", "Organized"),
+    ("written", "Written"),
+]
+
 
 def comic_list(request):
     comics = Comic.objects.all()
@@ -49,6 +61,7 @@ def comic_list(request):
         "current_flag": flag,
         "flag_label": FLAG_LABELS.get(flag, flag),
         "needs_conversion_count": needs_conversion_count,
+        "workflow_states": WORKFLOW_STATES,
     })
 
 
@@ -441,12 +454,31 @@ def scrape_comic(request, pk):
     """
     Scrape a single comic against the ComicVine database.
 
-    If cv_issue_id is provided in POST data, use that specific match.
+    If issue_id is provided in POST data (form or JSON), use that specific match.
     Otherwise, auto-select the best match.
+
+    Query params:
+        force=1: Skip state check (for re-scraping comics in any state)
     """
+    import json
+
     comic = get_object_or_404(Comic, pk=pk)
 
-    if comic.state != Comic.STATE_IMPORTED:
+    force = request.GET.get("force") == "1"
+
+    # Also check if issue_id is in JSON body (for manual selection from modal)
+    cv_issue_id = request.POST.get("cv_issue_id") or request.POST.get("issue_id")
+    if not cv_issue_id and request.content_type == "application/json":
+        try:
+            body = json.loads(request.body)
+            cv_issue_id = body.get("issue_id") or body.get("cv_issue_id")
+            # If we have an issue_id from JSON, this is a manual selection - allow force
+            if cv_issue_id:
+                force = True
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    if not force and comic.state != Comic.STATE_IMPORTED:
         return JsonResponse({
             "success": False,
             "error": f"Comic is not in 'imported' state (current: {comic.state})"
@@ -456,7 +488,6 @@ def scrape_comic(request, pk):
     match = None
 
     # Check if a specific CV issue ID was provided
-    cv_issue_id = request.POST.get("cv_issue_id")
     if cv_issue_id:
         # User selected a specific match
         match = scraper.get_issue_details(int(cv_issue_id))
@@ -1507,13 +1538,19 @@ def force_scrape(request, pk):
 def force_tag(request, pk):
     """
     Force re-tag a comic with DataManager rules, regardless of current state.
+
+    Unlike the normal tag_comic service, this bypasses the state check
+    and applies rules to comics in any state.
     """
-    from apps.tagging.services import tag_comic as apply_tagging_rules
+    from apps.tagging.engine import apply_datamanager_rules
 
     comic = get_object_or_404(Comic, pk=pk)
 
-    # Apply tagging rules
-    result = apply_tagging_rules(comic)
+    # Apply tagging rules directly (bypassing state check)
+    result = apply_datamanager_rules(comic, save=False)
+
+    # Mark as processed by DataManager
+    comic.custom_values["DataManager_Processed"] = "yes"
 
     # Advance state if needed (to at least tagged)
     if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
@@ -1521,9 +1558,17 @@ def force_tag(request, pk):
 
     comic.save()
 
+    matched_count = result.get("matched_count", len(result.get("matched_rulesets", [])))
+    changes_count = result.get("changes_count", len(result.get("changes", [])))
+
+    if matched_count > 0:
+        message = f"Applied {matched_count} ruleset(s), made {changes_count} change(s)"
+    else:
+        message = "No matching rulesets found"
+
     return JsonResponse({
         "success": True,
-        "message": "Tagging rules applied",
+        "message": message,
         "matched_rulesets": result.get("matched_rulesets", []),
         "changes": result.get("changes", []),
         "new_state": comic.state,

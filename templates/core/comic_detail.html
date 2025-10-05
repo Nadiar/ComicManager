@@ -34,9 +34,9 @@
           <li class="menu-title"><span>Workflow Actions</span></li>
           {% if comic.is_digital %}
           <li>
-            <a href="/comics/{{ comic.pk }}/scrape/preview/?force=1">
+            <button onclick="openScrapeModal()">
               <span class="badge badge-xs badge-secondary">1</span> Re-scrape
-            </a>
+            </button>
           </li>
           {% endif %}
           <li>
@@ -305,6 +305,46 @@
   </div>
 </div>
 
+<!-- Scrape Preview Modal -->
+<dialog id="scrape-modal" class="modal">
+  <div class="modal-box max-w-6xl">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+    </form>
+    <h3 class="font-bold text-lg mb-4">
+      Re-scrape: <span id="modal-comic-title">{{ comic.series }} #{{ comic.number }}</span>
+    </h3>
+
+    <div class="flex gap-6">
+      <!-- Local comic info -->
+      <div class="flex-shrink-0 w-48">
+        <h4 class="font-semibold mb-2">Current File</h4>
+        <img id="local-cover-img" src="/comics/{{ comic.pk }}/cover/" alt="Local cover" class="w-full h-auto rounded-lg shadow mb-2" />
+        <p class="text-sm text-base-content/70" id="modal-local-info">{{ comic.series }} #{{ comic.number }}</p>
+      </div>
+
+      <!-- Match results -->
+      <div class="flex-1">
+        <div id="modal-loading" class="flex items-center justify-center py-8">
+          <span class="loading loading-spinner loading-lg"></span>
+          <span class="ml-2">Searching ComicVine...</span>
+        </div>
+
+        <div id="modal-error" class="alert alert-error hidden">
+          <span id="modal-error-text"></span>
+        </div>
+
+        <div id="modal-matches" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Match cards will be inserted here -->
+        </div>
+      </div>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
 <script>
 const comicPk = '{{ comic.pk }}';
 const csrfToken = '{{ csrf_token }}';
@@ -327,6 +367,115 @@ const actionLabels = {
   'write': 'Writing...',
   'refresh-credits': 'Refreshing...',
 };
+
+// Scrape modal functions
+function openScrapeModal() {
+  const modal = document.getElementById('scrape-modal');
+  const matchesDiv = document.getElementById('modal-matches');
+  const loadingDiv = document.getElementById('modal-loading');
+  const errorDiv = document.getElementById('modal-error');
+
+  // Close dropdown
+  document.activeElement.blur();
+
+  // Reset modal state
+  matchesDiv.innerHTML = '';
+  loadingDiv.classList.remove('hidden');
+  errorDiv.classList.add('hidden');
+
+  modal.showModal();
+
+  // Fetch preview matches with force=1 to skip state check
+  fetch(`/comics/${comicPk}/scrape/preview/?force=1`)
+    .then(response => response.json())
+    .then(data => {
+      loadingDiv.classList.add('hidden');
+
+      if (!data.success) {
+        errorDiv.classList.remove('hidden');
+        document.getElementById('modal-error-text').textContent = data.error;
+        return;
+      }
+
+      if (data.matches.length === 0) {
+        matchesDiv.innerHTML = '<div class="col-span-full text-center text-warning py-4">No matches found</div>';
+        return;
+      }
+
+      // Render match cards
+      data.matches.forEach((match, idx) => {
+        const card = document.createElement('div');
+        card.className = `card bg-base-300 cursor-pointer hover:ring-2 hover:ring-primary transition-all border border-base-content/10 ${match.recommended ? 'ring-2 ring-success' : ''}`;
+
+        const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
+
+        card.innerHTML = `
+          <figure class="px-4 pt-4 h-52 bg-base-100/50 rounded-t-xl flex justify-center items-center">
+            ${covers.length > 0
+              ? `<img src="${covers[0]}" alt="Cover" class="rounded-lg max-h-48 max-w-full object-contain shadow-md" />`
+              : '<div class="h-48 w-full bg-base-300 rounded-lg flex items-center justify-center text-base-content/50 text-sm">No cover</div>'
+            }
+          </figure>
+          <div class="card-body p-4 gap-2">
+            <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
+            <p class="text-sm text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
+            ${match.title ? `<p class="text-sm text-base-content/70 line-clamp-2">${match.title}</p>` : ''}
+            <div class="flex flex-wrap gap-2 mt-2">
+              <span class="badge ${match.recommended ? 'badge-success' : 'badge-outline'}">${match.match_type}</span>
+              ${match.recommended ? '<span class="badge badge-success">Best Match</span>' : ''}
+            </div>
+          </div>
+        `;
+
+        card.addEventListener('click', () => selectMatch(match.issue_id));
+        matchesDiv.appendChild(card);
+      });
+    })
+    .catch(err => {
+      loadingDiv.classList.add('hidden');
+      errorDiv.classList.remove('hidden');
+      document.getElementById('modal-error-text').textContent = 'Error fetching matches: ' + err.message;
+    });
+}
+
+async function selectMatch(issueId) {
+  const modal = document.getElementById('scrape-modal');
+  const matchesDiv = document.getElementById('modal-matches');
+
+  // Show loading state on all cards
+  matchesDiv.querySelectorAll('.card').forEach(card => {
+    card.classList.add('opacity-50', 'pointer-events-none');
+  });
+
+  try {
+    const response = await fetch(`/comics/${comicPk}/scrape/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ issue_id: issueId }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      modal.close();
+      // Reload page to show updated metadata
+      location.reload();
+    } else {
+      alert('Error: ' + (data.error || 'Unknown error'));
+      matchesDiv.querySelectorAll('.card').forEach(card => {
+        card.classList.remove('opacity-50', 'pointer-events-none');
+      });
+    }
+  } catch (err) {
+    alert('Network error: ' + err.message);
+    matchesDiv.querySelectorAll('.card').forEach(card => {
+      card.classList.remove('opacity-50', 'pointer-events-none');
+    });
+  }
+}
 
 async function runAction(action) {
   const btn = document.getElementById(`action-${action}`);

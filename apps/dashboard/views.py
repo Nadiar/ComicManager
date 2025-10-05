@@ -18,16 +18,16 @@ def index(request):
     )
 
     # Workflow pipeline stages
+    # Note: "scraped" state is skipped - scraping goes directly to "counted"
     pipeline = [
-        {"state": "new", "label": "1. New", "description": "Awaiting processing", "count": state_counts.get("new", 0)},
-        {"state": "imported", "label": "2. Imported", "description": "File info extracted", "count": state_counts.get("imported", 0)},
-        {"state": "scraped", "label": "3. Scraped", "description": "ComicVine matched", "count": state_counts.get("scraped", 0)},
-        {"state": "counted", "label": "4. Counted", "description": "Issue count set", "count": state_counts.get("counted", 0)},
-        {"state": "tagged", "label": "5. Tagged", "description": "Publisher rules applied", "count": state_counts.get("tagged", 0)},
-        {"state": "formatted", "label": "6. Formatted", "description": "Format detected", "count": state_counts.get("formatted", 0)},
-        {"state": "deduplicated", "label": "7. Deduplicated", "description": "Duplicates resolved", "count": state_counts.get("deduplicated", 0)},
-        {"state": "organized", "label": "8. Organized", "description": "Moved to library", "count": state_counts.get("organized", 0)},
-        {"state": "written", "label": "9. Written", "description": "ComicInfo.xml saved", "count": state_counts.get("written", 0)},
+        {"state": "new", "label": "1. New", "description": "Awaiting processing", "action": "Accept All", "count": state_counts.get("new", 0)},
+        {"state": "imported", "label": "2. Imported", "description": "File info extracted", "action": "Scrape All", "count": state_counts.get("imported", 0)},
+        {"state": "counted", "label": "3. Counted", "description": "ComicVine matched + issue count set", "action": "Tag All", "count": state_counts.get("counted", 0)},
+        {"state": "tagged", "label": "4. Tagged", "description": "Publisher rules applied", "action": "Format All", "count": state_counts.get("tagged", 0)},
+        {"state": "formatted", "label": "5. Formatted", "description": "Format detected", "action": "Deduplicate All", "count": state_counts.get("formatted", 0)},
+        {"state": "deduplicated", "label": "6. Deduplicated", "description": "Duplicates resolved", "action": "Organize All", "count": state_counts.get("deduplicated", 0)},
+        {"state": "organized", "label": "7. Organized", "description": "Moved to library", "action": "Write All", "count": state_counts.get("organized", 0)},
+        {"state": "written", "label": "8. Written", "description": "ComicInfo.xml saved", "action": None, "count": state_counts.get("written", 0)},
     ]
 
     # Review queue - count comics with each flag type

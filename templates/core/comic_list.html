@@ -4,6 +4,21 @@
 
 {% block content %}
 <div class="space-y-4">
+  <!-- Workflow Navigation -->
+  {% if current_state and workflow_states %}
+  <div class="flex items-center gap-1 text-sm overflow-x-auto pb-2">
+    {% for state_key, state_label in workflow_states %}
+    <a href="?state={{ state_key }}"
+       class="btn btn-xs {% if state_key == current_state %}btn-primary{% else %}btn-ghost btn-outline{% endif %}">
+      {{ forloop.counter }}. {{ state_label }}
+    </a>
+    {% if not forloop.last %}
+    <span class="text-base-content/30">→</span>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <div class="flex justify-between items-center">
     <div class="flex items-center gap-3">
       <h1 class="text-3xl font-bold">Comics</h1>
@@ -61,6 +76,16 @@
         onclick="tagAllComics(this)"
       >
         Tag All
+      </button>
+      {% endif %}
+      {% if current_state == 'tagged' and comics %}
+      <button
+        type="button"
+        id="format-all-btn"
+        class="btn btn-sm btn-info"
+        onclick="formatAllComics(this)"
+      >
+        Format All
       </button>
       {% endif %}
       {% if current_state == 'formatted' and comics %}
@@ -1244,6 +1269,43 @@ function formatComic(pk, btn) {
       btn.classList.add('btn-error');
       btn.innerHTML = 'Error';
       btn.title = data.error || 'Failed to format';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-info');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function formatAllComics(btn) {
+  if (!confirm('Apply format detection to all tagged comics?')) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Formatting...';
+
+  fetch('/comics/format-all/', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-success');
+      btn.innerHTML = `Done (${data.formatted} formatted)`;
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
       btn.disabled = false;
     }
   })
