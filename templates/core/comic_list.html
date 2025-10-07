@@ -19,6 +19,97 @@
   </div>
   {% endif %}
 
+  <!-- Search, Filter & Sort Bar -->
+  <div class="bg-base-200 rounded-lg p-4">
+    <form method="GET" class="flex flex-wrap gap-3 items-end" id="filter-form">
+      <!-- Preserve state/flag if set -->
+      {% if current_state %}<input type="hidden" name="state" value="{{ current_state }}">{% endif %}
+      {% if current_flag %}<input type="hidden" name="flag" value="{{ current_flag }}">{% endif %}
+
+      <!-- Search -->
+      <div class="form-control flex-1 min-w-48">
+        <label class="label py-1">
+          <span class="label-text text-xs">Search</span>
+        </label>
+        <input type="text" name="q" value="{{ current_search|default:'' }}"
+               placeholder="Series, title, publisher..."
+               class="input input-sm input-bordered w-full" />
+      </div>
+
+      <!-- Publisher Filter -->
+      <div class="form-control w-40">
+        <label class="label py-1">
+          <span class="label-text text-xs">Publisher</span>
+        </label>
+        <select name="publisher" class="select select-sm select-bordered w-full">
+          <option value="">All Publishers</option>
+          {% for pub in publishers %}
+          <option value="{{ pub }}" {% if pub == current_publisher %}selected{% endif %}>{{ pub }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Format Filter -->
+      <div class="form-control w-32">
+        <label class="label py-1">
+          <span class="label-text text-xs">Format</span>
+        </label>
+        <select name="format" class="select select-sm select-bordered w-full">
+          <option value="">All Formats</option>
+          {% for fmt in formats %}
+          <option value="{{ fmt }}" {% if fmt == current_format %}selected{% endif %}>{{ fmt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Medium Filter -->
+      <div class="form-control w-28">
+        <label class="label py-1">
+          <span class="label-text text-xs">Medium</span>
+        </label>
+        <select name="medium" class="select select-sm select-bordered w-full">
+          <option value="">All</option>
+          <option value="digital" {% if current_medium == 'digital' %}selected{% endif %}>Digital</option>
+          <option value="physical" {% if current_medium == 'physical' %}selected{% endif %}>Physical</option>
+        </select>
+      </div>
+
+      <!-- Sort -->
+      <div class="form-control w-32">
+        <label class="label py-1">
+          <span class="label-text text-xs">Sort by</span>
+        </label>
+        <select name="sort" class="select select-sm select-bordered w-full">
+          <option value="series" {% if current_sort == 'series' %}selected{% endif %}>Series</option>
+          <option value="number" {% if current_sort == 'number' %}selected{% endif %}>Number</option>
+          <option value="publisher" {% if current_sort == 'publisher' %}selected{% endif %}>Publisher</option>
+          <option value="year" {% if current_sort == 'year' %}selected{% endif %}>Year</option>
+          <option value="state" {% if current_sort == 'state' %}selected{% endif %}>State</option>
+          <option value="format" {% if current_sort == 'format' %}selected{% endif %}>Format</option>
+          <option value="pages" {% if current_sort == 'pages' %}selected{% endif %}>Pages</option>
+          <option value="updated" {% if current_sort == 'updated' %}selected{% endif %}>Updated</option>
+        </select>
+      </div>
+
+      <!-- Sort Direction -->
+      <div class="form-control w-24">
+        <label class="label py-1">
+          <span class="label-text text-xs">Order</span>
+        </label>
+        <select name="dir" class="select select-sm select-bordered w-full">
+          <option value="asc" {% if current_dir == 'asc' %}selected{% endif %}>A→Z</option>
+          <option value="desc" {% if current_dir == 'desc' %}selected{% endif %}>Z→A</option>
+        </select>
+      </div>
+
+      <!-- Buttons -->
+      <div class="flex gap-2">
+        <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+        <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="btn btn-sm btn-ghost">Reset</a>
+      </div>
+    </form>
+  </div>
+
   <div class="flex justify-between items-center">
     <div class="flex items-center gap-3">
       <h1 class="text-3xl font-bold">Comics</h1>
@@ -28,8 +119,20 @@
       {% if current_flag %}
       <span class="badge badge-lg badge-warning">{{ flag_label }}</span>
       {% endif %}
-      {% if current_state or current_flag %}
-      <a href="/comics/" class="btn btn-xs btn-ghost">Clear filter</a>
+      {% if current_search %}
+      <span class="badge badge-lg badge-secondary">Search: "{{ current_search }}"</span>
+      {% endif %}
+      {% if current_publisher %}
+      <span class="badge badge-lg badge-accent">{{ current_publisher }}</span>
+      {% endif %}
+      {% if current_format %}
+      <span class="badge badge-lg badge-info">{{ current_format }}</span>
+      {% endif %}
+      {% if current_medium %}
+      <span class="badge badge-lg badge-neutral">{{ current_medium }}</span>
+      {% endif %}
+      {% if current_state or current_flag or current_search or current_publisher or current_format or current_medium %}
+      <a href="/comics/" class="btn btn-xs btn-ghost">Clear all</a>
       {% endif %}
     </div>
     <div class="flex items-center gap-2">
@@ -126,18 +229,32 @@
     <table class="table table-zebra w-full">
       <thead>
         <tr>
-          <th>Series</th>
-          <th>#</th>
+          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('series')">
+            Series {% if current_sort == 'series' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </th>
+          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('number')">
+            # {% if current_sort == 'number' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </th>
           {% if current_state == 'counted' or current_state == 'formatted' or current_state == 'organized' or current_state == 'written' %}
           <th>Count</th>
           {% endif %}
           <th>Title</th>
           <th>Volume</th>
-          <th>Year</th>
-          <th>Publisher</th>
-          <th>Format</th>
-          <th>Pages</th>
-          <th>State</th>
+          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('year')">
+            Year {% if current_sort == 'year' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </th>
+          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('publisher')">
+            Publisher {% if current_sort == 'publisher' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </th>
+          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('format')">
+            Format {% if current_sort == 'format' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </th>
+          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('pages')">
+            Pages {% if current_sort == 'pages' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </th>
+          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('state')">
+            State {% if current_sort == 'state' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          </th>
           <th>Flags</th>
           <th>Actions</th>
         </tr>
@@ -1680,5 +1797,43 @@ function writeComic(pk, btn) {
     btn.disabled = false;
   });
 }
+
+// Sort by clicking column headers
+function sortBy(field) {
+  const url = new URL(window.location.href);
+  const currentSort = url.searchParams.get('sort') || 'series';
+  const currentDir = url.searchParams.get('dir') || 'asc';
+
+  // Toggle direction if clicking same column
+  if (currentSort === field) {
+    url.searchParams.set('dir', currentDir === 'asc' ? 'desc' : 'asc');
+  } else {
+    url.searchParams.set('sort', field);
+    url.searchParams.set('dir', 'asc');
+  }
+
+  window.location.href = url.toString();
+}
+
+// Auto-submit form on select change for quick filtering
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('filter-form');
+  if (form) {
+    form.querySelectorAll('select').forEach(select => {
+      select.addEventListener('change', () => form.submit());
+    });
+
+    // Submit on Enter in search box
+    const searchInput = form.querySelector('input[name="q"]');
+    if (searchInput) {
+      searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          form.submit();
+        }
+      });
+    }
+  }
+});
 </script>
 {% endblock %}

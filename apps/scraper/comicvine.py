@@ -465,17 +465,38 @@ class ComicVineScraper:
             story_arcs=", ".join(story_arcs) if story_arcs else None,
         )
 
-    def get_all_covers(self, issue_id: int) -> list[str]:
-        """Get all cover URLs for a specific issue (including variants)."""
+    def get_all_covers(self, issue_id: int, matched_url: str = None) -> list[str]:
+        """
+        Get all cover URLs for a specific issue (including variants).
+
+        Args:
+            issue_id: The ComicVine issue ID
+            matched_url: If provided, this cover will be placed first in the list
+
+        Returns:
+            List of cover URLs, with matched_url first (if provided),
+            then official covers (/0/4/), then others by id.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
 
+        # Order by: official covers first (/0/4/ path), then by id
         cursor.execute("""
-            SELECT cv_url FROM comic_covers WHERE cvid = ? AND cv_url IS NOT NULL
+            SELECT cv_url FROM comic_covers
+            WHERE cvid = ? AND cv_url IS NOT NULL
+            ORDER BY
+                CASE WHEN cv_url LIKE '%/0/4/%' THEN 0 ELSE 1 END,
+                id ASC
         """, (issue_id,))
 
         covers = [row[0] for row in cursor.fetchall()]
         conn.close()
+
+        # If a matched URL was provided, move it to the front
+        if matched_url and matched_url in covers:
+            covers.remove(matched_url)
+            covers.insert(0, matched_url)
+
         return covers
 
     def enrich_match_with_credits(self, match: CVMatch) -> CVMatch:
@@ -540,7 +561,12 @@ class ComicVineScraper:
         return match
 
     def enrich_matches_with_covers(self, matches: list[CVMatch]) -> list[CVMatch]:
-        """Add all cover URLs to each match."""
+        """
+        Add all cover URLs to each match.
+
+        For hash matches, the matched cover (already in cover_url) is placed first.
+        For metadata matches, official covers (/0/4/) are prioritized.
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
 
@@ -549,12 +575,16 @@ class ComicVineScraper:
             return matches
 
         placeholders = ",".join("?" * len(issue_ids))
+        # Order by: official covers first (/0/4/ path), then by id
         cursor.execute(f"""
             SELECT cvid, cv_url FROM comic_covers
             WHERE cvid IN ({placeholders}) AND cv_url IS NOT NULL
+            ORDER BY
+                CASE WHEN cv_url LIKE '%/0/4/%' THEN 0 ELSE 1 END,
+                id ASC
         """, issue_ids)
 
-        # Group covers by issue ID
+        # Group covers by issue ID (preserving order from query)
         covers_by_issue: dict[int, list[str]] = {}
         for row in cursor.fetchall():
             cvid, url = row
@@ -566,10 +596,17 @@ class ComicVineScraper:
 
         # Enrich matches
         for match in matches:
-            match.cover_urls = covers_by_issue.get(match.issue_id, [])
-            # Set cover_url to first if not already set
-            if not match.cover_url and match.cover_urls:
-                match.cover_url = match.cover_urls[0]
+            all_covers = covers_by_issue.get(match.issue_id, [])
+
+            # If match already has a cover_url (from hash match), put it first
+            if match.cover_url and match.cover_url in all_covers:
+                all_covers.remove(match.cover_url)
+                all_covers.insert(0, match.cover_url)
+            elif not match.cover_url and all_covers:
+                # No matched cover - use first from ordered list (official cover)
+                match.cover_url = all_covers[0]
+
+            match.cover_urls = all_covers
 
         return matches
 

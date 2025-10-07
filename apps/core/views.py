@@ -37,12 +37,41 @@ WORKFLOW_STATES = [
 
 
 def comic_list(request):
+    from django.db.models import Q
+    from django.db.models.functions import Cast
+    from django.db.models import IntegerField
+
     comics = Comic.objects.all()
+
+    # Search filter
+    search = request.GET.get("q", "").strip()
+    if search:
+        comics = comics.filter(
+            Q(series__icontains=search) |
+            Q(title__icontains=search) |
+            Q(publisher__icontains=search) |
+            Q(number__icontains=search)
+        )
 
     # Filter by state if provided
     state = request.GET.get("state")
     if state:
         comics = comics.filter(state=state)
+
+    # Filter by publisher if provided
+    publisher = request.GET.get("publisher")
+    if publisher:
+        comics = comics.filter(publisher=publisher)
+
+    # Filter by format if provided
+    format_filter = request.GET.get("format")
+    if format_filter:
+        comics = comics.filter(format=format_filter)
+
+    # Filter by medium if provided
+    medium = request.GET.get("medium")
+    if medium:
+        comics = comics.filter(medium=medium)
 
     # Filter by flag if provided
     flag = request.GET.get("flag")
@@ -50,7 +79,31 @@ def comic_list(request):
         # JSONField lookup: flags__<flag_name>=True
         comics = comics.filter(**{f"flags__{flag}": True})
 
-    comics = comics.order_by("series", "volume", "number")
+    # Sorting
+    sort = request.GET.get("sort", "series")
+    sort_dir = request.GET.get("dir", "asc")
+
+    # Map sort field names to model fields
+    sort_fields = {
+        "series": ["series", "volume", "number"],
+        "number": ["number"],
+        "publisher": ["publisher", "series", "volume", "number"],
+        "year": ["year", "series", "volume", "number"],
+        "state": ["state", "series", "volume", "number"],
+        "format": ["format", "series", "volume", "number"],
+        "pages": ["page_count", "series", "volume", "number"],
+        "updated": ["updated_at"],
+    }
+
+    order_fields = sort_fields.get(sort, ["series", "volume", "number"])
+    if sort_dir == "desc":
+        order_fields = [f"-{f}" for f in order_fields]
+
+    comics = comics.order_by(*order_fields)
+
+    # Get distinct values for filter dropdowns
+    publishers = Comic.objects.exclude(publisher__isnull=True).exclude(publisher="").values_list("publisher", flat=True).distinct().order_by("publisher")
+    formats = Comic.objects.exclude(format__isnull=True).exclude(format="").values_list("format", flat=True).distinct().order_by("format")
 
     # Count comics needing conversion (for "Convert All" button)
     needs_conversion_count = Comic.objects.filter(flags__needs_conversion=True).count()
@@ -59,9 +112,17 @@ def comic_list(request):
         "comics": comics,
         "current_state": state,
         "current_flag": flag,
+        "current_search": search,
+        "current_publisher": publisher,
+        "current_format": format_filter,
+        "current_medium": medium,
+        "current_sort": sort,
+        "current_dir": sort_dir,
         "flag_label": FLAG_LABELS.get(flag, flag),
         "needs_conversion_count": needs_conversion_count,
         "workflow_states": WORKFLOW_STATES,
+        "publishers": publishers,
+        "formats": formats,
     })
 
 
