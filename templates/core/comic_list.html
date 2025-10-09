@@ -390,8 +390,8 @@
 </div>
 
 <!-- Scrape Confirmation Modal -->
-<dialog id="scrape-modal" class="modal">
-  <div class="modal-box max-w-4xl mx-auto">
+<dialog id="scrape-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-4xl">
     <h3 class="font-bold text-lg mb-4">
       Select Match for: <span id="modal-comic-title"></span>
     </h3>
@@ -399,18 +399,18 @@
     <!-- Two-column layout: Local cover on left, matches on right -->
     <div class="flex gap-6">
       <!-- Local comic cover -->
-      <div class="flex-shrink-0 w-48">
+      <div class="flex-shrink-0">
         <div class="text-sm font-semibold mb-2 text-center">Your Comic</div>
-        <div id="modal-local-cover" class="bg-base-300 rounded-lg overflow-hidden flex items-center justify-center min-h-72">
-          <img id="local-cover-img" src="" alt="Local Cover" class="max-w-full max-h-72 object-contain" />
+        <div id="modal-local-cover" class="bg-base-300 rounded-lg overflow-hidden flex items-center justify-center p-2">
+          <img id="local-cover-img" src="" alt="Local Cover" class="modal-cover-lg rounded" />
         </div>
-        <div id="modal-local-info" class="text-xs text-center mt-2 text-base-content/70"></div>
+        <div id="modal-local-info" class="text-xs text-center mt-2 text-base-content/70 max-w-[150px]"></div>
       </div>
 
       <!-- Matches grid -->
       <div class="flex-1 min-w-0">
         <div class="text-sm font-semibold mb-2">ComicVine Matches (click to select)</div>
-        <div id="modal-matches" class="grid grid-cols-1 lg:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto pr-2">
+        <div id="modal-matches" class="grid grid-cols-2 lg:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto pr-2">
           <!-- Matches will be inserted here -->
         </div>
       </div>
@@ -423,7 +423,9 @@
       <span id="modal-error-text"></span>
     </div>
     <div class="modal-action">
-      <button class="btn btn-ghost" onclick="closeScrapeModal()">Cancel</button>
+      <form method="dialog">
+        <button class="btn btn-ghost">Cancel</button>
+      </form>
       <button class="btn btn-warning" onclick="skipCurrentComic()">Skip</button>
     </div>
   </div>
@@ -433,8 +435,8 @@
 </dialog>
 
 <!-- Tagging Results Modal -->
-<dialog id="tag-result-modal" class="modal">
-  <div class="modal-box max-w-2xl bg-base-100 shadow-xl border border-base-300">
+<dialog id="tag-result-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-2xl">
     <h3 class="font-bold text-lg mb-4">
       Tagging Results: <span id="tag-modal-comic-title"></span>
     </h3>
@@ -489,7 +491,9 @@
     </div>
 
     <div class="modal-action">
-      <button class="btn btn-primary" onclick="closeTagModal()">OK</button>
+      <form method="dialog">
+        <button class="btn btn-primary">OK</button>
+      </form>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">
@@ -498,8 +502,8 @@
 </dialog>
 
 <!-- Format Detection Results Modal -->
-<dialog id="format-result-modal" class="modal">
-  <div class="modal-box max-w-xl bg-base-100 shadow-xl border border-base-300">
+<dialog id="format-result-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-xl">
     <h3 class="font-bold text-lg mb-4">
       Format Detection: <span id="format-modal-comic-title"></span>
     </h3>
@@ -532,7 +536,9 @@
     </div>
 
     <div class="modal-action">
-      <button class="btn btn-primary" onclick="closeFormatModal()">OK</button>
+      <form method="dialog">
+        <button class="btn btn-primary">OK</button>
+      </form>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">
@@ -541,8 +547,8 @@
 </dialog>
 
 <!-- Organize Results Modal -->
-<dialog id="organize-result-modal" class="modal">
-  <div class="modal-box max-w-2xl bg-base-100 shadow-xl border border-base-300">
+<dialog id="organize-result-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-2xl">
     <h3 class="font-bold text-lg mb-4">
       Organization Results: <span id="organize-modal-comic-title"></span>
     </h3>
@@ -578,7 +584,9 @@
     </div>
 
     <div class="modal-action">
-      <button class="btn btn-primary" onclick="closeOrganizeModal()">OK</button>
+      <form method="dialog">
+        <button class="btn btn-primary">OK</button>
+      </form>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">
@@ -587,110 +595,9 @@
 </dialog>
 
 <style>
-/* Center modal properly - only when open */
-#scrape-modal[open] {
-  display: grid;
-  place-items: center;
-  position: fixed;
-  inset: 0;
-  margin: 0;
-  padding: 1rem;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-}
-#scrape-modal:not([open]) {
-  display: none;
-}
-#scrape-modal > .modal-box {
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-}
-/* Constrain cover images in modal cards */
-#modal-matches .cover-img {
-  max-height: 12rem;
-  max-width: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
-}
-/* Better card styling */
+/* Card minimum width for scrape modal grid */
 #modal-matches .card {
-  min-width: 180px;
-}
-/* Tag result modal styling */
-#tag-result-modal[open] {
-  display: grid;
-  place-items: center;
-  position: fixed;
-  inset: 0;
-  margin: 0;
-  padding: 1rem;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-}
-#tag-result-modal:not([open]) {
-  display: none;
-}
-#tag-result-modal > .modal-box {
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  border: 1px solid oklch(var(--bc) / 0.2);
-  background-color: oklch(var(--b1));
-}
-/* Format result modal styling */
-#format-result-modal[open] {
-  display: grid;
-  place-items: center;
-  position: fixed;
-  inset: 0;
-  margin: 0;
-  padding: 1rem;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-}
-#format-result-modal:not([open]) {
-  display: none;
-}
-#format-result-modal > .modal-box {
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  border: 1px solid oklch(var(--bc) / 0.2);
-  background-color: oklch(var(--b1));
-}
-/* Organize result modal styling */
-#organize-result-modal[open] {
-  display: grid;
-  place-items: center;
-  position: fixed;
-  inset: 0;
-  margin: 0;
-  padding: 1rem;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
-  max-height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-}
-#organize-result-modal:not([open]) {
-  display: none;
-}
-#organize-result-modal > .modal-box {
-  max-height: calc(100vh - 2rem);
-  overflow-y: auto;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  border: 1px solid oklch(var(--bc) / 0.2);
-  background-color: oklch(var(--b1));
+  min-width: 120px;
 }
 </style>
 
@@ -988,7 +895,7 @@ function openScrapeModal(pk, btn) {
       // Render match cards
       data.matches.forEach((match, idx) => {
         const card = document.createElement('div');
-        card.className = `card bg-base-300 cursor-pointer hover:ring-2 hover:ring-primary transition-all border border-base-content/10 ${match.recommended ? 'ring-2 ring-success' : ''}`;
+        card.className = `card card-compact bg-base-300 cursor-pointer hover:ring-2 hover:ring-primary transition-all border border-base-content/10 ${match.recommended ? 'ring-2 ring-success' : ''}`;
 
         // Handle multiple covers
         const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
@@ -996,28 +903,27 @@ function openScrapeModal(pk, btn) {
         const coverContainerId = `cover-container-${idx}`;
 
         card.innerHTML = `
-          <figure class="px-4 pt-4 relative h-52 bg-base-100/50 rounded-t-xl">
-            <div id="${coverContainerId}" class="flex justify-center items-center w-full h-48">
+          <figure class="px-2 pt-2 relative bg-base-100/50 rounded-t-xl">
+            <div id="${coverContainerId}" class="flex justify-center items-center">
               ${covers.length > 0
-                ? `<img src="${covers[0]}" alt="Cover" class="rounded-lg max-h-48 max-w-full object-contain cover-img shadow-md" data-covers='${JSON.stringify(covers)}' data-cover-idx="0" />`
-                : '<div class="h-48 w-full bg-base-300 rounded-lg flex items-center justify-center text-base-content/50 text-sm">No cover</div>'
+                ? `<img src="${covers[0]}" alt="Cover" class="modal-cover-img rounded shadow-md" data-covers='${JSON.stringify(covers)}' data-cover-idx="0" />`
+                : '<div class="w-[100px] h-[150px] bg-base-300 rounded flex items-center justify-center text-base-content/50 text-xs">No cover</div>'
               }
             </div>
             ${hasMultipleCovers ? `
-              <div class="absolute bottom-2 left-0 right-0 flex justify-center gap-2">
-                <button type="button" class="btn btn-circle btn-sm btn-primary cover-nav" data-dir="prev" data-target="${coverContainerId}">‹</button>
-                <span class="text-sm font-medium bg-base-100 px-3 py-1 rounded-full cover-counter shadow">1 / ${covers.length}</span>
-                <button type="button" class="btn btn-circle btn-sm btn-primary cover-nav" data-dir="next" data-target="${coverContainerId}">›</button>
+              <div class="absolute bottom-1 left-0 right-0 flex justify-center gap-1">
+                <button type="button" class="btn btn-circle btn-xs btn-primary cover-nav" data-dir="prev" data-target="${coverContainerId}">‹</button>
+                <span class="text-xs font-medium bg-base-100 px-2 py-0.5 rounded-full cover-counter shadow">1/${covers.length}</span>
+                <button type="button" class="btn btn-circle btn-xs btn-primary cover-nav" data-dir="next" data-target="${coverContainerId}">›</button>
               </div>
             ` : ''}
           </figure>
-          <div class="card-body p-4 gap-2">
-            <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
-            <p class="text-sm text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
-            ${match.title ? `<p class="text-sm text-base-content/70 line-clamp-2">${match.title}</p>` : ''}
-            <div class="flex flex-wrap gap-2 mt-2">
-              <span class="badge ${match.recommended ? 'badge-success' : 'badge-outline'}">${match.match_type}</span>
-              ${match.recommended ? '<span class="badge badge-success">Best Match</span>' : ''}
+          <div class="card-body p-2 gap-1">
+            <h3 class="card-title text-sm font-bold leading-tight">${match.series} #${match.number}</h3>
+            <p class="text-xs text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
+            <div class="flex flex-wrap gap-1 mt-1">
+              <span class="badge badge-xs ${match.recommended ? 'badge-success' : 'badge-outline'}">${match.match_type}</span>
+              ${match.recommended ? '<span class="badge badge-xs badge-success">Best</span>' : ''}
             </div>
           </div>
         `;
@@ -1038,7 +944,7 @@ function openScrapeModal(pk, btn) {
           e.stopPropagation();
           const containerId = btn.dataset.target;
           const container = document.getElementById(containerId);
-          const img = container.querySelector('.cover-img');
+          const img = container.querySelector('.modal-cover-img');
           if (!img) return;
 
           const covers = JSON.parse(img.dataset.covers);
@@ -1625,9 +1531,6 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-function closeTagModal() {
-  document.getElementById('tag-result-modal').close();
-}
 
 // Format result modal functions
 function showFormatResultModal(comicTitle, data) {
@@ -1668,9 +1571,6 @@ function showFormatResultModal(comicTitle, data) {
   modal.showModal();
 }
 
-function closeFormatModal() {
-  document.getElementById('format-result-modal').close();
-}
 
 // Organize single comic
 function organizeComic(pk, btn) {
@@ -1750,9 +1650,6 @@ function showOrganizeResultModal(comicTitle, data) {
   modal.showModal();
 }
 
-function closeOrganizeModal() {
-  document.getElementById('organize-result-modal').close();
-}
 
 // Write single comic
 function writeComic(pk, btn) {
