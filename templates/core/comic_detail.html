@@ -345,6 +345,160 @@
   </form>
 </dialog>
 
+<!-- Tagging Results Modal -->
+<dialog id="tag-result-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-2xl">
+    <h3 class="font-bold text-lg mb-4">
+      Tagging Results: <span id="tag-modal-comic-title"></span>
+    </h3>
+
+    <div id="tag-modal-content">
+      <!-- Summary -->
+      <div id="tag-modal-summary" class="mb-4">
+        <div class="flex gap-4 text-sm">
+          <div class="stat bg-base-200 rounded-box p-3">
+            <div class="stat-title text-xs">Matched Rules</div>
+            <div class="stat-value text-lg text-primary" id="tag-matched-count">0</div>
+          </div>
+          <div class="stat bg-base-200 rounded-box p-3">
+            <div class="stat-title text-xs">Changes Made</div>
+            <div class="stat-value text-lg text-success" id="tag-changes-count">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Matched Rulesets -->
+      <div id="tag-rulesets-section" class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">Matched Rulesets</h4>
+        <div id="tag-rulesets-list" class="flex flex-wrap gap-2"></div>
+      </div>
+
+      <!-- Changes Table -->
+      <div id="tag-changes-section">
+        <h4 class="font-semibold text-sm mb-2">Field Changes</h4>
+        <div class="overflow-x-auto">
+          <table class="table table-sm table-zebra">
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Action</th>
+                <th>Value</th>
+                <th>By Rule</th>
+              </tr>
+            </thead>
+            <tbody id="tag-changes-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- No matches message -->
+      <div id="tag-no-matches" class="alert alert-info hidden">
+        <span>No matching rulesets found. Comic state was advanced to "tagged".</span>
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <form method="dialog">
+        <button class="btn btn-primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<!-- Format Detection Results Modal -->
+<dialog id="format-result-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-xl">
+    <h3 class="font-bold text-lg mb-4">
+      Format Detection: <span id="format-modal-comic-title"></span>
+    </h3>
+
+    <div id="format-modal-content">
+      <!-- Source text checked -->
+      <div class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">Text Analyzed</h4>
+        <div class="bg-base-200 p-3 rounded-lg text-sm">
+          <div><span class="text-base-content/60">Series:</span> <span id="format-series" class="font-medium"></span></div>
+          <div><span class="text-base-content/60">Title:</span> <span id="format-title" class="font-medium"></span></div>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">Result</h4>
+        <div id="format-result-box" class="alert">
+          <span id="format-result-text"></span>
+        </div>
+      </div>
+
+      <!-- Patterns checked -->
+      <div>
+        <h4 class="font-semibold text-sm mb-2">Patterns Checked</h4>
+        <div class="grid grid-cols-2 gap-2" id="format-patterns-list"></div>
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <form method="dialog">
+        <button class="btn btn-primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<!-- Organize Results Modal -->
+<dialog id="organize-result-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-2xl">
+    <h3 class="font-bold text-lg mb-4">
+      Organization Results: <span id="organize-modal-comic-title"></span>
+    </h3>
+
+    <div id="organize-modal-content">
+      <!-- Profile Used -->
+      <div class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">Profile Used</h4>
+        <div class="bg-base-200 p-3 rounded-lg">
+          <span id="organize-profile" class="font-medium text-primary"></span>
+        </div>
+      </div>
+
+      <!-- Paths -->
+      <div class="mb-4">
+        <h4 class="font-semibold text-sm mb-2">File Paths</h4>
+        <div class="bg-base-200 p-3 rounded-lg text-sm space-y-2">
+          <div>
+            <span class="text-base-content/60">From:</span>
+            <div id="organize-old-path" class="font-mono text-xs break-all mt-1"></div>
+          </div>
+          <div>
+            <span class="text-base-content/60">To:</span>
+            <div id="organize-new-path" class="font-mono text-xs break-all mt-1 text-success"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div id="organize-result-box" class="alert">
+        <span id="organize-result-text"></span>
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <form method="dialog">
+        <button class="btn btn-primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
 <script>
 const comicPk = '{{ comic.pk }}';
 const csrfToken = '{{ csrf_token }}';
@@ -486,6 +640,8 @@ async function runAction(action) {
   // Close the dropdown
   document.activeElement.blur();
 
+  const comicTitle = '{{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}';
+
   try {
     const response = await fetch(actionEndpoints[action], {
       method: 'POST',
@@ -498,9 +654,19 @@ async function runAction(action) {
     const data = await response.json();
 
     if (data.success) {
-      // Show success and reload to reflect changes
       btn.innerHTML = '<span class="text-success">Done!</span>';
-      setTimeout(() => location.reload(), 800);
+
+      // Show result modal for actions that have one
+      if (action === 'tag') {
+        showTagResultModal(comicTitle, data);
+      } else if (action === 'format') {
+        showFormatResultModal(comicTitle, data);
+      } else if (action === 'organize') {
+        showOrganizeResultModal(comicTitle, data);
+      } else {
+        // For write and refresh-credits, just reload
+        setTimeout(() => location.reload(), 800);
+      }
     } else {
       btn.innerHTML = '<span class="text-error">Error</span>';
       alert('Error: ' + (data.error || 'Unknown error'));
@@ -517,6 +683,127 @@ async function runAction(action) {
       btn.disabled = false;
     }, 2000);
   }
+}
+
+// Helper: escape HTML
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Helper: badge class for tag action type
+function getActionBadgeClass(action) {
+  switch (action) {
+    case 'SetValue': return 'badge-success';
+    case 'Add': return 'badge-info';
+    case 'Remove': return 'badge-warning';
+    case 'Replace': return 'badge-secondary';
+    default: return 'badge-ghost';
+  }
+}
+
+// Show tagging results modal
+function showTagResultModal(comicTitle, data) {
+  const modal = document.getElementById('tag-result-modal');
+  document.getElementById('tag-modal-comic-title').textContent = comicTitle;
+
+  const matchedCount = data.matched_rulesets?.length || 0;
+  const changesCount = data.changes?.length || 0;
+  document.getElementById('tag-matched-count').textContent = matchedCount;
+  document.getElementById('tag-changes-count').textContent = changesCount;
+
+  const rulesetsSection = document.getElementById('tag-rulesets-section');
+  const changesSection = document.getElementById('tag-changes-section');
+  const noMatchesDiv = document.getElementById('tag-no-matches');
+
+  if (matchedCount === 0) {
+    rulesetsSection.classList.add('hidden');
+    changesSection.classList.add('hidden');
+    noMatchesDiv.classList.remove('hidden');
+  } else {
+    rulesetsSection.classList.remove('hidden');
+    changesSection.classList.remove('hidden');
+    noMatchesDiv.classList.add('hidden');
+
+    document.getElementById('tag-rulesets-list').innerHTML = data.matched_rulesets.map(name =>
+      `<span class="badge badge-primary badge-outline">${escapeHtml(name)}</span>`
+    ).join('');
+
+    const changesTable = document.getElementById('tag-changes-table');
+    if (changesCount > 0) {
+      changesTable.innerHTML = data.changes.map(change => `
+        <tr>
+          <td class="font-medium">${escapeHtml(change.field)}</td>
+          <td><span class="badge badge-sm ${getActionBadgeClass(change.modifier)}">${escapeHtml(change.modifier)}</span></td>
+          <td class="max-w-xs truncate" title="${escapeHtml(change.new_value || '')}">${escapeHtml(change.new_value || '')}</td>
+          <td class="text-xs text-base-content/60">${escapeHtml(change.ruleset_name || '')}</td>
+        </tr>
+      `).join('');
+    } else {
+      changesTable.innerHTML = '<tr><td colspan="4" class="text-center text-base-content/50">No field changes (rules matched but no modifications needed)</td></tr>';
+    }
+  }
+
+  modal.showModal();
+}
+
+// Show format detection results modal
+function showFormatResultModal(comicTitle, data) {
+  const modal = document.getElementById('format-result-modal');
+  document.getElementById('format-modal-comic-title').textContent = comicTitle;
+  document.getElementById('format-series').textContent = data.series || '(none)';
+  document.getElementById('format-title').textContent = data.title || '(none)';
+
+  const resultBox = document.getElementById('format-result-box');
+  const resultText = document.getElementById('format-result-text');
+
+  if (data.detected_format) {
+    resultBox.className = 'alert alert-success';
+    if (data.format_changed) {
+      resultText.innerHTML = `Format detected: <strong>${escapeHtml(data.detected_format)}</strong>`;
+    } else {
+      resultText.innerHTML = `Format already set to: <strong>${escapeHtml(data.new_format)}</strong>`;
+    }
+  } else {
+    resultBox.className = 'alert alert-info';
+    resultText.textContent = 'No format pattern matched. State advanced to "formatted".';
+  }
+
+  const patternsList = document.getElementById('format-patterns-list');
+  if (data.patterns_checked) {
+    patternsList.innerHTML = data.patterns_checked.map(p => `
+      <div class="flex items-center gap-2 text-sm ${p.matched ? 'text-success font-medium' : 'text-base-content/50'}">
+        <span class="${p.matched ? 'text-success' : 'text-base-content/30'}">${p.matched ? '✓' : '○'}</span>
+        <span>${escapeHtml(p.pattern)}</span>
+      </div>
+    `).join('');
+  }
+
+  modal.showModal();
+}
+
+// Show organize results modal
+function showOrganizeResultModal(comicTitle, data) {
+  const modal = document.getElementById('organize-result-modal');
+  document.getElementById('organize-modal-comic-title').textContent = comicTitle;
+  document.getElementById('organize-profile').textContent = data.profile || '(fallback)';
+  document.getElementById('organize-old-path').textContent = data.old_path || '(none)';
+  document.getElementById('organize-new-path').textContent = data.new_path || '(none)';
+
+  const resultBox = document.getElementById('organize-result-box');
+  const resultText = document.getElementById('organize-result-text');
+
+  if (data.moved) {
+    resultBox.className = 'alert alert-success';
+    resultText.textContent = 'File moved to library location.';
+  } else {
+    resultBox.className = 'alert alert-info';
+    resultText.textContent = data.message || 'File already in correct location.';
+  }
+
+  modal.showModal();
 }
 
 async function deleteComic() {

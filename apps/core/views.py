@@ -1658,12 +1658,34 @@ def force_format(request, pk):
     comic.needs_reformat = False
     comic.save()
 
+    # Build list of patterns that were checked
+    patterns_checked = [
+        {"pattern": "TPB / Trade Paperback", "matched": detected == "TPB"},
+        {"pattern": "HC / Hardcover", "matched": detected == "HC"},
+        {"pattern": "Annual", "matched": detected == "Annual"},
+        {"pattern": "Special", "matched": detected == "Special"},
+        {"pattern": "One-Shot (text)", "matched": detected == "One-Shot" and "one" in f"{comic.series or ''} {comic.title or ''}".lower()},
+        {"pattern": "Giant-Size", "matched": detected == "Giant-Size"},
+        {"pattern": "King-Size", "matched": detected == "King-Size"},
+        {"pattern": "Omnibus", "matched": detected == "Omnibus"},
+        {"pattern": "Deluxe", "matched": detected == "Deluxe"},
+        {"pattern": "Director's Cut", "matched": detected == "Director's Cut"},
+        {"pattern": "One-Shot (count=1)", "matched": detected == "One-Shot" and comic.count is not None and comic.count <= 1},
+        {"pattern": "Limited Series (count 2-15)", "matched": detected == "Limited Series"},
+        {"pattern": "Main Series (count>15)", "matched": detected == "Main Series"},
+    ]
+
     return JsonResponse({
         "success": True,
         "message": f"Format: {comic.format or 'None'}",
         "old_format": old_format,
         "new_format": comic.format,
+        "detected_format": detected,
         "format_changed": old_format != comic.format,
+        "patterns_checked": patterns_checked,
+        "series": comic.series,
+        "title": comic.title,
+        "count": comic.count,
         "new_state": comic.state,
     })
 
@@ -1705,12 +1727,19 @@ def force_organize(request, pk):
 
     # Check if file needs to move
     if os.path.abspath(old_path) == os.path.abspath(new_path):
+        # Still advance state even if no move needed
+        if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
+                           Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
+                           Comic.STATE_DEDUPLICATED):
+            comic.state = Comic.STATE_ORGANIZED
+            comic.save()
         return JsonResponse({
             "success": True,
             "message": "File is already in the correct location",
             "moved": False,
             "old_path": old_path,
             "new_path": new_path,
+            "profile": preview.get("selected_profile", "(fallback)"),
             "new_state": comic.state,
         })
 
@@ -1746,8 +1775,10 @@ def force_organize(request, pk):
         # Update comic record
         comic.file_path = new_path
         comic.last_organized_path = new_path
-        # Only change state if it was deduplicated
-        if comic.state == Comic.STATE_DEDUPLICATED:
+        # Advance state if needed (to at least organized)
+        if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
+                           Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
+                           Comic.STATE_DEDUPLICATED):
             comic.state = Comic.STATE_ORGANIZED
         comic.save()
 
@@ -1757,6 +1788,7 @@ def force_organize(request, pk):
             "moved": True,
             "old_path": old_path,
             "new_path": new_path,
+            "profile": preview.get("selected_profile", "(fallback)"),
             "new_state": comic.state,
         })
 
@@ -1859,8 +1891,8 @@ def force_write(request, pk):
             "error": "Failed to write ComicInfo.xml"
         }, status=500)
 
-    # Update state to written if it was organized
-    if comic.state == Comic.STATE_ORGANIZED:
+    # Advance state to written
+    if comic.state != Comic.STATE_WRITTEN:
         comic.state = Comic.STATE_WRITTEN
 
     comic.last_written = timezone.now()
