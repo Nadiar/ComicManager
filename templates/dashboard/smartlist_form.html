@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'edit' %}Edit{% else %}Create{% endif %} Smart List — ComicManager{% endblock %}
+{% block nav_smartlists %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-4xl">
+  <div class="flex justify-between items-center">
+    <h1 class="text-3xl font-bold">{% if mode == 'edit' %}Edit{% else %}Create{% endif %} Smart List</h1>
+    <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Back to Lists</a>
+  </div>
+
+  <form method="POST" class="space-y-6">
+    {% csrf_token %}
+
+    <!-- Basic Info -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-lg">Basic Info</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Name</span></label>
+            <input type="text" name="name" value="{{ smart_list.name|default:'' }}"
+                   class="input input-bordered" placeholder="e.g., My Batman Collection" required />
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Icon (optional)</span></label>
+            <input type="text" name="icon" value="{{ smart_list.icon|default:'' }}"
+                   class="input input-bordered w-24" placeholder="e.g., DC" maxlength="32" />
+          </div>
+        </div>
+        <div class="form-control">
+          <label class="label"><span class="label-text">Description (optional)</span></label>
+          <textarea name="description" class="textarea textarea-bordered" rows="2"
+                    placeholder="What does this smart list track?">{{ smart_list.description|default:'' }}</textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <div class="flex justify-between items-center">
+          <h2 class="card-title text-lg">Filters</h2>
+          <button type="button" class="btn btn-sm btn-primary" onclick="addFilterRow()">Add Filter</button>
+        </div>
+
+        <div id="filter-rows" class="space-y-2 mt-2">
+          <!-- Existing filters (edit mode) or empty (create mode) -->
+        </div>
+
+        <p class="text-xs text-base-content/50 mt-2">All filters are combined with AND logic.</p>
+      </div>
+    </div>
+
+    <!-- ComicVine Volume (Missing Issues) -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-lg">ComicVine Volume (Missing Issues)</h2>
+        <p class="text-sm text-base-content/60 mb-3">
+          Link a ComicVine volume to compare your library against and find missing issues.
+        </p>
+
+        <div class="form-control">
+          <label class="label"><span class="label-text">Search CV Volume</span></label>
+          <input type="text" id="cv-search-input"
+                 class="input input-bordered"
+                 placeholder="Type a series name to search..."
+                 hx-get="{% url 'dashboard:smartlist_cv_search' %}"
+                 hx-trigger="keyup changed delay:300ms"
+                 hx-target="#cv-search-results"
+                 hx-vals='js:{"q": document.getElementById("cv-search-input").value}'
+                 autocomplete="off" />
+        </div>
+
+        <div id="cv-search-results" class="bg-base-300 rounded-lg mt-1 max-h-48 overflow-y-auto"></div>
+
+        <!-- Selected volume display -->
+        <div id="cv-selected" class="{% if not smart_list.comicvine_volume_id %}hidden{% endif %} alert alert-success mt-2">
+          <div class="flex justify-between items-center w-full">
+            <span id="cv-selected-text">
+              {% if smart_list.comicvine_volume_id %}
+              {{ smart_list.comicvine_volume_name }} (ID: {{ smart_list.comicvine_volume_id }})
+              {% endif %}
+            </span>
+            <button type="button" class="btn btn-xs btn-ghost" onclick="clearCvVolume()">Clear</button>
+          </div>
+        </div>
+
+        <input type="hidden" name="comicvine_volume_id" id="cv-volume-id"
+               value="{{ smart_list.comicvine_volume_id|default:'' }}" />
+        <input type="hidden" name="comicvine_volume_name" id="cv-volume-name"
+               value="{{ smart_list.comicvine_volume_name|default:'' }}" />
+      </div>
+    </div>
+
+    <!-- Sort & Display -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-lg">Sort & Display</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Sort by</span></label>
+            <select name="sort_field" class="select select-bordered">
+              {% for value, label in sort_options %}
+              <option value="{{ value }}" {% if smart_list.sort_field == value %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Direction</span></label>
+            <select name="sort_direction" class="select select-bordered">
+              <option value="asc" {% if smart_list.sort_direction == 'asc' or not smart_list %}selected{% endif %}>Ascending</option>
+              <option value="desc" {% if smart_list.sort_direction == 'desc' %}selected{% endif %}>Descending</option>
+            </select>
+          </div>
+          <div class="form-control">
+            <label class="label cursor-pointer justify-start gap-3">
+              <input type="checkbox" name="show_on_dashboard" class="checkbox"
+                     {% if smart_list.show_on_dashboard or not smart_list %}checked{% endif %} />
+              <span class="label-text">Show on Dashboard</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex gap-2 justify-end">
+      {% if mode == 'edit' %}
+      <form method="POST" action="{% url 'dashboard:smartlist_delete' smart_list.pk %}" class="inline"
+            onsubmit="return confirm('Delete this smart list?')">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-error btn-outline">Delete</button>
+      </form>
+      {% endif %}
+      <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Cancel</a>
+      <button type="submit" class="btn btn-primary">{% if mode == 'edit' %}Save Changes{% else %}Create Smart List{% endif %}</button>
+    </div>
+  </form>
+</div>
+
+<script>
+// Filter row template
+const fieldOptions = [
+  {% for value, label in field_options %}
+  {value: "{{ value }}", label: "{{ label }}"},
+  {% endfor %}
+];
+
+const lookupOptions = [
+  {% for value, label in lookup_options %}
+  {value: "{{ value }}", label: "{{ label }}"},
+  {% endfor %}
+];
+
+function createFilterRow(field = '', lookup = 'exact', value = '') {
+  const row = document.createElement('div');
+  row.className = 'flex gap-2 items-center';
+
+  const fieldSelect = document.createElement('select');
+  fieldSelect.name = 'filter_field';
+  fieldSelect.className = 'select select-sm select-bordered w-48';
+  fieldOptions.forEach(opt => {
+    const option = document.createElement('option');
+    option.value = opt.value;
+    option.textContent = opt.label;
+    if (opt.value === field) option.selected = true;
+    fieldSelect.appendChild(option);
+  });
+
+  const lookupSelect = document.createElement('select');
+  lookupSelect.name = 'filter_lookup';
+  lookupSelect.className = 'select select-sm select-bordered w-36';
+  lookupOptions.forEach(opt => {
+    const option = document.createElement('option');
+    option.value = opt.value;
+    option.textContent = opt.label;
+    if (opt.value === lookup) option.selected = true;
+    lookupSelect.appendChild(option);
+  });
+
+  const valueInput = document.createElement('input');
+  valueInput.type = 'text';
+  valueInput.name = 'filter_value';
+  valueInput.className = 'input input-sm input-bordered flex-1';
+  valueInput.placeholder = 'Value...';
+  valueInput.value = value;
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn btn-xs btn-error btn-outline';
+  removeBtn.textContent = 'Remove';
+  removeBtn.onclick = () => row.remove();
+
+  row.appendChild(fieldSelect);
+  row.appendChild(lookupSelect);
+  row.appendChild(valueInput);
+  row.appendChild(removeBtn);
+
+  return row;
+}
+
+function addFilterRow(field = '', lookup = 'exact', value = '') {
+  const container = document.getElementById('filter-rows');
+  container.appendChild(createFilterRow(field, lookup, value));
+}
+
+// CV Volume selection
+function selectCvVolume(id, name, year, publisher) {
+  document.getElementById('cv-volume-id').value = id;
+  const displayName = name + (year ? ` (${year})` : '') + ` - ${publisher}`;
+  document.getElementById('cv-volume-name').value = displayName;
+  document.getElementById('cv-selected-text').textContent = displayName + ' (ID: ' + id + ')';
+  document.getElementById('cv-selected').classList.remove('hidden');
+  document.getElementById('cv-search-results').innerHTML = '';
+  document.getElementById('cv-search-input').value = '';
+}
+
+function clearCvVolume() {
+  document.getElementById('cv-volume-id').value = '';
+  document.getElementById('cv-volume-name').value = '';
+  document.getElementById('cv-selected').classList.add('hidden');
+}
+
+// Initialize existing filters on page load
+document.addEventListener('DOMContentLoaded', function() {
+  {% if smart_list.filters %}
+  const existingFilters = {{ smart_list.filters|safe }};
+  existingFilters.forEach(f => addFilterRow(f.field, f.lookup, f.value));
+  {% else %}
+  // Start with one empty filter row for new smart lists
+  addFilterRow();
+  {% endif %}
+});
+</script>
+{% endblock %}

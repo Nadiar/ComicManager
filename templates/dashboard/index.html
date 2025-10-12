@@ -205,5 +205,42 @@ async function runAction(url, btn) {
   </div>
   {% endif %}
 
+  <!-- Smart Lists -->
+  {% if dashboard_smartlists %}
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <div class="flex justify-between items-center">
+        <h2 class="card-title">Smart Lists</h2>
+        <a href="/smartlists/" class="btn btn-sm btn-ghost">View All</a>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+        {% for entry in dashboard_smartlists %}
+        <a href="{% url 'dashboard:smartlist_detail' entry.smartlist.pk %}" class="card bg-base-300 hover:bg-base-100 transition-colors cursor-pointer">
+          <div class="card-body p-4">
+            <div class="flex justify-between items-start">
+              <div class="font-medium">
+                {% if entry.smartlist.icon %}{{ entry.smartlist.icon }} {% endif %}{{ entry.smartlist.name }}
+              </div>
+              <span class="badge badge-primary badge-sm">{{ entry.count }}</span>
+            </div>
+
+            {% if entry.completion is not None %}
+            <div class="mt-2">
+              <div class="flex justify-between text-xs text-base-content/60 mb-1">
+                <span>{{ entry.owned }}/{{ entry.total_issues }} issues</span>
+                <span class="{% if entry.completion == 100 %}text-success{% elif entry.completion >= 75 %}text-info{% elif entry.completion >= 50 %}text-warning{% else %}text-error{% endif %} font-bold">{{ entry.completion }}%</span>
+              </div>
+              <progress class="progress progress-success w-full h-2" value="{{ entry.completion }}" max="100"></progress>
+            </div>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
 </div>
 {% endblock %}

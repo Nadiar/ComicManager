@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Missing Issues — {{ smart_list.name }} — ComicManager{% endblock %}
+{% block nav_smartlists %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <!-- Header -->
+  <div class="flex justify-between items-start">
+    <div>
+      <h1 class="text-3xl font-bold">Missing Issues</h1>
+      <p class="text-lg text-base-content/70 mt-1">{{ smart_list.name }}</p>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'dashboard:smartlist_detail' smart_list.pk %}" class="btn btn-ghost">View Owned</a>
+      <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Back to Lists</a>
+    </div>
+  </div>
+
+  {% if data %}
+  <!-- Volume Info -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <div class="flex flex-wrap gap-6 items-center">
+        <div>
+          <div class="text-sm text-base-content/60">Series</div>
+          <div class="text-xl font-bold">{{ data.volume_info.name }}</div>
+        </div>
+        <div>
+          <div class="text-sm text-base-content/60">Publisher</div>
+          <div class="font-medium">{{ data.volume_info.publisher|default:"Unknown" }}</div>
+        </div>
+        <div>
+          <div class="text-sm text-base-content/60">Start Year</div>
+          <div class="font-medium">{{ data.volume_info.start_year|default:"?" }}</div>
+        </div>
+        <div class="flex-1"></div>
+        <div class="text-right">
+          <div class="text-4xl font-bold {% if data.completion == 100 %}text-success{% elif data.completion >= 75 %}text-info{% elif data.completion >= 50 %}text-warning{% else %}text-error{% endif %}">
+            {{ data.completion }}%
+          </div>
+          <div class="text-sm text-base-content/60">
+            {{ data.owned_count }} of {{ data.total_count }} issues
+          </div>
+        </div>
+      </div>
+
+      <progress class="progress progress-success w-full mt-2" value="{{ data.completion }}" max="100"></progress>
+
+      <!-- Stats -->
+      <div class="flex gap-4 mt-2">
+        <div class="stat bg-base-300 rounded-box p-3 flex-1">
+          <div class="stat-title text-xs">Owned</div>
+          <div class="stat-value text-lg text-success">{{ data.owned_count }}</div>
+        </div>
+        <div class="stat bg-base-300 rounded-box p-3 flex-1">
+          <div class="stat-title text-xs">Missing</div>
+          <div class="stat-value text-lg text-error">{{ data.missing_count }}</div>
+        </div>
+        <div class="stat bg-base-300 rounded-box p-3 flex-1">
+          <div class="stat-title text-xs">Total in CV</div>
+          <div class="stat-value text-lg">{{ data.total_count }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toggle view -->
+  <div class="flex gap-2">
+    <button class="btn btn-sm btn-primary" onclick="showAll()">All Issues</button>
+    <button class="btn btn-sm btn-error btn-outline" onclick="showMissing()">Missing Only ({{ data.missing_count }})</button>
+    <button class="btn btn-sm btn-success btn-outline" onclick="showOwned()">Owned Only ({{ data.owned_count }})</button>
+  </div>
+
+  <!-- Issues Table -->
+  <div class="overflow-x-auto">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Issue #</th>
+          <th>Title</th>
+          <th>Cover Date</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="issues-table">
+        {% for issue in data.all_issues %}
+        {% with is_owned=issue.issue_id|stringformat:"d" %}
+        <tr class="issue-row {% if issue.comic_pk %}owned-row{% else %}missing-row{% endif %} {% if not issue.comic_pk %}bg-error/10{% endif %}">
+          <td class="font-medium">#{{ issue.issue_number|default:"?" }}</td>
+          <td class="max-w-md truncate">{{ issue.title|default:"-" }}</td>
+          <td>{{ issue.cover_date|default:"-" }}</td>
+          <td>
+            {% if issue.comic_pk %}
+            <span class="badge badge-success badge-sm">Owned</span>
+            {% else %}
+            <span class="badge badge-error badge-sm">Missing</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if issue.comic_pk %}
+            <a href="/comics/{{ issue.comic_pk }}/" class="btn btn-xs btn-ghost btn-outline">View</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="alert alert-error">
+    <span>Could not load volume data from ComicVine database.</span>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function showAll() {
+  document.querySelectorAll('.issue-row').forEach(r => r.classList.remove('hidden'));
+}
+function showMissing() {
+  document.querySelectorAll('.owned-row').forEach(r => r.classList.add('hidden'));
+  document.querySelectorAll('.missing-row').forEach(r => r.classList.remove('hidden'));
+}
+function showOwned() {
+  document.querySelectorAll('.missing-row').forEach(r => r.classList.add('hidden'));
+  document.querySelectorAll('.owned-row').forEach(r => r.classList.remove('hidden'));
+}
+</script>
+{% endblock %}

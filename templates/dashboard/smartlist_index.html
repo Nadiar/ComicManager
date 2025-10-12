@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Smart Lists — ComicManager{% endblock %}
+{% block nav_smartlists %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex justify-between items-center">
+    <h1 class="text-3xl font-bold">Smart Lists</h1>
+    <a href="{% url 'dashboard:smartlist_create' %}" class="btn btn-primary">Create Smart List</a>
+  </div>
+
+  {% if smart_lists %}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for item in smart_lists %}
+    <div class="card bg-base-200 hover:shadow-lg transition-shadow">
+      <div class="card-body">
+        <div class="flex justify-between items-start">
+          <h2 class="card-title text-lg">
+            {% if item.smartlist.icon %}{{ item.smartlist.icon }} {% endif %}
+            {{ item.smartlist.name }}
+          </h2>
+          <span class="badge badge-primary badge-lg">{{ item.count }}</span>
+        </div>
+
+        {% if item.smartlist.description %}
+        <p class="text-sm text-base-content/60">{{ item.smartlist.description }}</p>
+        {% endif %}
+
+        <!-- Filter summary -->
+        {% if item.smartlist.filters %}
+        <div class="flex flex-wrap gap-1 mt-1">
+          {% for f in item.smartlist.filters %}
+          <span class="badge badge-sm badge-outline">{{ f.field }} {{ f.lookup }} {{ f.value }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- CV Volume completion -->
+        {% if item.smartlist.has_cv_volume %}
+        <div class="mt-2">
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-base-content/60">{{ item.smartlist.comicvine_volume_name }}</span>
+            <span>{{ item.owned|default:0 }}/{{ item.total_issues|default:0 }} ({{ item.completion|default:0 }}%)</span>
+          </div>
+          <progress class="progress progress-success w-full" value="{{ item.completion|default:0 }}" max="100"></progress>
+        </div>
+        {% endif %}
+
+        <div class="card-actions justify-end mt-2">
+          {% if item.smartlist.has_cv_volume %}
+          <a href="{% url 'dashboard:smartlist_missing' item.smartlist.pk %}" class="btn btn-xs btn-warning btn-outline">Missing</a>
+          {% endif %}
+          <a href="{% url 'dashboard:smartlist_edit' item.smartlist.pk %}" class="btn btn-xs btn-ghost">Edit</a>
+          <a href="{% url 'dashboard:smartlist_detail' item.smartlist.pk %}" class="btn btn-xs btn-primary">View</a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    <span>No smart lists yet. Create one to save a filtered view of your library.</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

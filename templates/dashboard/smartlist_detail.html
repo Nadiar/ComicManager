@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}{{ smart_list.name }} — Smart Lists — ComicManager{% endblock %}
+{% block nav_smartlists %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+  <!-- Header -->
+  <div class="flex justify-between items-start">
+    <div>
+      <h1 class="text-3xl font-bold">
+        {% if smart_list.icon %}{{ smart_list.icon }} {% endif %}
+        {{ smart_list.name }}
+      </h1>
+      {% if smart_list.description %}
+      <p class="text-base-content/60 mt-1">{{ smart_list.description }}</p>
+      {% endif %}
+    </div>
+    <div class="flex gap-2">
+      {% if smart_list.has_cv_volume %}
+      <a href="{% url 'dashboard:smartlist_missing' smart_list.pk %}" class="btn btn-warning btn-outline">View Missing Issues</a>
+      {% endif %}
+      <a href="{% url 'dashboard:smartlist_edit' smart_list.pk %}" class="btn btn-ghost">Edit</a>
+      <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Back to Lists</a>
+    </div>
+  </div>
+
+  <!-- Filter badges -->
+  {% if smart_list.filters %}
+  <div class="flex flex-wrap gap-2">
+    {% for f in smart_list.filters %}
+    <span class="badge badge-outline">{{ f.field }} {{ f.lookup }} "{{ f.value }}"</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- CV Volume completion bar -->
+  {% if completion_data %}
+  <div class="card bg-base-200">
+    <div class="card-body py-3">
+      <div class="flex justify-between items-center">
+        <div>
+          <span class="font-semibold">{{ smart_list.comicvine_volume_name }}</span>
+          <span class="text-sm text-base-content/60 ml-2">
+            {{ completion_data.owned }} owned / {{ completion_data.missing }} missing / {{ completion_data.total }} total
+          </span>
+        </div>
+        <span class="text-lg font-bold {% if completion_data.completion == 100 %}text-success{% elif completion_data.completion >= 75 %}text-info{% else %}text-warning{% endif %}">
+          {{ completion_data.completion }}%
+        </span>
+      </div>
+      <progress class="progress progress-success w-full" value="{{ completion_data.completion }}" max="100"></progress>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Results count -->
+  <div class="flex items-center gap-2">
+    <span class="badge badge-neutral">{{ comic_count }} comics</span>
+  </div>
+
+  <!-- Comics table -->
+  {% if comics %}
+  <div class="overflow-x-auto">
+    <table class="table table-zebra w-full">
+      <thead>
+        <tr>
+          <th>Series</th>
+          <th>#</th>
+          <th>Count</th>
+          <th>Title</th>
+          <th>Volume</th>
+          <th>Year</th>
+          <th>Publisher</th>
+          <th>Format</th>
+          <th>Pages</th>
+          <th>State</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for comic in comics %}
+        <tr class="hover">
+          <td class="font-medium">{{ comic.series|default:"-" }}</td>
+          <td>{{ comic.number|default:"-" }}</td>
+          <td>{{ comic.count|default:"-" }}</td>
+          <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
+          <td>{{ comic.volume|default:"-" }}</td>
+          <td>{{ comic.year|default:"-" }}</td>
+          <td>{{ comic.publisher|default:"-" }}</td>
+          <td>{{ comic.format|default:"-" }}</td>
+          <td>{{ comic.page_count|default:"-" }}</td>
+          <td>
+            <span class="badge badge-sm
+              {% if comic.state == 'written' %}badge-success
+              {% elif comic.state == 'new' %}badge-warning
+              {% else %}badge-info{% endif %}">
+              {{ comic.state }}
+            </span>
+          </td>
+          <td>
+            <a href="/comics/{{ comic.pk }}/" class="btn btn-xs btn-ghost btn-outline">Info</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    <span>No comics match this smart list's filters.</span>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
