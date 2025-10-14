@@ -9,6 +9,7 @@ Matches unscraped comics using:
 import re
 
 from django.core.management.base import BaseCommand
+from django.utils.html import strip_tags
 
 from apps.core.models import Comic
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
@@ -322,7 +323,7 @@ class Command(BaseCommand):
                 pass
 
         if match.description:
-            comic.summary = match.description
+            comic.summary = strip_tags(match.description)
 
         # Store ComicVine IDs in custom_values
         comic.custom_values["comicvine_issue"] = str(match.issue_id)

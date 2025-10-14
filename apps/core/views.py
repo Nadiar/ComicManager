@@ -5,6 +5,7 @@ import zipfile
 from pathlib import Path
 
 from django.shortcuts import render, get_object_or_404
+from django.utils.html import strip_tags
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 
@@ -767,7 +768,7 @@ def _apply_match(comic, match, scraper=None):
             pass
 
     if match.description:
-        comic.summary = match.description
+        comic.summary = strip_tags(match.description)
 
     # Apply credits
     if match.characters:
