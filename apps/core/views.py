@@ -792,6 +792,11 @@ def _apply_match(comic, match, scraper=None):
     if match.web:
         comic.web = match.web
 
+    if match.teams:
+        comic.teams = match.teams
+    if match.locations:
+        comic.locations = match.locations
+
     comic.custom_values["comicvine_issue"] = str(match.issue_id)
     comic.custom_values["comicvine_volume"] = str(match.volume_id)
     if match.issue_count:

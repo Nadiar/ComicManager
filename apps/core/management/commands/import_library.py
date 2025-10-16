@@ -3,6 +3,9 @@ Management command to import existing tagged comics from the library folder.
 
 Scans /comics/library for .cbz files, reads their ComicInfo.xml metadata,
 and creates Comic records with state='written' (already fully processed).
+
+Optionally reads ComicRack's ComicDb.xml to enrich imports with Tags,
+Teams, Locations, and CustomValuesStore data not present in ComicInfo.xml.
 """
 
 import os
@@ -14,6 +17,9 @@ from django.core.management.base import BaseCommand
 from django.conf import settings
 
 from apps.core.models import Comic
+
+
+COMICDB_STRIP_PREFIX = "B:\\Comics\\ComicRack\\"
 
 
 class Command(BaseCommand):
@@ -31,18 +37,38 @@ class Command(BaseCommand):
             default=None,
             help="Override the library path (default: /comics/library)",
         )
+        parser.add_argument(
+            "--comicdb",
+            type=str,
+            default=None,
+            help="Path to ComicRack's ComicDb.xml for enriching imports with Tags, Teams, Locations, and CustomValuesStore",
+        )
 
     def handle(self, *args, **options):
         library_path = options["path"] or getattr(settings, "LIBRARY_DIR", "/comics/library")
         dry_run = options["dry_run"]
+        comicdb_path = options["comicdb"]
 
         if not os.path.exists(library_path):
             self.stderr.write(self.style.ERROR(f"Library path does not exist: {library_path}"))
             return
 
+        # Ensure library_path ends without trailing slash for consistent relative path calculation
+        library_path = library_path.rstrip("/")
+
         self.stdout.write(f"Scanning library: {library_path}")
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN - no changes will be made"))
+
+        # Parse ComicDb.xml if provided
+        comicdb_lookup = {}
+        if comicdb_path:
+            if not os.path.exists(comicdb_path):
+                self.stderr.write(self.style.ERROR(f"ComicDb.xml not found: {comicdb_path}"))
+                return
+            self.stdout.write(f"Parsing ComicDb.xml: {comicdb_path}")
+            comicdb_lookup = self.parse_comicdb(comicdb_path)
+            self.stdout.write(f"Loaded {len(comicdb_lookup)} entries from ComicDb.xml")
 
         cbz_files = list(Path(library_path).rglob("*.cbz"))
         self.stdout.write(f"Found {len(cbz_files)} .cbz files")
@@ -50,6 +76,7 @@ class Command(BaseCommand):
         imported = 0
         skipped = 0
         errors = 0
+        enriched = 0
 
         for cbz_path in cbz_files:
             file_path_str = str(cbz_path)
@@ -72,8 +99,28 @@ class Command(BaseCommand):
                 comic_data["state"] = Comic.STATE_WRITTEN
                 comic_data["medium"] = Comic.MEDIUM_DIGITAL
 
+                # Enrich with ComicDb.xml data if available
+                if comicdb_lookup:
+                    rel_path = file_path_str[len(library_path):].lstrip("/")
+                    if rel_path in comicdb_lookup:
+                        db_extra = comicdb_lookup[rel_path]
+                        # Set fields that ComicInfo.xml might not have
+                        for field in ("tags", "teams", "locations"):
+                            if field in db_extra and not comic_data.get(field):
+                                comic_data[field] = db_extra[field]
+                        # Merge custom values (ComicInfo.xml takes precedence)
+                        if "custom_values" in db_extra:
+                            merged_cv = dict(db_extra["custom_values"])
+                            merged_cv.update(comic_data.get("custom_values", {}))
+                            comic_data["custom_values"] = merged_cv
+                        enriched += 1
+
                 if dry_run:
-                    self.stdout.write(f"  Would import: {comic_data.get('series', 'Unknown')} #{comic_data.get('number', '?')}")
+                    extra = ""
+                    rel_path = file_path_str[len(library_path):].lstrip("/")
+                    if comicdb_lookup and rel_path in comicdb_lookup:
+                        extra = " [+ComicDb]"
+                    self.stdout.write(f"  Would import: {comic_data.get('series', 'Unknown')} #{comic_data.get('number', '?')}{extra}")
                 else:
                     Comic.objects.create(**comic_data)
                     imported += 1
@@ -88,8 +135,66 @@ class Command(BaseCommand):
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(f"Imported: {imported}"))
         self.stdout.write(f"Skipped (already exists): {skipped}")
+        if comicdb_lookup:
+            self.stdout.write(f"Enriched from ComicDb.xml: {enriched}")
         if errors:
             self.stdout.write(self.style.WARNING(f"Errors: {errors}"))
+
+    def parse_comicdb(self, comicdb_path: str) -> dict:
+        """
+        Parse ComicRack's ComicDb.xml into a lookup dict keyed by relative path.
+
+        Uses iterparse for memory efficiency with large files (~44K entries).
+        """
+        lookup = {}
+        for event, elem in ET.iterparse(comicdb_path, events=("end",)):
+            if elem.tag != "Book":
+                continue
+
+            file_attr = elem.get("File", "")
+            # Normalize Windows path to relative path matching library structure
+            if file_attr.startswith(COMICDB_STRIP_PREFIX):
+                rel_path = file_attr[len(COMICDB_STRIP_PREFIX):]
+            else:
+                rel_path = file_attr
+            rel_path = rel_path.replace("\\", "/")
+
+            book_data = {}
+
+            # Tags
+            tags_el = elem.find("Tags")
+            if tags_el is not None and tags_el.text:
+                book_data["tags"] = tags_el.text.strip()
+
+            # Teams
+            teams_el = elem.find("Teams")
+            if teams_el is not None and teams_el.text:
+                book_data["teams"] = teams_el.text.strip()
+
+            # Locations
+            locations_el = elem.find("Locations")
+            if locations_el is not None and locations_el.text:
+                book_data["locations"] = locations_el.text.strip()
+
+            # CustomValuesStore: ",key=value,key=value,..."
+            cvs_el = elem.find("CustomValuesStore")
+            if cvs_el is not None and cvs_el.text:
+                custom = {}
+                for pair in cvs_el.text.strip().strip(",").split(","):
+                    if "=" in pair:
+                        k, v = pair.split("=", 1)
+                        k, v = k.strip(), v.strip()
+                        if k and v:
+                            custom[k] = v
+                if custom:
+                    book_data["custom_values"] = custom
+
+            if book_data:
+                lookup[rel_path] = book_data
+
+            elem.clear()
+
+        return lookup
 
     def extract_comic_info(self, cbz_path: Path) -> dict | None:
         """Extract metadata from ComicInfo.xml inside a CBZ file."""
@@ -133,6 +238,9 @@ class Command(BaseCommand):
             "PageCount": "page_count",
             "Format": "format",
             "Characters": "characters",
+            "Teams": "teams",
+            "Locations": "locations",
+            "Tags": "tags",
             "ScanInformation": "scan_information",
             "SeriesGroup": "series_group",
             "MainCharacterOrTeam": "main_character_or_team",

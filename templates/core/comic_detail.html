@@ -234,6 +234,27 @@
         <p class="text-sm">{{ comic.characters }}</p>
       </div>
       {% endif %}
+
+      {% if comic.teams %}
+      <div class="mt-4">
+        <h3 class="font-semibold text-primary mb-2">Teams</h3>
+        <p class="text-sm">{{ comic.teams }}</p>
+      </div>
+      {% endif %}
+
+      {% if comic.locations %}
+      <div class="mt-4">
+        <h3 class="font-semibold text-primary mb-2">Locations</h3>
+        <p class="text-sm">{{ comic.locations }}</p>
+      </div>
+      {% endif %}
+
+      {% if comic.tags %}
+      <div class="mt-4">
+        <h3 class="font-semibold text-primary mb-2">Tags</h3>
+        <p class="text-sm">{{ comic.tags }}</p>
+      </div>
+      {% endif %}
     </div>
   </div>
   {% endif %}

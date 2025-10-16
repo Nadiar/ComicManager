@@ -124,6 +124,18 @@
             <label class="label"><span class="label-text">Characters (comma-separated)</span></label>
             <textarea name="characters" class="textarea textarea-bordered">{{ comic.characters|default:'' }}</textarea>
           </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Teams (comma-separated)</span></label>
+            <textarea name="teams" class="textarea textarea-bordered">{{ comic.teams|default:'' }}</textarea>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Locations (comma-separated)</span></label>
+            <textarea name="locations" class="textarea textarea-bordered">{{ comic.locations|default:'' }}</textarea>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Tags (comma-separated)</span></label>
+            <textarea name="tags" class="textarea textarea-bordered">{{ comic.tags|default:'' }}</textarea>
+          </div>
         </div>
       </div>
     </div>

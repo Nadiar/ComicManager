@@ -325,6 +325,11 @@ class Command(BaseCommand):
         if match.description:
             comic.summary = strip_tags(match.description)
 
+        if match.teams:
+            comic.teams = match.teams
+        if match.locations:
+            comic.locations = match.locations
+
         # Store ComicVine IDs in custom_values
         comic.custom_values["comicvine_issue"] = str(match.issue_id)
         comic.custom_values["comicvine_volume"] = str(match.volume_id)

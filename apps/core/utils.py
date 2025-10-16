@@ -33,6 +33,9 @@ FIELD_MAP = {
     "PageCount": "page_count",
     "Format": "format",
     "Characters": "characters",
+    "Teams": "teams",
+    "Locations": "locations",
+    "Tags": "tags",
     "ScanInformation": "scan_information",
     "SeriesGroup": "series_group",
     "MainCharacterOrTeam": "main_character_or_team",
@@ -55,7 +58,7 @@ INT_FIELDS = {"count", "volume", "year", "month", "day", "page_count"}
 EDITABLE_FIELDS = [
     "series", "number", "title", "count", "volume", "year", "month", "day",
     "publisher", "summary", "notes", "genre", "web", "format", "characters",
-    "scan_information", "series_group", "main_character_or_team",
+    "teams", "locations", "tags", "scan_information", "series_group", "main_character_or_team",
     "writer", "penciller", "inker", "colorist", "letterer", "cover_artist", "editor",
 ]
 
@@ -159,6 +162,9 @@ def compare_db_vs_xml(comic: Comic, xml_data: dict | None) -> list[dict]:
         "page_count": "Page Count",
         "format": "Format",
         "characters": "Characters",
+        "teams": "Teams",
+        "locations": "Locations",
+        "tags": "Tags",
         "scan_information": "Scan Info",
         "series_group": "Series Group",
         "main_character_or_team": "Main Character/Team",
