@@ -43,6 +43,6 @@ services:
   css:
     image: node:22-alpine
     working_dir: /app
-    command: sh -c "npm install && npx tailwindcss -i ./static/css/input.css -o ./static/css/main.css --watch"
+    command: sh -c "npm install && npx @tailwindcss/cli -i ./static/css/input.css -o ./static/css/main.css --watch --poll"
     volumes:
       - .:/app                        # watch source files for class changes
