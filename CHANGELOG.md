@@ -1,0 +1,30 @@
+# Changelog
+
+All notable changes to ComicManager will be documented in this file.
+
+## [Unreleased]
+
+### Added
+- **Tags, Teams, Locations fields** — New model fields for tags, teams, and locations (comma-separated TextFields). Displayed on comic detail page and editable on edit page. Added to FIELD_MAP so they read/write from ComicInfo.xml.
+- **ComicDb.xml import support** — `import_library --comicdb /path/to/ComicDb.xml` enriches imports with data from ComicRack's master database: Tags, Teams, Locations, MainCharacterOrTeam, SeriesGroup, and CustomValuesStore. Uses memory-efficient iterparse for ~44K entries. ComicInfo.xml values take precedence; ComicDb.xml fills in gaps.
+- **Scraper now saves teams and locations** — The ComicVine scraper already extracted teams and locations from comicvine.db but silently dropped them. Both `_apply_match()` functions (management command and UI view) now persist these fields.
+- **Smart Lists** — Saved, named queries with filters on Comic model fields. Create lists with multiple filter criteria (field + lookup + value), optional sorting, and dashboard visibility toggle. Accessible from the main navigation bar.
+- **Missing issues detection** — Link a Smart List to a ComicVine volume to compare your library against the full CV issue list. Shows completion percentage, owned vs missing issues, and a detailed comparison table with toggle filters (All/Missing/Owned).
+- **ComicVine volume search** — HTMX-powered search when creating/editing Smart Lists to find and link CV volumes from the local database.
+- **Dashboard smart list cards** — Smart Lists with `show_on_dashboard` enabled appear as cards on the dashboard with comic counts and completion progress bars.
+- **Search, filter, and sort for comic list** - `/comics/` now has a search bar (series, title, publisher, number), filter dropdowns (publisher, format, medium), and sortable column headers with ascending/descending toggle.
+
+### Fixed
+- **HTML stripped from ComicVine summaries** — Summary/description fields from ComicVine are now passed through `strip_tags()` to remove HTML markup (`<p>`, `<em>`, etc.).
+- **Smart List JSONField filtering** — Filtering on `custom_values__*` fields (e.g., `comicvine_volume` exact "33909") now works correctly. Previously, the value was coerced to an integer which didn't match the string stored in the JSONField.
+- **CSS watcher in Docker** — Changed to `@tailwindcss/cli` with `--poll` flag so the Tailwind watcher stays alive on Docker bind mounts where inotify doesn't propagate.
+- **Force actions now always advance state** — `force_organize` and `force_write` on the comic detail page now correctly advance the workflow state from any earlier state, matching the existing behavior of `force_tag` and `force_format`.
+- **Detail page actions now show result modals** — Re-tag, Re-format, and Re-organize on the comic detail page now display result modals (matched rulesets, detected format, file paths) instead of silently reloading.
+- **Standardized all modals** — All modals now use DaisyUI's native `modal` component with centered positioning, dark backdrop, constrained cover images (100px width), and consistent close behavior via `form method="dialog"`.
+- **Cover ordering now prioritizes matched/official covers** - When scraping, the cover that matched via hash is shown first. For metadata matches, official ComicVine covers (`/0/4/` path) are prioritized over user-uploaded variants.
+- **Force-tag button now properly applies DataManager rules** - Previously, clicking "Re-tag" on a comic detail page would not apply rules if the comic wasn't in 'counted' state. Now it bypasses the state check and applies all matching rulesets regardless of current state. This fixes issues where comics showed "(fallback)" profile instead of the correct organizer profile.
+
+### Changed
+- **Workflow pipeline reduced from 9 to 8 states** - Removed unused "scraped" state since scraping goes directly to "counted". Dashboard and comic list now show correct 8-state workflow.
+- **Added "Format All" button** - The tagged state now has a "Format All" bulk action button (was missing before).
+- **Added workflow navigation bar** - Comic list pages (`/comics/?state=XXX`) now show a clickable navigation bar with all 8 workflow states for easy jumping between stages.

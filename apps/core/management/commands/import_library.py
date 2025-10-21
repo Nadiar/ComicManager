@@ -105,7 +105,7 @@ class Command(BaseCommand):
                     if rel_path in comicdb_lookup:
                         db_extra = comicdb_lookup[rel_path]
                         # Set fields that ComicInfo.xml might not have
-                        for field in ("tags", "teams", "locations"):
+                        for field in ("tags", "teams", "locations", "main_character_or_team", "series_group"):
                             if field in db_extra and not comic_data.get(field):
                                 comic_data[field] = db_extra[field]
                         # Merge custom values (ComicInfo.xml takes precedence)
@@ -175,6 +175,16 @@ class Command(BaseCommand):
             locations_el = elem.find("Locations")
             if locations_el is not None and locations_el.text:
                 book_data["locations"] = locations_el.text.strip()
+
+            # MainCharacterOrTeam
+            mcot_el = elem.find("MainCharacterOrTeam")
+            if mcot_el is not None and mcot_el.text:
+                book_data["main_character_or_team"] = mcot_el.text.strip()
+
+            # SeriesGroup
+            sg_el = elem.find("SeriesGroup")
+            if sg_el is not None and sg_el.text:
+                book_data["series_group"] = sg_el.text.strip()
 
             # CustomValuesStore: ",key=value,key=value,..."
             cvs_el = elem.find("CustomValuesStore")

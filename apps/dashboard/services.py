@@ -37,13 +37,16 @@ SORT_FIELDS = {
 }
 
 
-def _coerce_value(value, lookup):
+def _coerce_value(value, lookup, field=""):
     """Coerce filter value to the appropriate Python type."""
     if lookup == "isnull":
         return str(value).lower() in ("true", "1", "yes")
 
-    # Try int conversion for numeric lookups
-    if lookup in ("gt", "gte", "lt", "lte", "exact"):
+    # Skip int coercion for JSONField lookups — values are stored as strings
+    is_json_field = field.split("__")[0] in ALLOWED_JSON_PREFIXES
+
+    # Try int conversion for numeric lookups (but not JSON fields)
+    if not is_json_field and lookup in ("gt", "gte", "lt", "lte", "exact"):
         try:
             return int(value)
         except (ValueError, TypeError):
@@ -81,7 +84,7 @@ def build_queryset(smart_list):
             continue
 
         # Coerce value
-        value = _coerce_value(value, lookup)
+        value = _coerce_value(value, lookup, field)
 
         # Build ORM filter key
         if lookup == "exact":
