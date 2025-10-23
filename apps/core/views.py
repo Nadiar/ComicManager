@@ -22,6 +22,8 @@ FLAG_LABELS = {
     "no_series": "No Series Parsed",
     "cover_only": "Cover Only",
     "needs_conversion": "Needs Conversion",
+    "missing_count": "Missing Issue Count",
+    "count_mismatch": "Count Mismatch",
 }
 
 # Workflow states in order (for navigation)
@@ -749,6 +751,10 @@ def _apply_match(comic, match, scraper=None):
     comic.title = match.title
     comic.publisher = match.publisher
     comic.count = match.issue_count
+    if match.issue_count:
+        comic.remove_flag("missing_count")
+    else:
+        comic.add_flag("missing_count")
 
     if match.start_year:
         try:
@@ -866,6 +872,152 @@ def _update_volume_issue_count(volume_id: str, new_count: int, exclude_pk=None):
             updated += 1
 
     return updated
+
+
+def _populate_missing_counts():
+    """
+    Find comics with a comicvine_volume but null count,
+    and populate count from the CV SQLite DB.
+    """
+    import sqlite3
+    from django.conf import settings
+
+    comics = Comic.objects.filter(
+        count__isnull=True,
+    ).exclude(
+        custom_values__comicvine_volume__isnull=True,
+    ).exclude(
+        custom_values__comicvine_volume="",
+    )
+
+    if not comics.exists():
+        return {"populated": 0, "failed": 0, "total": 0}
+
+    # Collect unique volume IDs
+    volume_ids = set()
+    comic_list = list(comics)
+    for c in comic_list:
+        vid = c.custom_values.get("comicvine_volume")
+        if vid:
+            volume_ids.add(int(vid))
+
+    # Batch query CV DB for count_of_issues
+    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
+    volume_counts = {}
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
+        cursor = conn.cursor()
+        # Chunk into batches of 500 to avoid large IN clauses
+        volume_id_list = list(volume_ids)
+        for i in range(0, len(volume_id_list), 500):
+            chunk = volume_id_list[i:i + 500]
+            placeholders = ",".join("?" * len(chunk))
+            cursor.execute(
+                f"SELECT id, count_of_issues FROM cv_volume WHERE id IN ({placeholders})",
+                chunk,
+            )
+            for row in cursor.fetchall():
+                if row[1] is not None:
+                    volume_counts[row[0]] = row[1]
+        conn.close()
+    except Exception:
+        pass
+
+    populated = 0
+    failed = 0
+    for comic in comic_list:
+        vid = comic.custom_values.get("comicvine_volume")
+        if not vid:
+            continue
+        count = volume_counts.get(int(vid))
+        if count is not None:
+            comic.count = count
+            comic.custom_values["comicvine_issue_count"] = str(count)
+            comic.remove_flag("missing_count")
+            comic.save()
+            populated += 1
+        else:
+            comic.add_flag("missing_count")
+            comic.save()
+            failed += 1
+
+    return {"populated": populated, "failed": failed, "total": populated + failed}
+
+
+def _detect_count_mismatches():
+    """
+    Find volumes where comics disagree on count value.
+    Flag comics in mismatched volumes with 'count_mismatch'.
+    """
+    comics_with_volume = Comic.objects.filter(
+        count__isnull=False,
+    ).exclude(
+        custom_values__comicvine_volume__isnull=True,
+    ).exclude(
+        custom_values__comicvine_volume="",
+    )
+
+    # Group by volume
+    volume_comics = {}
+    for comic in comics_with_volume:
+        vid = comic.custom_values.get("comicvine_volume")
+        if not vid:
+            continue
+        if vid not in volume_comics:
+            volume_comics[vid] = []
+        volume_comics[vid].append(comic)
+
+    flagged = 0
+    cleared = 0
+    mismatched_volumes = 0
+
+    for vid, comics_in_vol in volume_comics.items():
+        counts = set(c.count for c in comics_in_vol)
+        if len(counts) > 1:
+            mismatched_volumes += 1
+            for comic in comics_in_vol:
+                if not comic.has_flag("count_mismatch"):
+                    comic.add_flag("count_mismatch")
+                    comic.save()
+                    flagged += 1
+        else:
+            for comic in comics_in_vol:
+                if comic.has_flag("count_mismatch"):
+                    comic.remove_flag("count_mismatch")
+                    comic.save()
+                    cleared += 1
+
+    return {
+        "mismatched_volumes": mismatched_volumes,
+        "flagged": flagged,
+        "cleared": cleared,
+    }
+
+
+@require_POST
+def populate_counts(request):
+    """Populate missing issue counts from the CV SQLite DB."""
+    result = _populate_missing_counts()
+    return JsonResponse({
+        "success": True,
+        "populated": result["populated"],
+        "failed": result["failed"],
+        "total": result["total"],
+        "message": f"Populated {result['populated']} counts, {result['failed']} still missing",
+    })
+
+
+@require_POST
+def detect_count_mismatches(request):
+    """Detect and flag comics with count mismatches within volumes."""
+    result = _detect_count_mismatches()
+    return JsonResponse({
+        "success": True,
+        "mismatched_volumes": result["mismatched_volumes"],
+        "flagged": result["flagged"],
+        "cleared": result["cleared"],
+        "message": f"Found {result['mismatched_volumes']} volumes with count mismatches",
+    })
 
 
 # =============================================================================

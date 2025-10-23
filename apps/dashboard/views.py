@@ -70,6 +70,20 @@ def index(request):
             "count": Comic.objects.filter(flags__needs_conversion=True).count(),
             "action": "convert",
         },
+        {
+            "flag": "missing_count",
+            "label": "Missing Issue Count",
+            "description": "Scraped but missing issue count from ComicVine",
+            "count": Comic.objects.filter(flags__missing_count=True).count(),
+            "action": "populate",
+        },
+        {
+            "flag": "count_mismatch",
+            "label": "Count Mismatch",
+            "description": "Comics in same volume disagree on issue count",
+            "count": Comic.objects.filter(flags__count_mismatch=True).count(),
+            "action": "review",
+        },
     ]
 
     flagged_count = Comic.objects.exclude(flags={}).count()

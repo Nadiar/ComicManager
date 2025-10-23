@@ -192,8 +192,14 @@ async function runAction(url, btn) {
               <td class="text-right">
                 <span class="badge badge-warning">{{ item.count }}</span>
               </td>
-              <td>
+              <td class="flex gap-1">
                 <a href="/comics/?flag={{ item.flag }}" class="btn btn-xs btn-ghost">View</a>
+                {% if item.action == 'populate' %}
+                <button onclick="runAction('/comics/populate-counts/', this)" class="btn btn-xs btn-success">Populate Counts</button>
+                {% endif %}
+                {% if item.flag == 'count_mismatch' %}
+                <button onclick="runAction('/comics/detect-count-mismatches/', this)" class="btn btn-xs btn-info">Detect Mismatches</button>
+                {% endif %}
               </td>
             </tr>
             {% endif %}
