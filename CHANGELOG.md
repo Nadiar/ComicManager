@@ -5,6 +5,7 @@ All notable changes to ComicManager will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Issue Count management** — Detect and populate missing issue counts from the local ComicVine SQLite DB. Auto-flags comics with `missing_count` during scraping when no count is returned. Detects count mismatches within the same `comicvine_volume` (different comics disagree on issue count) and flags them with `count_mismatch`. Dashboard review queue shows both flags with action buttons: "Populate Counts" (batch-fills from CV DB) and "Detect Mismatches" (scans all volumes for inconsistencies).
 - **Tags, Teams, Locations fields** — New model fields for tags, teams, and locations (comma-separated TextFields). Displayed on comic detail page and editable on edit page. Added to FIELD_MAP so they read/write from ComicInfo.xml.
 - **ComicDb.xml import support** — `import_library --comicdb /path/to/ComicDb.xml` enriches imports with data from ComicRack's master database: Tags, Teams, Locations, MainCharacterOrTeam, SeriesGroup, and CustomValuesStore. Uses memory-efficient iterparse for ~44K entries. ComicInfo.xml values take precedence; ComicDb.xml fills in gaps.
 - **Scraper now saves teams and locations** — The ComicVine scraper already extracted teams and locations from comicvine.db but silently dropped them. Both `_apply_match()` functions (management command and UI view) now persist these fields.

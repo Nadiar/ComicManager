@@ -12,8 +12,9 @@
     <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Cancel</a>
   </div>
 
-  <form method="post" class="space-y-6">
+  <form method="post" class="space-y-6" id="profile-form">
     {% csrf_token %}
+    <input type="hidden" name="exclude_rules" id="exclude-rules-input" value="">
 
     <div class="card bg-base-200">
       <div class="card-body">
@@ -46,6 +47,41 @@
           </label>
         </div>
         {% endif %}
+      </div>
+    </div>
+
+    <!-- Matching Rules -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title">Matching Rules</h2>
+        <p class="text-sm text-base-content/60">
+          Define which comics this profile applies to. If no rules are set, the profile matches all comics.
+        </p>
+
+        <div class="flex gap-4 mt-2">
+          <div class="form-control">
+            <label class="label"><span class="label-text">Mode</span></label>
+            <select id="rule-mode" class="select select-bordered select-sm">
+              <option value="Only">Only process matches</option>
+              <option value="Do not">Exclude matches</option>
+            </select>
+          </div>
+          <div class="form-control">
+            <label class="label"><span class="label-text">Match</span></label>
+            <select id="rule-operator" class="select select-bordered select-sm">
+              <option value="All">All rules (AND)</option>
+              <option value="Any">Any rule (OR)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="rules-container" class="space-y-2 mt-4"></div>
+
+        <div id="has-groups-warning" class="alert alert-warning text-sm mt-2 hidden">
+          This profile has nested rule groups (imported from .lop file). Only top-level rules are shown and editable. Nested groups will be preserved unless you modify the rules.
+        </div>
+
+        <button type="button" id="add-rule-btn" class="btn btn-sm btn-outline mt-2">+ Add Rule</button>
       </div>
     </div>
 
@@ -139,4 +175,134 @@
   </form>
 
 </div>
+
+<script>
+const RULE_FIELDS = {{ rule_fields|safe }};
+const RULE_OPERATORS = {{ rule_operators|safe }};
+
+// Track nested groups from imported profiles (preserve but don't edit)
+let preservedGroups = [];
+let hasGroups = false;
+
+function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
+  const row = document.createElement('div');
+  row.className = 'flex items-center gap-2';
+
+  // Field select
+  const fieldSelect = document.createElement('select');
+  fieldSelect.className = 'select select-bordered select-sm';
+  RULE_FIELDS.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f;
+    opt.textContent = f;
+    if (f === field) opt.selected = true;
+    fieldSelect.appendChild(opt);
+  });
+
+  // Operator select
+  const opSelect = document.createElement('select');
+  opSelect.className = 'select select-bordered select-sm';
+  RULE_OPERATORS.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o;
+    opt.textContent = o;
+    if (o === operator) opt.selected = true;
+    opSelect.appendChild(opt);
+  });
+
+  // Value input
+  const valueInput = document.createElement('input');
+  valueInput.type = 'text';
+  valueInput.className = 'input input-bordered input-sm flex-1';
+  valueInput.placeholder = 'Value';
+  valueInput.value = value;
+
+  // Remove button
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn btn-sm btn-ghost btn-square text-error';
+  removeBtn.innerHTML = '&times;';
+  removeBtn.onclick = () => row.remove();
+
+  row.appendChild(fieldSelect);
+  row.appendChild(opSelect);
+  row.appendChild(valueInput);
+  row.appendChild(removeBtn);
+
+  return row;
+}
+
+function loadExistingRules() {
+  const data = JSON.parse('{{ exclude_rules_json|escapejs }}');
+
+  if (!data || !data.rules) return;
+
+  // Set mode and operator
+  if (data.mode) document.getElementById('rule-mode').value = data.mode;
+  if (data.operator) document.getElementById('rule-operator').value = data.operator;
+
+  const container = document.getElementById('rules-container');
+
+  data.rules.forEach(rule => {
+    if (rule.type === 'group') {
+      // Preserve groups but don't render as editable
+      preservedGroups.push(rule);
+      hasGroups = true;
+    } else {
+      container.appendChild(
+        createRuleRow(rule.field || 'Publisher', rule.operator || 'is', rule.value || '')
+      );
+    }
+  });
+
+  if (hasGroups) {
+    document.getElementById('has-groups-warning').classList.remove('hidden');
+  }
+}
+
+function serializeRules() {
+  const container = document.getElementById('rules-container');
+  const rows = container.querySelectorAll(':scope > div');
+  const rules = [];
+
+  rows.forEach(row => {
+    const selects = row.querySelectorAll('select');
+    const input = row.querySelector('input');
+    if (selects.length >= 2 && input && input.value.trim()) {
+      rules.push({
+        type: 'rule',
+        field: selects[0].value,
+        operator: selects[1].value,
+        value: input.value.trim(),
+      });
+    }
+  });
+
+  // Re-add preserved groups
+  preservedGroups.forEach(g => rules.push(g));
+
+  if (rules.length === 0) {
+    return '';
+  }
+
+  return JSON.stringify({
+    mode: document.getElementById('rule-mode').value,
+    operator: document.getElementById('rule-operator').value,
+    rules: rules,
+  });
+}
+
+// Add rule button
+document.getElementById('add-rule-btn').addEventListener('click', () => {
+  document.getElementById('rules-container').appendChild(createRuleRow());
+});
+
+// Serialize before form submit
+document.getElementById('profile-form').addEventListener('submit', (e) => {
+  document.getElementById('exclude-rules-input').value = serializeRules();
+});
+
+// Load existing rules on page load
+loadExistingRules();
+</script>
 {% endblock %}

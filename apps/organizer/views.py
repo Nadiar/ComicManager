@@ -2,6 +2,7 @@
 Library Organizer Views - Profile management and organization operations.
 """
 
+import json
 import os
 from django.http import JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
@@ -12,12 +13,38 @@ from apps.core.models import Comic
 
 from .models import OrganizerProfile
 from .parser import import_profiles
+from .engine import FIELD_MAP
 from .services import (
     organize_comic,
     organize_all_comics,
     preview_organization,
     get_organization_stats,
 )
+
+# Available fields for rule editor (deduplicated, user-friendly names)
+RULE_FIELDS = sorted(set(FIELD_MAP.keys()) - {"SeriesGroup", "MainCharacterOrTeam", "Main Character"})
+
+# Available operators for rule editor
+RULE_OPERATORS = ["is", "is not", "contains", "does not contain", "starts with", "ends with"]
+
+
+def _parse_exclude_rules(post_data) -> dict:
+    """Parse exclude_rules JSON from POST data."""
+    raw = post_data.get("exclude_rules", "")
+    if not raw or raw.strip() == "":
+        return {}
+    try:
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            return {}
+        # Validate structure
+        return {
+            "mode": data.get("mode", "Only"),
+            "operator": data.get("operator", "All"),
+            "rules": data.get("rules", []),
+        }
+    except (json.JSONDecodeError, TypeError):
+        return {}
 
 
 # ============================================================================
@@ -47,22 +74,26 @@ def profile_detail(request, pk):
 def profile_create(request):
     """Create a new profile."""
     if request.method == 'POST':
-        # Handle form submission
+        exclude_rules = _parse_exclude_rules(request.POST)
         profile = OrganizerProfile.objects.create(
             name=request.POST.get('name', 'New Profile'),
             priority=OrganizerProfile.objects.count(),
             folder_template=request.POST.get('folder_template', '{<publisher>}/{<series>}'),
             file_template=request.POST.get('file_template', '{<series>} #{<number3>}'),
             base_folder=request.POST.get('base_folder', '/comics/library'),
+            exclude_rules=exclude_rules,
             illegal_characters=OrganizerProfile.get_default_illegal_characters(),
             months=OrganizerProfile.get_default_months(),
         )
         messages.success(request, f'Profile "{profile.name}" created.')
-        return redirect('organizer:profile_edit', pk=profile.pk)
+        return redirect('organizer:profile_detail', pk=profile.pk)
 
     return render(request, 'organizer/profile_form.html', {
         'profile': None,
         'is_create': True,
+        'rule_fields': json.dumps(RULE_FIELDS),
+        'rule_operators': json.dumps(RULE_OPERATORS),
+        'exclude_rules_json': '{}',
     })
 
 
@@ -76,6 +107,7 @@ def profile_edit(request, pk):
         profile.file_template = request.POST.get('file_template', profile.file_template)
         profile.base_folder = request.POST.get('base_folder', profile.base_folder)
         profile.is_enabled = request.POST.get('is_enabled') == 'on'
+        profile.exclude_rules = _parse_exclude_rules(request.POST)
         profile.save()
 
         messages.success(request, f'Profile "{profile.name}" updated.')
@@ -84,6 +116,9 @@ def profile_edit(request, pk):
     return render(request, 'organizer/profile_form.html', {
         'profile': profile,
         'is_create': False,
+        'rule_fields': json.dumps(RULE_FIELDS),
+        'rule_operators': json.dumps(RULE_OPERATORS),
+        'exclude_rules_json': json.dumps(profile.exclude_rules or {}),
     })
 
 

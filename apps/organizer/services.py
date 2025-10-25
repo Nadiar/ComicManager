@@ -85,14 +85,16 @@ def organize_comic(comic: Comic, dry_run: bool = False) -> dict:
         # Use fallback path if no profile matches
         folder_path, filename = generate_fallback_path(comic)
         profile_name = "(fallback)"
+        base = LIBRARY_BASE
     else:
         folder_path, filename = generate_paths(comic, profile)
         profile_name = profile.name
+        base = profile.base_folder or LIBRARY_BASE
 
     # Build full destination path
     old_path = comic.file_path
     file_ext = os.path.splitext(old_path)[1]  # .cbz, .cbr, etc.
-    new_folder = os.path.join(LIBRARY_BASE, folder_path)
+    new_folder = os.path.join(base, folder_path)
     new_path = os.path.join(new_folder, filename + file_ext)
 
     # Check if destination already exists (avoid overwrite)
@@ -295,14 +297,16 @@ def preview_organization(comic: Comic) -> dict:
     if selected_profile:
         folder_path, filename = generate_paths(comic, selected_profile)
         profile_name = selected_profile.name
+        base = selected_profile.base_folder or LIBRARY_BASE
     else:
         folder_path, filename = generate_fallback_path(comic)
         profile_name = "(fallback)"
+        base = LIBRARY_BASE
 
     # Build full paths
     old_path = comic.file_path
     file_ext = os.path.splitext(old_path)[1] if old_path else ".cbz"
-    new_folder = os.path.join(LIBRARY_BASE, folder_path)
+    new_folder = os.path.join(base, folder_path)
     new_path = os.path.join(new_folder, filename + file_ext)
 
     return {
