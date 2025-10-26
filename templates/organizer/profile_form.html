@@ -56,6 +56,7 @@
         <h2 class="card-title">Matching Rules</h2>
         <p class="text-sm text-base-content/60">
           Define which comics this profile applies to. If no rules are set, the profile matches all comics.
+          Use groups to combine rules with different AND/OR logic.
         </p>
 
         <div class="flex gap-4 mt-2">
@@ -67,7 +68,7 @@
             </select>
           </div>
           <div class="form-control">
-            <label class="label"><span class="label-text">Match</span></label>
+            <label class="label"><span class="label-text">Top-level match</span></label>
             <select id="rule-operator" class="select select-bordered select-sm">
               <option value="All">All rules (AND)</option>
               <option value="Any">Any rule (OR)</option>
@@ -77,11 +78,10 @@
 
         <div id="rules-container" class="space-y-2 mt-4"></div>
 
-        <div id="has-groups-warning" class="alert alert-warning text-sm mt-2 hidden">
-          This profile has nested rule groups (imported from .lop file). Only top-level rules are shown and editable. Nested groups will be preserved unless you modify the rules.
+        <div class="flex gap-2 mt-2">
+          <button type="button" id="add-rule-btn" class="btn btn-sm btn-outline">+ Add Rule</button>
+          <button type="button" id="add-group-btn" class="btn btn-sm btn-outline btn-secondary">+ Add Group</button>
         </div>
-
-        <button type="button" id="add-rule-btn" class="btn btn-sm btn-outline mt-2">+ Add Rule</button>
       </div>
     </div>
 
@@ -180,17 +180,15 @@
 const RULE_FIELDS = {{ rule_fields|safe }};
 const RULE_OPERATORS = {{ rule_operators|safe }};
 
-// Track nested groups from imported profiles (preserve but don't edit)
-let preservedGroups = [];
-let hasGroups = false;
-
+// ---- Rule Row ----
 function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   const row = document.createElement('div');
   row.className = 'flex items-center gap-2';
+  row.dataset.type = 'rule';
 
-  // Field select
   const fieldSelect = document.createElement('select');
   fieldSelect.className = 'select select-bordered select-sm';
+  fieldSelect.dataset.role = 'field';
   RULE_FIELDS.forEach(f => {
     const opt = document.createElement('option');
     opt.value = f;
@@ -199,9 +197,9 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
     fieldSelect.appendChild(opt);
   });
 
-  // Operator select
   const opSelect = document.createElement('select');
   opSelect.className = 'select select-bordered select-sm';
+  opSelect.dataset.role = 'operator';
   RULE_OPERATORS.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o;
@@ -210,14 +208,13 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
     opSelect.appendChild(opt);
   });
 
-  // Value input
   const valueInput = document.createElement('input');
   valueInput.type = 'text';
   valueInput.className = 'input input-bordered input-sm flex-1';
   valueInput.placeholder = 'Value';
   valueInput.value = value;
+  valueInput.dataset.role = 'value';
 
-  // Remove button
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
   removeBtn.className = 'btn btn-sm btn-ghost btn-square text-error';
@@ -232,58 +229,115 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   return row;
 }
 
-function loadExistingRules() {
-  const data = JSON.parse('{{ exclude_rules_json|escapejs }}');
+// ---- Rule Group ----
+function createGroupEl(groupOperator = 'Any', rules = []) {
+  const group = document.createElement('div');
+  group.className = 'border-l-4 border-secondary pl-4 py-2 space-y-2 bg-base-300 rounded-r-lg';
+  group.dataset.type = 'group';
 
-  if (!data || !data.rules) return;
+  // Group header
+  const header = document.createElement('div');
+  header.className = 'flex items-center gap-2';
 
-  // Set mode and operator
-  if (data.mode) document.getElementById('rule-mode').value = data.mode;
-  if (data.operator) document.getElementById('rule-operator').value = data.operator;
+  const label = document.createElement('span');
+  label.className = 'text-xs font-bold uppercase text-secondary';
+  label.textContent = 'Group';
 
-  const container = document.getElementById('rules-container');
+  const opSelect = document.createElement('select');
+  opSelect.className = 'select select-bordered select-xs';
+  opSelect.dataset.role = 'group-operator';
+  ['All', 'Any'].forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o;
+    opt.textContent = o === 'All' ? 'All (AND)' : 'Any (OR)';
+    if (o === groupOperator) opt.selected = true;
+    opSelect.appendChild(opt);
+  });
 
-  data.rules.forEach(rule => {
-    if (rule.type === 'group') {
-      // Preserve groups but don't render as editable
-      preservedGroups.push(rule);
-      hasGroups = true;
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn btn-xs btn-outline';
+  addBtn.textContent = '+ Rule';
+  addBtn.onclick = () => {
+    rulesContainer.appendChild(createRuleRow());
+  };
+
+  const spacer = document.createElement('span');
+  spacer.className = 'flex-1';
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn btn-xs btn-ghost text-error';
+  removeBtn.innerHTML = '&times; Remove Group';
+  removeBtn.onclick = () => group.remove();
+
+  header.appendChild(label);
+  header.appendChild(opSelect);
+  header.appendChild(addBtn);
+  header.appendChild(spacer);
+  header.appendChild(removeBtn);
+
+  // Rules container inside group
+  const rulesContainer = document.createElement('div');
+  rulesContainer.className = 'space-y-2';
+  rulesContainer.dataset.role = 'group-rules';
+
+  rules.forEach(r => {
+    if (r.type === 'group') {
+      rulesContainer.appendChild(createGroupEl(r.operator || 'Any', r.rules || []));
     } else {
-      container.appendChild(
-        createRuleRow(rule.field || 'Publisher', rule.operator || 'is', rule.value || '')
-      );
+      rulesContainer.appendChild(createRuleRow(r.field || 'Publisher', r.operator || 'is', r.value || ''));
     }
   });
 
-  if (hasGroups) {
-    document.getElementById('has-groups-warning').classList.remove('hidden');
-  }
+  group.appendChild(header);
+  group.appendChild(rulesContainer);
+
+  return group;
 }
 
-function serializeRules() {
-  const container = document.getElementById('rules-container');
-  const rows = container.querySelectorAll(':scope > div');
-  const rules = [];
+// ---- Serialize ----
+function serializeContainer(container) {
+  const items = [];
+  const children = container.querySelectorAll(':scope > [data-type]');
 
-  rows.forEach(row => {
-    const selects = row.querySelectorAll('select');
-    const input = row.querySelector('input');
-    if (selects.length >= 2 && input && input.value.trim()) {
-      rules.push({
-        type: 'rule',
-        field: selects[0].value,
-        operator: selects[1].value,
-        value: input.value.trim(),
-      });
+  children.forEach(el => {
+    if (el.dataset.type === 'rule') {
+      const field = el.querySelector('[data-role="field"]');
+      const op = el.querySelector('[data-role="operator"]');
+      const val = el.querySelector('[data-role="value"]');
+      if (field && op && val && val.value.trim()) {
+        items.push({
+          type: 'rule',
+          field: field.value,
+          operator: op.value,
+          value: val.value.trim(),
+        });
+      }
+    } else if (el.dataset.type === 'group') {
+      const groupOp = el.querySelector('[data-role="group-operator"]');
+      const groupRules = el.querySelector('[data-role="group-rules"]');
+      if (groupOp && groupRules) {
+        const nested = serializeContainer(groupRules);
+        if (nested.length > 0) {
+          items.push({
+            type: 'group',
+            operator: groupOp.value,
+            rules: nested,
+          });
+        }
+      }
     }
   });
 
-  // Re-add preserved groups
-  preservedGroups.forEach(g => rules.push(g));
+  return items;
+}
 
-  if (rules.length === 0) {
-    return '';
-  }
+function serializeAll() {
+  const container = document.getElementById('rules-container');
+  const rules = serializeContainer(container);
+
+  if (rules.length === 0) return '';
 
   return JSON.stringify({
     mode: document.getElementById('rule-mode').value,
@@ -292,17 +346,38 @@ function serializeRules() {
   });
 }
 
-// Add rule button
+// ---- Load ----
+function loadExistingRules() {
+  const data = JSON.parse('{{ exclude_rules_json|escapejs }}');
+  if (!data || !data.rules) return;
+
+  if (data.mode) document.getElementById('rule-mode').value = data.mode;
+  if (data.operator) document.getElementById('rule-operator').value = data.operator;
+
+  const container = document.getElementById('rules-container');
+
+  data.rules.forEach(item => {
+    if (item.type === 'group') {
+      container.appendChild(createGroupEl(item.operator || 'Any', item.rules || []));
+    } else {
+      container.appendChild(createRuleRow(item.field || 'Publisher', item.operator || 'is', item.value || ''));
+    }
+  });
+}
+
+// ---- Events ----
 document.getElementById('add-rule-btn').addEventListener('click', () => {
   document.getElementById('rules-container').appendChild(createRuleRow());
 });
 
-// Serialize before form submit
-document.getElementById('profile-form').addEventListener('submit', (e) => {
-  document.getElementById('exclude-rules-input').value = serializeRules();
+document.getElementById('add-group-btn').addEventListener('click', () => {
+  document.getElementById('rules-container').appendChild(createGroupEl('Any', []));
 });
 
-// Load existing rules on page load
+document.getElementById('profile-form').addEventListener('submit', () => {
+  document.getElementById('exclude-rules-input').value = serializeAll();
+});
+
 loadExistingRules();
 </script>
 {% endblock %}
