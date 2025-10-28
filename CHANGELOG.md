@@ -5,6 +5,8 @@ All notable changes to ComicManager will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Organizer profile rule editor** — Full UI for creating and editing matching rules on organizer profiles, including nested rule groups with AND/OR logic. Supports all fields (Publisher, Format, Series Group, Tags, etc.) and operators (is, contains, starts with, etc.). Profiles imported from .lop files are now fully editable.
+- **Organizer base_folder fix** — Profiles now use their configured `base_folder` instead of the hardcoded `/comics/library` path. Each profile can organize comics into a different root folder.
 - **Issue Count management** — Detect and populate missing issue counts from the local ComicVine SQLite DB. Auto-flags comics with `missing_count` during scraping when no count is returned. Detects count mismatches within the same `comicvine_volume` (different comics disagree on issue count) and flags them with `count_mismatch`. Dashboard review queue shows both flags with action buttons: "Populate Counts" (batch-fills from CV DB) and "Detect Mismatches" (scans all volumes for inconsistencies).
 - **Tags, Teams, Locations fields** — New model fields for tags, teams, and locations (comma-separated TextFields). Displayed on comic detail page and editable on edit page. Added to FIELD_MAP so they read/write from ComicInfo.xml.
 - **ComicDb.xml import support** — `import_library --comicdb /path/to/ComicDb.xml` enriches imports with data from ComicRack's master database: Tags, Teams, Locations, MainCharacterOrTeam, SeriesGroup, and CustomValuesStore. Uses memory-efficient iterparse for ~44K entries. ComicInfo.xml values take precedence; ComicDb.xml fills in gaps.
