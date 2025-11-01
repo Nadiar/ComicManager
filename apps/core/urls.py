@@ -19,6 +19,7 @@ urlpatterns = [
     path("deduplicate-all/", views.deduplicate_all_comics, name="deduplicate_all"),
     path("organize-all/", views.organize_all_comics, name="organize_all"),
     path("write-all/", views.write_all_comics, name="write_all"),
+    path("sync-library-paths/", views.sync_library_paths, name="sync_library_paths"),
     path("<uuid:pk>/", views.comic_detail, name="detail"),
     path("<uuid:pk>/edit/", views.comic_edit, name="edit"),
     path("<uuid:pk>/cover/", views.comic_cover, name="cover"),

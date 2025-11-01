@@ -1614,6 +1614,30 @@ def reorganize_comic(request, pk):
 
 
 @require_POST
+def sync_library_paths(request):
+    """
+    Sync database file paths with actual filesystem locations.
+
+    Finds comics where file_path doesn't exist on disk, computes the
+    organizer's target path, and updates the DB if the file is found there.
+    """
+    from apps.organizer.services import sync_library_paths as organizer_sync
+
+    result = organizer_sync()
+
+    return JsonResponse({
+        "success": result["success"],
+        "message": result["message"],
+        "total": result["total"],
+        "synced": result["synced"],
+        "removed_dupes": result["removed_dupes"],
+        "already_ok": result["already_ok"],
+        "not_found": result["not_found"],
+        "errors": result["errors"],
+    })
+
+
+@require_POST
 def write_comic(request, pk):
     """
     Write ComicInfo.xml for a single comic in 'organized' state.

@@ -323,6 +323,146 @@ def preview_organization(comic: Comic) -> dict:
     }
 
 
+def _normalize_for_match(text: str) -> str:
+    """Normalize text for fuzzy filename matching (lowercase, strip punctuation)."""
+    import re
+    text = re.sub(r'[^a-z0-9 ]', '', text.lower())
+    return re.sub(r' +', ' ', text).strip()
+
+
+def _find_file_in_folder(folder: str, series: str, number: str) -> str | None:
+    """
+    Search a folder for a CBZ file matching a comic's series and number.
+
+    Returns the path if a single unambiguous match is found, None otherwise.
+    """
+    if not os.path.isdir(folder):
+        return None
+
+    import re
+    series_norm = _normalize_for_match(series or "")
+    # Normalize number: strip leading zeros for comparison
+    number_normalized = (number or "").lstrip("0") or "0"
+
+    candidates = []
+    for fname in os.listdir(folder):
+        if not fname.lower().endswith(".cbz"):
+            continue
+        fname_norm = _normalize_for_match(fname)
+        # Check series name appears in filename (normalized)
+        if series_norm and series_norm not in fname_norm:
+            continue
+        # Match #027, #27, etc. - extract number and normalize
+        num_match = re.search(r'#(\d+)', fname)
+        if num_match:
+            fname_num = num_match.group(1).lstrip("0") or "0"
+            if fname_num == number_normalized:
+                candidates.append(os.path.join(folder, fname))
+
+    # Only return if we found exactly one match (avoid ambiguity)
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
+def sync_library_paths() -> dict:
+    """
+    Sync database file_path values with actual filesystem locations.
+
+    For each digital comic in organized/written state where file_path doesn't
+    exist on disk:
+    1. Check the organizer's computed target path
+    2. If not there, scan the target folder for a matching CBZ by series+number
+    3. Update the DB if the file is found
+
+    Returns:
+        Dict with sync results
+    """
+    comics = list(
+        Comic.objects.filter(
+            state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN],
+            medium=Comic.MEDIUM_DIGITAL,
+        ).exclude(file_path__isnull=True).exclude(file_path="")
+    )
+
+    # Build path→comic lookup for collision detection
+    path_to_comic = {}
+    for c in Comic.objects.filter(medium=Comic.MEDIUM_DIGITAL).exclude(
+        file_path__isnull=True
+    ):
+        path_to_comic[c.file_path] = c.pk
+
+    total = len(comics)
+    already_ok = 0
+    synced = 0
+    removed_dupes = 0
+    not_found = 0
+    errors = []
+
+    for comic in comics:
+        # File already exists at recorded path
+        if os.path.exists(comic.file_path):
+            already_ok += 1
+            continue
+
+        # File is missing - try to find it
+        try:
+            preview = preview_organization(comic)
+            target_path = preview["new_path"]
+            target_folder = preview["new_folder"]
+            found_path = None
+
+            # Strategy 1: exact target path
+            if os.path.exists(target_path):
+                found_path = target_path
+            else:
+                # Strategy 2: scan target folder for matching file
+                found_path = _find_file_in_folder(
+                    target_folder, comic.series, comic.number
+                )
+
+            if found_path and found_path not in path_to_comic:
+                # File found, no other record claims it - update path
+                old_path = comic.file_path
+                comic.file_path = found_path
+                comic.last_organized_path = found_path
+                comic.save()
+                path_to_comic.pop(old_path, None)
+                path_to_comic[found_path] = comic.pk
+                synced += 1
+            elif found_path and found_path in path_to_comic:
+                # File already belongs to another record - this is a stale dupe
+                other_pk = path_to_comic[found_path]
+                if other_pk != comic.pk:
+                    comic.delete()
+                    path_to_comic.pop(comic.file_path, None)
+                    removed_dupes += 1
+            else:
+                not_found += 1
+                errors.append(
+                    f"{comic.series} #{comic.number}: not found at DB path, "
+                    f"target path, or in target folder"
+                )
+        except Exception as e:
+            not_found += 1
+            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
+
+    return {
+        "success": True,
+        "message": (
+            f"Scanned {total} comics: {synced} paths synced, "
+            f"{removed_dupes} stale duplicates removed, "
+            f"{already_ok} already correct, {not_found} not found"
+        ),
+        "total": total,
+        "synced": synced,
+        "removed_dupes": removed_dupes,
+        "already_ok": already_ok,
+        "not_found": not_found,
+        "errors": errors,
+    }
+
+
 def get_organization_stats() -> dict:
     """
     Get statistics about organization state.

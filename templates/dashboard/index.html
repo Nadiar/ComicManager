@@ -105,6 +105,10 @@
                 {% if stage.state == 'organized' and stage.count > 0 %}
                 <button onclick="runAction('/comics/write-all/', this)" class="btn btn-xs btn-success">Write All</button>
                 {% endif %}
+
+                {% if stage.state == 'written' %}
+                <button onclick="runAction('/comics/sync-library-paths/', this)" class="btn btn-xs btn-info">Sync Paths</button>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}

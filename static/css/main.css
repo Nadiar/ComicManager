@@ -2894,6 +2894,10 @@
     border-top-left-radius: var(--radius-xl);
     border-top-right-radius: var(--radius-xl);
   }
+  .rounded-r-lg {
+    border-top-right-radius: var(--radius-lg);
+    border-bottom-right-radius: var(--radius-lg);
+  }
   .border {
     border-style: var(--tw-border-style);
     border-width: 1px;
@@ -2905,6 +2909,10 @@
   .border-l-2 {
     border-left-style: var(--tw-border-style);
     border-left-width: 2px;
+  }
+  .border-l-4 {
+    border-left-style: var(--tw-border-style);
+    border-left-width: 4px;
   }
   .badge-ghost {
     @layer daisyui.l1.l2 {
@@ -2930,6 +2938,9 @@
     @supports (color: color-mix(in lab, red, red)) {
       border-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
     }
+  }
+  .border-secondary {
+    border-color: var(--color-secondary);
   }
   .border-warning {
     border-color: var(--color-warning);
@@ -3056,6 +3067,16 @@
       }
     }
   }
+  .select-xs {
+    @layer daisyui.l1.l2 {
+      --size: calc(var(--size-field, 0.25rem) * 6);
+      font-size: 0.6875rem;
+      option {
+        padding-inline: calc(0.25rem * 2);
+        padding-block: calc(0.25rem * 1);
+      }
+    }
+  }
   .table-sm {
     @layer daisyui.l1.l2 {
       :not(thead, tfoot) tr {
@@ -3081,6 +3102,9 @@
   }
   .py-1 {
     padding-block: calc(var(--spacing) * 1);
+  }
+  .py-2 {
+    padding-block: calc(var(--spacing) * 2);
   }
   .py-3 {
     padding-block: calc(var(--spacing) * 3);
@@ -3292,6 +3316,9 @@
   }
   .text-primary {
     color: var(--color-primary);
+  }
+  .text-secondary {
+    color: var(--color-secondary);
   }
   .text-success {
     color: var(--color-success);
