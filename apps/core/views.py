@@ -7,7 +7,7 @@ from pathlib import Path
 from django.shortcuts import render, get_object_or_404
 from django.utils.html import strip_tags
 from django.http import JsonResponse, HttpResponse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 
 from .models import Comic
 from apps.scraper.comicvine import ComicVineScraper
@@ -1685,45 +1685,74 @@ def write_comic(request, pk):
 @require_POST
 def write_all_comics(request):
     """
-    Write ComicInfo.xml for all comics in 'organized' state.
-
-    This updates the ComicInfo.xml inside each CBZ file with the
-    current database values, then advances to 'written' state.
+    Dispatch a Celery task to write ComicInfo.xml for all organized comics.
+    Returns immediately with the task ID for progress polling.
     """
-    from .utils import write_comicinfo_xml
-    from django.utils import timezone
+    from celery.result import AsyncResult
 
-    comics = Comic.objects.filter(state=Comic.STATE_ORGANIZED)
-    total = comics.count()
+    # Prevent double-submit
+    active_task_id = request.session.get("write_task_id")
+    if active_task_id:
+        result = AsyncResult(active_task_id)
+        if result.state in ("PENDING", "STARTED", "PROGRESS"):
+            return JsonResponse({
+                "success": False,
+                "error": "A write task is already running",
+                "task_id": active_task_id,
+            }, status=409)
 
-    written = 0
-    errors = []
+    count = Comic.objects.filter(state=Comic.STATE_ORGANIZED).count()
+    if count == 0:
+        return JsonResponse({
+            "success": True,
+            "written": 0,
+            "total": 0,
+            "message": "No comics in organized state",
+        })
 
-    for comic in comics:
-        # For digital comics with CBZ files, write the XML
-        if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
-            success = write_comicinfo_xml(comic.file_path, comic)
-            if not success:
-                errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
-                continue
-
-        # Advance state and record write time
-        comic.state = Comic.STATE_WRITTEN
-        comic.last_written = timezone.now()
-
-        # Clear the count_updated flag if set
-        if comic.flags.get("count_updated"):
-            comic.flags.pop("count_updated", None)
-
-        comic.save()
-        written += 1
+    from .tasks import write_all_comics_task
+    result = write_all_comics_task.delay()
+    request.session["write_task_id"] = result.id
 
     return JsonResponse({
         "success": True,
-        "written": written,
-        "total": total,
-        "errors": errors,
+        "task_id": result.id,
+        "total": count,
+        "message": f"Started writing {count} comics in background",
     })
+
+
+@require_GET
+def task_progress(request, task_id):
+    """
+    Poll endpoint for Celery task progress.
+    Returns current state and progress metadata.
+    """
+    from celery.result import AsyncResult
+
+    result = AsyncResult(task_id)
+    response = {"task_id": task_id, "state": result.state}
+
+    if result.state == "PROGRESS":
+        info = result.info or {}
+        response.update({
+            "current": info.get("current", 0),
+            "total": info.get("total", 0),
+            "written": info.get("written", 0),
+            "errors": info.get("errors", []),
+        })
+    elif result.state == "SUCCESS":
+        response["result"] = result.result
+        if request.session.get("write_task_id") == task_id:
+            del request.session["write_task_id"]
+    elif result.state == "FAILURE":
+        response["error"] = str(result.result)
+        if request.session.get("write_task_id") == task_id:
+            del request.session["write_task_id"]
+    elif result.state == "STARTED":
+        response.update({"current": 0, "total": 0})
+
+    return JsonResponse(response)
 
 
 # =============================================================================

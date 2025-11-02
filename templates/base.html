@@ -71,5 +71,100 @@
     {% block content %}{% endblock %}
   </main>
 
+  <!-- Background task progress notification -->
+  <div id="task-progress-toast" class="toast toast-end toast-bottom z-50 hidden">
+    <div class="alert bg-base-200 shadow-lg border border-base-300 w-80">
+      <div class="w-full">
+        <div class="flex justify-between items-center mb-2">
+          <span class="font-semibold text-sm" id="task-progress-label">Writing comics...</span>
+          <span class="text-xs text-base-content/60" id="task-progress-count"></span>
+        </div>
+        <progress id="task-progress-bar" class="progress progress-primary w-full" value="0" max="100"></progress>
+        <div id="task-progress-status" class="text-xs text-base-content/60 mt-1"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    var POLL_INTERVAL = 2000;
+    var activeTaskId = "{{ active_write_task_id|escapejs }}";
+
+    var toast = document.getElementById('task-progress-toast');
+    var label = document.getElementById('task-progress-label');
+    var count = document.getElementById('task-progress-count');
+    var bar = document.getElementById('task-progress-bar');
+    var status = document.getElementById('task-progress-status');
+
+    function showToast() { toast.classList.remove('hidden'); }
+    function hideToast() { toast.classList.add('hidden'); }
+
+    function startPolling(taskId) {
+      activeTaskId = taskId;
+      showToast();
+      label.textContent = 'Writing comics...';
+      status.textContent = 'Starting...';
+      count.textContent = '';
+      bar.value = 0;
+      bar.classList.remove('progress-success', 'progress-error');
+      bar.classList.add('progress-primary');
+      pollProgress();
+    }
+
+    function pollProgress() {
+      if (!activeTaskId) return;
+
+      fetch('/comics/task-progress/' + activeTaskId + '/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.state === 'PROGRESS') {
+            var pct = data.total > 0 ? Math.round((data.current / data.total) * 100) : 0;
+            bar.value = pct;
+            count.textContent = data.current + ' / ' + data.total;
+            status.textContent = data.written + ' written' +
+              (data.errors && data.errors.length > 0 ? ', ' + data.errors.length + ' errors' : '');
+            setTimeout(pollProgress, POLL_INTERVAL);
+
+          } else if (data.state === 'SUCCESS') {
+            bar.value = 100;
+            var r = data.result || {};
+            label.textContent = 'Write complete!';
+            count.textContent = '';
+            status.textContent = (r.written || 0) + ' of ' + (r.total || 0) + ' written' +
+              (r.errors && r.errors.length > 0 ? ', ' + r.errors.length + ' errors' : '');
+            bar.classList.remove('progress-primary');
+            bar.classList.add('progress-success');
+            activeTaskId = null;
+            window._activeWriteTaskId = null;
+            setTimeout(function() { hideToast(); location.reload(); }, 5000);
+
+          } else if (data.state === 'FAILURE') {
+            label.textContent = 'Write failed';
+            status.textContent = data.error || 'Unknown error';
+            bar.classList.remove('progress-primary');
+            bar.classList.add('progress-error');
+            activeTaskId = null;
+            window._activeWriteTaskId = null;
+            setTimeout(hideToast, 10000);
+
+          } else {
+            status.textContent = data.state === 'STARTED' ? 'Starting...' : 'Queued...';
+            setTimeout(pollProgress, POLL_INTERVAL);
+          }
+        })
+        .catch(function() {
+          setTimeout(pollProgress, POLL_INTERVAL * 2);
+        });
+    }
+
+    window.startTaskPolling = startPolling;
+    window._activeWriteTaskId = activeTaskId || null;
+
+    if (activeTaskId) {
+      startPolling(activeTaskId);
+    }
+  })();
+  </script>
+
 </body>
 </html>

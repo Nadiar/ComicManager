@@ -103,7 +103,7 @@
                 {% endif %}
 
                 {% if stage.state == 'organized' and stage.count > 0 %}
-                <button onclick="runAction('/comics/write-all/', this)" class="btn btn-xs btn-success">Write All</button>
+                <button onclick="runWriteAll(this)" class="btn btn-xs btn-success" id="btn-write-all">Write All</button>
                 {% endif %}
 
                 {% if stage.state == 'written' %}
@@ -157,6 +157,58 @@ async function runAction(url, btn) {
     btn.classList.add('btn-error');
     console.error(err);
   }
+}
+
+async function runWriteAll(btn) {
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+
+  try {
+    const resp = await fetch('/comics/write-all/', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+        'Content-Type': 'application/json',
+      },
+    });
+    const data = await resp.json();
+
+    if (data.success && data.task_id) {
+      btn.textContent = 'Running...';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-info');
+      if (window.startTaskPolling) {
+        window.startTaskPolling(data.task_id);
+      }
+    } else if (data.success) {
+      btn.textContent = 'No comics';
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      btn.textContent = data.error || 'Error';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-error');
+      setTimeout(() => {
+        btn.textContent = 'Write All';
+        btn.disabled = false;
+        btn.classList.remove('btn-error');
+        btn.classList.add('btn-success');
+      }, 3000);
+    }
+  } catch (err) {
+    btn.textContent = 'Error';
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-error');
+    console.error(err);
+  }
+}
+
+// Disable Write All button if a task is already running
+if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
+  var wb = document.getElementById('btn-write-all');
+  wb.disabled = true;
+  wb.textContent = 'Running...';
+  wb.classList.remove('btn-success');
+  wb.classList.add('btn-info');
 }
 </script>
 

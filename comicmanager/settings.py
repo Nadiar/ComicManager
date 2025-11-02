@@ -54,6 +54,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.core.context_processors.active_tasks",
             ],
         },
     },
@@ -83,6 +84,7 @@ CELERY_TASK_QUEUES = {
     "organize": {},
     "write": {},
 }
+CELERY_RESULT_EXTENDED = True
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
