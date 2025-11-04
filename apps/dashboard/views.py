@@ -84,6 +84,13 @@ def index(request):
             "count": Comic.objects.filter(flags__count_mismatch=True).count(),
             "action": "review",
         },
+        {
+            "flag": "count_updated",
+            "label": "Count Updated",
+            "description": "Issue count changed - needs ComicInfo.xml rewrite",
+            "count": Comic.objects.filter(flags__count_updated=True).count(),
+            "action": "rewrite",
+        },
     ]
 
     flagged_count = Comic.objects.exclude(flags={}).count()

@@ -1638,6 +1638,49 @@ def sync_library_paths(request):
 
 
 @require_POST
+def rewrite_updated_comics(request):
+    """
+    Dispatch a Celery task to rewrite ComicInfo.xml for all comics
+    with the count_updated flag. Returns immediately with a task ID.
+    """
+    from celery.result import AsyncResult
+
+    # Prevent double-submit (shares session key with write-all)
+    active_task_id = request.session.get("write_task_id")
+    if active_task_id:
+        result = AsyncResult(active_task_id)
+        if result.state in ("PENDING", "STARTED", "PROGRESS"):
+            return JsonResponse({
+                "success": False,
+                "error": "A write task is already running",
+                "task_id": active_task_id,
+            }, status=409)
+
+    count = Comic.objects.filter(
+        flags__count_updated=True,
+        medium=Comic.MEDIUM_DIGITAL,
+    ).count()
+    if count == 0:
+        return JsonResponse({
+            "success": True,
+            "written": 0,
+            "total": 0,
+            "message": "No comics with count_updated flag",
+        })
+
+    from .tasks import rewrite_updated_comics_task
+    result = rewrite_updated_comics_task.delay()
+    request.session["write_task_id"] = result.id
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": count,
+        "message": f"Started rewriting {count} comics in background",
+    })
+
+
+@require_POST
 def write_comic(request, pk):
     """
     Write ComicInfo.xml for a single comic in 'organized' state.

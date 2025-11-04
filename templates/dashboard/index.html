@@ -103,7 +103,7 @@
                 {% endif %}
 
                 {% if stage.state == 'organized' and stage.count > 0 %}
-                <button onclick="runWriteAll(this)" class="btn btn-xs btn-success" id="btn-write-all">Write All</button>
+                <button onclick="runWriteTask('/comics/write-all/', this)" class="btn btn-xs btn-success" id="btn-write-all">Write All</button>
                 {% endif %}
 
                 {% if stage.state == 'written' %}
@@ -159,12 +159,13 @@ async function runAction(url, btn) {
   }
 }
 
-async function runWriteAll(btn) {
+async function runWriteTask(url, btn) {
+  const originalText = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Starting...';
 
   try {
-    const resp = await fetch('/comics/write-all/', {
+    const resp = await fetch(url, {
       method: 'POST',
       headers: {
         'X-CSRFToken': getCsrfToken(),
@@ -188,7 +189,7 @@ async function runWriteAll(btn) {
       btn.classList.remove('btn-success');
       btn.classList.add('btn-error');
       setTimeout(() => {
-        btn.textContent = 'Write All';
+        btn.textContent = originalText;
         btn.disabled = false;
         btn.classList.remove('btn-error');
         btn.classList.add('btn-success');
@@ -255,6 +256,9 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                 {% endif %}
                 {% if item.flag == 'count_mismatch' %}
                 <button onclick="runAction('/comics/detect-count-mismatches/', this)" class="btn btn-xs btn-info">Detect Mismatches</button>
+                {% endif %}
+                {% if item.flag == 'count_updated' %}
+                <button onclick="runWriteTask('/comics/rewrite-updated/', this)" class="btn btn-xs btn-success">Rewrite All</button>
                 {% endif %}
               </td>
             </tr>

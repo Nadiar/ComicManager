@@ -37,3 +37,8 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+ComicDb.xml
+ComicInfo.xml 
+dataman.dat
+LO_*.lop
+
