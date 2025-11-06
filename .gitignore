@@ -193,3 +193,4 @@ ComicDb.xml
 static/css/main.css
 *.md
 !CHANGELOG.md 
+.vexp/*

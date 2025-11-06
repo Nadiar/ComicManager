@@ -288,19 +288,23 @@ def _create_duplicate_group(
 
 def run_duplicate_detection() -> dict:
     """
-    Run full duplicate detection on all formatted comics.
+    Run full duplicate detection on formatted comics.
+
+    Compares formatted candidates against the ENTIRE library (all states)
+    to catch duplicates of already-processed comics, not just other
+    formatted comics.
 
     Returns dict with detection statistics.
     """
-    # Get comics in formatted state without existing group
-    comics = list(Comic.objects.filter(
+    # Get candidates: formatted comics without existing group
+    candidates = list(Comic.objects.filter(
         state=Comic.STATE_FORMATTED,
         duplicate_group__isnull=True,
     ))
 
-    logger.info(f"run_duplicate_detection: found {len(comics)} formatted comics without group")
+    logger.info(f"run_duplicate_detection: found {len(candidates)} formatted candidates")
 
-    if not comics:
+    if not candidates:
         return {
             "success": True,
             "message": "No comics to process",
@@ -309,34 +313,52 @@ def run_duplicate_detection() -> dict:
             "advanced": 0,
         }
 
-    # Run detection methods
-    cv_groups = detect_duplicates_by_cv_id(comics)
-    meta_groups = detect_duplicates_by_metadata(comics)
-    phash_groups = detect_duplicates_by_phash(comics)
+    candidate_pks = set(c.pk for c in candidates)
+
+    # Build comparison pool: candidates + all library comics without a group.
+    # This catches duplicates of already-processed comics (e.g. a new import
+    # that matches an already-written comic).
+    library_comics = list(Comic.objects.filter(
+        duplicate_group__isnull=True,
+    ).exclude(
+        state=Comic.STATE_FORMATTED,
+    ))
+
+    comparison_pool = candidates + library_comics
+    logger.info(
+        f"run_duplicate_detection: comparison pool = {len(candidates)} candidates "
+        f"+ {len(library_comics)} library comics = {len(comparison_pool)} total"
+    )
+
+    # Run detection methods on the full pool
+    cv_groups = detect_duplicates_by_cv_id(comparison_pool)
+    meta_groups = detect_duplicates_by_metadata(comparison_pool)
+    phash_groups = detect_duplicates_by_phash(comparison_pool)
 
     all_groups = cv_groups + meta_groups + phash_groups
     logger.info(f"run_duplicate_detection: created {len(all_groups)} total groups")
 
-    # Collect IDs of comics that are in groups
-    comics_with_groups = set()
+    # Collect IDs of candidates that ended up in groups
+    candidates_with_groups = set()
     for group in all_groups:
         for membership in group.memberships.all():
-            comics_with_groups.add(membership.comic_id)
+            if membership.comic_id in candidate_pks:
+                candidates_with_groups.add(membership.comic_id)
 
-    # Comics without duplicates advance to deduplicated
+    # Only advance candidates (formatted comics) without duplicates
     advanced = 0
-    for comic in comics:
-        if comic.pk not in comics_with_groups:
+    for comic in candidates:
+        if comic.pk not in candidates_with_groups:
             comic.state = Comic.STATE_DEDUPLICATED
             comic.save(update_fields=["state"])
             advanced += 1
 
-    logger.info(f"run_duplicate_detection: advanced {advanced} comics to deduplicated")
+    logger.info(f"run_duplicate_detection: advanced {advanced} candidates to deduplicated")
 
     return {
         "success": True,
         "message": f"Detection complete: {len(all_groups)} duplicate groups found",
-        "total_comics": len(comics),
+        "total_comics": len(candidates),
         "groups_created": len(all_groups),
         "by_cv_id": len(cv_groups),
         "by_metadata": len(meta_groups),
@@ -416,10 +438,12 @@ def resolve_keep(
         membership.resolution = DuplicateGroupMembership.RESOLUTION_KEPT
         membership.save()
 
-        # Update the comic
+        # Update the comic — only advance if still in formatted state
+        # (don't downgrade already-processed comics)
         winner.is_duplicate = False
         winner.duplicate_of = None
-        winner.state = Comic.STATE_DEDUPLICATED
+        if winner.state == Comic.STATE_FORMATTED:
+            winner.state = Comic.STATE_DEDUPLICATED
         winner.save()
 
         # Update group
@@ -586,7 +610,10 @@ def resolve_keep_all(
 
                 comic.is_duplicate = False
                 comic.duplicate_of = None
-                comic.state = Comic.STATE_DEDUPLICATED
+                # Only advance if still in formatted state
+                # (don't downgrade already-processed comics)
+                if comic.state == Comic.STATE_FORMATTED:
+                    comic.state = Comic.STATE_DEDUPLICATED
                 comic.save()
                 count += 1
 
@@ -637,7 +664,10 @@ def _check_group_resolved(group: DuplicateGroup):
 
         comic.is_duplicate = False
         comic.duplicate_of = None
-        comic.state = Comic.STATE_DEDUPLICATED
+        # Only advance if still in formatted state
+        # (don't downgrade already-processed comics)
+        if comic.state == Comic.STATE_FORMATTED:
+            comic.state = Comic.STATE_DEDUPLICATED
         comic.save()
 
         group.kept_comic = comic
