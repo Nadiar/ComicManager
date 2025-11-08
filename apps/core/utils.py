@@ -6,13 +6,40 @@ files embedded in CBZ archives.
 """
 
 import os
+import re
 import shutil
 import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 from typing import Any
 
+from django.db.models import IntegerField
+from django.db.models.expressions import RawSQL
+
 from .models import Comic
+
+
+def natural_number_annotation():
+    """Return a RawSQL annotation for natural sorting of the 'number' field.
+
+    Extracts the leading integer from the number field so that
+    "1", "2", "10" sort numerically instead of lexicographically.
+    Non-numeric values (e.g. "½", "Annual") sort last.
+    """
+    return RawSQL(
+        "CASE WHEN number ~ '^[0-9]+' "
+        "THEN CAST(SUBSTRING(number FROM '^[0-9]+') AS INTEGER) "
+        "ELSE 2147483647 END",
+        (),
+        output_field=IntegerField(),
+    )
+
+
+def natural_sort_key(comic):
+    """Python sort key for natural number ordering on Comic instances."""
+    num = comic.number or ""
+    match = re.match(r'^(\d+)', num)
+    return (comic.series or "", int(match.group(1)) if match else 2147483647, num)
 
 
 # Field mapping: XML tag -> DB field name

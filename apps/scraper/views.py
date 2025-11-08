@@ -9,6 +9,7 @@ from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
 
 from apps.core.models import Comic
+from apps.core.utils import natural_number_annotation
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
 
@@ -19,7 +20,9 @@ def index(request):
     imported_comics = Comic.objects.filter(
         state=Comic.STATE_IMPORTED,
         medium=Comic.MEDIUM_DIGITAL,
-    ).order_by("series", "number")
+    ).annotate(
+        number_sort_key=natural_number_annotation()
+    ).order_by("series", "number_sort_key", "number")
 
     # Count by state
     stats = {
@@ -51,7 +54,9 @@ def scrape_dry_run(request):
         all_comics = Comic.objects.filter(
             state=Comic.STATE_IMPORTED,
             medium=Comic.MEDIUM_DIGITAL,
-        ).order_by("series", "number")
+        ).annotate(
+            number_sort_key=natural_number_annotation()
+        ).order_by("series", "number_sort_key", "number")
 
         # Filter out comics with any flags
         comics = [c for c in all_comics if not c.has_flags][:limit]

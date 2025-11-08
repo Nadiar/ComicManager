@@ -1,6 +1,7 @@
 import sqlite3
 from django.conf import settings
 from apps.core.models import Comic
+from apps.core.utils import natural_number_annotation
 
 
 # Whitelist of allowed Comic model fields for filtering
@@ -25,15 +26,15 @@ ALLOWED_LOOKUPS = {
 
 # Sort field mapping (reuse pattern from comic_list view)
 SORT_FIELDS = {
-    "series": ["series", "volume", "number"],
-    "number": ["number"],
-    "publisher": ["publisher", "series", "volume", "number"],
-    "year": ["year", "series", "volume", "number"],
-    "state": ["state", "series", "volume", "number"],
-    "format": ["format", "series", "volume", "number"],
-    "pages": ["page_count", "series", "volume", "number"],
+    "series": ["series", "volume", "number_sort_key", "number"],
+    "number": ["number_sort_key", "number"],
+    "publisher": ["publisher", "series", "volume", "number_sort_key", "number"],
+    "year": ["year", "series", "volume", "number_sort_key", "number"],
+    "state": ["state", "series", "volume", "number_sort_key", "number"],
+    "format": ["format", "series", "volume", "number_sort_key", "number"],
+    "pages": ["page_count", "series", "volume", "number_sort_key", "number"],
     "updated": ["updated_at"],
-    "count": ["count", "series", "volume", "number"],
+    "count": ["count", "series", "volume", "number_sort_key", "number"],
 }
 
 
@@ -94,8 +95,11 @@ def build_queryset(smart_list):
 
         qs = qs.filter(**{orm_key: value})
 
+    # Annotate for natural number sorting (1, 2, 10 instead of 1, 10, 2)
+    qs = qs.annotate(number_sort_key=natural_number_annotation())
+
     # Apply sorting
-    order_fields = SORT_FIELDS.get(smart_list.sort_field, ["series", "volume", "number"])
+    order_fields = SORT_FIELDS.get(smart_list.sort_field, ["series", "volume", "number_sort_key", "number"])
     if smart_list.sort_direction == "desc":
         order_fields = [f"-{f}" for f in order_fields]
 

@@ -10,6 +10,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
 from .models import Comic
+from .utils import natural_number_annotation, natural_sort_key
 from apps.scraper.comicvine import ComicVineScraper
 from apps.scraper.hasher import extract_cover_hashes, extract_cover_image
 from .services import scan_untagged_folder
@@ -41,8 +42,6 @@ WORKFLOW_STATES = [
 
 def comic_list(request):
     from django.db.models import Q
-    from django.db.models.functions import Cast
-    from django.db.models import IntegerField
 
     comics = Comic.objects.all()
 
@@ -82,23 +81,26 @@ def comic_list(request):
         # JSONField lookup: flags__<flag_name>=True
         comics = comics.filter(**{f"flags__{flag}": True})
 
+    # Annotate for natural number sorting (1, 2, 10 instead of 1, 10, 2)
+    comics = comics.annotate(number_sort_key=natural_number_annotation())
+
     # Sorting
     sort = request.GET.get("sort", "series")
     sort_dir = request.GET.get("dir", "asc")
 
     # Map sort field names to model fields
     sort_fields = {
-        "series": ["series", "volume", "number"],
-        "number": ["number"],
-        "publisher": ["publisher", "series", "volume", "number"],
-        "year": ["year", "series", "volume", "number"],
-        "state": ["state", "series", "volume", "number"],
-        "format": ["format", "series", "volume", "number"],
-        "pages": ["page_count", "series", "volume", "number"],
+        "series": ["series", "volume", "number_sort_key", "number"],
+        "number": ["number_sort_key", "number"],
+        "publisher": ["publisher", "series", "volume", "number_sort_key", "number"],
+        "year": ["year", "series", "volume", "number_sort_key", "number"],
+        "state": ["state", "series", "volume", "number_sort_key", "number"],
+        "format": ["format", "series", "volume", "number_sort_key", "number"],
+        "pages": ["page_count", "series", "volume", "number_sort_key", "number"],
         "updated": ["updated_at"],
     }
 
-    order_fields = sort_fields.get(sort, ["series", "volume", "number"])
+    order_fields = sort_fields.get(sort, ["series", "volume", "number_sort_key", "number"])
     if sort_dir == "desc":
         order_fields = [f"-{f}" for f in order_fields]
 
@@ -1267,10 +1269,14 @@ def format_review(request):
     from collections import defaultdict
 
     # Get comics in 'tagged' state
-    tagged_comics = Comic.objects.filter(state=Comic.STATE_TAGGED).order_by("series", "volume", "number")
+    tagged_comics = Comic.objects.filter(state=Comic.STATE_TAGGED).annotate(
+        number_sort_key=natural_number_annotation()
+    ).order_by("series", "volume", "number_sort_key", "number")
 
     # Get comics needing re-format (any state)
-    reformat_comics = list(Comic.objects.filter(needs_reformat=True).order_by("series", "volume", "number"))
+    reformat_comics = list(Comic.objects.filter(needs_reformat=True).annotate(
+        number_sort_key=natural_number_annotation()
+    ).order_by("series", "volume", "number_sort_key", "number"))
 
     # Group tagged comics by detected format
     grouped = defaultdict(list)
@@ -1318,12 +1324,14 @@ def format_group_comics(request, format_type):
     format_name = FORMAT_SLUG_TO_NAME.get(format_type)
 
     if format_type == "needs-reformat":
-        comics = Comic.objects.filter(needs_reformat=True).order_by("series", "number")
+        comics = Comic.objects.filter(needs_reformat=True).annotate(
+            number_sort_key=natural_number_annotation()
+        ).order_by("series", "number_sort_key", "number")
     else:
         # Get tagged comics and filter by detected format
         tagged_comics = Comic.objects.filter(state=Comic.STATE_TAGGED)
         comics = [c for c in tagged_comics if _detect_format(c) == format_name]
-        comics.sort(key=lambda c: (c.series or "", c.number or ""))
+        comics.sort(key=natural_sort_key)
 
     return render(request, "core/partials/format_group_comics.html", {
         "comics": comics,
