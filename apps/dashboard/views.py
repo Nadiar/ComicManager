@@ -273,8 +273,18 @@ def smartlist_delete(request, pk):
 
 def smartlist_detail(request, pk):
     """View the comics matching a smart list's filters."""
+    from django.core.paginator import Paginator
+
     sl = get_object_or_404(SmartList, pk=pk)
     comics = build_queryset(sl)
+    total_count = comics.count()
+
+    # Paginate
+    per_page = int(request.GET.get("per_page", 100))
+    per_page = min(max(per_page, 25), 500)
+    paginator = Paginator(comics, per_page)
+    page_number = request.GET.get("page", 1)
+    page_obj = paginator.get_page(page_number)
 
     # Get completion info if CV volume is linked
     completion_data = None
@@ -290,8 +300,9 @@ def smartlist_detail(request, pk):
 
     return render(request, "dashboard/smartlist_detail.html", {
         "smart_list": sl,
-        "comics": comics,
-        "comic_count": comics.count(),
+        "comics": page_obj,
+        "page_obj": page_obj,
+        "comic_count": total_count,
         "completion_data": completion_data,
     })
 

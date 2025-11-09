@@ -17,7 +17,10 @@ All notable changes to ComicManager will be documented in this file.
 - **Dashboard smart list cards** — Smart Lists with `show_on_dashboard` enabled appear as cards on the dashboard with comic counts and completion progress bars.
 - **Search, filter, and sort for comic list** - `/comics/` now has a search bar (series, title, publisher, number), filter dropdowns (publisher, format, medium), and sortable column headers with ascending/descending toggle.
 
+- **Server-side pagination** — `/comics/` and smart list detail pages now use server-side pagination (100 per page, configurable 25–500 via `per_page` param). Prevents browser crashes on 40k+ comic libraries. Pagination controls at top and bottom with page number window.
+
 ### Fixed
+- **Natural number sorting** — Comic lists and smart lists now sort issue numbers numerically (1, 2, 3... 10, 11) instead of lexicographically (1, 10, 11... 2, 20). Uses a PostgreSQL annotation to extract leading digits for sorting, with string fallback for non-numeric issues.
 - **HTML stripped from ComicVine summaries** — Summary/description fields from ComicVine are now passed through `strip_tags()` to remove HTML markup (`<p>`, `<em>`, etc.).
 - **Smart List JSONField filtering** — Filtering on `custom_values__*` fields (e.g., `comicvine_volume` exact "33909") now works correctly. Previously, the value was coerced to an integer which didn't match the string stored in the JSONField.
 - **CSS watcher in Docker** — Changed to `@tailwindcss/cli` with `--poll` flag so the Tailwind watcher stays alive on Docker bind mounts where inotify doesn't propagate.

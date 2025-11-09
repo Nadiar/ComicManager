@@ -42,6 +42,7 @@ WORKFLOW_STATES = [
 
 def comic_list(request):
     from django.db.models import Q
+    from django.core.paginator import Paginator
 
     comics = Comic.objects.all()
 
@@ -106,6 +107,13 @@ def comic_list(request):
 
     comics = comics.order_by(*order_fields)
 
+    # Paginate (100 per page)
+    per_page = int(request.GET.get("per_page", 100))
+    per_page = min(max(per_page, 25), 500)  # Clamp between 25 and 500
+    paginator = Paginator(comics, per_page)
+    page_number = request.GET.get("page", 1)
+    page_obj = paginator.get_page(page_number)
+
     # Get distinct values for filter dropdowns
     publishers = Comic.objects.exclude(publisher__isnull=True).exclude(publisher="").values_list("publisher", flat=True).distinct().order_by("publisher")
     formats = Comic.objects.exclude(format__isnull=True).exclude(format="").values_list("format", flat=True).distinct().order_by("format")
@@ -113,8 +121,17 @@ def comic_list(request):
     # Count comics needing conversion (for "Convert All" button)
     needs_conversion_count = Comic.objects.filter(flags__needs_conversion=True).count()
 
+    # Build query string without page param (for pagination links)
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+    query_string = query_params.urlencode()
+
     return render(request, "core/comic_list.html", {
-        "comics": comics,
+        "comics": page_obj,
+        "page_obj": page_obj,
+        "total_count": paginator.count,
+        "query_string": query_string,
+        "per_page": per_page,
         "current_state": state,
         "current_flag": flag,
         "current_search": search,

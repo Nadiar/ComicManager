@@ -2154,6 +2154,16 @@
       }
     }
   }
+  .btn-active {
+    @layer daisyui.l1.l2 {
+      --btn-bg: var(--btn-color, var(--color-base-200));
+      @supports (color: color-mix(in lab, red, red)) {
+        --btn-bg: color-mix(in oklab, var(--btn-color, var(--color-base-200)), #000 7%);
+      }
+      --btn-shadow: 0 0 0 0 oklch(0% 0 0/0), 0 0 0 0 oklch(0% 0 0/0);
+      isolation: isolate;
+    }
+  }
   .modal-backdrop {
     @layer daisyui.l1.l2.l3 {
       grid-column-start: 1;

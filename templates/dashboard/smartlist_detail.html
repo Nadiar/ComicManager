@@ -60,6 +60,34 @@
 
   <!-- Comics table -->
   {% if comics %}
+  <!-- Pagination Top -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="flex justify-between items-center">
+    <div class="text-sm text-base-content/60">
+      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ comic_count }}
+    </div>
+    <div class="join">
+      {% if page_obj.has_previous %}
+      <a href="?page=1" class="join-item btn btn-sm">First</a>
+      <a href="?page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}
+        <button class="join-item btn btn-sm btn-active">{{ num }}</button>
+        {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+        <a href="?page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
+        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+        <span class="join-item btn btn-sm btn-disabled">...</span>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
+      <a href="?page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   <div class="overflow-x-auto">
     <table class="table table-zebra w-full">
       <thead>
@@ -105,6 +133,35 @@
       </tbody>
     </table>
   </div>
+
+  <!-- Pagination Bottom -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="flex justify-between items-center">
+    <div class="text-sm text-base-content/60">
+      Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    </div>
+    <div class="join">
+      {% if page_obj.has_previous %}
+      <a href="?page=1" class="join-item btn btn-sm">First</a>
+      <a href="?page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}
+        <button class="join-item btn btn-sm btn-active">{{ num }}</button>
+        {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+        <a href="?page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
+        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+        <span class="join-item btn btn-sm btn-disabled">...</span>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
+      <a href="?page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
   {% else %}
   <div class="alert alert-info">
     <span>No comics match this smart list's filters.</span>
