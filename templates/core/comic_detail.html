@@ -358,6 +358,30 @@
         <div id="modal-matches" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <!-- Match cards will be inserted here -->
         </div>
+
+        <!-- API Search Section -->
+        <div id="api-search-section" class="hidden mt-4">
+          <div class="divider text-sm text-base-content/60">ComicVine API Search</div>
+          <div id="api-no-local" class="alert alert-warning mb-3 hidden">
+            <span>No local matches found. Try searching the ComicVine API.</span>
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="api-search-input" class="input input-bordered input-sm flex-1"
+                   placeholder="Search ComicVine API..." />
+            <button type="button" id="api-search-btn" class="btn btn-sm btn-accent" onclick="searchApi()">
+              Search API
+            </button>
+          </div>
+          <div id="api-search-loading" class="flex justify-center py-4 hidden">
+            <span class="loading loading-spinner loading-md"></span>
+          </div>
+          <div id="api-search-error" class="alert alert-error mt-2 hidden">
+            <span id="api-search-error-text"></span>
+          </div>
+          <div id="api-matches" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-3 max-h-[40vh] overflow-y-auto pr-2">
+            <!-- API matches will be inserted here -->
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -558,6 +582,14 @@ function openScrapeModal() {
   loadingDiv.classList.remove('hidden');
   errorDiv.classList.add('hidden');
 
+  // Reset API search section
+  const apiSection = document.getElementById('api-search-section');
+  apiSection.classList.add('hidden');
+  document.getElementById('api-no-local').classList.add('hidden');
+  document.getElementById('api-matches').innerHTML = '';
+  document.getElementById('api-search-loading').classList.add('hidden');
+  document.getElementById('api-search-error').classList.add('hidden');
+
   modal.showModal();
 
   // Fetch preview matches with force=1 to skip state check
@@ -572,8 +604,14 @@ function openScrapeModal() {
         return;
       }
 
+      // Show API search section and pre-fill search input
+      apiSection.classList.remove('hidden');
+      const apiInput = document.getElementById('api-search-input');
+      apiInput.value = `${data.comic.series || ''} ${data.comic.number || ''}`.trim();
+
       if (data.matches.length === 0) {
-        matchesDiv.innerHTML = '<div class="col-span-full text-center text-warning py-4">No matches found</div>';
+        matchesDiv.innerHTML = '<div class="col-span-full text-center text-warning py-4">No local matches found</div>';
+        document.getElementById('api-no-local').classList.remove('hidden');
         return;
       }
 
@@ -617,8 +655,11 @@ async function selectMatch(issueId) {
   const modal = document.getElementById('scrape-modal');
   const matchesDiv = document.getElementById('modal-matches');
 
-  // Show loading state on all cards
+  // Show loading state on all cards (local + API)
   matchesDiv.querySelectorAll('.card').forEach(card => {
+    card.classList.add('opacity-50', 'pointer-events-none');
+  });
+  document.getElementById('api-matches').querySelectorAll('.card').forEach(card => {
     card.classList.add('opacity-50', 'pointer-events-none');
   });
 
@@ -651,6 +692,76 @@ async function selectMatch(issueId) {
     });
   }
 }
+
+function searchApi() {
+  const query = document.getElementById('api-search-input').value.trim();
+  const apiMatchesDiv = document.getElementById('api-matches');
+  const apiLoading = document.getElementById('api-search-loading');
+  const apiError = document.getElementById('api-search-error');
+
+  if (!query) return;
+
+  apiMatchesDiv.innerHTML = '';
+  apiLoading.classList.remove('hidden');
+  apiError.classList.add('hidden');
+
+  fetch(`/comics/${comicPk}/scrape/api-search/?q=${encodeURIComponent(query)}`)
+    .then(response => response.json())
+    .then(data => {
+      apiLoading.classList.add('hidden');
+
+      if (!data.success) {
+        apiError.classList.remove('hidden');
+        document.getElementById('api-search-error-text').textContent = data.error;
+        return;
+      }
+
+      if (data.matches.length === 0) {
+        apiMatchesDiv.innerHTML = '<div class="col-span-full text-center text-base-content/50 py-4">No API results found</div>';
+        return;
+      }
+
+      data.matches.forEach((match, idx) => {
+        const card = document.createElement('div');
+        card.className = 'card bg-base-300 cursor-pointer hover:ring-2 hover:ring-accent transition-all border border-accent/30';
+
+        const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
+
+        card.innerHTML = `
+          <figure class="px-4 pt-4 h-52 bg-base-100/50 rounded-t-xl flex justify-center items-center">
+            ${covers.length > 0
+              ? `<img src="${covers[0]}" alt="Cover" class="rounded-lg max-h-48 max-w-full object-contain shadow-md" />`
+              : '<div class="h-48 w-full bg-base-300 rounded-lg flex items-center justify-center text-base-content/50 text-sm">No cover</div>'
+            }
+          </figure>
+          <div class="card-body p-4 gap-2">
+            <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
+            <p class="text-sm text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
+            ${match.title ? `<p class="text-sm text-base-content/70 line-clamp-2">${match.title}</p>` : ''}
+            <div class="flex flex-wrap gap-2 mt-2">
+              <span class="badge badge-accent">api</span>
+            </div>
+          </div>
+        `;
+
+        card.addEventListener('click', () => selectMatch(match.issue_id));
+        apiMatchesDiv.appendChild(card);
+      });
+    })
+    .catch(err => {
+      apiLoading.classList.add('hidden');
+      apiError.classList.remove('hidden');
+      document.getElementById('api-search-error-text').textContent = err.toString();
+    });
+}
+
+// Allow Enter key in API search input
+document.getElementById('api-search-input')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    searchApi();
+  }
+});
 
 async function runAction(action) {
   const btn = document.getElementById(`action-${action}`);

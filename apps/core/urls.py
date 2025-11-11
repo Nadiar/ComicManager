@@ -29,6 +29,7 @@ urlpatterns = [
     path("<uuid:pk>/accept/", views.accept_comic, name="accept"),
     path("<uuid:pk>/scrape/", views.scrape_comic, name="scrape"),
     path("<uuid:pk>/scrape/preview/", views.scrape_preview, name="scrape_preview"),
+    path("<uuid:pk>/scrape/api-search/", views.scrape_api_search, name="scrape_api_search"),
     path("<uuid:pk>/tag/", views.tag_comic, name="tag"),
     path("<uuid:pk>/tag/preview/", views.tag_preview, name="tag_preview"),
     path("<uuid:pk>/format/", views.format_comic, name="format"),

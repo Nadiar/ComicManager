@@ -1,17 +1,25 @@
 """
-ComicVine local database scraper.
+ComicVine scraper.
 
 Matches comics against the local ComicVine SQLite database using:
 1. Cover image hash matching (phash/ahash with hamming distance)
 2. Metadata matching (series name + issue number)
+3. ComicVine API fallback when local DB has no match
 """
 
 import json
+import logging
 import sqlite3
+import urllib.request
+import urllib.parse
 from dataclasses import dataclass, field
 from typing import Optional
 
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+CV_API_BASE = "https://comicvine.gamespot.com/api"
 
 
 @dataclass
@@ -50,9 +58,11 @@ class CVMatch:
     story_arcs: Optional[str] = None  # Comma-separated story arc names
 
 
-def _parse_credits_json(person_credits_json: str) -> dict[str, list[str]]:
+def _parse_credits_json(person_credits_json) -> dict[str, list[str]]:
     """
-    Parse person_credits JSON and extract names by role.
+    Parse person_credits and extract names by role.
+
+    Accepts a JSON string (from local DB) or an already-parsed list (from API).
 
     Returns dict like:
     {
@@ -67,10 +77,13 @@ def _parse_credits_json(person_credits_json: str) -> dict[str, list[str]]:
     if not person_credits_json:
         return {}
 
-    try:
-        credits = json.loads(person_credits_json)
-    except json.JSONDecodeError:
-        return {}
+    if isinstance(person_credits_json, list):
+        credits = person_credits_json
+    else:
+        try:
+            credits = json.loads(person_credits_json)
+        except json.JSONDecodeError:
+            return {}
 
     roles: dict[str, list[str]] = {}
     for person in credits:
@@ -91,19 +104,23 @@ def _parse_credits_json(person_credits_json: str) -> dict[str, list[str]]:
     return roles
 
 
-def _parse_entity_json(entity_json: str) -> list[str]:
+def _parse_entity_json(entity_json) -> list[str]:
     """
-    Parse character_credits, team_credits, location_credits, or story_arc_credits JSON.
+    Parse character_credits, team_credits, location_credits, or story_arc_credits.
 
+    Accepts a JSON string (from local DB) or an already-parsed list (from API).
     Returns list of names.
     """
     if not entity_json:
         return []
 
-    try:
-        entities = json.loads(entity_json)
-    except json.JSONDecodeError:
-        return []
+    if isinstance(entity_json, list):
+        entities = entity_json
+    else:
+        try:
+            entities = json.loads(entity_json)
+        except json.JSONDecodeError:
+            return []
 
     return [e.get("name", "") for e in entities if e.get("name")]
 
@@ -614,3 +631,170 @@ class ComicVineScraper:
     def _hamming_distance(h1: int, h2: int) -> int:
         """Compute hamming distance between two hash integers."""
         return bin(h1 ^ h2).count("1")
+
+    # -------------------------------------------------------------------------
+    # ComicVine API methods
+    # -------------------------------------------------------------------------
+
+    def _api_request(self, endpoint: str, params: dict = None) -> dict | None:
+        """Make a request to the ComicVine API.
+
+        Returns the parsed JSON response or None on error.
+        """
+        from apps.core.models import get_setting
+
+        api_key = get_setting("cv_api_key")
+        if not api_key:
+            return None
+
+        base_params = {
+            "api_key": api_key,
+            "format": "json",
+        }
+        if params:
+            base_params.update(params)
+
+        url = f"{CV_API_BASE}/{endpoint}?{urllib.parse.urlencode(base_params)}"
+
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "ComicManager/1.0",
+        })
+
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+                if data.get("error") == "OK" and data.get("results") is not None:
+                    return data
+                logger.warning("CV API error: %s", data.get("error"))
+                return None
+        except Exception as e:
+            logger.warning("CV API request failed: %s", e)
+            return None
+
+    def search_api(self, query: str, limit: int = 10) -> list[CVMatch]:
+        """Search the ComicVine API for issues matching a query string."""
+        data = self._api_request("search", {
+            "resources": "issue",
+            "query": query,
+            "limit": limit,
+        })
+        if not data:
+            return []
+
+        matches = []
+        for r in data["results"]:
+            volume = r.get("volume") or {}
+            image = r.get("image") or {}
+            cover_url = image.get("medium_url") or image.get("small_url")
+            cover_urls = []
+            if image.get("original_url"):
+                cover_urls.append(image["original_url"])
+            if cover_url and cover_url not in cover_urls:
+                cover_urls.insert(0, cover_url)
+
+            matches.append(CVMatch(
+                issue_id=r["id"],
+                volume_id=volume.get("id", 0),
+                series=volume.get("name", ""),
+                issue_number=r.get("issue_number", ""),
+                title=r.get("name"),
+                cover_date=r.get("cover_date"),
+                publisher=None,  # Search results don't include publisher
+                start_year=None,
+                issue_count=None,
+                description=r.get("description"),
+                image_url=image.get("original_url"),
+                cover_url=cover_url,
+                cover_urls=cover_urls,
+                match_type="api",
+                match_score=0,
+            ))
+
+        return matches
+
+    def get_issue_from_api(self, issue_id: int) -> Optional[CVMatch]:
+        """Fetch full issue details from the ComicVine API, including credits."""
+        data = self._api_request(f"issue/4000-{issue_id}", {
+            "field_list": ",".join([
+                "id", "volume", "name", "issue_number", "cover_date",
+                "description", "image", "person_credits", "character_credits",
+                "team_credits", "location_credits", "story_arc_credits",
+                "site_detail_url",
+            ]),
+        })
+        if not data:
+            return None
+
+        r = data["results"]
+        volume = r.get("volume") or {}
+        image = r.get("image") or {}
+        volume_id = volume.get("id")
+
+        # Fetch volume details for publisher, start_year, issue_count
+        publisher = None
+        start_year = None
+        issue_count = None
+        if volume_id:
+            vol_data = self._api_request(f"volume/4050-{volume_id}", {
+                "field_list": "id,name,start_year,count_of_issues,publisher",
+            })
+            if vol_data:
+                vr = vol_data["results"]
+                start_year = str(vr.get("start_year", "")) or None
+                issue_count = vr.get("count_of_issues")
+                pub = vr.get("publisher")
+                if pub:
+                    publisher = pub.get("name")
+
+        # Parse credits (API returns lists directly, our parsers handle both)
+        person_credits = _parse_credits_json(r.get("person_credits"))
+        characters = _parse_entity_json(r.get("character_credits"))
+        teams = _parse_entity_json(r.get("team_credits"))
+        locations = _parse_entity_json(r.get("location_credits"))
+        story_arcs = _parse_entity_json(r.get("story_arc_credits"))
+
+        writers = person_credits.get("writer", [])
+        artists = person_credits.get("artist", [])
+        pencillers = person_credits.get("penciller", []) or artists
+        inkers = person_credits.get("inker", []) or artists
+        colorists = person_credits.get("colorist", [])
+        letterers = person_credits.get("letterer", [])
+        cover_artists = person_credits.get("cover", [])
+        editors = person_credits.get("editor", [])
+
+        cover_url = image.get("medium_url") or image.get("small_url")
+        cover_urls = []
+        if image.get("original_url"):
+            cover_urls.append(image["original_url"])
+        if cover_url and cover_url not in cover_urls:
+            cover_urls.insert(0, cover_url)
+
+        return CVMatch(
+            issue_id=r["id"],
+            volume_id=volume_id or 0,
+            series=volume.get("name", ""),
+            issue_number=r.get("issue_number", ""),
+            title=r.get("name"),
+            cover_date=r.get("cover_date"),
+            publisher=publisher,
+            start_year=start_year,
+            issue_count=issue_count,
+            description=r.get("description"),
+            image_url=image.get("original_url"),
+            cover_url=cover_url,
+            cover_urls=cover_urls,
+            match_type="api",
+            match_score=0,
+            characters=", ".join(characters) if characters else None,
+            writer=", ".join(writers) if writers else None,
+            penciller=", ".join(pencillers) if pencillers else None,
+            inker=", ".join(inkers) if inkers else None,
+            colorist=", ".join(colorists) if colorists else None,
+            letterer=", ".join(letterers) if letterers else None,
+            cover_artist=", ".join(cover_artists) if cover_artists else None,
+            editor=", ".join(editors) if editors else None,
+            web=r.get("site_detail_url"),
+            teams=", ".join(teams) if teams else None,
+            locations=", ".join(locations) if locations else None,
+            story_arcs=", ".join(story_arcs) if story_arcs else None,
+        )

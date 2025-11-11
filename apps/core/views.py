@@ -514,6 +514,72 @@ def scrape_preview(request, pk):
     })
 
 
+def scrape_api_search(request, pk):
+    """
+    Search the ComicVine API for matches.
+
+    Query params:
+        q: Search query (defaults to comic's series + number)
+    """
+    from .models import get_setting
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    api_key = get_setting("cv_api_key")
+    if not api_key:
+        return JsonResponse({
+            "success": False,
+            "error": "ComicVine API key not configured. Set it in Settings.",
+        }, status=400)
+
+    query = request.GET.get("q", "").strip()
+    if not query:
+        parts = [comic.series or comic.proposed_series or "", comic.number or comic.proposed_number or ""]
+        query = " ".join(p for p in parts if p).strip()
+
+    if not query:
+        return JsonResponse({
+            "success": False,
+            "error": "No search query provided and couldn't derive one from comic metadata.",
+        }, status=400)
+
+    scraper = ComicVineScraper()
+    api_matches = scraper.search_api(query)
+
+    all_matches = []
+    for match in api_matches:
+        score = _metadata_alignment_score(comic, match)
+        all_matches.append({
+            "issue_id": match.issue_id,
+            "volume_id": match.volume_id,
+            "series": match.series,
+            "number": match.issue_number,
+            "title": match.title,
+            "publisher": match.publisher,
+            "year": match.start_year,
+            "cover_url": match.cover_url,
+            "cover_urls": match.cover_urls or [],
+            "match_type": match.match_type,
+            "match_score": match.match_score,
+            "alignment_score": score,
+            "recommended": score > 0,
+        })
+
+    all_matches.sort(key=lambda m: (-m["alignment_score"], m["match_score"]))
+
+    return JsonResponse({
+        "success": True,
+        "source": "api",
+        "comic": {
+            "id": str(comic.pk),
+            "series": comic.series,
+            "number": comic.number,
+            "year": comic.year,
+        },
+        "matches": all_matches,
+    })
+
+
 def comic_cover(request, pk):
     """
     Serve the cover image of a comic file.
@@ -572,8 +638,10 @@ def scrape_comic(request, pk):
 
     # Check if a specific CV issue ID was provided
     if cv_issue_id:
-        # User selected a specific match
+        # User selected a specific match — try local DB first, then API
         match = scraper.get_issue_details(int(cv_issue_id))
+        if not match:
+            match = scraper.get_issue_from_api(int(cv_issue_id))
         if match:
             match.match_type = "manual"
     else:
@@ -1848,6 +1916,8 @@ def force_scrape(request, pk):
     cv_issue_id = comic.custom_values.get("comicvine_issue")
     if cv_issue_id:
         match = scraper.get_issue_details(int(cv_issue_id))
+        if not match:
+            match = scraper.get_issue_from_api(int(cv_issue_id))
         if match:
             match.match_type = "refresh"
 
