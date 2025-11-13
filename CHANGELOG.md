@@ -19,6 +19,7 @@ All notable changes to ComicManager will be documented in this file.
 
 - **Server-side pagination** — `/comics/` and smart list detail pages now use server-side pagination (100 per page, configurable 25–500 via `per_page` param). Prevents browser crashes on 40k+ comic libraries. Pagination controls at top and bottom with page number window.
 - **ComicVine API fallback** — When the local ComicVine SQLite DB has no match, the scrape modal now shows a "Search API" section to query the live ComicVine API. Always available alongside local results (in case local matches are wrong). Works in both the comic list scrape modal and the comic detail re-scrape modal. API key configured via `/settings/`. API results use the same match selection flow — clicking an API result applies it identically to a local match.
+- **4-way metadata comparison** — "Compare All Sources" button on comic detail page fetches data from all 4 sources (PostgreSQL DB, ComicInfo.xml, local comicvine.db, live CV API) and shows a side-by-side comparison table. Fields shared across sources show Match/Different status; source-specific fields (genre, tags, story arcs, etc.) appear in a separate "extras" section.
 
 ### Fixed
 - **Natural number sorting** — Comic lists and smart lists now sort issue numbers numerically (1, 2, 3... 10, 11) instead of lexicographically (1, 10, 11... 2, 20). Uses a PostgreSQL annotation to extract leading digits for sorting, with string fallback for non-numeric issues.

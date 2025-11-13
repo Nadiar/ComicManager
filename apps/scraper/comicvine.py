@@ -643,7 +643,7 @@ class ComicVineScraper:
         """
         from apps.core.models import get_setting
 
-        api_key = get_setting("cv_api_key")
+        api_key = get_setting("cv_api_key", "").strip()
         if not api_key:
             return None
 
@@ -654,10 +654,15 @@ class ComicVineScraper:
         if params:
             base_params.update(params)
 
+        # ComicVine requires a trailing slash on endpoints
+        endpoint = endpoint.rstrip("/") + "/"
         url = f"{CV_API_BASE}/{endpoint}?{urllib.parse.urlencode(base_params)}"
 
+        logger.debug("CV API request: %s", url.replace(api_key, "***"))
+
         req = urllib.request.Request(url, headers={
-            "User-Agent": "ComicManager/1.0",
+            "User-Agent": "ComicManager/1.0 (https://github.com/comicmanager)",
+            "Accept": "application/json",
         })
 
         try:
@@ -671,6 +676,21 @@ class ComicVineScraper:
             logger.warning("CV API request failed: %s", e)
             return None
 
+    def _get_volume_info(self, volume_id: int) -> dict:
+        """Fetch publisher and start_year for a volume from the API."""
+        data = self._api_request(f"volume/4050-{volume_id}", {
+            "field_list": "publisher,start_year,count_of_issues",
+        })
+        if not data:
+            return {}
+        result = data.get("results") if isinstance(data.get("results"), dict) else {}
+        pub = result.get("publisher") or {}
+        return {
+            "publisher": pub.get("name"),
+            "start_year": result.get("start_year"),
+            "issue_count": result.get("count_of_issues"),
+        }
+
     def search_api(self, query: str, limit: int = 10) -> list[CVMatch]:
         """Search the ComicVine API for issues matching a query string."""
         data = self._api_request("search", {
@@ -680,6 +700,18 @@ class ComicVineScraper:
         })
         if not data:
             return []
+
+        # Collect unique volume IDs to batch-fetch publisher/year
+        volume_ids = set()
+        for r in data["results"]:
+            vol = r.get("volume") or {}
+            if vol.get("id"):
+                volume_ids.add(vol["id"])
+
+        # Fetch volume info (publisher, start_year) for each unique volume
+        volume_cache = {}
+        for vid in volume_ids:
+            volume_cache[vid] = self._get_volume_info(vid)
 
         matches = []
         for r in data["results"]:
@@ -692,16 +724,23 @@ class ComicVineScraper:
             if cover_url and cover_url not in cover_urls:
                 cover_urls.insert(0, cover_url)
 
+            # Get publisher/year from volume cache, fall back to cover_date year
+            vol_info = volume_cache.get(volume.get("id"), {})
+            cover_date = r.get("cover_date") or ""
+            year = vol_info.get("start_year")
+            if not year and len(cover_date) >= 4:
+                year = cover_date[:4]
+
             matches.append(CVMatch(
                 issue_id=r["id"],
                 volume_id=volume.get("id", 0),
                 series=volume.get("name", ""),
                 issue_number=r.get("issue_number", ""),
                 title=r.get("name"),
-                cover_date=r.get("cover_date"),
-                publisher=None,  # Search results don't include publisher
-                start_year=None,
-                issue_count=None,
+                cover_date=cover_date,
+                publisher=vol_info.get("publisher"),
+                start_year=year,
+                issue_count=vol_info.get("issue_count"),
                 description=r.get("description"),
                 image_url=image.get("original_url"),
                 cover_url=cover_url,

@@ -580,6 +580,57 @@ def scrape_api_search(request, pk):
     })
 
 
+def cv_compare(request, pk):
+    """
+    4-way metadata comparison: DB vs ComicInfo.xml vs comicvine.db vs CV API.
+
+    Uses the comic's comicvine_issue ID to fetch data from local CV DB and API,
+    then compares all four sources field by field.
+    """
+    from .utils import read_comicinfo_xml, compare_all_sources
+    from .models import get_setting
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    cv_issue_id = comic.custom_values.get("comicvine_issue")
+    if not cv_issue_id:
+        return JsonResponse({
+            "success": False,
+            "error": "No ComicVine issue ID linked to this comic.",
+        })
+
+    scraper = ComicVineScraper()
+
+    # Source 2: XML
+    xml_data = None
+    if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
+        xml_data = read_comicinfo_xml(comic.file_path)
+
+    # Source 3: CV Local DB
+    cv_local = scraper.get_issue_details(int(cv_issue_id))
+
+    # Source 4: CV API (only if API key configured)
+    cv_api = None
+    api_key = get_setting("cv_api_key", "").strip()
+    if api_key:
+        cv_api = scraper.get_issue_from_api(int(cv_issue_id))
+
+    comparison = compare_all_sources(comic, xml_data, cv_local, cv_api)
+
+    return JsonResponse({
+        "success": True,
+        "cv_issue_id": int(cv_issue_id),
+        "sources": {
+            "db": True,
+            "xml": xml_data is not None,
+            "cv_local": cv_local is not None,
+            "cv_api": cv_api is not None,
+        },
+        "common": comparison["common"],
+        "extras": comparison["extras"],
+    })
+
+
 def comic_cover(request, pk):
     """
     Serve the cover image of a comic file.

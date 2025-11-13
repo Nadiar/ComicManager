@@ -67,6 +67,11 @@
               Refresh Credits from CV
             </button>
           </li>
+          <li>
+            <button onclick="openCvCompareModal()" id="action-cv-compare">
+              Compare All Sources
+            </button>
+          </li>
           <li class="menu-title mt-2"><span class="text-error">Danger Zone</span></li>
           <li>
             <button onclick="deleteComic()" id="action-delete" class="text-error hover:bg-error hover:text-error-content">
@@ -544,6 +549,73 @@
   </form>
 </dialog>
 
+<!-- Compare All Sources Modal -->
+<dialog id="cv-compare-modal" class="modal">
+  <div class="modal-box max-w-7xl">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&#x2715;</button>
+    </form>
+    <h3 class="font-bold text-lg mb-4">Metadata Comparison &mdash; All Sources</h3>
+
+    <div id="cv-compare-loading" class="flex items-center justify-center py-8">
+      <span class="loading loading-spinner loading-lg"></span>
+      <span class="ml-2">Fetching from all sources...</span>
+    </div>
+
+    <div id="cv-compare-error" class="alert alert-error hidden">
+      <span id="cv-compare-error-text"></span>
+    </div>
+
+    <div id="cv-compare-content" class="hidden">
+      <!-- Source badges -->
+      <div id="cv-compare-sources" class="flex flex-wrap gap-2 mb-4"></div>
+
+      <!-- Common fields table -->
+      <div class="overflow-x-auto">
+        <table class="table table-zebra table-sm">
+          <thead>
+            <tr>
+              <th class="w-36">Field</th>
+              <th>Database</th>
+              <th id="col-xml">ComicInfo.xml</th>
+              <th id="col-cv-local">comicvine.db</th>
+              <th id="col-cv-api">CV API</th>
+              <th class="w-24">Status</th>
+            </tr>
+          </thead>
+          <tbody id="cv-compare-common-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Extra fields section -->
+      <div id="cv-compare-extras-section" class="hidden mt-6">
+        <h4 class="font-semibold text-sm mb-2">Source-Specific Fields</h4>
+        <div class="overflow-x-auto">
+          <table class="table table-zebra table-sm">
+            <thead>
+              <tr>
+                <th class="w-36">Field</th>
+                <th>Source</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody id="cv-compare-extras-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-action">
+      <form method="dialog">
+        <button class="btn btn-ghost">Close</button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
 <script>
 const comicPk = '{{ comic.pk }}';
 const csrfToken = '{{ csrf_token }}';
@@ -762,6 +834,110 @@ document.getElementById('api-search-input')?.addEventListener('keydown', (e) => 
     searchApi();
   }
 });
+
+function openCvCompareModal() {
+  const modal = document.getElementById('cv-compare-modal');
+  const loading = document.getElementById('cv-compare-loading');
+  const error = document.getElementById('cv-compare-error');
+  const content = document.getElementById('cv-compare-content');
+
+  // Close dropdown
+  document.activeElement.blur();
+
+  // Reset state
+  loading.classList.remove('hidden');
+  error.classList.add('hidden');
+  content.classList.add('hidden');
+  document.getElementById('cv-compare-common-body').innerHTML = '';
+  document.getElementById('cv-compare-extras-body').innerHTML = '';
+  document.getElementById('cv-compare-extras-section').classList.add('hidden');
+
+  modal.showModal();
+
+  fetch(`/comics/${comicPk}/cv-compare/`)
+    .then(r => r.json())
+    .then(data => {
+      loading.classList.add('hidden');
+
+      if (!data.success) {
+        error.classList.remove('hidden');
+        document.getElementById('cv-compare-error-text').textContent = data.error;
+        return;
+      }
+
+      content.classList.remove('hidden');
+      const sources = data.sources;
+
+      // Source badges
+      const badgesDiv = document.getElementById('cv-compare-sources');
+      badgesDiv.innerHTML = `
+        <span class="badge badge-success badge-sm">Database</span>
+        <span class="badge ${sources.xml ? 'badge-success' : 'badge-ghost'} badge-sm">ComicInfo.xml ${sources.xml ? '' : '(not found)'}</span>
+        <span class="badge ${sources.cv_local ? 'badge-success' : 'badge-ghost'} badge-sm">comicvine.db ${sources.cv_local ? '' : '(not found)'}</span>
+        <span class="badge ${sources.cv_api ? 'badge-success' : 'badge-ghost'} badge-sm">CV API ${sources.cv_api ? '' : '(skipped)'}</span>
+        <span class="badge badge-outline badge-sm">CV Issue #${data.cv_issue_id}</span>
+      `;
+
+      // Hide unavailable columns
+      document.getElementById('col-xml').classList.toggle('hidden', !sources.xml);
+      document.getElementById('col-cv-local').classList.toggle('hidden', !sources.cv_local);
+      document.getElementById('col-cv-api').classList.toggle('hidden', !sources.cv_api);
+
+      // Common fields table
+      const tbody = document.getElementById('cv-compare-common-body');
+      data.common.forEach(item => {
+        const tr = document.createElement('tr');
+        const statusClass = item.status === 'differ' ? 'bg-warning/10' : '';
+        tr.className = statusClass;
+
+        let statusBadge;
+        if (item.status === 'match') statusBadge = '<span class="badge badge-success badge-sm">Match</span>';
+        else if (item.status === 'differ') statusBadge = '<span class="badge badge-warning badge-sm">Different</span>';
+        else statusBadge = '<span class="badge badge-ghost badge-sm">Empty</span>';
+
+        const fmtVal = v => v != null && String(v).trim() ? `<span class="text-xs">${escapeHtml(String(v).substring(0, 120))}${String(v).length > 120 ? '...' : ''}</span>` : '<span class="text-base-content/30">-</span>';
+
+        tr.innerHTML = `
+          <td class="font-medium text-sm">${escapeHtml(item.label)}</td>
+          <td class="max-w-xs">${fmtVal(item.db)}</td>
+          ${sources.xml ? `<td class="max-w-xs">${fmtVal(item.xml)}</td>` : ''}
+          ${sources.cv_local ? `<td class="max-w-xs">${fmtVal(item.cv_local)}</td>` : ''}
+          ${sources.cv_api ? `<td class="max-w-xs">${fmtVal(item.cv_api)}</td>` : ''}
+          <td>${statusBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Extra fields
+      if (data.extras && data.extras.length > 0) {
+        document.getElementById('cv-compare-extras-section').classList.remove('hidden');
+        const extrasBody = document.getElementById('cv-compare-extras-body');
+        const sourceLabels = {db: 'Database', xml: 'ComicInfo.xml', cv_local: 'comicvine.db', cv_api: 'CV API'};
+        const sourceBadges = {db: 'badge-info', xml: 'badge-primary', cv_local: 'badge-secondary', cv_api: 'badge-accent'};
+
+        data.extras.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="font-medium text-sm">${escapeHtml(item.label)}</td>
+            <td><span class="badge badge-sm ${sourceBadges[item.source] || 'badge-ghost'}">${sourceLabels[item.source] || item.source}</span></td>
+            <td class="max-w-md text-xs">${escapeHtml(String(item.value).substring(0, 150))}${String(item.value).length > 150 ? '...' : ''}</td>
+          `;
+          extrasBody.appendChild(tr);
+        });
+      }
+    })
+    .catch(err => {
+      loading.classList.add('hidden');
+      error.classList.remove('hidden');
+      document.getElementById('cv-compare-error-text').textContent = 'Error: ' + err.message;
+    });
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 
 async function runAction(action) {
   const btn = document.getElementById(`action-${action}`);

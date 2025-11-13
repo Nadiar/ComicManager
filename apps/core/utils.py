@@ -232,6 +232,132 @@ def compare_db_vs_xml(comic: Comic, xml_data: dict | None) -> list[dict]:
     return comparisons
 
 
+# Mapping from CVMatch attribute -> DB/XML field name
+CV_FIELD_MAP = {
+    "series": "series",
+    "issue_number": "number",
+    "title": "title",
+    "issue_count": "count",
+    "publisher": "publisher",
+    "description": "summary",
+    "web": "web",
+    "characters": "characters",
+    "teams": "teams",
+    "locations": "locations",
+    "writer": "writer",
+    "penciller": "penciller",
+    "inker": "inker",
+    "colorist": "colorist",
+    "letterer": "letterer",
+    "cover_artist": "cover_artist",
+    "editor": "editor",
+}
+
+# DB/XML fields that have no CV equivalent
+DB_ONLY_FIELDS = [
+    "volume", "month", "day", "notes", "genre", "format", "tags",
+    "scan_information", "series_group", "main_character_or_team", "page_count",
+]
+
+# CV fields that have no direct DB equivalent
+CV_ONLY_FIELDS = [
+    ("cover_date", "Cover Date"),
+    ("start_year", "Start Year"),
+    ("story_arcs", "Story Arcs"),
+]
+
+
+def compare_all_sources(comic, xml_data, cv_local_match, cv_api_match):
+    """4-way comparison: DB vs ComicInfo.xml vs comicvine.db vs ComicVine API.
+
+    Returns {
+        "common": [{"field", "label", "db", "xml", "cv_local", "cv_api", "status"}],
+        "extras": [{"field", "label", "source", "value"}],
+    }
+    """
+    from django.utils.html import strip_tags
+
+    if xml_data is None:
+        xml_data = {}
+
+    field_labels = {
+        "series": "Series", "number": "Issue #", "title": "Title",
+        "count": "Count", "volume": "Volume", "year": "Year",
+        "month": "Month", "day": "Day", "publisher": "Publisher",
+        "summary": "Summary", "notes": "Notes", "genre": "Genre",
+        "web": "Web URL", "page_count": "Page Count", "format": "Format",
+        "characters": "Characters", "teams": "Teams", "locations": "Locations",
+        "tags": "Tags", "scan_information": "Scan Info",
+        "series_group": "Series Group",
+        "main_character_or_team": "Main Character/Team",
+        "writer": "Writer", "penciller": "Penciller", "inker": "Inker",
+        "colorist": "Colorist", "letterer": "Letterer",
+        "cover_artist": "Cover Artist", "editor": "Editor",
+    }
+
+    common = []
+
+    # Common fields: fields shared between CV and DB/XML
+    for cv_attr, db_field in CV_FIELD_MAP.items():
+        db_val = getattr(comic, db_field, None)
+        xml_val = xml_data.get(db_field)
+        cv_local_val = getattr(cv_local_match, cv_attr, None) if cv_local_match else None
+        cv_api_val = getattr(cv_api_match, cv_attr, None) if cv_api_match else None
+
+        # Strip HTML from CV descriptions
+        if cv_attr == "description":
+            if cv_local_val:
+                cv_local_val = strip_tags(str(cv_local_val))
+            if cv_api_val:
+                cv_api_val = strip_tags(str(cv_api_val))
+
+        # Normalize to strings for comparison
+        vals = {}
+        for key, v in [("db", db_val), ("xml", xml_val), ("cv_local", cv_local_val), ("cv_api", cv_api_val)]:
+            vals[key] = str(v).strip() if v is not None else ""
+
+        # Determine status
+        non_empty = [v for v in vals.values() if v]
+        if not non_empty:
+            status = "empty"
+        elif len(set(non_empty)) == 1:
+            status = "match"
+        else:
+            status = "differ"
+
+        common.append({
+            "field": db_field,
+            "label": field_labels.get(db_field, db_field.replace("_", " ").title()),
+            "db": db_val,
+            "xml": xml_val,
+            "cv_local": cv_local_val,
+            "cv_api": cv_api_val,
+            "status": status,
+        })
+
+    # Extra fields: DB/XML only
+    extras = []
+    for db_field in DB_ONLY_FIELDS:
+        db_val = getattr(comic, db_field, None)
+        xml_val = xml_data.get(db_field)
+        label = field_labels.get(db_field, db_field.replace("_", " ").title())
+        if db_val is not None and str(db_val).strip():
+            extras.append({"field": db_field, "label": label, "source": "db", "value": db_val})
+        if xml_val is not None and str(xml_val).strip():
+            extras.append({"field": db_field, "label": label, "source": "xml", "value": xml_val})
+
+    # Extra fields: CV only
+    for cv_attr, label in CV_ONLY_FIELDS:
+        cv_local_val = getattr(cv_local_match, cv_attr, None) if cv_local_match else None
+        cv_api_val = getattr(cv_api_match, cv_attr, None) if cv_api_match else None
+        if cv_local_val is not None and str(cv_local_val).strip():
+            extras.append({"field": cv_attr, "label": label, "source": "cv_local", "value": cv_local_val})
+        if cv_api_val is not None and str(cv_api_val).strip():
+            extras.append({"field": cv_attr, "label": label, "source": "cv_api", "value": cv_api_val})
+
+    return {"common": common, "extras": extras}
+
+
 def generate_comicinfo_xml(comic: Comic) -> str:
     """
     Generate ComicInfo.xml content from a Comic model instance.
