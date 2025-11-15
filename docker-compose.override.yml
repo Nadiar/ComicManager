@@ -45,4 +45,7 @@ services:
     working_dir: /app
     command: sh -c "npm install && npx @tailwindcss/cli -i ./static/css/input.css -o ./static/css/main.css --watch=always"
     volumes:
-      - .:/app                        # watch source files for class changes
+      - ./static:/app/static          # CSS input/output
+      - ./templates:/app/templates    # scan templates for class names
+      - ./package.json:/app/package.json
+      - ./package-lock.json:/app/package-lock.json:ro
