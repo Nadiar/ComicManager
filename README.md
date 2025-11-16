@@ -1,57 +1,75 @@
 # ComicManager
 
-Web-based replacement for the ComicRack workflow. Django + PostgreSQL + Celery, served via Docker Compose.
+Web-based comic library manager built to replace the ComicRack workflow. Handles 40,000+ digital and physical comics through an 8-phase processing pipeline — from raw CBZ files to a fully organized, tagged, and metadata-enriched library.
 
-## Dev Quickstart
+## Features
 
-Everything runs in Docker. You don't need Python, Node, or anything else installed locally.
+- **8-phase workflow pipeline**: Ingest → Scrape → Count → Tag → Format → Deduplicate → Organize → Write
+- **ComicVine matching**: pHash cover matching, fuzzy metadata matching, and live API fallback against a local ComicVine SQLite index
+- **4-way metadata comparison**: Compare data across PostgreSQL, ComicInfo.xml, local ComicVine DB, and live CV API side-by-side
+- **DataManager tagging**: Publisher-based rules engine for SeriesGroup, MainCharacterOrTeam, and other fields (replaces ComicRack's binary dataman.dat)
+- **Format detection**: Auto-classifies comics as Main Series, Limited Series, One-Shot, TPB, Omnibus, Annual, etc.
+- **Duplicate detection**: By ComicVine ID, series+number, and perceptual hash — with digital+physical same-ID explicitly excluded
+- **Library Organizer**: Template-based folder organization with variable substitution and profile-based exclude rules
+- **ComicInfo.xml writer**: Generates and embeds metadata into CBZ files
+- **Smart Lists**: Saved queries with filters, sorting, optional ComicVine volume linking for missing issue detection
+- **Physical comics**: First-class support — same workflow pipeline without file operations
+- **Server-side pagination**: Handles 40k+ comic libraries without browser crashes
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Backend | Django 5.x, Python 3.12 |
+| Database | PostgreSQL 16 |
+| Task Queue | Celery + Redis |
+| Frontend | Django Templates, HTMX, DaisyUI v5, Tailwind CSS v4 |
+| Deployment | Docker Compose |
+
+## Quick Start
+
+Everything runs in Docker. No local Python, Node, or database setup needed.
 
 ```bash
-# 1. Copy and fill in the env file
+# 1. Clone and configure
+git clone <repo-url> && cd ComicManager
 cp .env.example .env
-# Edit .env — set DB_PASSWORD and SECRET_KEY at minimum
+# Edit .env — set DB_PASSWORD at minimum
 
-# 2. Create required data directories
-mkdir -p data/postgres data/redis data/static
+# 2. Create data directories
+mkdir -p data/postgres data/redis
 
-# 3. Build the dev image (only needed once, or after requirements/package.json changes)
+# 3. Build and initialize
 docker compose build
-
-# 4. Run migrations
 docker compose run --rm web python manage.py migrate
-
-# 5. Create your admin user
 docker compose run --rm web python manage.py createsuperuser
 
-# 6. Start everything
+# 4. Start all services
 docker compose up -d
 
-# App is now running at http://localhost:8000
+# App runs at http://localhost:8000
 ```
 
-The `docker-compose.override.yml` file is picked up automatically in dev. It:
-- Mounts your local source code into the container (changes reload instantly)
-- Runs Django's dev server with DEBUG=True
-- Starts a Node container that watches and rebuilds CSS on template changes
-- No image rebuild needed when editing Python, templates, or CSS
+### Importing an existing library
 
-## Updating after code changes
-
-**Python / templates / CSS** — no action needed, changes reload automatically.
-
-**After adding a new model or changing models:**
 ```bash
-docker compose run --rm web python manage.py makemigrations
-docker compose run --rm web python manage.py migrate
+# Import comics from the organized library folder (reads ComicInfo.xml from each CBZ)
+docker compose exec web python manage.py import_library /comics/library
+
+# Enrich with ComicRack's master database (optional)
+docker compose exec web python manage.py import_library /comics/library --comicdb /path/to/ComicDb.xml
+
+# Scan the untagged drop folder for new comics
+docker compose exec web python manage.py scan_untagged
 ```
 
-**After changing requirements.txt or package.json:**
-```bash
-docker compose build
-docker compose up -d
-```
+## Development
 
-## Useful commands
+The `docker-compose.override.yml` is picked up automatically and provides:
+- Source code mounted into containers — Python/template changes reload instantly
+- Django dev server with `DEBUG=True`
+- Tailwind CSS watcher that rebuilds on template changes
+- No image rebuild needed for code changes
 
 ```bash
 # View logs
@@ -61,41 +79,91 @@ docker compose logs -f worker
 # Django shell
 docker compose exec web python manage.py shell
 
-# Run a management command
-docker compose exec web python manage.py <command>
+# Run migrations after model changes
+docker compose run --rm web python manage.py makemigrations
+docker compose run --rm web python manage.py migrate
 
-# Stop everything
-docker compose down
+# Rebuild after requirements.txt or package.json changes
+docker compose build && docker compose up -d
 ```
 
 ## Project Structure
 
 ```
-comicmanager/
+ComicManager/
 ├── apps/
-│   ├── core/           # Comic model, Setting model, state machine
-│   ├── dashboard/      # Smart list views, pipeline overview
-│   ├── scraper/        # ComicVine matching (local SQLite + API)
-│   ├── tagging/        # Publisher rules, DataManager logic
-│   ├── format/         # Format detection and tagging
+│   ├── core/           # Comic model, settings, state machine, views
+│   ├── dashboard/      # Smart lists, pipeline overview, review queues
+│   ├── scraper/        # ComicVine matching (pHash, fuzzy, API)
+│   ├── tagging/        # Publisher rules engine (DataManager)
+│   ├── format/         # Format detection (TPB, Main Series, etc.)
 │   ├── organizer/      # Library Organizer: template engine + file moves
 │   ├── duplicates/     # Duplicate detection and resolution
-│   ├── writer/         # ComicInfo.xml writer
+│   ├── writer/         # ComicInfo.xml generation and writing
 │   └── physical/       # Physical comic entry and CSV import
-├── comicmanager/       # Django project: settings, urls, celery
-├── templates/          # Django HTML templates (DaisyUI v4)
-├── static/css/         # input.css (source) → main.css (built)
-├── docker-compose.yml          # Production
-├── docker-compose.override.yml # Dev (auto-loaded)
+├── comicmanager/       # Django project config (settings, urls, celery)
+├── templates/          # Django HTML templates (DaisyUI v5)
+├── static/css/         # input.css → main.css (built by Tailwind)
+├── docker-compose.yml          # Production config
+├── docker-compose.override.yml # Dev config (auto-loaded)
 └── Dockerfile
 ```
 
-## Volume mounts
+## Volume Mounts
 
-| Path (container) | Purpose |
-|---|---|
-| `/comics/untagged` | Drop folder — new comics go here |
-| `/comics/library` | Organized library — Library Organizer writes here |
-| `/cv_db/comicvine.db` | Local ComicVine SQLite index (read-only) |
+| Host Path | Container Path | Purpose |
+|-----------|----------------|---------|
+| `./untagged` | `/comics/untagged` | Drop folder for new comics |
+| `./Comics` | `/comics/library` | Organized library output |
+| `./data/comicvine.db` | `/cv_db/comicvine.db` | Local ComicVine SQLite index (read-only) |
+| `./data/postgres` | `/var/lib/postgresql/data` | PostgreSQL data |
+| `./data/redis` | `/data` | Redis persistence |
 
-Map these to your actual folders in `.env` or via the Settings UI once running.
+## Workflow Pipeline
+
+Comics progress through 8 states. Each transition is triggered manually via the UI or in batch.
+
+```
+new → imported → counted → tagged → formatted → deduplicated → organized → written
+```
+
+| # | State | Action | Description |
+|---|-------|--------|-------------|
+| 1 | new → imported | Accept | Copy proposed values parsed from filename |
+| 2 | imported → counted | Scrape | Match against ComicVine + set issue count |
+| 3 | counted → tagged | Tag | Apply DataManager publisher rules |
+| 4 | tagged → formatted | Format | Detect format (Main Series, TPB, One-Shot, etc.) |
+| 5 | formatted → deduplicated | Deduplicate | Run duplicate detection |
+| 6 | deduplicated → organized | Organize | Move files into library folder structure |
+| 7 | organized → written | Write | Embed ComicInfo.xml into CBZ file |
+
+## Configuration
+
+### Environment Variables (`.env`)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DB_PASSWORD` | PostgreSQL password | *(required)* |
+| `SECRET_KEY` | Django secret key | *(required for production)* |
+| `UID` / `GID` | Host user/group IDs for file permissions | `1000` |
+| `PORT` | Web server port | `8000` |
+
+### Application Settings (`/settings/`)
+
+Runtime settings configurable via the web UI:
+- **ComicVine API Key** — For API fallback when local DB has no match
+- Other settings as added
+
+## Key URLs
+
+| Route | Description |
+|-------|-------------|
+| `/` | Dashboard with pipeline overview and smart lists |
+| `/comics/` | Full comic list with search, filter, sort, pagination |
+| `/comics/?state=imported` | Comics filtered by workflow state |
+| `/comics/<uuid>/` | Comic detail with metadata comparison |
+| `/comics/<uuid>/edit/` | Edit comic metadata |
+| `/scraper/` | Scraper overview and batch operations |
+| `/organizer/profiles/` | Library Organizer profile management |
+| `/dashboard/smartlists/` | Smart list management |
+| `/settings/` | Application settings |
