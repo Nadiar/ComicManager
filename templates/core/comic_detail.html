@@ -299,10 +299,10 @@
         </div>
         {% endif %}
 
-        {% if comic.custom_values %}
+        {% if display_custom_values %}
         <div class="space-y-2">
           <h3 class="font-semibold text-primary">Custom Values</h3>
-          {% for key, value in comic.custom_values.items %}
+          {% for key, value in display_custom_values.items %}
           <div><span class="text-base-content/60">{{ key }}:</span> {{ value }}</div>
           {% endfor %}
         </div>
@@ -775,16 +775,22 @@ function searchApi() {
 
   apiMatchesDiv.innerHTML = '';
   apiLoading.classList.remove('hidden');
-  apiError.classList.add('hidden');
+  apiError.className = 'alert alert-error mt-2 hidden';
 
   fetch(`/comics/${comicPk}/scrape/api-search/?q=${encodeURIComponent(query)}`)
-    .then(response => response.json())
-    .then(data => {
+    .then(response => response.json().then(data => ({status: response.status, data})))
+    .then(({status, data}) => {
       apiLoading.classList.add('hidden');
 
       if (!data.success) {
         apiError.classList.remove('hidden');
-        document.getElementById('api-search-error-text').textContent = data.error;
+        if (data.rate_limited) {
+          apiError.className = 'alert alert-warning mt-2';
+          document.getElementById('api-search-error-text').textContent = '⏳ ' + data.error;
+        } else {
+          apiError.className = 'alert alert-error mt-2';
+          document.getElementById('api-search-error-text').textContent = data.error;
+        }
         return;
       }
 
@@ -822,6 +828,7 @@ function searchApi() {
     })
     .catch(err => {
       apiLoading.classList.add('hidden');
+      apiError.className = 'alert alert-error mt-2';
       apiError.classList.remove('hidden');
       document.getElementById('api-search-error-text').textContent = err.toString();
     });
@@ -874,7 +881,7 @@ function openCvCompareModal() {
         <span class="badge badge-success badge-sm">Database</span>
         <span class="badge ${sources.xml ? 'badge-success' : 'badge-ghost'} badge-sm">ComicInfo.xml ${sources.xml ? '' : '(not found)'}</span>
         <span class="badge ${sources.cv_local ? 'badge-success' : 'badge-ghost'} badge-sm">comicvine.db ${sources.cv_local ? '' : '(not found)'}</span>
-        <span class="badge ${sources.cv_api ? 'badge-success' : 'badge-ghost'} badge-sm">CV API ${sources.cv_api ? '' : '(skipped)'}</span>
+        <span class="badge ${sources.cv_api ? 'badge-success' : (sources.api_skipped_reason && sources.api_skipped_reason.includes('Rate') ? 'badge-warning' : 'badge-ghost')} badge-sm">CV API ${sources.cv_api ? '' : `(${sources.api_skipped_reason || 'skipped'})`}</span>
         <span class="badge badge-outline badge-sm">CV Issue #${data.cv_issue_id}</span>
       `;
 

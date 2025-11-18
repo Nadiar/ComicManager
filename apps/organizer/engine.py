@@ -38,8 +38,8 @@ FIELD_MAP = {
     "MainCharacterOrTeam": "main_character_or_team",
     "Main Character": "main_character_or_team",
 
-    # Tags field - stored in custom_values
-    "Tags": "_tags",
+    # Tags field - standard model field
+    "Tags": "tags",
 }
 
 
@@ -186,10 +186,6 @@ def get_field_value(comic: Comic, field_name: str) -> str:
     """
     # Map field name to model attribute
     model_attr = FIELD_MAP.get(field_name)
-
-    if model_attr == "_tags":
-        # Tags are stored in custom_values
-        return comic.custom_values.get("Tags", "")
 
     if model_attr:
         value = getattr(comic, model_attr, None)

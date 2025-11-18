@@ -10,6 +10,8 @@ Matches comics against the local ComicVine SQLite database using:
 import json
 import logging
 import sqlite3
+import time
+import urllib.error
 import urllib.request
 import urllib.parse
 from dataclasses import dataclass, field
@@ -20,6 +22,11 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 CV_API_BASE = "https://comicvine.gamespot.com/api"
+
+
+class ComicVineRateLimitError(Exception):
+    """Raised when ComicVine API returns HTTP 420/429 (rate limited)."""
+    pass
 
 
 @dataclass
@@ -660,6 +667,14 @@ class ComicVineScraper:
 
         logger.debug("CV API request: %s", url.replace(api_key, "***"))
 
+        # Rate limit: ComicVine enforces ~1 request/second
+        now = time.monotonic()
+        if hasattr(self, '_last_api_call'):
+            elapsed = now - self._last_api_call
+            if elapsed < 1.1:
+                time.sleep(1.1 - elapsed)
+        self._last_api_call = time.monotonic()
+
         req = urllib.request.Request(url, headers={
             "User-Agent": "ComicManager/1.0 (https://github.com/comicmanager)",
             "Accept": "application/json",
@@ -672,6 +687,14 @@ class ComicVineScraper:
                     return data
                 logger.warning("CV API error: %s", data.get("error"))
                 return None
+        except urllib.error.HTTPError as e:
+            if e.code in (420, 429):
+                logger.warning("CV API rate limited (HTTP %d)", e.code)
+                raise ComicVineRateLimitError(
+                    "ComicVine API rate limit reached. Wait a minute before retrying."
+                )
+            logger.warning("CV API request failed: %s", e)
+            return None
         except Exception as e:
             logger.warning("CV API request failed: %s", e)
             return None

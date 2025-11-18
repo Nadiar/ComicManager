@@ -12,6 +12,7 @@ from django.core.management.base import BaseCommand
 from django.utils.html import strip_tags
 
 from apps.core.models import Comic
+from apps.core.utils import html_to_text
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
 
@@ -323,7 +324,11 @@ class Command(BaseCommand):
                 pass
 
         if match.description:
-            comic.summary = strip_tags(match.description)
+            comic.summary = html_to_text(match.description)
+
+        # Set Notes with CV reference (like ComicRack)
+        if not comic.notes and match.issue_id:
+            comic.notes = f"Scraped metadata from ComicVine [CVDB{match.issue_id}]."
 
         if match.teams:
             comic.teams = match.teams

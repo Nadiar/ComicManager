@@ -16,7 +16,25 @@ from typing import Any
 from django.db.models import IntegerField
 from django.db.models.expressions import RawSQL
 
+from django.utils.html import strip_tags
+
 from .models import Comic
+
+
+def html_to_text(html: str) -> str:
+    """Convert HTML to plain text, preserving paragraph breaks.
+
+    Converts <p>, <br>, and block-level tags to newlines before stripping.
+    """
+    if not html:
+        return ""
+    text = re.sub(r'<br\s*/?>', '\n', html)
+    text = re.sub(r'</p>\s*', '\n', text)
+    text = re.sub(r'<p[^>]*>', '', text)
+    text = strip_tags(text)
+    # Collapse multiple blank lines but preserve single breaks
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 
 def natural_number_annotation():
@@ -358,9 +376,63 @@ def compare_all_sources(comic, xml_data, cv_local_match, cv_api_match):
     return {"common": common, "extras": extras}
 
 
-def generate_comicinfo_xml(comic: Comic) -> str:
+# Standard ComicInfo.xml field names — these should never appear in CustomValues
+_STANDARD_XML_FIELDS = set(FIELD_MAP.keys()) | {
+    "Tags", "Teams", "Locations", "Characters", "Genre",
+    "Notes", "Summary", "Pages", "PageCount",
+}
+
+
+def _build_pages_element(cbz_path: str) -> list[dict] | None:
+    """Read image dimensions from a CBZ file for the Pages element.
+
+    Returns a list of page dicts with Image, ImageWidth, ImageHeight, and Type.
+    """
+    from io import BytesIO
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+
+    if not cbz_path or not os.path.exists(cbz_path):
+        return None
+
+    try:
+        with zipfile.ZipFile(cbz_path, "r") as zf:
+            image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+            image_files = sorted(
+                n for n in zf.namelist()
+                if os.path.splitext(n.lower())[1] in image_exts
+                and not n.startswith("__MACOSX")
+            )
+            if not image_files:
+                return None
+
+            pages = []
+            for idx, name in enumerate(image_files):
+                page = {"Image": str(idx)}
+                try:
+                    with zf.open(name) as f:
+                        img = Image.open(BytesIO(f.read()))
+                        page["ImageWidth"] = str(img.width)
+                        page["ImageHeight"] = str(img.height)
+                except Exception:
+                    pass
+                if idx == 0:
+                    page["Type"] = "FrontCover"
+                pages.append(page)
+            return pages
+    except (zipfile.BadZipFile, OSError):
+        return None
+
+
+def generate_comicinfo_xml(comic: Comic, cbz_path: str = None) -> str:
     """
     Generate ComicInfo.xml content from a Comic model instance.
+
+    Args:
+        comic: The Comic model instance.
+        cbz_path: Optional path to CBZ file (for Pages element with image dimensions).
 
     Returns XML as a string.
     """
@@ -375,14 +447,43 @@ def generate_comicinfo_xml(comic: Comic) -> str:
             elem = ET.SubElement(root, xml_tag)
             elem.text = str(value)
 
-    # Add CustomValues
+    # Add Notes with CV reference (like ComicRack) — only if notes field is empty
+    if not comic.notes:
+        cv_issue_id = (comic.custom_values or {}).get("comicvine_issue")
+        if cv_issue_id:
+            notes_elem = ET.SubElement(root, "Notes")
+            notes_elem.text = f"Scraped metadata from ComicVine [CVDB{cv_issue_id}]."
+
+    # Add Pages element with image dimensions
+    if cbz_path is None:
+        cbz_path = comic.file_path
+    pages = _build_pages_element(cbz_path)
+    if pages:
+        pages_elem = ET.SubElement(root, "Pages")
+        for page in pages:
+            page_elem = ET.SubElement(pages_elem, "Page")
+            for attr, val in page.items():
+                page_elem.set(attr, val)
+
+    # Add CustomValues — filter out standard fields and empty values
     custom_values = comic.custom_values or {}
-    if custom_values:
+    filtered_cv = {}
+    for name, value in custom_values.items():
+        # Skip standard XML fields that shouldn't be in CustomValues
+        if name in _STANDARD_XML_FIELDS:
+            continue
+        # Normalize DataManager_Processed casing to match ComicRack
+        if name.lower() == "datamanager_processed":
+            name = "DataManager_Processed"
+            value = "Yes" if value else ""
+        filtered_cv[name] = str(value)
+
+    if filtered_cv:
         cv_elem = ET.SubElement(root, "CustomValues")
-        for name, value in custom_values.items():
+        for name, value in sorted(filtered_cv.items()):
             cv = ET.SubElement(cv_elem, "CustomValue")
             cv.set("name", name)
-            cv.set("value", str(value))
+            cv.set("value", value)
 
     # Pretty-print with indentation
     ET.indent(root, space="  ")
@@ -400,8 +501,8 @@ def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
         return False
 
     try:
-        # Generate new XML content
-        xml_content = generate_comicinfo_xml(comic)
+        # Generate new XML content (pass cbz_path for Pages element)
+        xml_content = generate_comicinfo_xml(comic, cbz_path=cbz_path)
 
         # Create a temporary file for the new archive
         fd, tmp_path = tempfile.mkstemp(suffix=".cbz")

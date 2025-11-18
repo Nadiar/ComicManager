@@ -36,7 +36,7 @@ def tag_comic(comic: Comic) -> dict:
         result = apply_datamanager_rules(comic, save=False)
 
         # Mark as processed by DataManager
-        comic.custom_values["DataManager_Processed"] = "yes"
+        comic.custom_values["DataManager_Processed"] = "Yes"
 
         # Transition state
         comic.state = Comic.STATE_TAGGED

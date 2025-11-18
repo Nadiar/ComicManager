@@ -10,8 +10,8 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
 from .models import Comic
-from .utils import natural_number_annotation, natural_sort_key
-from apps.scraper.comicvine import ComicVineScraper
+from .utils import natural_number_annotation, natural_sort_key, html_to_text
+from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
 from apps.scraper.hasher import extract_cover_hashes, extract_cover_image
 from .services import scan_untagged_folder
 
@@ -174,11 +174,19 @@ def comic_detail(request, pk):
         from apps.organizer.services import preview_organization
         reorganize_preview = preview_organization(comic)
 
+    # Filter out standard XML field names from custom_values for display
+    from .utils import _STANDARD_XML_FIELDS
+    display_custom_values = {
+        k: v for k, v in (comic.custom_values or {}).items()
+        if k not in _STANDARD_XML_FIELDS
+    }
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
         "xml_data": xml_data,
         "comparison": comparison,
         "reorganize_preview": reorganize_preview,
+        "display_custom_values": display_custom_values,
     })
 
 
@@ -544,7 +552,14 @@ def scrape_api_search(request, pk):
         }, status=400)
 
     scraper = ComicVineScraper()
-    api_matches = scraper.search_api(query)
+    try:
+        api_matches = scraper.search_api(query)
+    except ComicVineRateLimitError as e:
+        return JsonResponse({
+            "success": False,
+            "error": str(e),
+            "rate_limited": True,
+        }, status=429)
 
     all_matches = []
     for match in api_matches:
@@ -612,8 +627,16 @@ def cv_compare(request, pk):
     # Source 4: CV API (only if API key configured)
     cv_api = None
     api_key = get_setting("cv_api_key", "").strip()
+    api_skipped_reason = None
     if api_key:
-        cv_api = scraper.get_issue_from_api(int(cv_issue_id))
+        try:
+            cv_api = scraper.get_issue_from_api(int(cv_issue_id))
+            if cv_api is None:
+                api_skipped_reason = "API call returned no data"
+        except ComicVineRateLimitError:
+            api_skipped_reason = "Rate limited — wait a minute before retrying"
+    else:
+        api_skipped_reason = "No API key configured"
 
     comparison = compare_all_sources(comic, xml_data, cv_local, cv_api)
 
@@ -625,6 +648,7 @@ def cv_compare(request, pk):
             "xml": xml_data is not None,
             "cv_local": cv_local is not None,
             "cv_api": cv_api is not None,
+            "api_skipped_reason": api_skipped_reason,
         },
         "common": comparison["common"],
         "extras": comparison["extras"],
@@ -912,7 +936,11 @@ def _apply_match(comic, match, scraper=None):
             pass
 
     if match.description:
-        comic.summary = strip_tags(match.description)
+        comic.summary = html_to_text(match.description)
+
+    # Set Notes with CV reference (like ComicRack)
+    if not comic.notes and match.issue_id:
+        comic.notes = f"Scraped metadata from ComicVine [CVDB{match.issue_id}]."
 
     # Apply credits
     if match.characters:
@@ -2011,7 +2039,7 @@ def force_tag(request, pk):
     result = apply_datamanager_rules(comic, save=False)
 
     # Mark as processed by DataManager
-    comic.custom_values["DataManager_Processed"] = "yes"
+    comic.custom_values["DataManager_Processed"] = "Yes"
 
     # Advance state if needed (to at least tagged)
     if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):

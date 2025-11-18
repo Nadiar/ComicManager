@@ -1088,16 +1088,22 @@ function searchApi() {
 
   apiMatchesDiv.innerHTML = '';
   apiLoading.classList.remove('hidden');
-  apiError.classList.add('hidden');
+  apiError.className = 'alert alert-error mt-2 hidden';
 
   fetch(`/comics/${pk}/scrape/api-search/?q=${encodeURIComponent(query)}`)
-    .then(response => response.json())
-    .then(data => {
+    .then(response => response.json().then(data => ({status: response.status, data})))
+    .then(({status, data}) => {
       apiLoading.classList.add('hidden');
 
       if (!data.success) {
         apiError.classList.remove('hidden');
-        document.getElementById('api-search-error-text').textContent = data.error;
+        if (data.rate_limited) {
+          apiError.className = 'alert alert-warning mt-2';
+          document.getElementById('api-search-error-text').textContent = '\u23F3 ' + data.error;
+        } else {
+          apiError.className = 'alert alert-error mt-2';
+          document.getElementById('api-search-error-text').textContent = data.error;
+        }
         return;
       }
 
@@ -1167,6 +1173,7 @@ function searchApi() {
     })
     .catch(err => {
       apiLoading.classList.add('hidden');
+      apiError.className = 'alert alert-error mt-2';
       apiError.classList.remove('hidden');
       document.getElementById('api-search-error-text').textContent = err.toString();
     });
