@@ -48,4 +48,4 @@ services:
       - ./static:/app/static          # CSS input/output
       - ./templates:/app/templates    # scan templates for class names
       - ./package.json:/app/package.json
-      - ./package-lock.json:/app/package-lock.json:ro
+      - ./package-lock.json:/app/package-lock.json
