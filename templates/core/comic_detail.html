@@ -85,6 +85,15 @@
     </div>
   </div>
 
+  {% if show_series_completion %}
+  <!-- Series Completion (lazy-loaded via HTMX) -->
+  <div hx-get="{% url 'core:series_completion' comic.pk %}" hx-trigger="load" hx-swap="outerHTML">
+    <div class="flex justify-center py-4">
+      <span class="loading loading-dots loading-sm"></span>
+    </div>
+  </div>
+  {% endif %}
+
   {% if comic.state == 'organized' or comic.state == 'written' %}
   {% if reorganize_preview %}
   <!-- Re-organize Preview -->

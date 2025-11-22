@@ -44,5 +44,6 @@ urlpatterns = [
     path("<uuid:pk>/force-organize/", views.force_organize, name="force_organize"),
     path("<uuid:pk>/force-write/", views.force_write, name="force_write"),
     path("<uuid:pk>/refresh-credits/", views.refresh_credits, name="refresh_credits"),
+    path("<uuid:pk>/series-completion/", views.series_completion, name="series_completion"),
     path("<uuid:pk>/delete/", views.delete_comic, name="delete"),
 ]

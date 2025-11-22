@@ -181,12 +181,17 @@ def comic_detail(request, pk):
         if k not in _STANDARD_XML_FIELDS
     }
 
+    # Check if series completion bar is enabled
+    from .models import get_setting
+    show_series_completion = get_setting("show_series_completion", True)
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
         "xml_data": xml_data,
         "comparison": comparison,
         "reorganize_preview": reorganize_preview,
         "display_custom_values": display_custom_values,
+        "show_series_completion": show_series_completion,
     })
 
 
@@ -2404,4 +2409,34 @@ def delete_comic(request, pk):
         "success": True,
         "message": f"Deleted: {comic_str}" + (" (file removed)" if file_deleted else " (no file)"),
         "file_deleted": file_deleted,
+    })
+
+
+@require_GET
+def series_completion(request, pk):
+    """
+    HTMX endpoint that returns a series completion progress bar partial.
+
+    Queries comicvine.db to determine how many issues exist in the volume,
+    then checks the library for owned issues. Returns an HTML partial with
+    a segmented progress bar.
+    """
+    from .models import get_setting
+    from apps.dashboard.services import get_volume_completion
+
+    if not get_setting("show_series_completion", True):
+        return HttpResponse("")
+
+    comic = get_object_or_404(Comic, pk=pk)
+    cv_volume_id = (comic.custom_values or {}).get("comicvine_volume")
+    if not cv_volume_id:
+        return HttpResponse("")
+
+    data = get_volume_completion(cv_volume_id)
+    if not data:
+        return HttpResponse("")
+
+    return render(request, "core/partials/series_completion.html", {
+        "comic": comic,
+        "data": data,
     })

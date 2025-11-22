@@ -35,6 +35,8 @@ def seed_default_settings(sender, **kwargs):
         # Format Detection
         dict(key="one_shot_max_count",       label="One-Shot Max Count",       type="int", group="Format", help_text="Comics with count <= this value are One-Shot (default: 1)", value="1"),
         dict(key="limited_series_max_count", label="Limited Series Max Count", type="int", group="Format", help_text="Comics with count <= this (but > One-Shot max) are Limited Series; above = Main Series (default: 15)", value="15"),
+        # Appearance
+        dict(key="show_series_completion", label="Show Series Completion", type="bool", group="Appearance", help_text="Show a progress bar on comic detail pages indicating how complete the series/volume is", value="true"),
     ]
 
     for d in defaults:

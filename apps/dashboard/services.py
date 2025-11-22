@@ -106,18 +106,14 @@ def build_queryset(smart_list):
     return qs.order_by(*order_fields)
 
 
-def get_missing_issues(smart_list):
+def get_volume_completion(cv_volume_id):
     """
     Compare library holdings against a ComicVine volume to find missing issues.
 
+    Takes a ComicVine volume ID directly.
     Returns dict with volume_info, owned_issues, missing_issues, completion stats.
-    Returns None if no CV volume is linked.
+    Returns None if the volume is not found.
     """
-    if not smart_list.comicvine_volume_id:
-        return None
-
-    cv_volume_id = smart_list.comicvine_volume_id
-
     # 1. Query CV SQLite DB for volume info and all issues
     db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
     try:
@@ -205,6 +201,19 @@ def get_missing_issues(smart_list):
         "missing_count": total - owned_count,
         "completion": round((owned_count / total * 100), 1) if total > 0 else 0,
     }
+
+
+def get_missing_issues(smart_list):
+    """
+    Compare library holdings against a ComicVine volume to find missing issues.
+
+    Thin wrapper around get_volume_completion() that reads the volume ID
+    from a smart list object.
+    Returns None if no CV volume is linked.
+    """
+    if not smart_list.comicvine_volume_id:
+        return None
+    return get_volume_completion(smart_list.comicvine_volume_id)
 
 
 def search_cv_volumes(query, limit=20):
