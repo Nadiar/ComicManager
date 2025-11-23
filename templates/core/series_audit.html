@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Series Audit — {{ data.volume_info.name }} — ComicManager{% endblock %}
+{% block nav_comics %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
+    <div>
+      <h1 class="text-3xl font-bold">{{ data.volume_info.name }}{% if data.volume_info.start_year %} ({{ data.volume_info.start_year }}){% endif %}</h1>
+      <div class="flex gap-2 mt-2">
+        {% if data.volume_info.publisher %}
+        <span class="badge badge-lg">{{ data.volume_info.publisher }}</span>
+        {% endif %}
+        <span class="badge badge-lg badge-outline">{{ data.total_count }} issues</span>
+        <span class="badge badge-lg badge-success">{{ data.owned_count }} owned</span>
+        <span class="badge badge-lg badge-error badge-outline">{{ data.missing_count }} missing</span>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'core:detail' comic.pk %}" class="btn btn-ghost">Back to Comic</a>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="w-full bg-base-300 rounded-full h-4 overflow-hidden">
+    <div class="h-full rounded-full transition-all
+      {% if data.completion == 100 %}bg-success{% elif data.completion >= 75 %}bg-info{% elif data.completion >= 50 %}bg-warning{% else %}bg-error{% endif %}"
+      style="width: {{ data.completion }}%">
+    </div>
+  </div>
+  <p class="text-sm text-base-content/60 -mt-4 text-right">{{ data.completion }}% complete</p>
+
+  <!-- Issue Grid -->
+  <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+    {% for issue in data.all_issues %}
+    {% if issue.comic_pk %}
+    {# Owned issue — link to comic detail, show local cover #}
+    <a href="{% url 'core:detail' issue.comic_pk %}" class="card card-compact bg-base-200 hover:ring-2 hover:ring-success transition-all group">
+      <figure class="px-2 pt-2">
+        <img src="{% url 'core:cover' issue.comic_pk %}"
+             alt="#{{ issue.issue_number }}"
+             class="rounded shadow-md w-full h-auto"
+             loading="lazy"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="hidden bg-success/20 rounded w-full aspect-[2/3] items-center justify-center">
+          <span class="text-4xl text-success">&#10003;</span>
+        </div>
+      </figure>
+      <div class="card-body p-2 gap-0">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-sm">#{{ issue.issue_number }}</span>
+          <span class="badge badge-success badge-xs">owned</span>
+        </div>
+        {% if issue.title %}
+        <p class="text-xs text-base-content/60 truncate">{{ issue.title }}</p>
+        {% endif %}
+      </div>
+    </a>
+    {% else %}
+    {# Missing issue — show CV cover or placeholder, link to ComicVine #}
+    <div class="card card-compact bg-base-200 opacity-60 hover:opacity-100 transition-all">
+      {% if issue.site_detail_url %}
+      <a href="{{ issue.site_detail_url }}" target="_blank" rel="noopener">
+      {% endif %}
+      <figure class="px-2 pt-2 relative">
+        {% if issue.cover_url %}
+        <img src="{{ issue.cover_url }}"
+             alt="#{{ issue.issue_number }}"
+             class="rounded shadow-md w-full h-auto grayscale"
+             loading="lazy"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <div class="hidden bg-base-300 rounded w-full aspect-[2/3] items-center justify-center">
+          <span class="text-4xl text-error">&#10005;</span>
+        </div>
+        {% else %}
+        <div class="bg-base-300 rounded w-full aspect-[2/3] flex items-center justify-center">
+          <span class="text-4xl text-error">&#10005;</span>
+        </div>
+        {% endif %}
+        <div class="absolute top-3 right-3">
+          <span class="badge badge-error badge-sm">missing</span>
+        </div>
+      </figure>
+      <div class="card-body p-2 gap-0">
+        <span class="font-semibold text-sm">#{{ issue.issue_number }}</span>
+        {% if issue.title %}
+        <p class="text-xs text-base-content/60 truncate">{{ issue.title }}</p>
+        {% endif %}
+      </div>
+      {% if issue.site_detail_url %}
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

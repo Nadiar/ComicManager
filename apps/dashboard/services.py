@@ -143,7 +143,7 @@ def get_volume_completion(cv_volume_id):
     }
 
     cursor.execute("""
-        SELECT id, issue_number, name, cover_date
+        SELECT id, issue_number, name, cover_date, image_url, site_detail_url
         FROM cv_issue
         WHERE volume_id = ?
         ORDER BY
@@ -154,15 +154,39 @@ def get_volume_completion(cv_volume_id):
     """, (cv_volume_id,))
 
     all_issues = []
+    issue_ids = []
     for row in cursor.fetchall():
         all_issues.append({
             "issue_id": row[0],
             "issue_number": row[1],
             "title": row[2],
             "cover_date": row[3],
+            "image_url": row[4],
+            "site_detail_url": row[5],
         })
+        issue_ids.append(row[0])
+
+    # Batch fetch best cover URL per issue from comic_covers table
+    cover_by_issue = {}
+    if issue_ids:
+        placeholders = ",".join("?" * len(issue_ids))
+        cursor.execute(f"""
+            SELECT cvid, cv_url FROM comic_covers
+            WHERE cvid IN ({placeholders}) AND cv_url IS NOT NULL
+            ORDER BY
+                CASE WHEN cv_url LIKE '%/0/4/%' THEN 0 ELSE 1 END,
+                id ASC
+        """, issue_ids)
+        for row in cursor.fetchall():
+            # Keep only the first (best) cover per issue
+            if row[0] not in cover_by_issue:
+                cover_by_issue[row[0]] = row[1]
 
     conn.close()
+
+    # Set cover_url on each issue (prefer comic_covers, fallback to image_url)
+    for issue in all_issues:
+        issue["cover_url"] = cover_by_issue.get(issue["issue_id"]) or issue.get("image_url")
 
     # 2. Get owned comics from PostgreSQL that match this CV volume
     owned_comics = Comic.objects.filter(

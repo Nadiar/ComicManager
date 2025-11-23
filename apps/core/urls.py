@@ -45,5 +45,6 @@ urlpatterns = [
     path("<uuid:pk>/force-write/", views.force_write, name="force_write"),
     path("<uuid:pk>/refresh-credits/", views.refresh_credits, name="refresh_credits"),
     path("<uuid:pk>/series-completion/", views.series_completion, name="series_completion"),
+    path("<uuid:pk>/series-audit/", views.series_audit, name="series_audit"),
     path("<uuid:pk>/delete/", views.delete_comic, name="delete"),
 ]

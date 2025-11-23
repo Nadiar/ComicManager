@@ -2440,3 +2440,30 @@ def series_completion(request, pk):
         "comic": comic,
         "data": data,
     })
+
+
+@require_GET
+def series_audit(request, pk):
+    """
+    Full-page series audit view showing a grid of all issues in a volume.
+
+    Owned issues show their cover image and link to the comic detail page.
+    Missing issues show the ComicVine cover (or a placeholder) and link to ComicVine.
+    """
+    from apps.dashboard.services import get_volume_completion
+
+    comic = get_object_or_404(Comic, pk=pk)
+    cv_volume_id = (comic.custom_values or {}).get("comicvine_volume")
+    if not cv_volume_id:
+        from django.shortcuts import redirect
+        return redirect("core:detail", pk=pk)
+
+    data = get_volume_completion(cv_volume_id)
+    if not data:
+        from django.shortcuts import redirect
+        return redirect("core:detail", pk=pk)
+
+    return render(request, "core/series_audit.html", {
+        "comic": comic,
+        "data": data,
+    })

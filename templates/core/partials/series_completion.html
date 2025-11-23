@@ -10,9 +10,9 @@
         <span class="text-sm font-mono">
           {{ data.owned_count }}/{{ data.total_count }} — {{ data.completion }}%
         </span>
-        <button class="btn btn-xs btn-outline btn-disabled" title="Series audit view coming soon">
+        <a href="{% url 'core:series_audit' comic.pk %}" class="btn btn-xs btn-outline">
           Details
-        </button>
+        </a>
       </div>
     </div>
 
