@@ -664,18 +664,45 @@ def comic_cover(request, pk):
     """
     Serve the cover image of a comic file.
 
-    Returns JPEG image data for display in the UI.
+    Returns JPEG image data from the cover cache (extracting from CBZ on first request).
     """
+    from .cover_cache import get_comic_cover
+
     comic = get_object_or_404(Comic, pk=pk)
 
     if not comic.file_path:
         return HttpResponse(status=404)
 
-    cover_data = extract_cover_image(comic.file_path)
+    cover_data = get_comic_cover(comic)
     if not cover_data:
         return HttpResponse(status=404)
 
-    return HttpResponse(cover_data, content_type="image/jpeg")
+    response = HttpResponse(cover_data, content_type="image/jpeg")
+    response["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
+@require_GET
+def cv_cover(request, issue_id):
+    """
+    Proxy endpoint for ComicVine cover images.
+
+    Downloads the cover once and caches it locally, serving from cache on
+    subsequent requests. Avoids direct hotlinking to ComicVine CDN.
+    """
+    from .cover_cache import get_cv_cover
+
+    cover_url = request.GET.get("url", "")
+    if not cover_url:
+        return HttpResponse(status=400)
+
+    cover_data = get_cv_cover(issue_id, cover_url)
+    if not cover_data:
+        return HttpResponse(status=404)
+
+    response = HttpResponse(cover_data, content_type="image/jpeg")
+    response["Cache-Control"] = "public, max-age=604800"
+    return response
 
 
 @require_POST

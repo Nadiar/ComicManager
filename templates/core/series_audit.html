@@ -65,7 +65,7 @@
       {% endif %}
       <figure class="px-2 pt-2 relative">
         {% if issue.cover_url %}
-        <img src="{{ issue.cover_url }}"
+        <img src="{% url 'core:cv_cover' issue.issue_id %}?url={{ issue.cover_url|urlencode }}"
              alt="#{{ issue.issue_number }}"
              class="rounded shadow-md w-full h-auto grayscale"
              loading="lazy"

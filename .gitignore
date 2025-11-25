@@ -194,3 +194,4 @@ static/css/main.css
 *.md
 !CHANGELOG.md 
 .vexp/*
+cover_cache/*

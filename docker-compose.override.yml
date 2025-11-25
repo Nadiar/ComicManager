@@ -13,6 +13,7 @@ services:
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
       - .:/app                        # mount entire source — changes reload instantly
       - ./static:/app/static          # override base static mount for dev
+      - ./data/covers:/app/cover_cache
     ports:
       - "8000:8000"
 
