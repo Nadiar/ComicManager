@@ -1023,6 +1023,23 @@
       }
     }
   }
+  .indicator {
+    @layer daisyui.l1.l2.l3 {
+      position: relative;
+      display: inline-flex;
+      width: max-content;
+      :where(.indicator-item) {
+        z-index: 1;
+        position: absolute;
+        white-space: nowrap;
+        top: var(--indicator-t, 0);
+        bottom: var(--indicator-b, auto);
+        left: var(--indicator-s, auto);
+        right: var(--indicator-e, 0);
+        translate: var(--indicator-x, 50%) var(--indicator-y, -50%);
+      }
+    }
+  }
   .table {
     @layer daisyui.l1.l2.l3 {
       font-size: 0.875rem;
@@ -2610,6 +2627,9 @@
   .w-16 {
     width: calc(var(--spacing) * 16);
   }
+  .w-20 {
+    width: calc(var(--spacing) * 20);
+  }
   .w-24 {
     width: calc(var(--spacing) * 24);
   }
@@ -2986,6 +3006,9 @@
       padding: 0.1875rem;
       --size: calc(var(--size-selector, 0.25rem) * 5);
     }
+  }
+  .p-0 {
+    padding: calc(var(--spacing) * 0);
   }
   .p-1 {
     padding: calc(var(--spacing) * 1);

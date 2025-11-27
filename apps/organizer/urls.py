@@ -18,4 +18,9 @@ urlpatterns = [
 
     # Preview (for comics)
     path("preview/<uuid:pk>/", views.preview_view, name="preview"),
+
+    # Path Audit
+    path("path-audit/", views.path_audit, name="path_audit"),
+    path("path-audit/start/", views.start_audit, name="start_audit"),
+    path("path-audit/reorganize-all/", views.start_reorganize_all, name="start_reorganize_all"),
 ]

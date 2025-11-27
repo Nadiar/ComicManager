@@ -162,6 +162,83 @@ def organize_comic(comic: Comic, dry_run: bool = False) -> dict:
     }
 
 
+def reorganize_comic(comic: Comic) -> dict:
+    """
+    Re-organize a comic that's already been organized or written.
+    Moves the file to its current correct location based on organizer profiles.
+    Does NOT change workflow state.
+
+    Returns:
+        Dict with success, moved, old_path, new_path, profile, error
+    """
+    if comic.medium == Comic.MEDIUM_PHYSICAL:
+        return {"success": True, "moved": False, "message": "Physical comic"}
+
+    if comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
+        return {
+            "success": False,
+            "moved": False,
+            "error": f"Comic must be organized or written (current: {comic.state})",
+        }
+
+    preview = preview_organization(comic)
+    old_path = comic.file_path
+    new_path = preview["new_path"]
+
+    if os.path.abspath(old_path) == os.path.abspath(new_path):
+        # Already correct — just clear the flag
+        if comic.needs_reorganize:
+            comic.needs_reorganize = False
+            comic.expected_path = None
+            comic.save(update_fields=["needs_reorganize", "expected_path"])
+        return {
+            "success": True,
+            "moved": False,
+            "old_path": old_path,
+            "new_path": new_path,
+            "profile": preview["selected_profile"],
+        }
+
+    if not os.path.exists(old_path):
+        return {"success": False, "moved": False, "error": f"Source file not found: {old_path}"}
+
+    try:
+        new_folder = os.path.dirname(new_path)
+        os.makedirs(new_folder, exist_ok=True)
+
+        shutil.move(old_path, new_path)
+
+        # Clean up empty source directories
+        try:
+            old_dir = os.path.dirname(old_path)
+            while old_dir and old_dir != LIBRARY_BASE:
+                if os.path.isdir(old_dir) and not os.listdir(old_dir):
+                    os.rmdir(old_dir)
+                    old_dir = os.path.dirname(old_dir)
+                else:
+                    break
+        except OSError:
+            pass
+
+        with transaction.atomic():
+            comic.file_path = new_path
+            comic.last_organized_path = new_path
+            comic.needs_reorganize = False
+            comic.expected_path = None
+            comic.save()
+
+        return {
+            "success": True,
+            "moved": True,
+            "old_path": old_path,
+            "new_path": new_path,
+            "profile": preview["selected_profile"],
+        }
+
+    except Exception as e:
+        return {"success": False, "moved": False, "error": str(e)}
+
+
 def generate_fallback_path(comic: Comic) -> tuple[str, str]:
     """
     Generate a fallback path when no profile matches.

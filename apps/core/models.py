@@ -119,6 +119,8 @@ class Comic(models.Model):
 
     # Library Organizer
     last_organized_path = models.CharField(max_length=1024, null=True, blank=True)
+    needs_reorganize = models.BooleanField(default=False, db_index=True)
+    expected_path = models.CharField(max_length=1024, null=True, blank=True)
 
     # Write to file
     last_written = models.DateTimeField(null=True, blank=True)

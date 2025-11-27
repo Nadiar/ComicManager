@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+{% block title %}Path Audit — ComicManager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Header -->
+  <div class="flex justify-between items-center flex-wrap gap-4">
+    <h1 class="text-3xl font-bold">Path Audit</h1>
+    <div class="flex gap-2">
+      <button onclick="runAudit(this)" class="btn btn-primary" id="audit-btn">
+        Run Audit
+      </button>
+      {% if total_flagged > 0 %}
+      <button onclick="reorganizeAll(this)" class="btn btn-warning" id="reorganize-all-btn">
+        Reorganize All ({{ total_flagged }})
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="stat bg-base-200 rounded-box">
+      <div class="stat-title">Total Organized/Written</div>
+      <div class="stat-value text-info">{{ total_organized }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box">
+      <div class="stat-title">Need Reorganization</div>
+      <div class="stat-value {% if total_flagged > 0 %}text-warning{% else %}text-success{% endif %}">{{ total_flagged }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box">
+      <div class="stat-title">Correct Location</div>
+      <div class="stat-value text-success">{{ total_organized|add:"-"|add:total_flagged }}</div>
+    </div>
+  </div>
+
+  <!-- Progress indicator (hidden by default) -->
+  <div id="audit-progress" class="alert bg-base-200 hidden">
+    <div class="w-full">
+      <div class="flex justify-between items-center mb-2">
+        <span class="font-semibold text-sm" id="audit-progress-label"></span>
+        <span class="text-xs" id="audit-progress-count"></span>
+      </div>
+      <progress id="audit-progress-bar" class="progress progress-primary w-full" value="0" max="100"></progress>
+      <div id="audit-progress-status" class="text-xs mt-1 text-base-content/60"></div>
+    </div>
+  </div>
+
+  {% if total_flagged == 0 %}
+  <div class="alert alert-success">
+    <span>No comics need reorganization. Click "Run Audit" to scan for path mismatches.</span>
+  </div>
+  {% else %}
+
+  <!-- Pagination Top -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="flex justify-between items-center">
+    <div class="text-sm text-base-content/60">
+      Showing {{ page_obj.start_index }}&ndash;{{ page_obj.end_index }} of {{ total_flagged }}
+    </div>
+    <div class="join">
+      {% if page_obj.has_previous %}
+      <a href="?page=1" class="join-item btn btn-sm">First</a>
+      <a href="?page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}
+        <button class="join-item btn btn-sm btn-active">{{ num }}</button>
+        {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+        <a href="?page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
+        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+        <span class="join-item btn btn-sm btn-disabled">...</span>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
+      <a href="?page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Comics Table -->
+  <div class="card bg-base-200">
+    <div class="card-body p-0">
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Series</th>
+              <th class="w-16">#</th>
+              <th>Publisher</th>
+              <th>Format</th>
+              <th>Current Path</th>
+              <th>Target Path</th>
+              <th class="w-20">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for comic in comics %}
+            <tr id="row-{{ comic.pk }}">
+              <td>
+                <a href="/comics/{{ comic.pk }}/" class="link link-hover font-medium">{{ comic.series }}</a>
+              </td>
+              <td class="font-mono text-sm">{{ comic.number }}</td>
+              <td class="text-sm">{{ comic.publisher|default:"-" }}</td>
+              <td>
+                {% if comic.format %}
+                <span class="badge badge-sm badge-outline">{{ comic.format }}</span>
+                {% else %}
+                <span class="text-base-content/40">-</span>
+                {% endif %}
+              </td>
+              <td class="max-w-xs">
+                <code class="text-xs break-all">{{ comic.file_path }}</code>
+              </td>
+              <td class="max-w-xs">
+                <code class="text-xs break-all text-warning">{{ comic.expected_path }}</code>
+              </td>
+              <td>
+                <button
+                  onclick="reorganizeSingle('{{ comic.pk }}', this)"
+                  class="btn btn-xs btn-ghost"
+                >Move</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pagination Bottom -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="flex justify-between items-center">
+    <div class="text-sm text-base-content/60">
+      Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    </div>
+    <div class="join">
+      {% if page_obj.has_previous %}
+      <a href="?page=1" class="join-item btn btn-sm">First</a>
+      <a href="?page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}
+        <button class="join-item btn btn-sm btn-active">{{ num }}</button>
+        {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+        <a href="?page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
+        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+        <span class="join-item btn btn-sm btn-disabled">...</span>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
+      <a href="?page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}
+</div>
+
+<script>
+function getCsrfToken() {
+  const cookies = document.cookie.split(';');
+  for (let cookie of cookies) {
+    const [key, value] = cookie.trim().split('=');
+    if (key === 'csrftoken') return value;
+  }
+  return '';
+}
+
+var pollTimer = null;
+
+function showProgress(label) {
+  const el = document.getElementById('audit-progress');
+  el.classList.remove('hidden');
+  document.getElementById('audit-progress-label').textContent = label;
+  document.getElementById('audit-progress-count').textContent = '';
+  document.getElementById('audit-progress-status').textContent = 'Starting...';
+  const bar = document.getElementById('audit-progress-bar');
+  bar.value = 0;
+  bar.classList.remove('progress-success', 'progress-error');
+  bar.classList.add('progress-primary');
+}
+
+function pollProgress(taskId, statusKey) {
+  fetch('/comics/task-progress/' + taskId + '/')
+    .then(r => r.json())
+    .then(data => {
+      const bar = document.getElementById('audit-progress-bar');
+      const count = document.getElementById('audit-progress-count');
+      const status = document.getElementById('audit-progress-status');
+
+      if (data.state === 'PROGRESS') {
+        const pct = data.total > 0 ? Math.round((data.current / data.total) * 100) : 0;
+        bar.value = pct;
+        count.textContent = data.current + ' / ' + data.total;
+        const val = data[statusKey] || 0;
+        const errCount = (data.errors && data.errors.length) || 0;
+        status.textContent = val + ' ' + statusKey + (errCount > 0 ? ', ' + errCount + ' errors' : '');
+        pollTimer = setTimeout(() => pollProgress(taskId, statusKey), 2000);
+      } else if (data.state === 'SUCCESS') {
+        bar.value = 100;
+        bar.classList.remove('progress-primary');
+        bar.classList.add('progress-success');
+        count.textContent = '';
+        const r = data.result || {};
+        status.textContent = 'Complete! Reloading...';
+        setTimeout(() => location.reload(), 1500);
+      } else if (data.state === 'FAILURE') {
+        bar.classList.remove('progress-primary');
+        bar.classList.add('progress-error');
+        status.textContent = data.error || 'Task failed';
+      } else {
+        status.textContent = data.state === 'STARTED' ? 'Starting...' : 'Queued...';
+        pollTimer = setTimeout(() => pollProgress(taskId, statusKey), 2000);
+      }
+    })
+    .catch(() => {
+      pollTimer = setTimeout(() => pollProgress(taskId, statusKey), 4000);
+    });
+}
+
+async function runAudit(btn) {
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Starting...';
+
+  try {
+    const resp = await fetch('{% url "organizer:start_audit" %}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrfToken() },
+    });
+    const data = await resp.json();
+
+    if (data.success && data.task_id) {
+      btn.textContent = 'Auditing...';
+      showProgress('Auditing paths...');
+      pollProgress(data.task_id, 'mismatched');
+    } else if (data.success) {
+      btn.textContent = data.message || 'No comics to audit';
+      setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
+    } else {
+      btn.textContent = data.error || 'Error';
+      btn.classList.add('btn-error');
+      setTimeout(() => {
+        btn.textContent = origText;
+        btn.disabled = false;
+        btn.classList.remove('btn-error');
+      }, 3000);
+    }
+  } catch (err) {
+    btn.textContent = 'Error';
+    btn.classList.add('btn-error');
+    console.error(err);
+    setTimeout(() => {
+      btn.textContent = origText;
+      btn.disabled = false;
+      btn.classList.remove('btn-error');
+    }, 3000);
+  }
+}
+
+async function reorganizeAll(btn) {
+  if (!confirm('Move all flagged comics to their correct locations?')) return;
+
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = 'Starting...';
+
+  try {
+    const resp = await fetch('{% url "organizer:start_reorganize_all" %}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrfToken() },
+    });
+    const data = await resp.json();
+
+    if (data.success && data.task_id) {
+      btn.textContent = 'Reorganizing...';
+      showProgress('Reorganizing comics...');
+      pollProgress(data.task_id, 'moved');
+    } else if (data.success) {
+      btn.textContent = data.message || 'No comics to reorganize';
+      setTimeout(() => location.reload(), 1500);
+    } else {
+      btn.textContent = data.error || 'Error';
+      btn.classList.add('btn-error');
+      setTimeout(() => {
+        btn.textContent = origText;
+        btn.disabled = false;
+        btn.classList.remove('btn-error');
+      }, 3000);
+    }
+  } catch (err) {
+    btn.textContent = 'Error';
+    console.error(err);
+    setTimeout(() => {
+      btn.textContent = origText;
+      btn.disabled = false;
+    }, 3000);
+  }
+}
+
+async function reorganizeSingle(pk, btn) {
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  try {
+    const resp = await fetch('/comics/' + pk + '/reorganize/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrfToken() },
+    });
+    const data = await resp.json();
+
+    if (data.success) {
+      const row = document.getElementById('row-' + pk);
+      if (row) {
+        row.style.opacity = '0.3';
+        row.querySelector('button').textContent = 'Done';
+      }
+    } else {
+      btn.textContent = 'Error';
+      btn.title = data.error || 'Failed';
+      setTimeout(() => { btn.textContent = 'Move'; btn.disabled = false; }, 3000);
+    }
+  } catch (err) {
+    btn.textContent = 'Error';
+    console.error(err);
+    setTimeout(() => { btn.textContent = 'Move'; btn.disabled = false; }, 3000);
+  }
+}
+
+// Resume polling if tasks are active
+(function() {
+  var auditTaskId = "{{ active_audit_task_id|escapejs }}";
+  var reorgTaskId = "{{ active_reorganize_task_id|escapejs }}";
+
+  if (auditTaskId) {
+    document.getElementById('audit-btn').disabled = true;
+    document.getElementById('audit-btn').textContent = 'Auditing...';
+    showProgress('Auditing paths...');
+    pollProgress(auditTaskId, 'mismatched');
+  } else if (reorgTaskId) {
+    var reorgBtn = document.getElementById('reorganize-all-btn');
+    if (reorgBtn) {
+      reorgBtn.disabled = true;
+      reorgBtn.textContent = 'Reorganizing...';
+    }
+    showProgress('Reorganizing comics...');
+    pollProgress(reorgTaskId, 'moved');
+  }
+})();
+</script>
+{% endblock %}

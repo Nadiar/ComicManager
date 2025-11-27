@@ -232,3 +232,117 @@ def preview_view(request, pk):
     preview = preview_organization(comic)
 
     return JsonResponse(preview)
+
+
+# ============================================================================
+# Path Audit Views
+# ============================================================================
+
+def path_audit(request):
+    """Path Audit page - shows all comics flagged as needing reorganization."""
+    from django.core.paginator import Paginator
+
+    comics = (
+        Comic.objects.filter(
+            needs_reorganize=True,
+            medium=Comic.MEDIUM_DIGITAL,
+        )
+        .order_by("publisher", "series", "number")
+    )
+
+    total_flagged = comics.count()
+    total_organized = Comic.objects.filter(
+        state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN],
+        medium=Comic.MEDIUM_DIGITAL,
+    ).count()
+
+    paginator = Paginator(comics, 50)
+    page_number = request.GET.get("page")
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, "organizer/path_audit.html", {
+        "comics": page_obj,
+        "page_obj": page_obj,
+        "total_flagged": total_flagged,
+        "total_organized": total_organized,
+    })
+
+
+@require_POST
+def start_audit(request):
+    """Dispatch Celery task to audit all organized/written comic paths."""
+    from celery.result import AsyncResult
+
+    active_task_id = request.session.get("audit_task_id")
+    if active_task_id:
+        result = AsyncResult(active_task_id)
+        if result.state in ("PENDING", "STARTED", "PROGRESS"):
+            return JsonResponse({
+                "success": False,
+                "error": "An audit task is already running",
+                "task_id": active_task_id,
+            }, status=409)
+
+    count = Comic.objects.filter(
+        state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN],
+        medium=Comic.MEDIUM_DIGITAL,
+    ).count()
+
+    if count == 0:
+        return JsonResponse({
+            "success": True,
+            "total": 0,
+            "message": "No organized/written digital comics to audit",
+        })
+
+    from .tasks import audit_paths_task
+
+    result = audit_paths_task.delay()
+    request.session["audit_task_id"] = result.id
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": count,
+        "message": f"Started auditing {count} comics",
+    })
+
+
+@require_POST
+def start_reorganize_all(request):
+    """Dispatch Celery task to reorganize all flagged comics."""
+    from celery.result import AsyncResult
+
+    active_task_id = request.session.get("reorganize_task_id")
+    if active_task_id:
+        result = AsyncResult(active_task_id)
+        if result.state in ("PENDING", "STARTED", "PROGRESS"):
+            return JsonResponse({
+                "success": False,
+                "error": "A reorganize task is already running",
+                "task_id": active_task_id,
+            }, status=409)
+
+    count = Comic.objects.filter(
+        needs_reorganize=True,
+        medium=Comic.MEDIUM_DIGITAL,
+    ).count()
+
+    if count == 0:
+        return JsonResponse({
+            "success": True,
+            "total": 0,
+            "message": "No comics flagged for reorganization",
+        })
+
+    from .tasks import reorganize_all_flagged_task
+
+    result = reorganize_all_flagged_task.delay()
+    request.session["reorganize_task_id"] = result.id
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": count,
+        "message": f"Started reorganizing {count} comics",
+    })

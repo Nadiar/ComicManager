@@ -1731,90 +1731,32 @@ def reorganize_comic(request, pk):
     This allows moving a comic to a new location if its metadata
     (like format, series_group, etc.) has changed after organization.
     """
-    from apps.organizer.services import preview_organization, LIBRARY_BASE
-    import os
-    import shutil
+    from apps.organizer.services import reorganize_comic as service_reorganize
 
     comic = get_object_or_404(Comic, pk=pk)
 
-    # Only allow re-organizing comics that have been organized
     if comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
         return JsonResponse({
             "success": False,
             "error": f"Comic must be in 'organized' or 'written' state (current: {comic.state})"
         }, status=400)
 
-    # Physical comics have no file to move
-    if comic.medium == Comic.MEDIUM_PHYSICAL:
-        return JsonResponse({
-            "success": True,
-            "message": "Physical comic - no file to reorganize",
-            "moved": False,
-        })
+    result = service_reorganize(comic)
 
-    # Preview where the comic should go
-    preview = preview_organization(comic)
-    old_path = comic.file_path
-    new_path = preview["new_path"]
-
-    # Check if file needs to move
-    if os.path.abspath(old_path) == os.path.abspath(new_path):
-        return JsonResponse({
-            "success": True,
-            "message": "File is already in the correct location",
-            "old_path": old_path,
-            "new_path": new_path,
-            "moved": False,
-            "profile": preview["selected_profile"],
-        })
-
-    # Verify source file exists
-    if not os.path.exists(old_path):
+    if not result["success"]:
         return JsonResponse({
             "success": False,
-            "error": f"Source file not found: {old_path}"
-        }, status=400)
-
-    # Perform the move
-    try:
-        # Create destination directory
-        new_folder = os.path.dirname(new_path)
-        os.makedirs(new_folder, exist_ok=True)
-
-        # Move the file
-        shutil.move(old_path, new_path)
-
-        # Try to remove empty source directories
-        try:
-            old_dir = os.path.dirname(old_path)
-            while old_dir and old_dir != LIBRARY_BASE:
-                if os.path.isdir(old_dir) and not os.listdir(old_dir):
-                    os.rmdir(old_dir)
-                    old_dir = os.path.dirname(old_dir)
-                else:
-                    break
-        except OSError:
-            pass  # Ignore errors when cleaning up directories
-
-        # Update comic record
-        comic.file_path = new_path
-        comic.last_organized_path = new_path
-        comic.save()
-
-        return JsonResponse({
-            "success": True,
-            "message": "Comic reorganized successfully",
-            "old_path": old_path,
-            "new_path": new_path,
-            "moved": True,
-            "profile": preview["selected_profile"],
-        })
-
-    except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "error": f"Failed to move file: {str(e)}"
+            "error": result.get("error", "Unknown error"),
         }, status=500)
+
+    return JsonResponse({
+        "success": True,
+        "message": result.get("message", "Comic reorganized successfully") if not result.get("moved") else "Comic reorganized successfully",
+        "old_path": result.get("old_path"),
+        "new_path": result.get("new_path"),
+        "moved": result.get("moved", False),
+        "profile": result.get("profile"),
+    })
 
 
 @require_POST
@@ -1982,20 +1924,19 @@ def task_progress(request, task_id):
 
     if result.state == "PROGRESS":
         info = result.info or {}
-        response.update({
-            "current": info.get("current", 0),
-            "total": info.get("total", 0),
-            "written": info.get("written", 0),
-            "errors": info.get("errors", []),
-        })
+        response.update(info)
+        response["current"] = info.get("current", 0)
+        response["total"] = info.get("total", 0)
     elif result.state == "SUCCESS":
         response["result"] = result.result
-        if request.session.get("write_task_id") == task_id:
-            del request.session["write_task_id"]
+        for key in ("write_task_id", "audit_task_id", "reorganize_task_id"):
+            if request.session.get(key) == task_id:
+                del request.session[key]
     elif result.state == "FAILURE":
         response["error"] = str(result.result)
-        if request.session.get("write_task_id") == task_id:
-            del request.session["write_task_id"]
+        for key in ("write_task_id", "audit_task_id", "reorganize_task_id"):
+            if request.session.get(key) == task_id:
+                del request.session[key]
     elif result.state == "STARTED":
         response.update({"current": 0, "total": 0})
 
