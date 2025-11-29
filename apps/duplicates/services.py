@@ -234,6 +234,75 @@ def detect_duplicates_by_phash(
     return created_groups
 
 
+def detect_duplicates_by_filename(comics: list[Comic]) -> list[DuplicateGroup]:
+    """
+    Detect duplicates by OS-generated duplicate filename patterns.
+
+    Catches files like:
+    - Linux:   "Comic #001_1.cbz", "Comic #001_2.cbz"  (underscore + number)
+    - Windows: "Comic #001 (1).cbz", "Comic #001 (2).cbz"  (space + parens + number)
+
+    Groups these with the base file "Comic #001.cbz" if it exists in the pool.
+    Only considers digital comics with file paths.
+    """
+    import re
+
+    # Pattern to strip OS duplicate suffixes before the extension
+    # Matches: _1, _2, _12  or  (1), (2), (12)  at the end of the filename stem
+    DUPE_SUFFIX = re.compile(r'(?:_\d+| \(\d+\))$')
+
+    # Filter to digital comics with file paths
+    pathable = [
+        c for c in comics
+        if c.medium == Comic.MEDIUM_DIGITAL and c.file_path
+    ]
+
+    if len(pathable) < 2:
+        return []
+
+    # Group by normalized base filename (directory + stem without dupe suffix)
+    filename_groups: dict[str, list[Comic]] = defaultdict(list)
+
+    for comic in pathable:
+        directory = os.path.dirname(comic.file_path)
+        basename = os.path.basename(comic.file_path)
+        stem, ext = os.path.splitext(basename)
+
+        # Strip OS duplicate suffix to get the canonical name
+        canonical_stem = DUPE_SUFFIX.sub('', stem)
+        canonical_key = os.path.join(directory, canonical_stem + ext).lower()
+
+        filename_groups[canonical_key].append(comic)
+
+    created_groups = []
+
+    for canonical_key, group_comics in filename_groups.items():
+        if len(group_comics) < 2:
+            continue
+
+        # At least one comic in the group must have a dupe suffix
+        # (otherwise they're just different comics in the same folder)
+        has_suffix = False
+        for comic in group_comics:
+            stem = os.path.splitext(os.path.basename(comic.file_path))[0]
+            if DUPE_SUFFIX.search(stem):
+                has_suffix = True
+                break
+
+        if not has_suffix:
+            continue
+
+        base_name = os.path.basename(canonical_key)
+        group = _create_duplicate_group(
+            comics=group_comics,
+            detection_method=DuplicateGroup.DETECTION_FILENAME,
+            match_key=f"File:{base_name}",
+        )
+        created_groups.append(group)
+
+    return created_groups
+
+
 def _hamming_distance(hash1: str, hash2: str) -> int:
     """Compute hamming distance between two hex hash strings."""
     try:
@@ -334,8 +403,9 @@ def run_duplicate_detection() -> dict:
     cv_groups = detect_duplicates_by_cv_id(comparison_pool)
     meta_groups = detect_duplicates_by_metadata(comparison_pool)
     phash_groups = detect_duplicates_by_phash(comparison_pool)
+    filename_groups = detect_duplicates_by_filename(comparison_pool)
 
-    all_groups = cv_groups + meta_groups + phash_groups
+    all_groups = cv_groups + meta_groups + phash_groups + filename_groups
     logger.info(f"run_duplicate_detection: created {len(all_groups)} total groups")
 
     # Collect IDs of candidates that ended up in groups
@@ -363,6 +433,7 @@ def run_duplicate_detection() -> dict:
         "by_cv_id": len(cv_groups),
         "by_metadata": len(meta_groups),
         "by_phash": len(phash_groups),
+        "by_filename": len(filename_groups),
         "advanced": advanced,
     }
 
@@ -396,8 +467,9 @@ def scan_all_for_duplicates() -> dict:
     cv_groups = detect_duplicates_by_cv_id(comics)
     meta_groups = detect_duplicates_by_metadata(comics)
     phash_groups = detect_duplicates_by_phash(comics)
+    filename_groups = detect_duplicates_by_filename(comics)
 
-    all_groups = cv_groups + meta_groups + phash_groups
+    all_groups = cv_groups + meta_groups + phash_groups + filename_groups
     logger.info(f"scan_all_for_duplicates: created {len(all_groups)} total groups")
 
     return {
@@ -408,6 +480,7 @@ def scan_all_for_duplicates() -> dict:
         "by_cv_id": len(cv_groups),
         "by_metadata": len(meta_groups),
         "by_phash": len(phash_groups),
+        "by_filename": len(filename_groups),
     }
 
 
@@ -764,6 +837,7 @@ def get_duplicate_stats() -> dict:
             "cv_id": pending.filter(detection_method=DuplicateGroup.DETECTION_CV_ID).count(),
             "metadata": pending.filter(detection_method=DuplicateGroup.DETECTION_METADATA).count(),
             "phash": pending.filter(detection_method=DuplicateGroup.DETECTION_PHASH).count(),
+            "filename": pending.filter(detection_method=DuplicateGroup.DETECTION_FILENAME).count(),
         },
         "formatted_comics": formatted_count,
         "deduplicated_comics": deduplicated_count,

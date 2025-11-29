@@ -30,10 +30,12 @@ class DuplicateGroup(models.Model):
     DETECTION_CV_ID = "cv_id"
     DETECTION_METADATA = "metadata"
     DETECTION_PHASH = "phash"
+    DETECTION_FILENAME = "filename"
     DETECTION_CHOICES = [
         (DETECTION_CV_ID, "ComicVine ID Match"),
         (DETECTION_METADATA, "Series/Number/Volume Match"),
         (DETECTION_PHASH, "Cover Hash Similarity"),
+        (DETECTION_FILENAME, "Filename Duplicate Pattern"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

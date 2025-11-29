@@ -6,19 +6,26 @@
 <div class="space-y-6">
   <!-- Header -->
   <div class="flex justify-between items-start">
-    <div>
-      <h1 class="text-3xl font-bold">{{ comic.series|default:"Unknown Series" }} #{{ comic.number|default:"?" }}</h1>
-      {% if comic.title %}
-      <p class="text-lg text-base-content/70 mt-1">{{ comic.title }}</p>
+    <div class="flex gap-5 items-start">
+      {% if comic.is_digital and comic.file_path %}
+      <div class="flex-shrink-0">
+        <img src="/comics/{{ comic.pk }}/cover/" alt="Cover" class="w-32 h-auto rounded-lg shadow-lg" />
+      </div>
       {% endif %}
-      <div class="flex gap-2 mt-2">
-        <span class="badge badge-lg {% if comic.state == 'written' %}badge-success{% elif comic.state == 'new' %}badge-warning{% else %}badge-info{% endif %}">
-          {{ comic.state }}
-        </span>
-        <span class="badge badge-lg badge-outline">{{ comic.medium }}</span>
-        {% if comic.publisher %}
-        <span class="badge badge-lg">{{ comic.publisher }}</span>
+      <div>
+        <h1 class="text-3xl font-bold">{{ comic.series|default:"Unknown Series" }} #{{ comic.number|default:"?" }}</h1>
+        {% if comic.title %}
+        <p class="text-lg text-base-content/70 mt-1">{{ comic.title }}</p>
         {% endif %}
+        <div class="flex gap-2 mt-2">
+          <span class="badge badge-lg {% if comic.state == 'written' %}badge-success{% elif comic.state == 'new' %}badge-warning{% else %}badge-info{% endif %}">
+            {{ comic.state }}
+          </span>
+          <span class="badge badge-lg badge-outline">{{ comic.medium }}</span>
+          {% if comic.publisher %}
+          <span class="badge badge-lg">{{ comic.publisher }}</span>
+          {% endif %}
+        </div>
       </div>
     </div>
     <div class="flex gap-2">

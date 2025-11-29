@@ -127,7 +127,30 @@
   </div>
   {% endif %}
 
-  {% if not cv_groups and not meta_groups and not phash_groups %}
+  <!-- Filename Duplicates -->
+  {% if filename_groups %}
+  <div class="card bg-base-200">
+    <div class="card-body p-4">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h3 class="font-bold text-lg flex items-center gap-2">
+            <span class="badge badge-secondary">{{ filename_groups|length }}</span>
+            Filename Pattern Matches
+          </h3>
+          <p class="text-sm text-base-content/70">OS-generated duplicate filenames (_1.cbz, (1).cbz patterns)</p>
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        {% for group in filename_groups %}
+        {% include "duplicates/partials/group_card.html" with group=group %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if not cv_groups and not meta_groups and not phash_groups and not filename_groups %}
   <div class="alert alert-info">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -232,7 +255,7 @@ async function scanAll(btn) {
     if (data.success) {
       btn.classList.remove('btn-secondary');
       btn.classList.add('btn-success');
-      btn.innerHTML = `Found ${data.groups_created} groups (CV:${data.by_cv_id}, Meta:${data.by_metadata}, Hash:${data.by_phash})`;
+      btn.innerHTML = `Found ${data.groups_created} groups (CV:${data.by_cv_id}, Meta:${data.by_metadata}, Hash:${data.by_phash}, File:${data.by_filename || 0})`;
       setTimeout(() => location.reload(), 2000);
     } else {
       btn.classList.add('btn-error');

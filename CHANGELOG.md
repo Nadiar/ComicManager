@@ -22,6 +22,10 @@ All notable changes to ComicManager will be documented in this file.
 - **4-way metadata comparison** — "Compare All Sources" button on comic detail page fetches data from all 4 sources (PostgreSQL DB, ComicInfo.xml, local comicvine.db, live CV API) and shows a side-by-side comparison table. Fields shared across sources show Match/Different status; source-specific fields (genre, tags, story arcs, etc.) appear in a separate "extras" section.
 - **API rate limit display** — When ComicVine returns HTTP 420/429, the UI shows a yellow warning alert with a clear "rate limited" message instead of a generic error. Applies to both the scrape API search and the "Compare All Sources" modal.
 
+- **Path Audit page** — New page at Workflow > Path Audit to batch-scan all organized/written comics for path mismatches. Runs as a Celery task with real-time progress bar. Shows table of flagged comics with current vs target paths. Supports single-comic "Move" buttons and batch "Reorganize All". Extracted shared `reorganize_comic()` service function to eliminate code duplication between the detail page and batch operations.
+- **Filename duplicate detection** — New 4th detection method that catches OS-generated duplicate files by filename pattern. Detects Linux duplicates (`file_1.cbz`, `file_2.cbz`) and Windows duplicates (`file (1).cbz`, `file (2).cbz`). Runs automatically as part of both "Run Detection" and "Scan All Comics". Shown in its own section on the duplicate review page.
+- **Cover preview on comic detail page** — Digital comics now show a cover image thumbnail in the header next to the title and badges. Uses the existing cover cache (extracts from CBZ on first load, serves from cache afterward).
+
 ### Fixed
 - **ComicInfo.xml output parity** — XML output now matches ComicRack format: Tags mapped to model field (not CustomValues), Summary preserves paragraph breaks, Notes auto-populated with CV reference, Pages element with image dimensions, DataManager_Processed normalized to "Yes", standard field names filtered from CustomValues.
 - **API rate limiting** — Added 1.1-second delay between ComicVine API calls to prevent HTTP 420 rate limit errors.

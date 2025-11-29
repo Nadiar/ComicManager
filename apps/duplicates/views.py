@@ -35,12 +35,14 @@ def duplicate_review(request):
     cv_groups = [g for g in groups if g["detection_method"] == "cv_id"]
     meta_groups = [g for g in groups if g["detection_method"] == "metadata"]
     phash_groups = [g for g in groups if g["detection_method"] == "phash"]
+    filename_groups = [g for g in groups if g["detection_method"] == "filename"]
 
     return render(request, "duplicates/review.html", {
         "stats": stats,
         "cv_groups": cv_groups,
         "meta_groups": meta_groups,
         "phash_groups": phash_groups,
+        "filename_groups": filename_groups,
         "total_pending": len(groups),
     })
 
