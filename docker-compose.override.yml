@@ -15,7 +15,7 @@ services:
       - ./static:/app/static          # override base static mount for dev
       - ./data/covers:/app/cover_cache
     ports:
-      - "8000:8000"
+      - "${PORT:-8000}:8000"
 
   worker:
     build: .
