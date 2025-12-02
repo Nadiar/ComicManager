@@ -176,15 +176,31 @@
 
 </div>
 
+<datalist id="custom-keys-list"></datalist>
+
 <script>
 const RULE_FIELDS = {{ rule_fields|safe }};
 const RULE_OPERATORS = {{ rule_operators|safe }};
+const CUSTOM_VALUE_KEYS = {{ custom_value_keys|safe }};
+const CUSTOM_SENTINEL = '__custom__';
+
+// Populate datalist for custom key autocomplete
+const _dl = document.getElementById('custom-keys-list');
+CUSTOM_VALUE_KEYS.forEach(k => { const o = document.createElement('option'); o.value = k; _dl.appendChild(o); });
 
 // ---- Rule Row ----
 function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   const row = document.createElement('div');
   row.className = 'flex items-center gap-2';
   row.dataset.type = 'rule';
+
+  // Detect if field is a Custom() reference
+  let isCustom = false;
+  let customKey = '';
+  if (field.startsWith('Custom(') && field.endsWith(')')) {
+    isCustom = true;
+    customKey = field.slice(7, -1);
+  }
 
   const fieldSelect = document.createElement('select');
   fieldSelect.className = 'select select-bordered select-sm';
@@ -193,8 +209,32 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
     const opt = document.createElement('option');
     opt.value = f;
     opt.textContent = f;
-    if (f === field) opt.selected = true;
+    if (!isCustom && f === field) opt.selected = true;
     fieldSelect.appendChild(opt);
+  });
+  // Separator + Custom Value option
+  const sep = document.createElement('option');
+  sep.disabled = true;
+  sep.textContent = '───────────';
+  fieldSelect.appendChild(sep);
+  const customOpt = document.createElement('option');
+  customOpt.value = CUSTOM_SENTINEL;
+  customOpt.textContent = 'Custom Value...';
+  if (isCustom) customOpt.selected = true;
+  fieldSelect.appendChild(customOpt);
+
+  // Custom key input (hidden unless Custom Value selected)
+  const keyInput = document.createElement('input');
+  keyInput.type = 'text';
+  keyInput.className = 'input input-bordered input-sm w-40';
+  keyInput.placeholder = 'Key (e.g. IsStarWars)';
+  keyInput.dataset.role = 'custom-key';
+  keyInput.setAttribute('list', 'custom-keys-list');
+  keyInput.value = customKey;
+  keyInput.style.display = isCustom ? '' : 'none';
+
+  fieldSelect.addEventListener('change', () => {
+    keyInput.style.display = fieldSelect.value === CUSTOM_SENTINEL ? '' : 'none';
   });
 
   const opSelect = document.createElement('select');
@@ -222,6 +262,7 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   removeBtn.onclick = () => row.remove();
 
   row.appendChild(fieldSelect);
+  row.appendChild(keyInput);
   row.appendChild(opSelect);
   row.appendChild(valueInput);
   row.appendChild(removeBtn);
@@ -303,13 +344,20 @@ function serializeContainer(container) {
 
   children.forEach(el => {
     if (el.dataset.type === 'rule') {
-      const field = el.querySelector('[data-role="field"]');
+      const fieldSelect = el.querySelector('[data-role="field"]');
+      const customKey = el.querySelector('[data-role="custom-key"]');
       const op = el.querySelector('[data-role="operator"]');
       const val = el.querySelector('[data-role="value"]');
-      if (field && op && val && val.value.trim()) {
+      if (fieldSelect && op && val && val.value.trim()) {
+        let fieldValue = fieldSelect.value;
+        if (fieldValue === CUSTOM_SENTINEL && customKey && customKey.value.trim()) {
+          fieldValue = 'Custom(' + customKey.value.trim() + ')';
+        } else if (fieldValue === CUSTOM_SENTINEL) {
+          return; // Skip rule with no custom key
+        }
         items.push({
           type: 'rule',
-          field: field.value,
+          field: fieldValue,
           operator: op.value,
           value: val.value.trim(),
         });

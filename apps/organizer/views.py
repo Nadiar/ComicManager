@@ -28,6 +28,12 @@ RULE_FIELDS = sorted(set(FIELD_MAP.keys()) - {"SeriesGroup", "MainCharacterOrTea
 RULE_OPERATORS = ["is", "is not", "contains", "does not contain", "starts with", "ends with"]
 
 
+def _get_custom_value_keys():
+    """Get sorted list of distinct keys used in custom_values across all comics."""
+    all_cv = Comic.objects.exclude(custom_values={}).values_list("custom_values", flat=True)
+    return sorted({k for cv in all_cv for k in cv.keys()})
+
+
 def _parse_exclude_rules(post_data) -> dict:
     """Parse exclude_rules JSON from POST data."""
     raw = post_data.get("exclude_rules", "")
@@ -94,6 +100,7 @@ def profile_create(request):
         'rule_fields': json.dumps(RULE_FIELDS),
         'rule_operators': json.dumps(RULE_OPERATORS),
         'exclude_rules_json': '{}',
+        'custom_value_keys': json.dumps(_get_custom_value_keys()),
     })
 
 
@@ -119,6 +126,7 @@ def profile_edit(request, pk):
         'rule_fields': json.dumps(RULE_FIELDS),
         'rule_operators': json.dumps(RULE_OPERATORS),
         'exclude_rules_json': json.dumps(profile.exclude_rules or {}),
+        'custom_value_keys': json.dumps(_get_custom_value_keys()),
     })
 
 
