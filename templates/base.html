@@ -89,10 +89,11 @@
   <script>
   (function() {
     var POLL_INTERVAL = 2000;
-    var activeTaskId = "{{ active_write_task_id|escapejs }}";
+    var activeTaskId = null;
+    var taskLabel = '';
 
     var toast = document.getElementById('task-progress-toast');
-    var label = document.getElementById('task-progress-label');
+    var labelEl = document.getElementById('task-progress-label');
     var count = document.getElementById('task-progress-count');
     var bar = document.getElementById('task-progress-bar');
     var status = document.getElementById('task-progress-status');
@@ -100,10 +101,33 @@
     function showToast() { toast.classList.remove('hidden'); }
     function hideToast() { toast.classList.add('hidden'); }
 
-    function startPolling(taskId) {
+    function progressText(data) {
+      // Smart list action tasks use success_count + action
+      if (data.action) {
+        var actionLabel = {tag: 'tagged', format: 'formatted', organize: 'organized', write: 'written'}[data.action] || 'processed';
+        return (data.success_count || 0) + ' ' + actionLabel +
+          (data.errors && data.errors.length > 0 ? ', ' + data.errors.length + ' errors' : '');
+      }
+      // Write-all tasks use written count
+      return (data.written || 0) + ' written' +
+        (data.errors && data.errors.length > 0 ? ', ' + data.errors.length + ' errors' : '');
+    }
+
+    function successText(r) {
+      if (r.action) {
+        var actionLabel = {tag: 'tagged', format: 'formatted', organize: 'organized', write: 'written'}[r.action] || 'processed';
+        return (r.success_count || 0) + ' of ' + (r.total || 0) + ' ' + actionLabel +
+          (r.errors && r.errors.length > 0 ? ', ' + r.errors.length + ' errors' : '');
+      }
+      return (r.written || 0) + ' of ' + (r.total || 0) + ' written' +
+        (r.errors && r.errors.length > 0 ? ', ' + r.errors.length + ' errors' : '');
+    }
+
+    function startPolling(taskId, toastLabel) {
       activeTaskId = taskId;
+      taskLabel = toastLabel || 'Processing';
       showToast();
-      label.textContent = 'Writing comics...';
+      labelEl.textContent = taskLabel + '...';
       status.textContent = 'Starting...';
       count.textContent = '';
       bar.value = 0;
@@ -122,30 +146,26 @@
             var pct = data.total > 0 ? Math.round((data.current / data.total) * 100) : 0;
             bar.value = pct;
             count.textContent = data.current + ' / ' + data.total;
-            status.textContent = data.written + ' written' +
-              (data.errors && data.errors.length > 0 ? ', ' + data.errors.length + ' errors' : '');
+            status.textContent = progressText(data);
             setTimeout(pollProgress, POLL_INTERVAL);
 
           } else if (data.state === 'SUCCESS') {
             bar.value = 100;
             var r = data.result || {};
-            label.textContent = 'Write complete!';
+            labelEl.textContent = taskLabel + ' complete!';
             count.textContent = '';
-            status.textContent = (r.written || 0) + ' of ' + (r.total || 0) + ' written' +
-              (r.errors && r.errors.length > 0 ? ', ' + r.errors.length + ' errors' : '');
+            status.textContent = successText(r);
             bar.classList.remove('progress-primary');
             bar.classList.add('progress-success');
             activeTaskId = null;
-            window._activeWriteTaskId = null;
             setTimeout(function() { hideToast(); location.reload(); }, 5000);
 
           } else if (data.state === 'FAILURE') {
-            label.textContent = 'Write failed';
+            labelEl.textContent = taskLabel + ' failed';
             status.textContent = data.error || 'Unknown error';
             bar.classList.remove('progress-primary');
             bar.classList.add('progress-error');
             activeTaskId = null;
-            window._activeWriteTaskId = null;
             setTimeout(hideToast, 10000);
 
           } else {
@@ -159,10 +179,15 @@
     }
 
     window.startTaskPolling = startPolling;
-    window._activeWriteTaskId = activeTaskId || null;
 
-    if (activeTaskId) {
-      startPolling(activeTaskId);
+    // Auto-start toast for active background tasks
+    var writeTaskId = "{{ active_write_task_id|escapejs }}";
+    var smartlistTaskId = "{{ active_smartlist_action_task_id|escapejs }}";
+
+    if (writeTaskId) {
+      startPolling(writeTaskId, 'Writing comics');
+    } else if (smartlistTaskId) {
+      startPolling(smartlistTaskId, 'Smart list action');
     }
   })();
   </script>

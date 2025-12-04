@@ -1929,12 +1929,12 @@ def task_progress(request, task_id):
         response["total"] = info.get("total", 0)
     elif result.state == "SUCCESS":
         response["result"] = result.result
-        for key in ("write_task_id", "audit_task_id", "reorganize_task_id"):
+        for key in ("write_task_id", "audit_task_id", "reorganize_task_id", "smartlist_action_task_id"):
             if request.session.get(key) == task_id:
                 del request.session[key]
     elif result.state == "FAILURE":
         response["error"] = str(result.result)
-        for key in ("write_task_id", "audit_task_id", "reorganize_task_id"):
+        for key in ("write_task_id", "audit_task_id", "reorganize_task_id", "smartlist_action_task_id"):
             if request.session.get(key) == task_id:
                 del request.session[key]
     elif result.state == "STARTED":
@@ -2042,24 +2042,13 @@ def force_format(request, pk):
     """
     Force re-detect format for a comic, regardless of current state.
     """
+    from .services import detect_and_set_format
+
     comic = get_object_or_404(Comic, pk=pk)
+    result = detect_and_set_format(comic)
+    detected = result["detected_format"]
 
-    old_format = comic.format
-    detected = _detect_format(comic)
-
-    if detected:
-        comic.format = detected
-
-    # Advance state if needed (to at least formatted)
-    if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
-                       Comic.STATE_COUNTED, Comic.STATE_TAGGED):
-        comic.state = Comic.STATE_FORMATTED
-
-    # Clear needs_reformat flag
-    comic.needs_reformat = False
-    comic.save()
-
-    # Build list of patterns that were checked
+    # Build list of patterns that were checked (for the modal UI)
     patterns_checked = [
         {"pattern": "TPB / Trade Paperback", "matched": detected == "TPB"},
         {"pattern": "HC / Hardcover", "matched": detected == "HC"},
@@ -2079,10 +2068,10 @@ def force_format(request, pk):
     return JsonResponse({
         "success": True,
         "message": f"Format: {comic.format or 'None'}",
-        "old_format": old_format,
-        "new_format": comic.format,
+        "old_format": result["old_format"],
+        "new_format": result["new_format"],
         "detected_format": detected,
-        "format_changed": old_format != comic.format,
+        "format_changed": result["format_changed"],
         "patterns_checked": patterns_checked,
         "series": comic.series,
         "title": comic.title,

@@ -11,4 +11,5 @@ urlpatterns = [
     path("smartlists/<uuid:pk>/edit/", views.smartlist_edit, name="smartlist_edit"),
     path("smartlists/<uuid:pk>/delete/", views.smartlist_delete, name="smartlist_delete"),
     path("smartlists/<uuid:pk>/missing/", views.smartlist_missing, name="smartlist_missing"),
+    path("smartlists/<uuid:pk>/run-action/", views.smartlist_run_action, name="smartlist_run_action"),
 ]

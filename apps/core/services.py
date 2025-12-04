@@ -247,3 +247,76 @@ def _detect_flags(file_format: str, page_count: int | None, filename: str, parse
         flags["needs_conversion"] = True
 
     return flags
+
+
+# Format patterns for auto-detection (shared between views and tasks)
+FORMAT_PATTERNS = [
+    (r"\bTPB\b|\bTrade Paperback\b", "TPB"),
+    (r"\bHC\b|\bHardcover\b", "HC"),
+    (r"\bAnnual\b", "Annual"),
+    (r"\bSpecial\b", "Special"),
+    (r"\bOne[- ]?Shot\b", "One-Shot"),
+    (r"\bGiant[- ]?Size\b", "Giant-Size"),
+    (r"\bKing[- ]?Size\b", "King-Size"),
+    (r"\bOmnibus\b", "Omnibus"),
+    (r"\bDeluxe\b", "Deluxe"),
+    (r"\bDirector'?s Cut\b", "Director's Cut"),
+]
+
+
+def detect_format(comic) -> str | None:
+    """
+    Auto-detect comic format from series name, title, or issue count.
+
+    Detection priority:
+    1. Special formats (TPB, HC, Omnibus, etc.) from series/title text
+    2. Classify by issue count: One-Shot, Limited Series, Main Series
+    """
+    from .models import get_setting
+
+    text_to_check = f"{comic.series or ''} {comic.title or ''}"
+
+    for pattern, format_name in FORMAT_PATTERNS:
+        if re.search(pattern, text_to_check, re.IGNORECASE):
+            return format_name
+
+    if comic.count is not None:
+        one_shot_max = get_setting("one_shot_max_count", 1)
+        limited_max = get_setting("limited_series_max_count", 15)
+
+        if comic.count <= one_shot_max:
+            return "One-Shot"
+        elif comic.count <= limited_max:
+            return "Limited Series"
+        else:
+            return "Main Series"
+
+    return None
+
+
+def detect_and_set_format(comic) -> dict:
+    """
+    Detect format and apply it to a comic. Advances state to formatted.
+
+    Returns dict with detection results for reporting.
+    """
+    old_format = comic.format
+    detected = detect_format(comic)
+
+    if detected:
+        comic.format = detected
+
+    if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
+                       Comic.STATE_COUNTED, Comic.STATE_TAGGED):
+        comic.state = Comic.STATE_FORMATTED
+
+    comic.needs_reformat = False
+    comic.save()
+
+    return {
+        "success": True,
+        "old_format": old_format,
+        "new_format": comic.format,
+        "detected_format": detected,
+        "format_changed": old_format != comic.format,
+    }

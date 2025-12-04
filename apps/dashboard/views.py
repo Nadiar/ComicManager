@@ -380,3 +380,54 @@ def _escape_js(text):
             .replace("\\", "\\\\")
             .replace("'", "\\'")
             .replace('"', '\\"'))
+
+
+@require_POST
+def smartlist_run_action(request, pk):
+    """
+    Dispatch a Celery task to run a workflow action on all comics in a Smart List.
+
+    POST params:
+        action: 'tag' | 'format' | 'organize' | 'write'
+    """
+    from celery.result import AsyncResult
+
+    sl = get_object_or_404(SmartList, pk=pk)
+    action = request.POST.get("action", "")
+
+    if action not in ("tag", "format", "organize", "write"):
+        return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
+
+    # Prevent double-submit
+    active_task_id = request.session.get("smartlist_action_task_id")
+    if active_task_id:
+        result = AsyncResult(active_task_id)
+        if result.state in ("PENDING", "STARTED", "PROGRESS"):
+            return JsonResponse({
+                "success": False,
+                "error": "An action is already running",
+                "task_id": active_task_id,
+            }, status=409)
+
+    # Count comics
+    qs = build_queryset(sl)
+    count = qs.count()
+    if count == 0:
+        return JsonResponse({
+            "success": True,
+            "processed": 0,
+            "total": 0,
+            "message": "No comics in this smart list",
+        })
+
+    from .tasks import run_smartlist_action_task
+    result = run_smartlist_action_task.delay(str(sl.pk), action)
+    request.session["smartlist_action_task_id"] = result.id
+
+    action_labels = {"tag": "Re-tagging", "format": "Re-formatting", "organize": "Re-organizing", "write": "Writing"}
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": count,
+        "message": f"{action_labels.get(action, action)} {count} comics in background",
+    })
