@@ -146,12 +146,15 @@ FILTER_FIELD_OPTIONS = [
 
 FILTER_LOOKUP_OPTIONS = [
     ("exact", "equals"),
+    ("not_exact", "not equals"),
     ("icontains", "contains"),
+    ("not_icontains", "not contains"),
     ("gt", "greater than"),
     ("lt", "less than"),
     ("gte", "at least"),
     ("lte", "at most"),
     ("isnull", "is empty"),
+    ("not_isnull", "is not empty"),
 ]
 
 SORT_OPTIONS = [

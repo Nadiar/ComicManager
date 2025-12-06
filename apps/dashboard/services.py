@@ -22,6 +22,7 @@ ALLOWED_LOOKUPS = {
     "exact", "iexact", "icontains", "contains",
     "gt", "gte", "lt", "lte",
     "isnull",
+    "not_exact", "not_icontains", "not_isnull",
 }
 
 # Sort field mapping (reuse pattern from comic_list view)
@@ -84,6 +85,11 @@ def build_queryset(smart_list):
         if lookup not in ALLOWED_LOOKUPS:
             continue
 
+        # Handle negated lookups (not_exact → exclude with exact, etc.)
+        negate = lookup.startswith("not_")
+        if negate:
+            lookup = lookup[4:]  # strip "not_" prefix
+
         # Coerce value
         value = _coerce_value(value, lookup, field)
 
@@ -93,7 +99,10 @@ def build_queryset(smart_list):
         else:
             orm_key = f"{field}__{lookup}"
 
-        qs = qs.filter(**{orm_key: value})
+        if negate:
+            qs = qs.exclude(**{orm_key: value})
+        else:
+            qs = qs.filter(**{orm_key: value})
 
     # Annotate for natural number sorting (1, 2, 10 instead of 1, 10, 2)
     qs = qs.annotate(number_sort_key=natural_number_annotation())
