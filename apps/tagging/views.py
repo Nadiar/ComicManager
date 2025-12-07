@@ -122,6 +122,9 @@ def ruleset_delete(request, pk):
     ruleset.delete()
 
     messages.success(request, f"Ruleset '{name}' deleted successfully.")
+    next_url = request.POST.get("next") or request.GET.get("next")
+    if next_url and next_url.startswith("/"):
+        return redirect(next_url)
     return redirect("tagging:ruleset_list")
 
 
@@ -155,6 +158,9 @@ def ruleset_duplicate(request, pk):
     )
 
     messages.success(request, f"Ruleset duplicated as '{copy.name}'.")
+    next_url = request.POST.get("next")
+    if next_url and next_url.startswith("/"):
+        return redirect(next_url)
     return redirect("tagging:ruleset_edit", pk=copy.pk)
 
 

@@ -103,7 +103,14 @@
               <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="btn btn-xs btn-ghost" title="Edit">Edit</a>
               <form method="post" action="{% url 'tagging:ruleset_duplicate' ruleset.pk %}" class="inline">
                 {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <button type="submit" class="btn btn-xs btn-ghost" title="Duplicate">Copy</button>
+              </form>
+              <form method="post" action="{% url 'tagging:ruleset_delete' ruleset.pk %}" class="inline"
+                    onsubmit="return confirm('Delete ruleset \'{{ ruleset.name|escapejs }}\'?')">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-xs btn-ghost text-error" title="Delete">Delete</button>
               </form>
             </div>
           </td>
