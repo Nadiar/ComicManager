@@ -141,6 +141,7 @@ FILTER_FIELD_OPTIONS = [
     ("writer", "Writer"),
     ("penciller", "Penciller"),
     ("is_duplicate", "Is Duplicate"),
+    ("file_path", "File Path"),
     ("custom_values__comicvine_volume", "CV Volume ID"),
 ]
 

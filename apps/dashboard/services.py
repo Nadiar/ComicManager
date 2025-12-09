@@ -11,7 +11,7 @@ ALLOWED_FIELDS = {
     "series_group", "main_character_or_team", "characters",
     "writer", "penciller", "inker", "colorist", "letterer",
     "cover_artist", "editor", "page_count", "count",
-    "is_duplicate", "file_format", "summary", "notes",
+    "is_duplicate", "file_format", "file_path", "summary", "notes",
 }
 
 # Also allow JSONField nested lookups
