@@ -23,6 +23,12 @@ def run_smartlist_action_task(self, smart_list_id, action):
     from apps.dashboard.services import build_queryset
 
     smart_list = SmartList.objects.get(pk=smart_list_id)
+
+    # Safety: refuse to run on an unfiltered smart list (prevents accidental operations)
+    if not smart_list.filters:
+        return {"success": False, "action": action, "processed": 0, "total": 0,
+                "errors": ["Smart list has no filters — refusing to run on entire library"]}
+
     qs = build_queryset(smart_list)
     comic_ids = list(qs.values_list("pk", flat=True))
     total = len(comic_ids)
