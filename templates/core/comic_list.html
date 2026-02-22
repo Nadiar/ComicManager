@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load comic_extras %}
 {% block title %}Comics{% if current_state %} ({{ current_state }}){% endif %}{% if current_flag %} ({{ flag_label }}){% endif %} — ComicManager{% endblock %}
 {% block nav_comics %}active{% endblock %}
 
@@ -105,6 +106,32 @@
       <!-- Buttons -->
       <div class="flex gap-2">
         <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+        
+        <!-- Column Selector -->
+        <div class="dropdown dropdown-end">
+          <div tabindex="0" role="button" class="btn btn-sm btn-outline">Columns</div>
+          <div tabindex="0" class="dropdown-content z-[1] menu p-4 shadow bg-base-200 rounded-box w-64 mt-2">
+            <h3 class="font-bold mb-2">Visible Columns</h3>
+            <div class="grid grid-cols-1 gap-1 max-h-96 overflow-y-auto">
+              {% for col_id, cfg in all_columns.items %}
+              <label class="label cursor-pointer py-1 justify-start gap-3">
+                <input type="checkbox" name="col" value="{{ col_id }}" 
+                       class="checkbox checkbox-sm checkbox-primary col-toggle"
+                       {% if col_id in active_columns %}checked{% endif %}>
+                <span class="label-text">{{ cfg.label }}</span>
+              </label>
+              {% endfor %}
+            </div>
+            <div class="divider my-2"></div>
+            <div class="flex flex-col gap-2">
+              <button type="submit" class="btn btn-xs btn-primary">Update View</button>
+              <button type="button" class="btn btn-xs btn-outline btn-accent" onclick="saveColumnLayout()">
+                Save as Default for {% if current_state %}State: {{ current_state|title }}{% elif current_flag %}{{ flag_label }}{% else %}Global{% endif %}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="btn btn-sm btn-ghost">Reset</a>
       </div>
     </form>
@@ -257,32 +284,16 @@
     <table class="table table-zebra w-full">
       <thead>
         <tr>
-          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('series')">
-            Series {% if current_sort == 'series' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
+          {% for col_id in active_columns %}
+          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('{{ col_id|get_col_sort }}')">
+            {{ col_id|get_col_label }}
+            {% with sort_field=col_id|get_col_sort %}
+              {% if current_sort == sort_field %}
+                {% if current_dir == 'asc' %}↑{% else %}↓{% endif %}
+              {% endif %}
+            {% endwith %}
           </th>
-          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('number')">
-            # {% if current_sort == 'number' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
-          </th>
-          {% if current_state == 'counted' or current_state == 'formatted' or current_state == 'organized' or current_state == 'written' %}
-          <th>Count</th>
-          {% endif %}
-          <th>Title</th>
-          <th>Volume</th>
-          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('year')">
-            Year {% if current_sort == 'year' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
-          </th>
-          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('publisher')">
-            Publisher {% if current_sort == 'publisher' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
-          </th>
-          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('format')">
-            Format {% if current_sort == 'format' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
-          </th>
-          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('pages')">
-            Pages {% if current_sort == 'pages' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
-          </th>
-          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('state')">
-            State {% if current_sort == 'state' %}{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}
-          </th>
+          {% endfor %}
           <th>Flags</th>
           <th>Actions</th>
         </tr>
@@ -290,42 +301,29 @@
       <tbody>
         {% for comic in comics %}
         <tr class="hover">
-          {% if comic.state == 'new' %}
-          <!-- Show proposed values for new comics -->
-          <td class="font-medium">
-            <span class="text-warning">{{ comic.proposed_series|default:"-" }}</span>
+          {% for col_id in active_columns %}
+          <td {% if col_id == 'series' or col_id == 'title' %}class="max-w-xs truncate"{% endif %}>
+            {% if col_id == 'series' and comic.state == 'new' %}
+              <span class="text-warning font-medium">{{ comic.proposed_series|default:"-" }}</span>
+            {% elif col_id == 'number' and comic.state == 'new' %}
+              <span class="text-warning">{{ comic.proposed_number|default:"-" }}</span>
+            {% elif col_id == 'state' %}
+              <span class="badge badge-sm
+                {% if comic.state == 'written' %}badge-success
+                {% elif comic.state == 'new' %}badge-warning
+                {% else %}badge-info{% endif %}">
+                {{ comic.state }}
+              </span>
+            {% else %}
+              {{ comic|get_col_value:col_id|default:"-" }}
+            {% endif %}
           </td>
-          <td><span class="text-warning">{{ comic.proposed_number|default:"-" }}</span></td>
-          <td class="max-w-xs truncate text-base-content/50">{{ comic.file_path|default:"-" }}</td>
-          <td><span class="text-warning">{{ comic.proposed_volume|default:"-" }}</span></td>
-          <td><span class="text-warning">{{ comic.proposed_year|default:"-" }}</span></td>
-          {% else %}
-          <!-- Show confirmed values for processed comics -->
-          <td class="font-medium">{{ comic.series|default:"-" }}</td>
-          <td>{{ comic.number|default:"-" }}</td>
-          {% if current_state == 'counted' or current_state == 'formatted' or current_state == 'organized' or current_state == 'written' %}
-          <td>{{ comic.count|default:"-" }}</td>
-          {% endif %}
-          <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
-          <td>{{ comic.volume|default:"-" }}</td>
-          <td>{{ comic.year|default:"-" }}</td>
-          {% endif %}
-          <td>{{ comic.publisher|default:"-" }}</td>
-          <td>{{ comic.format|default:"-" }}</td>
-          <td>{{ comic.page_count|default:"-" }}</td>
-          <td>
-            <span class="badge badge-sm
-              {% if comic.state == 'written' %}badge-success
-              {% elif comic.state == 'new' %}badge-warning
-              {% else %}badge-info{% endif %}">
-              {{ comic.state }}
-            </span>
-          </td>
+          {% endfor %}
           <td>
             {% if comic.has_flags %}
             <div class="flex flex-wrap gap-1">
               {% for flag in comic.flag_list %}
-              <span class="badge badge-xs badge-error">{{ flag }}</span>
+              <span class="badge badge-xs badge-error" title="{{ flag }}">{{ flag }}</span>
               {% endfor %}
             </div>
             {% endif %}
@@ -1905,6 +1903,37 @@ function writeComic(pk, btn) {
     btn.title = err.toString();
     btn.disabled = false;
   });
+}
+
+function saveColumnLayout() {
+  const cols = Array.from(document.querySelectorAll('.col-toggle:checked')).map(el => el.value);
+  if (cols.length === 0) {
+    alert('Select at least one column');
+    return;
+  }
+
+  const formData = new FormData();
+  cols.forEach(c => formData.append('col', c));
+  {% if current_state %}formData.append('state', '{{ current_state }}');{% endif %}
+  {% if current_flag %}formData.append('flag', '{{ current_flag }}');{% endif %}
+
+  fetch('{% url "core:save_column_layout" %}', {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': getCsrfToken(),
+    },
+    body: formData,
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert('Layout saved successfully');
+      window.location.reload();
+    } else {
+      alert('Error: ' + data.error);
+    }
+  })
+  .catch(err => alert('Error: ' + err.toString()));
 }
 
 // Sort by clicking column headers

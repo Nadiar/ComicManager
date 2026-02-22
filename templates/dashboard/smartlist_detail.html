@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load comic_extras %}
 {% block title %}{{ smart_list.name }} — Smart Lists — ComicManager{% endblock %}
 {% block nav_smartlists %}active{% endblock %}
 
@@ -138,39 +139,29 @@
     <table class="table table-zebra w-full">
       <thead>
         <tr>
-          <th>Series</th>
-          <th>#</th>
-          <th>Count</th>
-          <th>Title</th>
-          <th>Volume</th>
-          <th>Year</th>
-          <th>Publisher</th>
-          <th>Format</th>
-          <th>Pages</th>
-          <th>State</th>
+          {% for col_id in active_columns %}
+          <th>{{ col_id|get_col_label }}</th>
+          {% endfor %}
           <th></th>
         </tr>
       </thead>
       <tbody>
         {% for comic in comics %}
         <tr class="hover">
-          <td class="font-medium">{{ comic.series|default:"-" }}</td>
-          <td>{{ comic.number|default:"-" }}</td>
-          <td>{{ comic.count|default:"-" }}</td>
-          <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
-          <td>{{ comic.volume|default:"-" }}</td>
-          <td>{{ comic.year|default:"-" }}</td>
-          <td>{{ comic.publisher|default:"-" }}</td>
-          <td>{{ comic.format|default:"-" }}</td>
-          <td>{{ comic.page_count|default:"-" }}</td>
-          <td>
-            <span class="badge badge-sm
-              {% if comic.state == 'written' %}badge-success
-              {% elif comic.state == 'new' %}badge-warning
-              {% else %}badge-info{% endif %}">
-              {{ comic.state }}
-            </span>
+          {% for col_id in active_columns %}
+          <td {% if col_id == 'series' or col_id == 'title' %}class="max-w-xs truncate"{% endif %}>
+            {% if col_id == 'state' %}
+              <span class="badge badge-sm
+                {% if comic.state == 'written' %}badge-success
+                {% elif comic.state == 'new' %}badge-warning
+                {% else %}badge-info{% endif %}">
+                {{ comic.state }}
+              </span>
+            {% else %}
+              {{ comic|get_col_value:col_id|default:"-" }}
+            {% endif %}
           </td>
+          {% endfor %}
           <td>
             <a href="/comics/{{ comic.pk }}/" class="btn btn-xs btn-ghost btn-outline">Info</a>
           </td>

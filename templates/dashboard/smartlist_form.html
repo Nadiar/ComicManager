@@ -121,6 +121,18 @@
             </label>
           </div>
         </div>
+
+        <div class="divider">Visible Columns</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {% for col_id, cfg in all_columns.items %}
+          <label class="label cursor-pointer justify-start gap-3 py-1">
+            <input type="checkbox" name="columns" value="{{ col_id }}" class="checkbox checkbox-sm"
+                   {% if col_id in smart_list.columns or not smart_list and col_id in default_columns %}checked{% endif %} />
+            <span class="label-text text-sm">{{ cfg.label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <p class="text-xs text-base-content/50 mt-2">If no columns are selected, the default set will be used.</p>
       </div>
     </div>
 

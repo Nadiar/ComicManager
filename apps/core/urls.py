@@ -5,6 +5,7 @@ app_name = "core"
 
 urlpatterns = [
     path("", views.comic_list, name="list"),
+    path("save-column-layout/", views.save_column_layout, name="save_column_layout"),
     path("scan-untagged/", views.scan_untagged, name="scan_untagged"),
     path("convert-all/", views.convert_all_cbr, name="convert_all"),
     path("accept-all/", views.accept_all_comics, name="accept_all"),

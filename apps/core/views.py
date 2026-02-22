@@ -9,8 +9,8 @@ from django.utils.html import strip_tags
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
-from .models import Comic
-from .utils import natural_number_annotation, natural_sort_key, html_to_text
+from .models import Comic, get_setting
+from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
 from apps.scraper.hasher import extract_cover_hashes, extract_cover_image
 from .services import scan_untagged_folder
@@ -44,6 +44,27 @@ def comic_list(request):
     from django.db.models import Q
     from django.core.paginator import Paginator
 
+    # Filter by state if provided
+    state = request.GET.get("state")
+    # Filter by flag if provided
+    flag = request.GET.get("flag")
+
+    # Column customization
+    active_columns = request.GET.getlist("col")
+    if not active_columns:
+        # Try to load from settings based on context
+        layout_key = "layout_default"
+        if state:
+            layout_key = f"layout_state_{state}"
+        elif flag:
+            layout_key = f"layout_flag_{flag}"
+        
+        saved_layout = get_setting(layout_key)
+        if saved_layout:
+            active_columns = saved_layout.split(",")
+        else:
+            active_columns = DEFAULT_COLUMNS
+
     comics = Comic.objects.all()
 
     # Search filter
@@ -56,11 +77,9 @@ def comic_list(request):
             Q(number__icontains=search)
         )
 
-    # Filter by state if provided
-    state = request.GET.get("state")
     if state:
         comics = comics.filter(state=state)
-
+    
     # Filter by publisher if provided
     publisher = request.GET.get("publisher")
     if publisher:
@@ -76,8 +95,6 @@ def comic_list(request):
     if medium:
         comics = comics.filter(medium=medium)
 
-    # Filter by flag if provided
-    flag = request.GET.get("flag")
     if flag:
         # JSONField lookup: flags__<flag_name>=True
         comics = comics.filter(**{f"flags__{flag}": True})
@@ -145,6 +162,8 @@ def comic_list(request):
         "workflow_states": WORKFLOW_STATES,
         "publishers": publishers,
         "formats": formats,
+        "active_columns": active_columns,
+        "all_columns": COLUMNS_REGISTRY,
     })
 
 
@@ -2424,3 +2443,44 @@ def series_audit(request, pk):
         "comic": comic,
         "data": data,
     })
+
+
+@require_POST
+def save_column_layout(request):
+    """
+    Save the current column selection as the default for the current view context.
+    Context is determined by the 'state' or 'flag' parameter.
+    """
+    from .models import Setting
+    
+    state = request.POST.get("state")
+    flag = request.POST.get("flag")
+    columns = request.POST.getlist("col")
+    
+    if not columns:
+        return JsonResponse({"success": False, "error": "No columns selected"})
+    
+    # Determine the setting key
+    if state:
+        key = f"layout_state_{state}"
+        label = f"Column Layout: State {state.title()}"
+    elif flag:
+        key = f"layout_flag_{flag}"
+        label = f"Column Layout: Flag {flag.replace('_', ' ').title()}"
+    else:
+        key = "layout_default"
+        label = "Default Column Layout"
+        
+    # Save to Settings
+    setting, created = Setting.objects.get_or_create(
+        key=key,
+        defaults={
+            "label": label,
+            "group": Setting.GROUP_APPEARANCE,
+            "type": Setting.TYPE_TEXT,
+        }
+    )
+    setting.value = ",".join(columns)
+    setting.save()
+    
+    return JsonResponse({"success": True})

@@ -4,6 +4,7 @@ from django.views.decorators.http import require_POST
 from django.db.models import Count
 from apps.core.models import Comic
 from .models import SmartList
+from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS
 from .services import build_queryset, get_missing_issues, search_cv_volumes
 
 
@@ -223,6 +224,7 @@ def smartlist_create(request):
             comicvine_volume_name=cv_volume_name,
             sort_field=request.POST.get("sort_field", "series"),
             sort_direction=request.POST.get("sort_direction", "asc"),
+            columns=request.POST.getlist("columns"),
             icon=request.POST.get("icon", ""),
             show_on_dashboard="show_on_dashboard" in request.POST,
         )
@@ -233,6 +235,8 @@ def smartlist_create(request):
         "field_options": FILTER_FIELD_OPTIONS,
         "lookup_options": FILTER_LOOKUP_OPTIONS,
         "sort_options": SORT_OPTIONS,
+        "all_columns": COLUMNS_REGISTRY,
+        "default_columns": DEFAULT_COLUMNS,
     })
 
 
@@ -252,6 +256,7 @@ def smartlist_edit(request, pk):
         sl.comicvine_volume_name = cv_volume_name
         sl.sort_field = request.POST.get("sort_field", "series")
         sl.sort_direction = request.POST.get("sort_direction", "asc")
+        sl.columns = request.POST.getlist("columns")
         sl.icon = request.POST.get("icon", "")
         sl.show_on_dashboard = "show_on_dashboard" in request.POST
         sl.save()
@@ -264,6 +269,8 @@ def smartlist_edit(request, pk):
         "field_options": FILTER_FIELD_OPTIONS,
         "lookup_options": FILTER_LOOKUP_OPTIONS,
         "sort_options": SORT_OPTIONS,
+        "all_columns": COLUMNS_REGISTRY,
+        "default_columns": DEFAULT_COLUMNS,
     })
 
 
@@ -280,6 +287,10 @@ def smartlist_detail(request, pk):
     from django.core.paginator import Paginator
 
     sl = get_object_or_404(SmartList, pk=pk)
+    
+    # Use SmartList columns if set, otherwise default
+    active_columns = sl.columns if sl.columns else DEFAULT_COLUMNS
+
     comics = build_queryset(sl)
     total_count = comics.count()
 
@@ -308,6 +319,8 @@ def smartlist_detail(request, pk):
         "page_obj": page_obj,
         "comic_count": total_count,
         "completion_data": completion_data,
+        "active_columns": active_columns,
+        "all_columns": COLUMNS_REGISTRY,
     })
 
 

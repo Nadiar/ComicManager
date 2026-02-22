@@ -5,6 +5,9 @@ All notable changes to ComicManager will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Dynamic Column Customization** — Complete system for customizing table columns across the app. Includes a global `COLUMNS_REGISTRY` in `core.utils` supporting 50+ fields (metadata, credits, file info, system timestamps, and custom JSON values).
+- **Layout Persistence** — Live views (`/comics/`) can save column layouts as defaults per workflow state or flag into the `Setting` model. Smart Lists save their own column configurations into the database.
+- **Dynamic Column Selector** — Added a column picker dropdown to the main comic list and a selection grid to the Smart List form.
 - **Organizer profile rule editor** — Full UI for creating and editing matching rules on organizer profiles, including nested rule groups with AND/OR logic. Supports all fields (Publisher, Format, Series Group, Tags, etc.) and operators (is, contains, starts with, etc.). Profiles imported from .lop files are now fully editable.
 - **Organizer base_folder fix** — Profiles now use their configured `base_folder` instead of the hardcoded `/comics/library` path. Each profile can organize comics into a different root folder.
 - **Issue Count management** — Detect and populate missing issue counts from the local ComicVine SQLite DB. Auto-flags comics with `missing_count` during scraping when no count is returned. Detects count mismatches within the same `comicvine_volume` (different comics disagree on issue count) and flags them with `count_mismatch`. Dashboard review queue shows both flags with action buttons: "Populate Counts" (batch-fills from CV DB) and "Detect Mismatches" (scans all volumes for inconsistencies).

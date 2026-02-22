@@ -41,6 +41,7 @@ class SmartList(models.Model):
         default="asc",
         choices=[("asc", "Ascending"), ("desc", "Descending")],
     )
+    columns = models.JSONField(default=list, blank=True, help_text="List of column IDs to display")
     icon = models.CharField(max_length=32, blank=True, default="")
     show_on_dashboard = models.BooleanField(default=True)
 

@@ -107,6 +107,65 @@ EDITABLE_FIELDS = [
     "writer", "penciller", "inker", "colorist", "letterer", "cover_artist", "editor",
 ]
 
+# Registry of all possible columns for comic tables
+COLUMNS_REGISTRY = {
+    # Core Metadata
+    "series": {"label": "Series", "sort": "series", "attr": "series"},
+    "number": {"label": "Issue #", "sort": "number", "attr": "number"},
+    "title": {"label": "Title", "sort": "title", "attr": "title"},
+    "count": {"label": "Count", "sort": "count", "attr": "count"},
+    "volume": {"label": "Volume", "sort": "volume", "attr": "volume"},
+    "year": {"label": "Year", "sort": "year", "attr": "year"},
+    "month": {"label": "Month", "sort": "month", "attr": "month"},
+    "day": {"label": "Day", "sort": "day", "attr": "day"},
+    "publisher": {"label": "Publisher", "sort": "publisher", "attr": "publisher"},
+    "summary": {"label": "Summary", "sort": "summary", "attr": "summary"},
+    "notes": {"label": "Notes", "sort": "notes", "attr": "notes"},
+    "genre": {"label": "Genre", "sort": "genre", "attr": "genre"},
+    "web": {"label": "Web URL", "sort": "web", "attr": "web"},
+    "format": {"label": "Format", "sort": "format", "attr": "format"},
+    "characters": {"label": "Characters", "sort": "characters", "attr": "characters"},
+    "teams": {"label": "Teams", "sort": "teams", "attr": "teams"},
+    "locations": {"label": "Locations", "sort": "locations", "attr": "locations"},
+    "tags": {"label": "Tags", "sort": "tags", "attr": "tags"},
+    "scan_info": {"label": "Scan Info", "sort": "scan_information", "attr": "scan_information"},
+    "series_group": {"label": "Series Group", "sort": "series_group", "attr": "series_group"},
+    "main_char": {"label": "Main Character/Team", "sort": "main_character_or_team", "attr": "main_character_or_team"},
+    
+    # Credits
+    "writer": {"label": "Writer", "sort": "writer", "attr": "writer"},
+    "penciller": {"label": "Penciller", "sort": "penciller", "attr": "penciller"},
+    "inker": {"label": "Inker", "sort": "inker", "attr": "inker"},
+    "colorist": {"label": "Colorist", "sort": "colorist", "attr": "colorist"},
+    "letterer": {"label": "Letterer", "sort": "letterer", "attr": "letterer"},
+    "cover_artist": {"label": "Cover", "sort": "cover_artist", "attr": "cover_artist"},
+    "editor": {"label": "Editor", "sort": "editor", "attr": "editor"},
+    
+    # File / System
+    "path": {"label": "Path", "sort": "file_path", "attr": "file_path"},
+    "file_format": {"label": "File Format", "sort": "file_format", "attr": "file_format"},
+    "file_size": {"label": "Size", "sort": "file_size", "attr": "file_size"},
+    "pages": {"label": "Pages", "sort": "page_count", "attr": "page_count"},
+    "id": {"label": "ID", "sort": "id", "attr": "id"},
+    "state": {"label": "State", "sort": "state", "attr": "state"},
+    "medium": {"label": "Medium", "sort": "medium", "attr": "medium"},
+    "imported": {"label": "Imported", "sort": "imported_at", "attr": "imported_at"},
+    "updated": {"label": "Updated", "sort": "updated_at", "attr": "updated_at"},
+    
+    # Custom Values / ComicVine
+    "first_series": {"label": "First Series", "sort": "custom_values__First Series", "attr": "custom_values.First Series"},
+    "second_series": {"label": "Second Series", "sort": "custom_values__Second Series", "attr": "custom_values.Second Series"},
+    "scrape_score": {"label": "Scrape Score", "sort": "custom_values__scrape_score", "attr": "custom_values.scrape_score"},
+    "scrape_source": {"label": "Scrape Source", "sort": "custom_values__scrape_source", "attr": "custom_values.scrape_source"},
+    "cv_issue": {"label": "CV Issue", "sort": "custom_values__comicvine_issue", "attr": "custom_values.comicvine_issue"},
+    "cv_volume": {"label": "CV Volume", "sort": "custom_values__comicvine_volume", "attr": "custom_values.comicvine_volume"},
+    "dm_processed": {"label": "DataManager Processed", "sort": "custom_values__DataManager_Processed", "attr": "custom_values.DataManager_Processed"},
+    "cv_issue_count": {"label": "CV Issue Count", "sort": "custom_values__comicvine_issue_count", "attr": "custom_values.comicvine_issue_count"},
+    "starwars": {"label": "IsStarWars", "sort": "custom_values__IsStarWars", "attr": "custom_values.IsStarWars"},
+}
+
+DEFAULT_COLUMNS = ["series", "number", "count", "title", "volume", "year", "publisher", "format", "pages", "state"]
+
 
 def read_comicinfo_xml(cbz_path: str) -> dict | None:
     """
