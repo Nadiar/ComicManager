@@ -30,6 +30,7 @@ All notable changes to ComicManager will be documented in this file.
 - **Cover preview on comic detail page** — Digital comics now show a cover image thumbnail in the header next to the title and badges. Uses the existing cover cache (extracts from CBZ on first load, serves from cache afterward).
 
 ### Fixed
+- **Dashboard pipeline circle overflow** — Added CSS to allow workflow pipeline "circles" to expand into ovals when counts reach 4–6 digits, preventing text overflow.
 - **ComicInfo.xml output parity** — XML output now matches ComicRack format: Tags mapped to model field (not CustomValues), Summary preserves paragraph breaks, Notes auto-populated with CV reference, Pages element with image dimensions, DataManager_Processed normalized to "Yes", standard field names filtered from CustomValues.
 - **API rate limiting** — Added 1.1-second delay between ComicVine API calls to prevent HTTP 420 rate limit errors.
 - **Natural number sorting** — Comic lists and smart lists now sort issue numbers numerically (1, 2, 3... 10, 11) instead of lexicographically (1, 10, 11... 2, 20). Uses a PostgreSQL annotation to extract leading digits for sorting, with string fallback for non-numeric issues.
