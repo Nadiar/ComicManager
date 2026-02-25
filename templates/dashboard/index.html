@@ -3,6 +3,14 @@
 {% block nav_dashboard %}active{% endblock %}
 
 {% block content %}
+<style>
+  /* Allow pipeline step circles to expand into ovals for large numbers */
+  .steps .step:after {
+    width: auto !important;
+    min-width: 2rem !important;
+    padding-inline: 0.5rem !important;
+  }
+</style>
 <div class="space-y-6">
 
   <h1 class="text-3xl font-bold">Dashboard</h1>
