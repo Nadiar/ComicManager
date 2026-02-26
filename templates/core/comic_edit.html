@@ -194,6 +194,31 @@
       </div>
     </div>
 
+    <!-- Custom Values -->
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-4">Custom Values</h2>
+        <div id="custom-values-list" class="space-y-2">
+          {% for kv in custom_values_list %}
+          <div class="flex gap-2 items-center custom-value-row">
+            <input type="hidden" name="cv_key_{{ forloop.counter0 }}" value="{{ kv.0 }}" />
+            <span class="input input-bordered w-48 flex items-center text-sm opacity-70">{{ kv.0 }}</span>
+            <input type="text" name="cv_val_{{ forloop.counter0 }}" value="{{ kv.1 }}" class="input input-bordered flex-1" />
+            <label class="flex items-center gap-1 text-sm text-error cursor-pointer">
+              <input type="checkbox" name="cv_delete_{{ forloop.counter0 }}" class="checkbox checkbox-error checkbox-sm" onchange="this.closest('.custom-value-row').classList.toggle('opacity-40', this.checked)" />
+              Delete
+            </label>
+          </div>
+          {% empty %}
+          <p class="text-sm opacity-50">No custom values.</p>
+          {% endfor %}
+        </div>
+        <div class="divider text-xs">Add new</div>
+        <div id="new-cv-rows" class="space-y-2"></div>
+        <button type="button" class="btn btn-sm btn-ghost mt-2" onclick="addCustomValueRow()">+ Add custom value</button>
+      </div>
+    </div>
+
     <!-- Submit -->
     <div class="flex justify-end gap-2">
       <a href="/comics/{{ comic.pk }}/" class="btn btn-ghost">Cancel</a>
@@ -206,4 +231,20 @@
     </div>
   </form>
 </div>
+
+<script>
+let newCvCount = 0;
+function addCustomValueRow() {
+  const container = document.getElementById('new-cv-rows');
+  const row = document.createElement('div');
+  row.className = 'flex gap-2 items-center';
+  row.innerHTML = `
+    <input type="text" name="new_cv_key_${newCvCount}" placeholder="Key" class="input input-bordered w-48" />
+    <input type="text" name="new_cv_val_${newCvCount}" placeholder="Value" class="input input-bordered flex-1" />
+    <button type="button" class="btn btn-sm btn-ghost text-error" onclick="this.parentElement.remove()">✕</button>
+  `;
+  container.appendChild(row);
+  newCvCount++;
+}
+</script>
 {% endblock %}

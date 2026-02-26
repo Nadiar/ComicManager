@@ -1664,13 +1664,44 @@ def comic_edit(request, pk):
         update_comic_from_form,
         write_comicinfo_xml,
         EDITABLE_FIELDS,
+        _STANDARD_XML_FIELDS,
     )
 
     comic = get_object_or_404(Comic, pk=pk)
 
     if request.method == "POST":
-        # Update comic from form data
+        # Update standard fields from form data
         update_comic_from_form(comic, request.POST)
+
+        # Rebuild custom_values: keep standard XML keys untouched, replace display keys
+        standard_values = {
+            k: v for k, v in (comic.custom_values or {}).items()
+            if k in _STANDARD_XML_FIELDS
+        }
+        new_custom = dict(standard_values)
+
+        # Existing rows: cv_key_N / cv_val_N; skip if cv_delete_N is set
+        i = 0
+        while True:
+            key = request.POST.get(f"cv_key_{i}")
+            if key is None:
+                break
+            if not request.POST.get(f"cv_delete_{i}"):
+                val = request.POST.get(f"cv_val_{i}", "")
+                if key.strip():
+                    new_custom[key.strip()] = val
+            i += 1
+
+        # New rows: new_cv_key_N / new_cv_val_N
+        j = 0
+        while True:
+            key = request.POST.get(f"new_cv_key_{j}", "").strip()
+            if not key:
+                break
+            new_custom[key] = request.POST.get(f"new_cv_val_{j}", "")
+            j += 1
+
+        comic.custom_values = new_custom
         comic.save()
 
         # For digital comics with CBZ files, also update the XML
@@ -1697,11 +1728,18 @@ def comic_edit(request, pk):
             if xml_data is not None:
                 comparison = compare_db_vs_xml(comic, xml_data)
 
+    # Build list of editable custom values (exclude standard XML fields)
+    custom_values_list = [
+        (k, v) for k, v in (comic.custom_values or {}).items()
+        if k not in _STANDARD_XML_FIELDS
+    ]
+
     return render(request, "core/comic_edit.html", {
         "comic": comic,
         "xml_data": xml_data,
         "comparison": comparison,
         "editable_fields": EDITABLE_FIELDS,
+        "custom_values_list": custom_values_list,
     })
 
 
