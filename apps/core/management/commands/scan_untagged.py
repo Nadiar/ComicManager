@@ -13,7 +13,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.conf import settings
 
-from apps.core.models import Comic
+from apps.core.models import Comic, get_setting
 
 
 class Command(BaseCommand):
@@ -235,7 +235,7 @@ class Command(BaseCommand):
         filename_lower = filename.lower()
 
         # 1.2 - Low page count (default threshold: 5)
-        min_pages = 5  # TODO: make configurable via Setting
+        min_pages = get_setting("min_page_count", 5)
         if page_count is not None and page_count < min_pages:
             flags["low_page_count"] = True
 
@@ -248,7 +248,7 @@ class Command(BaseCommand):
             flags["no_series"] = True
 
         # 1.7 - Cover-only files (≤3 pages and "cover" in filename)
-        cover_threshold = 3  # TODO: make configurable via Setting
+        cover_threshold = get_setting("cover_page_threshold", 3)
         if page_count is not None and page_count <= cover_threshold:
             if "cover" in filename_lower:
                 flags["cover_only"] = True
