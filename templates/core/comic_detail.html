@@ -8,8 +8,8 @@
   <div class="flex justify-between items-start">
     <div class="flex gap-5 items-start">
       {% if comic.is_digital and comic.file_path %}
-      <div class="flex-shrink-0">
-        <img src="/comics/{{ comic.pk }}/cover/" alt="Cover" class="w-32 h-auto rounded-lg shadow-lg" />
+      <div class="flex-shrink-0 cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/cover/', 'Cover')">
+        <img src="/comics/{{ comic.pk }}/cover/" alt="Cover" class="w-32 h-auto rounded-lg shadow-lg hover:ring-2 hover:ring-primary transition-all" />
       </div>
       {% endif %}
       <div>
@@ -660,10 +660,7 @@
 
 <!-- Full-size Image Modal -->
 <dialog id="image-modal" class="modal">
-  <div class="modal-box max-w-4xl p-0 bg-transparent shadow-none">
-    <form method="dialog">
-      <button class="btn btn-sm btn-circle btn-ghost absolute right-4 top-4 text-white bg-black/50 hover:bg-black/70 border-none">✕</button>
-    </form>
+  <div class="modal-box max-w-4xl p-0 bg-transparent shadow-none cursor-pointer" onclick="document.getElementById('image-modal').close()">
     <div class="flex flex-col items-center">
       <img id="modal-full-img" src="" class="max-h-[90vh] w-auto rounded-lg shadow-2xl border border-white/10" alt="Full size" />
       <div id="modal-img-caption" class="mt-4 text-white font-semibold bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm"></div>
