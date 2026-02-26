@@ -75,6 +75,11 @@
             </button>
           </li>
           <li>
+            <button onclick="runAction('search-alt-covers')" id="action-search-alt-covers">
+              Search Alt Covers
+            </button>
+          </li>
+          <li>
             <button onclick="openCvCompareModal()" id="action-cv-compare">
               Compare All Sources
             </button>
@@ -91,6 +96,27 @@
       <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="btn btn-ghost">Back to List</a>
     </div>
   </div>
+
+  {% if alt_cover_range %}
+  <!-- Variant Covers Gallery -->
+  <div class="card bg-base-200 shadow-sm border border-base-300">
+    <div class="card-body p-4">
+      <h2 class="card-title text-sm opacity-70 mb-2">Variant Covers</h2>
+      <div class="flex flex-wrap gap-4">
+        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/cover/', 'Main Cover')">
+          <img src="/comics/{{ comic.pk }}/cover/" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Main Cover" />
+          <div class="text-[10px] text-center mt-1 opacity-50">Main</div>
+        </div>
+        {% for page_num in alt_cover_range %}
+        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/page/{{ page_num }}/', 'Variant {{ forloop.counter }}')">
+          <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Variant {{ forloop.counter }}" />
+          <div class="text-[10px] text-center mt-1 opacity-50">Variant {{ forloop.counter }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   {% if show_series_completion %}
   <!-- Series Completion (lazy-loaded via HTMX) -->
@@ -632,6 +658,22 @@
   </form>
 </dialog>
 
+<!-- Full-size Image Modal -->
+<dialog id="image-modal" class="modal">
+  <div class="modal-box max-w-4xl p-0 bg-transparent shadow-none">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-4 top-4 text-white bg-black/50 hover:bg-black/70 border-none">✕</button>
+    </form>
+    <div class="flex flex-col items-center">
+      <img id="modal-full-img" src="" class="max-h-[90vh] w-auto rounded-lg shadow-2xl border border-white/10" alt="Full size" />
+      <div id="modal-img-caption" class="mt-4 text-white font-semibold bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm"></div>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop bg-black/80 backdrop-blur-sm">
+    <button>close</button>
+  </form>
+</dialog>
+
 <script>
 const comicPk = '{{ comic.pk }}';
 const csrfToken = '{{ csrf_token }}';
@@ -644,6 +686,7 @@ const actionEndpoints = {
   'organize': `/comics/${comicPk}/force-organize/`,
   'write': `/comics/${comicPk}/force-write/`,
   'refresh-credits': `/comics/${comicPk}/refresh-credits/`,
+  'search-alt-covers': `/comics/${comicPk}/search-alt-covers/`,
 };
 
 const actionLabels = {
@@ -653,6 +696,7 @@ const actionLabels = {
   'organize': 'Re-organizing...',
   'write': 'Writing...',
   'refresh-credits': 'Refreshing...',
+  'search-alt-covers': 'Searching...',
 };
 
 // Scrape modal functions
@@ -1244,6 +1288,16 @@ async function reorganizeComic(pk) {
       btn.disabled = false;
     }, 2000);
   }
+}
+
+function openImageModal(src, caption) {
+  const modal = document.getElementById('image-modal');
+  const img = document.getElementById('modal-full-img');
+  const cap = document.getElementById('modal-img-caption');
+  
+  img.src = src;
+  cap.textContent = caption;
+  modal.showModal();
 }
 </script>
 {% endblock %}

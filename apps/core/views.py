@@ -11,6 +11,7 @@ from django.views.decorators.http import require_POST, require_GET
 
 from .models import Comic, get_setting
 from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS
+from .cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
 from apps.scraper.hasher import extract_cover_hashes, extract_cover_image
 from .services import scan_untagged_folder
@@ -204,6 +205,10 @@ def comic_detail(request, pk):
     from .models import get_setting
     show_series_completion = get_setting("show_series_completion", True)
 
+    # Variant covers range (1-based for the template loop)
+    alt_cover_count = int(comic.custom_values.get("AltCoverCount", 0))
+    alt_cover_range = range(1, alt_cover_count + 1) if alt_cover_count > 0 else []
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
         "xml_data": xml_data,
@@ -211,6 +216,7 @@ def comic_detail(request, pk):
         "reorganize_preview": reorganize_preview,
         "display_custom_values": display_custom_values,
         "show_series_completion": show_series_completion,
+        "alt_cover_range": alt_cover_range,
     })
 
 
@@ -701,6 +707,27 @@ def comic_cover(request, pk):
     return response
 
 
+def comic_page(request, pk, page_num):
+    """
+    Serve a specific page of a comic file.
+    page_num is 0-based.
+    """
+    from .cover_cache import get_comic_page
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.file_path:
+        return HttpResponse(status=404)
+
+    page_data = get_comic_page(comic, int(page_num))
+    if not page_data:
+        return HttpResponse(status=404)
+
+    response = HttpResponse(page_data, content_type="image/jpeg")
+    response["Cache-Control"] = "public, max-age=86400"
+    return response
+
+
 @require_GET
 def cv_cover(request, issue_id):
     """
@@ -1027,6 +1054,22 @@ def _apply_match(comic, match, scraper=None):
 
     comic.custom_values["scrape_source"] = match.match_type
     comic.custom_values["scrape_score"] = str(match.match_score)
+
+    # Download and insert variant covers if available and not already processed
+    if (comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz") 
+        and match.cover_urls and comic.custom_values.get("HasAltCovers") != "Yes"):
+        
+        # Filter out the main cover (already present) to get true variants
+        variants = [url for url in match.cover_urls if url != match.cover_url]
+
+        if variants:
+            inserted = insert_variant_covers(comic.file_path, variants)
+            if inserted > 0:
+                comic.custom_values["HasAltCovers"] = "Yes"
+                comic.custom_values["AltCoverCount"] = inserted
+                # Update page count if it was already set
+                if comic.page_count:
+                    comic.page_count += inserted
 
     # Transition through scraped -> counted
     comic.state = Comic.STATE_COUNTED
@@ -2443,6 +2486,73 @@ def series_audit(request, pk):
         "comic": comic,
         "data": data,
     })
+
+
+@require_POST
+def search_alt_covers(request, pk):
+    """
+    Search for and insert variant covers for a specific comic.
+    Prioritizes local DB, falls back to API.
+    """
+    comic = get_object_or_404(Comic, pk=pk)
+    
+    if not comic.is_digital or not comic.file_path:
+        return JsonResponse({"success": False, "error": "Comic has no digital file"})
+    
+    if comic.custom_values.get("HasAltCovers") == "Yes":
+        return JsonResponse({"success": False, "error": "Comic already has alt covers marked"})
+
+    cv_issue_id = comic.custom_values.get("comicvine_issue")
+    if not cv_issue_id:
+        return JsonResponse({"success": False, "error": "No ComicVine issue ID associated with this comic"})
+
+    scraper = ComicVineScraper()
+    
+    # 1. Try local DB first
+    variant_urls = scraper.get_all_covers(int(cv_issue_id))
+    
+    # Filter out the primary cover if we can identify it (or just use the first one if we matched it)
+    # Since we don't know the exact matched URL here, we'll try to be smart or just grab all.
+    # If the local DB has URLs, we use them.
+    
+    # 2. Fallback to API ONLY if local DB has nothing
+    if not variant_urls:
+        match = scraper.get_issue_from_api(int(cv_issue_id))
+        if match and match.cover_urls:
+            variant_urls = match.cover_urls
+
+    if not variant_urls:
+        return JsonResponse({"success": False, "error": "No alternate covers found in local DB or API"})
+
+    # Primary cover is usually the first one or the one we already have.
+    # To be safe and avoid re-inserting the main cover, we'll try to exclude URLs 
+    # that might be the primary cover.
+    primary_url = comic.web or "" # Not perfect, but a start
+    
+    # If we have many, the first is usually the "official" one. 
+    # User said: "only fallback to api if we cant load urls from local db"
+    # "dont query API just because localdb doesn't have any alt covers"
+    
+    # We'll just take all except the first one (assuming first is main) if > 1
+    if len(variant_urls) <= 1:
+        return JsonResponse({"success": False, "error": "Only one cover found (already have it)"})
+    
+    variants = variant_urls[1:]
+    
+    inserted = insert_variant_covers(comic.file_path, variants)
+    if inserted > 0:
+        comic.custom_values["HasAltCovers"] = "Yes"
+        comic.custom_values["AltCoverCount"] = inserted
+        if comic.page_count:
+            comic.page_count += inserted
+        comic.save()
+        return JsonResponse({
+            "success": True, 
+            "message": f"Successfully inserted {inserted} variant cover(s)",
+            "inserted": inserted
+        })
+    
+    return JsonResponse({"success": False, "error": "Failed to insert variant covers (no new images downloaded)"})
 
 
 @require_POST

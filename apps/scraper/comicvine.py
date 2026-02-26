@@ -291,6 +291,10 @@ class ComicVineScraper:
             ))
 
         conn.close()
+
+        # Enrich matches with all cover URLs (variants)
+        matches = self.enrich_matches_with_covers(matches)
+
         return matches
 
     def match_by_metadata(self, series: str, issue_number: str, year: int = None) -> list[CVMatch]:
@@ -781,7 +785,7 @@ class ComicVineScraper:
                 "id", "volume", "name", "issue_number", "cover_date",
                 "description", "image", "person_credits", "character_credits",
                 "team_credits", "location_credits", "story_arc_credits",
-                "site_detail_url",
+                "site_detail_url", "associated_images",
             ]),
         })
         if not data:
@@ -824,12 +828,22 @@ class ComicVineScraper:
         cover_artists = person_credits.get("cover", [])
         editors = person_credits.get("editor", [])
 
-        cover_url = image.get("medium_url") or image.get("small_url")
+        cover_url = image.get("original_url") or image.get("medium_url")
         cover_urls = []
+        
+        # Add primary image
         if image.get("original_url"):
             cover_urls.append(image["original_url"])
-        if cover_url and cover_url not in cover_urls:
-            cover_urls.insert(0, cover_url)
+        
+        # Add associated images (variants)
+        for assoc in r.get("associated_images", []):
+            url = assoc.get("original_url")
+            if url and url not in cover_urls:
+                cover_urls.append(url)
+        
+        # Fallback for primary cover_url if original_url was missing
+        if not cover_url and image.get("medium_url"):
+            cover_url = image.get("medium_url")
 
         return CVMatch(
             issue_id=r["id"],

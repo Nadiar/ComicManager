@@ -13,6 +13,7 @@ from django.utils.html import strip_tags
 
 from apps.core.models import Comic
 from apps.core.utils import html_to_text
+from apps.core.cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
 
@@ -344,6 +345,27 @@ class Command(BaseCommand):
         # Record scrape source
         comic.custom_values["scrape_source"] = match.match_type
         comic.custom_values["scrape_score"] = str(match.match_score)
+
+        # Download and insert variant covers if available and not already processed
+        if (comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz") 
+            and match.cover_urls and comic.custom_values.get("HasAltCovers") != "Yes"):
+            
+            # Filter out the main cover (already present) to get true variants
+            # match.cover_url is the one that matched or the primary one
+            variants = [url for url in match.cover_urls if url != match.cover_url]
+            
+            if variants:
+                self.stdout.write(f"    Found {len(variants)} variant covers, inserting...")
+                inserted = insert_variant_covers(comic.file_path, variants)
+                if inserted > 0:
+                    self.stdout.write(self.style.SUCCESS(f"    Successfully inserted {inserted} variant cover(s)"))
+                    comic.custom_values["HasAltCovers"] = "Yes"
+                    comic.custom_values["AltCoverCount"] = inserted
+                    # Update page count if it was already set
+                    if comic.page_count:
+                        comic.page_count += inserted
+                else:
+                    self.stdout.write(self.style.WARNING("    Failed to insert variant covers"))
 
         # Update state
         comic.state = Comic.STATE_SCRAPED

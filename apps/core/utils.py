@@ -162,6 +162,7 @@ COLUMNS_REGISTRY = {
     "dm_processed": {"label": "DataManager Processed", "sort": "custom_values__DataManager_Processed", "attr": "custom_values.DataManager_Processed"},
     "cv_issue_count": {"label": "CV Issue Count", "sort": "custom_values__comicvine_issue_count", "attr": "custom_values.comicvine_issue_count"},
     "starwars": {"label": "IsStarWars", "sort": "custom_values__IsStarWars", "attr": "custom_values.IsStarWars"},
+    "has_alt_covers": {"label": "Has Alt Covers", "sort": "custom_values__HasAltCovers", "attr": "custom_values.HasAltCovers"},
 }
 
 DEFAULT_COLUMNS = ["series", "number", "count", "title", "volume", "year", "publisher", "format", "pages", "state"]

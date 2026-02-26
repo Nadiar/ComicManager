@@ -54,6 +54,38 @@ def get_comic_cover(comic) -> bytes | None:
     return cover_data
 
 
+def get_comic_page(comic, page_index: int) -> bytes | None:
+    """
+    Get image for a specific page of an owned comic.
+    Caches the page image to avoid repeatedly extracting from CBZ.
+    """
+    if page_index == 0:
+        return get_comic_cover(comic)
+        
+    cache_path = COVER_CACHE_DIR / f"{comic.pk}_p{page_index}.jpg"
+
+    # Return from cache
+    if cache_path.exists():
+        return cache_path.read_bytes()
+
+    # Extract from CBZ and cache
+    if not comic.file_path:
+        return None
+
+    from apps.scraper.hasher import extract_comic_page
+    page_data = extract_comic_page(comic.file_path, page_index)
+    if not page_data:
+        return None
+
+    try:
+        _ensure_cache_dir()
+        cache_path.write_bytes(page_data)
+    except OSError as e:
+        logger.warning("Failed to cache page %s for %s: %s", page_index, comic.pk, e)
+
+    return page_data
+
+
 def get_cv_cover(issue_id: int, cover_url: str) -> bytes | None:
     """
     Get cover image for a ComicVine issue. Returns cached version if available,
