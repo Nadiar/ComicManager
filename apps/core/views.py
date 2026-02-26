@@ -1673,6 +1673,11 @@ def comic_edit(request, pk):
         # Update standard fields from form data
         update_comic_from_form(comic, request.POST)
 
+        # Handle state reset
+        new_state = request.POST.get("state")
+        if new_state and new_state in dict(Comic.STATE_CHOICES):
+            comic.state = new_state
+
         # Rebuild custom_values: keep standard XML keys untouched, replace display keys
         standard_values = {
             k: v for k, v in (comic.custom_values or {}).items()
@@ -1740,6 +1745,7 @@ def comic_edit(request, pk):
         "comparison": comparison,
         "editable_fields": EDITABLE_FIELDS,
         "custom_values_list": custom_values_list,
+        "state_choices": Comic.STATE_CHOICES,
     })
 
 

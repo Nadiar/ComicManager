@@ -219,6 +219,22 @@
       </div>
     </div>
 
+    <!-- State -->
+    <div class="card bg-base-200 border border-warning/30">
+      <div class="card-body">
+        <h2 class="card-title text-xl mb-1">State <span class="badge badge-warning badge-sm ml-2">Advanced</span></h2>
+        <p class="text-sm opacity-60 mb-4">Changing state manually can break the pipeline workflow. Use with caution.</p>
+        <div class="form-control w-48">
+          <label class="label"><span class="label-text">Workflow State</span></label>
+          <select name="state" class="select select-bordered select-warning">
+            {% for value, label in state_choices %}
+            <option value="{{ value }}" {% if comic.state == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
     <!-- Submit -->
     <div class="flex justify-end gap-2">
       <a href="/comics/{{ comic.pk }}/" class="btn btn-ghost">Cancel</a>
