@@ -182,6 +182,15 @@ def comic_detail(request, pk):
     comparison = None
     reorganize_preview = None
 
+    # Auto-scan page count if missing
+    if comic.is_digital and comic.file_path and not comic.page_count:
+        if comic.file_path.lower().endswith('.cbz'):
+            from .services import _get_cbz_page_count
+            count = _get_cbz_page_count(Path(comic.file_path))
+            if count:
+                comic.page_count = count
+                comic.save(update_fields=["page_count"])
+
     # For digital comics, try to read ComicInfo.xml from the file
     if comic.is_digital and comic.file_path:
         if comic.file_path.lower().endswith('.cbz'):
