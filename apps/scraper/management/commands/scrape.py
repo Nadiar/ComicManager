@@ -350,9 +350,14 @@ class Command(BaseCommand):
         if (comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz") 
             and match.cover_urls and comic.custom_values.get("HasAltCovers") != "Yes"):
             
-            # Filter out the main cover (already present) to get true variants
-            # match.cover_url is the one that matched or the primary one
-            variants = [url for url in match.cover_urls if url != match.cover_url]
+            # Include all unique covers as variants, including the primary one 
+            # because the local file's cover might be different (edition, condition, etc.)
+            variants = []
+            seen_urls = set()
+            for url in match.cover_urls:
+                if url and url not in seen_urls:
+                    variants.append(url)
+                    seen_urls.add(url)
             
             if variants:
                 self.stdout.write(f"    Found {len(variants)} variant covers, inserting...")
@@ -361,9 +366,9 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f"    Successfully inserted {inserted} variant cover(s)"))
                     comic.custom_values["HasAltCovers"] = "Yes"
                     comic.custom_values["AltCoverCount"] = inserted
-                    # Update page count if it was already set
-                    if comic.page_count:
-                        comic.page_count += inserted
+                    # Force a refresh of the page count from the file
+                    from apps.core.services import _get_cbz_page_count
+                    comic.page_count = _get_cbz_page_count(Path(comic.file_path))
                 else:
                     self.stdout.write(self.style.WARNING("    Failed to insert variant covers"))
 

@@ -110,15 +110,17 @@
     <div class="card-body p-4">
       <h2 class="card-title text-sm opacity-70 mb-2">Variant Covers</h2>
       <div class="flex flex-wrap gap-4">
-        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/cover/', 'Main Cover')">
-          <img src="/comics/{{ comic.pk }}/cover/" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Main Cover" />
-          <div class="text-[10px] text-center mt-1 opacity-50">Main</div>
+        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/cover/', 'Local Cover')">
+          <img src="/comics/{{ comic.pk }}/cover/" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Local Cover" />
+          <div class="text-[10px] text-center mt-1 opacity-50">Local Cover</div>
         </div>
         {% for page_num in alt_cover_range %}
-        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}', 'Variant {{ forloop.counter }}')">
-          <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Variant {{ forloop.counter }}" />
-          <div class="text-[10px] text-center mt-1 opacity-50">Variant {{ forloop.counter }}</div>
+        {% with label=forloop.first|yesno:"Main,Variant "|add:forloop.counter0 %}
+        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}', '{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}')">
+          <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}" />
+          <div class="text-[10px] text-center mt-1 opacity-50">{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}</div>
         </div>
+        {% endwith %}
         {% endfor %}
       </div>
     </div>

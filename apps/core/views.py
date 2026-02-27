@@ -1266,8 +1266,14 @@ def _apply_match(comic, match, scraper=None):
     if (comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz") 
         and match.cover_urls and comic.custom_values.get("HasAltCovers") != "Yes"):
         
-        # Filter out the main cover (already present) to get true variants
-        variants = [url for url in match.cover_urls if url != match.cover_url]
+        # Include all unique covers as variants, including the primary one 
+        # because the local file's cover might be different (edition, condition, etc.)
+        variants = []
+        seen_urls = set()
+        for url in match.cover_urls:
+            if url and url not in seen_urls:
+                variants.append(url)
+                seen_urls.add(url)
 
         if variants:
             inserted = insert_variant_covers(comic.file_path, variants)
@@ -2777,20 +2783,17 @@ def search_alt_covers(request, pk):
     if not variant_urls:
         return JsonResponse({"success": False, "error": "No alternate covers found in local DB or API"})
 
-    # Primary cover is usually the first one or the one we already have.
-    # To be safe and avoid re-inserting the main cover, we'll try to exclude URLs 
-    # that might be the primary cover.
-    primary_url = comic.web or "" # Not perfect, but a start
+    # Include all unique covers as variants, including the primary one 
+    # because the local file's cover might be different (edition, condition, etc.)
+    variants = []
+    seen_urls = set()
+    for url in variant_urls:
+        if url and url not in seen_urls:
+            variants.append(url)
+            seen_urls.add(url)
     
-    # If we have many, the first is usually the "official" one. 
-    # User said: "only fallback to api if we cant load urls from local db"
-    # "dont query API just because localdb doesn't have any alt covers"
-    
-    # We'll just take all except the first one (assuming first is main) if > 1
-    if len(variant_urls) <= 1:
-        return JsonResponse({"success": False, "error": "Only one cover found (already have it)"})
-    
-    variants = variant_urls[1:]
+    if not variants:
+        return JsonResponse({"success": False, "error": "No new alternate covers found"})
     
     inserted = insert_variant_covers(comic.file_path, variants)
     if inserted > 0:
