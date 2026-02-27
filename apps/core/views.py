@@ -10,12 +10,15 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
 from .models import Comic, get_setting
-from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS
+from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS
 from .cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
 from apps.scraper.hasher import extract_cover_hashes, extract_cover_image
 from .services import scan_untagged_folder
 
+
+# Columns editable inline on the STATE_NEW list
+_INLINE_EDITABLE_FIELDS = {"proposed_series", "proposed_number", "proposed_volume", "publisher", "format"}
 
 # Flag display names for the UI
 FLAG_LABELS = {
@@ -65,6 +68,8 @@ def comic_list(request):
         saved_layout = get_setting(layout_key)
         if saved_layout:
             active_columns = saved_layout.split(",")
+        elif state == Comic.STATE_NEW:
+            active_columns = STATE_NEW_DEFAULT_COLUMNS
         else:
             active_columns = DEFAULT_COLUMNS
 
@@ -167,6 +172,7 @@ def comic_list(request):
         "formats": formats,
         "active_columns": active_columns,
         "all_columns": COLUMNS_REGISTRY,
+        "inline_editable_cols": list(_INLINE_EDITABLE_FIELDS),
     })
 
 
@@ -2768,3 +2774,126 @@ def save_column_layout(request):
     setting.save()
     
     return JsonResponse({"success": True})
+
+
+# =============================================================================
+# Inline Field Editing (STATE_NEW list)
+# =============================================================================
+
+_INLINE_FORMAT_CHOICES = [
+    "Main Series", "Limited Series", "One-Shot", "TPB", "HC",
+    "Annual", "Special", "Giant-Size", "King-Size", "Omnibus", "Deluxe",
+    "Director's Cut",
+]
+
+
+def comic_inline_field(request, pk):
+    """
+    GET  ?field=X           -> return editable input fragment
+    GET  ?field=X&cancel=1  -> return display fragment (cancel without saving)
+    POST field=X&value=V    -> save field, return display fragment
+    """
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if request.method == "POST":
+        field = request.POST.get("field", "")
+        value = request.POST.get("value", "").strip()
+
+        if field not in _INLINE_EDITABLE_FIELDS:
+            return HttpResponse("Invalid field", status=400)
+
+        if field == "proposed_volume":
+            try:
+                value = int(value) if value else None
+            except ValueError:
+                value = None
+        elif not value:
+            value = None
+
+        setattr(comic, field, value)
+        comic.save(update_fields=[field])
+
+        display_value = getattr(comic, field) or ""
+        return render(request, "core/partials/inline_display.html", {
+            "comic": comic,
+            "field": field,
+            "display_value": display_value,
+        })
+
+    # GET
+    field = request.GET.get("field", "")
+    if field not in _INLINE_EDITABLE_FIELDS:
+        return HttpResponse("Invalid field", status=400)
+
+    cancel = request.GET.get("cancel") == "1"
+    if cancel:
+        display_value = getattr(comic, field) or ""
+        return render(request, "core/partials/inline_display.html", {
+            "comic": comic,
+            "field": field,
+            "display_value": display_value,
+        })
+
+    current_value = getattr(comic, field) or ""
+    return render(request, "core/partials/inline_input.html", {
+        "comic": comic,
+        "field": field,
+        "current_value": current_value,
+        "is_format": field == "format",
+        "format_choices": _INLINE_FORMAT_CHOICES,
+    })
+
+
+# =============================================================================
+# Rollback
+# =============================================================================
+
+_VALID_ROLLBACK_STATES = {"new", "imported", "counted", "tagged"}
+
+
+@require_POST
+def comic_rollback(request, pk):
+    """Reset a comic to a previous workflow state and clear the associated data."""
+    comic = get_object_or_404(Comic, pk=pk)
+    to_state = request.POST.get("to_state", "")
+
+    if to_state not in _VALID_ROLLBACK_STATES:
+        return HttpResponse(f"<tr><td colspan='6' class='text-error text-xs'>Invalid state: {to_state}</td></tr>")
+
+    cv = comic.custom_values or {}
+
+    if to_state in ("new", "imported"):
+        for key in ("comicvine_issue", "comicvine_volume", "scrape_score", "scrape_source"):
+            cv.pop(key, None)
+        for flag in ("scrape_no_match", "scrape_error", "scrape_error_detail"):
+            comic.flags.pop(flag, None)
+        comic.custom_values = cv
+        comic.state = Comic.STATE_NEW if to_state == "new" else Comic.STATE_IMPORTED
+
+    elif to_state == "counted":
+        comic.series_group = None
+        comic.main_character_or_team = None
+        cv.pop("DataManager_Processed", None)
+        comic.custom_values = cv
+        comic.state = Comic.STATE_COUNTED
+
+    elif to_state == "tagged":
+        comic.format = None
+        comic.state = Comic.STATE_TAGGED
+
+    comic.save()
+
+    label_map = {
+        "new": "new (phase 1)",
+        "imported": "imported (phase 2)",
+        "counted": "counted (phase 3)",
+        "tagged": "tagged (phase 4)",
+    }
+    return HttpResponse(
+        f'<tr class="opacity-50">'
+        f'<td colspan="5" class="text-xs text-base-content/50 italic">'
+        f'Rolled back to <span class="font-medium text-warning">{label_map.get(to_state, to_state)}</span>'
+        f'</td>'
+        f'<td></td>'
+        f'</tr>'
+    )

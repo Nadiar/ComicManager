@@ -57,4 +57,6 @@ urlpatterns = [
     path("<uuid:pk>/series-completion/", views.series_completion, name="series_completion"),
     path("<uuid:pk>/series-audit/", views.series_audit, name="series_audit"),
     path("<uuid:pk>/delete/", views.delete_comic, name="delete"),
+    path("<uuid:pk>/inline-field/", views.comic_inline_field, name="comic_inline_field"),
+    path("<uuid:pk>/rollback/", views.comic_rollback, name="comic_rollback"),
 ]

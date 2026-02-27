@@ -7,6 +7,12 @@
   <title>{% block title %}ComicManager{% endblock %}</title>
   <link rel="stylesheet" href="/static/css/main.css">
   <script src="https://unpkg.com/htmx.org@2/dist/htmx.min.js"></script>
+  <script>
+    document.addEventListener("htmx:configRequest", function(evt) {
+      var match = document.cookie.match(/csrftoken=([^;]+)/);
+      if (match) evt.detail.headers["X-CSRFToken"] = match[1];
+    });
+  </script>
   <style>
     /* Constrained modal images - fixed width, auto height */
     .modal-cover-img {
@@ -86,6 +92,9 @@
         </div>
         <progress id="task-progress-bar" class="progress progress-primary w-full" value="0" max="100"></progress>
         <div id="task-progress-status" class="text-xs text-base-content/60 mt-1"></div>
+        <div id="task-log-link" class="hidden mt-1">
+          <a href="/settings/log/" class="text-xs link link-primary">View batch log &rarr;</a>
+        </div>
         <div id="task-error-list" class="hidden mt-2 max-h-40 overflow-y-auto space-y-0.5"></div>
       </div>
     </div>
@@ -217,6 +226,7 @@
     var cancelBtn = document.getElementById('task-cancel-btn');
     var dismissBtn = document.getElementById('task-dismiss-btn');
     var errorList = document.getElementById('task-error-list');
+    var logLink = document.getElementById('task-log-link');
 
     function showToast() { toast.classList.remove('hidden'); }
     function hideToast() { toast.classList.add('hidden'); }
@@ -224,6 +234,8 @@
     function hideCancel() { cancelBtn.classList.add('hidden'); }
     function showDismiss() { dismissBtn.classList.remove('hidden'); }
     function hideDismiss() { dismissBtn.classList.add('hidden'); }
+    function showLogLink() { logLink.classList.remove('hidden'); }
+    function hideLogLink() { logLink.classList.add('hidden'); }
 
     function showErrors(errors) {
       if (!errors || errors.length === 0) {
@@ -266,6 +278,14 @@
         return (r.written || 0) + ' of ' + (r.total || 0) + ' written' +
           (r.errors && r.errors.length > 0 ? ', ' + r.errors.length + ' errors' : '');
       }
+      // Scrape-specific: show matched vs failed breakdown
+      if (r.matched !== undefined && r.failed !== undefined) {
+        var parts = [];
+        if (r.matched > 0) parts.push(r.matched + ' matched');
+        if (r.failed > 0) parts.push(r.failed + ' failed');
+        if (r.errors && r.errors.length > 0) parts.push(r.errors.length + ' errors');
+        return parts.length ? parts.join(', ') + ' (of ' + (r.total || 0) + ')' : 'Done';
+      }
       return (r.processed || 0) + ' of ' + (r.total || 0) + ' processed' +
         (r.errors && r.errors.length > 0 ? ', ' + r.errors.length + ' errors' : '');
     }
@@ -279,6 +299,7 @@
       showToast();
       showCancel();
       hideDismiss();
+      hideLogLink();
       showErrors(null);
       labelEl.textContent = taskLabel + '...';
       status.textContent = 'Starting...';
@@ -318,12 +339,9 @@
             count.textContent = '';
             status.textContent = successText(r);
             showErrors(r.errors);
+            showLogLink();
             activeTaskId = null;
-            if (r.errors && r.errors.length > 0) {
-              showDismiss();
-            } else {
-              setTimeout(function() { hideToast(); location.reload(); }, 5000);
-            }
+            showDismiss();
 
           } else if (data.state === 'FAILURE') {
             hideCancel();

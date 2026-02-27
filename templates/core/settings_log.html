@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Batch Log — ComicManager{% endblock %}
+{% block nav_settings %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="flex items-center justify-between">
+    <h1 class="text-3xl font-bold">Batch Audit Log</h1>
+    <a href="{% url 'settings:index' %}" class="btn btn-ghost btn-sm">Back to Settings</a>
+  </div>
+
+  <!-- Action filter tabs -->
+  <div class="tabs tabs-bordered">
+    <a href="{% url 'settings:log' %}"
+       class="tab {% if not action_filter %}tab-active{% endif %}">
+      All
+    </a>
+    {% for action in actions %}
+    <a href="{% url 'settings:log' %}?action={{ action }}"
+       class="tab {% if action_filter == action %}tab-active{% endif %}">
+      {% if action == 'scrape_all' %}Scrape
+      {% elif action == 'tag_all' %}Tag
+      {% elif action == 'format_all' %}Format
+      {% else %}{{ action }}{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+
+  <p class="text-sm text-base-content/60">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} total</p>
+
+  {% if page_obj %}
+  <div class="overflow-x-auto">
+    <table class="table table-zebra w-full text-sm">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Action</th>
+          <th>Comic</th>
+          <th>Changes</th>
+          <th>UUID</th>
+          <th>Send back</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in page_obj %}
+        <tr id="log-row-{{ forloop.counter }}">
+          <td class="whitespace-nowrap font-mono text-xs text-base-content/60">
+            {{ entry.timestamp|slice:":19" }}
+          </td>
+          <td>
+            <span class="badge badge-sm
+              {% if entry.action == 'scrape_all' %}badge-secondary
+              {% elif entry.action == 'tag_all' %}badge-accent
+              {% elif entry.action == 'format_all' %}badge-info
+              {% else %}badge-neutral{% endif %}">
+              {{ entry.action }}
+            </span>
+          </td>
+          <td class="max-w-xs truncate">{{ entry.name }}</td>
+          <td class="text-xs">
+            {% for key, pair in entry.changes.items %}
+            <span class="block">
+              <span class="font-medium">{{ key }}:</span>
+              <span class="opacity-60">{{ pair.0|default:"null" }}</span>
+              &rarr;
+              <span class="text-success">{{ pair.1|default:"null" }}</span>
+            </span>
+            {% empty %}
+            <span class="opacity-40">no changes</span>
+            {% endfor %}
+          </td>
+          <td>
+            <span class="font-mono text-xs badge badge-ghost"
+                  title="{{ entry.uuid }}"
+                  onclick="navigator.clipboard.writeText('{{ entry.uuid }}')"
+                  style="cursor:pointer">
+              {{ entry.uuid|slice:":8" }}&hellip;
+            </span>
+          </td>
+          <td>
+            {% if entry.action == 'scrape_all' %}
+            {% if entry.changes.result %}
+            {# Failed scrape (no_match or error) — send back to phase 1 New #}
+            <button class="btn btn-xs btn-warning"
+                    hx-post="{% url 'core:comic_rollback' entry.uuid %}"
+                    hx-vals='{"to_state": "new"}'
+                    hx-target="#log-row-{{ forloop.counter }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Reset this comic back to New (phase 1)?">
+              To new
+            </button>
+            {% else %}
+            {# Successful scrape — undo by sending back to imported #}
+            <button class="btn btn-xs btn-warning"
+                    hx-post="{% url 'core:comic_rollback' entry.uuid %}"
+                    hx-vals='{"to_state": "imported"}'
+                    hx-target="#log-row-{{ forloop.counter }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Undo this scrape? Clears CV match data and resets to imported.">
+              To imported
+            </button>
+            {% endif %}
+            {% elif entry.action == 'tag_all' %}
+            <button class="btn btn-xs btn-warning"
+                    hx-post="{% url 'core:comic_rollback' entry.uuid %}"
+                    hx-vals='{"to_state": "counted"}'
+                    hx-target="#log-row-{{ forloop.counter }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Reset this comic to 'counted' and clear tagging data?">
+              To counted
+            </button>
+            {% elif entry.action == 'format_all' %}
+            <button class="btn btn-xs btn-warning"
+                    hx-post="{% url 'core:comic_rollback' entry.uuid %}"
+                    hx-vals='{"to_state": "tagged"}'
+                    hx-target="#log-row-{{ forloop.counter }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Reset this comic to 'tagged' and clear format?">
+              To tagged
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="flex justify-center">
+    <div class="join">
+      {% if page_obj.has_previous %}
+      <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}"
+         class="join-item btn btn-sm">Prev</a>
+      {% endif %}
+      <span class="join-item btn btn-sm btn-active">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+      <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}"
+         class="join-item btn btn-sm">Next</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="alert">
+    <span>No log entries found{% if action_filter %} for action "{{ action_filter }}"{% endif %}.</span>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

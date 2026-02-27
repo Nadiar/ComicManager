@@ -102,21 +102,45 @@ def run_smartlist_action_task(self, smart_list_id, action):
 def _run_tag(comic):
     """Apply DataManager tagging rules to a comic."""
     from apps.tagging.engine import apply_datamanager_rules
+    from apps.core.audit import log_batch_entry
+
+    before_series_group = comic.series_group
+    before_main_char = comic.main_character_or_team
 
     apply_datamanager_rules(comic, save=False)
     comic.custom_values["DataManager_Processed"] = "Yes"
 
     from apps.core.models import Comic
+    state_before = comic.state
     if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
         comic.state = Comic.STATE_TAGGED
 
     comic.save()
 
+    changes = {}
+    if comic.series_group != before_series_group:
+        changes["series_group"] = [before_series_group, comic.series_group]
+    if comic.main_character_or_team != before_main_char:
+        changes["main_character_or_team"] = [before_main_char, comic.main_character_or_team]
+
+    log_batch_entry("tag_all", comic, state_before, comic.state, changes)
+
 
 def _run_format(comic):
     """Detect and set format for a comic."""
     from apps.core.services import detect_and_set_format
-    detect_and_set_format(comic)
+    from apps.core.audit import log_batch_entry
+
+    state_before = comic.state
+    result = detect_and_set_format(comic)
+
+    log_batch_entry(
+        "format_all",
+        comic,
+        state_before,
+        comic.state,
+        {"format": [result["old_format"], result["new_format"]]} if result["format_changed"] else {},
+    )
 
 
 def _run_organize(comic):

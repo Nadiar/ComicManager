@@ -341,14 +341,37 @@ def scrape_all_task(self):
             if not match:
                 match = _try_metadata_match(comic, scraper)
 
+            before_series = comic.series
+            before_publisher = comic.publisher
+            before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
+            before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
+
             if match:
                 _apply_match(comic, match, scraper)
                 matched += 1
+
+                from .audit import log_batch_entry
+                changes = {}
+                if comic.series != before_series:
+                    changes["series"] = [before_series, comic.series]
+                if comic.publisher != before_publisher:
+                    changes["publisher"] = [before_publisher, comic.publisher]
+                after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
+                after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
+                if after_cv_issue != before_cv_issue:
+                    changes["cv_issue"] = [before_cv_issue, after_cv_issue]
+                if after_cv_volume != before_cv_volume:
+                    changes["cv_volume"] = [before_cv_volume, after_cv_volume]
+                log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, changes)
             else:
                 comic.add_flag("scrape_no_match")
                 comic.save(update_fields=["flags"])
                 failed += 1
                 errors.append(f"{comic.series} #{comic.number}: no match found")
+
+                from .audit import log_batch_entry
+                log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state,
+                                {"result": [None, "no_match"]})
         except Exception as e:
             err_msg = str(e)
             comic.flags["scrape_error"] = True
@@ -357,6 +380,10 @@ def scrape_all_task(self):
             comic.save(update_fields=["flags"])
             failed += 1
             errors.append(f"{comic.series} #{comic.number}: {err_msg[:150]}")
+
+            from .audit import log_batch_entry
+            log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state,
+                            {"result": [None, "error"]})
 
         self.update_state(
             state="PROGRESS",

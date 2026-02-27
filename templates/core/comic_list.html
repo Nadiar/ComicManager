@@ -302,6 +302,16 @@
         {% for comic in comics %}
         <tr class="hover">
           {% for col_id in active_columns %}
+          {% if current_state == 'new' and col_id in inline_editable_cols %}
+          <td hx-get="{% url 'core:comic_inline_field' comic.id %}?field={{ col_id }}"
+              hx-trigger="click"
+              hx-target="this"
+              hx-swap="innerHTML"
+              class="cursor-pointer hover:bg-base-300 transition-colors"
+              title="Click to edit">
+            <span class="text-warning font-medium">{{ comic|get_col_value:col_id|default:"—" }}</span>
+          </td>
+          {% else %}
           <td {% if col_id == 'series' or col_id == 'title' %}class="max-w-xs truncate"{% endif %}>
             {% if col_id == 'series' and comic.state == 'new' %}
               <span class="text-warning font-medium">{{ comic.proposed_series|default:"-" }}</span>
@@ -318,6 +328,7 @@
               {{ comic|get_col_value:col_id|default:"-" }}
             {% endif %}
           </td>
+          {% endif %}
           {% endfor %}
           <td>
             {% if comic.has_flags %}

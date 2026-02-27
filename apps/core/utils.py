@@ -167,6 +167,19 @@ COLUMNS_REGISTRY = {
 
 DEFAULT_COLUMNS = ["series", "number", "count", "title", "volume", "year", "publisher", "format", "pages", "state"]
 
+# Proposed/pre-scrape columns
+COLUMNS_REGISTRY.update({
+    "proposed_series": {"label": "Proposed Series", "sort": "proposed_series", "attr": "proposed_series"},
+    "proposed_number": {"label": "Proposed #",      "sort": "proposed_number", "attr": "proposed_number"},
+    "proposed_volume": {"label": "Proposed Vol",    "sort": "proposed_volume", "attr": "proposed_volume"},
+    "proposed_year":   {"label": "Proposed Year",   "sort": "proposed_year",   "attr": "proposed_year"},
+})
+
+STATE_NEW_DEFAULT_COLUMNS = [
+    "proposed_series", "proposed_number", "proposed_volume", "proposed_year",
+    "publisher", "format", "pages", "file_format",
+]
+
 
 def read_comicinfo_xml(cbz_path: str) -> dict | None:
     """

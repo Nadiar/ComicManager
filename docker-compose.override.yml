@@ -32,6 +32,7 @@ services:
       - ./Comics:/comics/library
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
       - .:/app                        # same source mount — worker reloads too
+      - ./data/logs:/app/logs
 
   beat:
     build: .

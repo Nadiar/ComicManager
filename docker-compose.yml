@@ -37,6 +37,7 @@ services:
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
       - ./data/static:/app/static
       - ./data/covers:/app/cover_cache
+      - ./data/logs:/app/logs
     depends_on:
       db:
         condition: service_healthy
@@ -57,6 +58,7 @@ services:
       - ./untagged:/comics/untagged
       - ./Comics:/comics/library
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
+      - ./data/logs:/app/logs
     depends_on:
       db:
         condition: service_healthy
