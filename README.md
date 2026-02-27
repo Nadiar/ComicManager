@@ -154,6 +154,72 @@ Runtime settings configurable via the web UI:
 - **ComicVine API Key** — For API fallback when local DB has no match
 - Other settings as added
 
+## Smart Lists
+
+Smart lists are saved filter queries accessible at `/dashboard/smartlists/`. Each list is defined by one or more filters (field + lookup + value), all combined with AND logic.
+
+### Filter lookup reference
+
+| Lookup | Meaning |
+|--------|---------|
+| `equals` | Exact match |
+| `not equals` | Exclude exact match |
+| `contains` | Case-insensitive substring match |
+| `not contains` | Exclude substring match |
+| `is empty` | Field is null / key does not exist |
+| `is not empty` | Field is not null / key exists |
+| `greater than` / `less than` / `at least` / `at most` | Numeric comparison |
+
+### Flag fields
+
+Flags are stored as a JSON object on each comic (e.g. `{"low_page_count": true, "scrape_no_match": true}`). A flag is either present (set to `true`) or absent — flags are never set to `false`.
+
+Use the `flags__<flag_name>` syntax in the field dropdown:
+
+| Field | Lookup | Value | Finds |
+|-------|--------|-------|-------|
+| `flags__low_page_count` | `equals` | `true` | Digital comics with fewer pages than the configured threshold |
+| `flags__is_pdf` | `equals` | `true` | PDF files flagged for manual review |
+| `flags__no_series` | `equals` | `true` | Comics where no series name could be parsed from the filename |
+| `flags__cover_only` | `equals` | `true` | Files with 3 or fewer pages and "cover" in the filename |
+| `flags__needs_conversion` | `equals` | `true` | CBR/CB7 files that need converting to CBZ |
+| `flags__missing_count` | `equals` | `true` | Comics where the issue count (`count` field) could not be populated from ComicVine |
+| `flags__count_mismatch` | `equals` | `true` | Comics sharing a ComicVine volume where issue counts differ |
+| `flags__scrape_no_match` | `equals` | `true` | Comics that went through scraping but no ComicVine match was found |
+| `flags__scrape_error` | `equals` | `true` | Comics where scraping failed with an exception (API error, timeout, etc.) |
+
+To find comics **without** a flag (i.e. the flag was never set), use `is empty` instead:
+
+| Field | Lookup | Value | Finds |
+|-------|--------|-------|-------|
+| `flags__scrape_no_match` | `is empty` | `true` | Comics where the no-match flag does not exist |
+
+### Proposed fields (STATE_NEW comics)
+
+Comics in the `new` state have not yet had their metadata confirmed. Their parsed filename values sit in `proposed_*` fields:
+
+| Field | Finds |
+|-------|-------|
+| `proposed_series` `is empty` | Comics where no series name could be parsed from the filename |
+| `proposed_series` `contains` `Batman` | New comics whose filename contains "Batman" |
+| `proposed_year` `equals` `2024` | New comics parsed as year 2024 |
+
+### ComicVine custom values
+
+| Field | Lookup | Value | Finds |
+|-------|--------|-------|-------|
+| `custom_values__comicvine_issue` | `is empty` | `true` | Comics with no ComicVine issue ID matched |
+| `custom_values__comicvine_volume` | `equals` | `140426` | All comics belonging to a specific CV volume |
+| `custom_values__scrape_source` | `equals` | `local_db` | Comics scraped from the local SQLite index |
+
+### Workflow tracking fields
+
+| Field | Lookup | Value | Finds |
+|-------|--------|-------|-------|
+| `needs_reorganize` | `equals` | `true` | Organized comics whose expected path no longer matches their current location |
+| `needs_reformat` | `equals` | `true` | Comics whose count changed and may need a different format classification |
+| `last_written` | `is empty` | `true` | Comics in `written` state that have never had ComicInfo.xml written |
+
 ## Key URLs
 
 | Route | Description |

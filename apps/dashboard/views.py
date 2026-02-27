@@ -138,6 +138,7 @@ def index(request):
 
 # Field options for the filter form
 FILTER_FIELD_OPTIONS = [
+    # Core metadata
     ("series", "Series"),
     ("title", "Title"),
     ("number", "Number"),
@@ -157,7 +158,31 @@ FILTER_FIELD_OPTIONS = [
     ("penciller", "Penciller"),
     ("is_duplicate", "Is Duplicate"),
     ("file_path", "File Path"),
+    ("file_format", "File Format"),
+    # Proposed fields (filename-parsed, populated for STATE_NEW)
+    ("proposed_series", "Proposed Series"),
+    ("proposed_number", "Proposed Number"),
+    ("proposed_volume", "Proposed Volume"),
+    ("proposed_year", "Proposed Year"),
+    # Workflow tracking
+    ("needs_reorganize", "Needs Reorganize"),
+    ("needs_reformat", "Needs Reformat"),
+    ("last_written", "Last Written"),
+    ("imported_at", "Import Date"),
+    # Flags (stored in JSONField — use flags__<key> syntax)
+    ("flags__low_page_count", "Flag: Low Page Count"),
+    ("flags__is_pdf", "Flag: PDF"),
+    ("flags__no_series", "Flag: No Series"),
+    ("flags__cover_only", "Flag: Cover Only"),
+    ("flags__needs_conversion", "Flag: Needs Conversion"),
+    ("flags__missing_count", "Flag: Missing Count"),
+    ("flags__count_mismatch", "Flag: Count Mismatch"),
+    ("flags__scrape_no_match", "Flag: No Scrape Match"),
+    ("flags__scrape_error", "Flag: Scrape Error"),
+    # ComicVine custom values
     ("custom_values__comicvine_volume", "CV Volume ID"),
+    ("custom_values__comicvine_issue", "CV Issue ID"),
+    ("custom_values__scrape_source", "Scrape Source"),
 ]
 
 FILTER_LOOKUP_OPTIONS = [
@@ -183,6 +208,8 @@ SORT_OPTIONS = [
     ("pages", "Pages"),
     ("count", "Issue Count"),
     ("updated", "Updated"),
+    ("imported", "Import Date"),
+    ("last_written", "Last Written"),
 ]
 
 

@@ -12,6 +12,10 @@ ALLOWED_FIELDS = {
     "writer", "penciller", "inker", "colorist", "letterer",
     "cover_artist", "editor", "page_count", "count",
     "is_duplicate", "file_format", "file_path", "summary", "notes",
+    # Proposed fields (filename-parsed, populated for STATE_NEW)
+    "proposed_series", "proposed_number", "proposed_volume", "proposed_year",
+    # Workflow tracking
+    "needs_reorganize", "needs_reformat", "last_written", "imported_at", "updated_at",
 }
 
 # Also allow JSONField nested lookups
@@ -36,6 +40,8 @@ SORT_FIELDS = {
     "pages": ["page_count", "series", "volume", "number_sort_key", "number"],
     "updated": ["updated_at"],
     "count": ["count", "series", "volume", "number_sort_key", "number"],
+    "imported": ["imported_at"],
+    "last_written": ["last_written"],
 }
 
 
