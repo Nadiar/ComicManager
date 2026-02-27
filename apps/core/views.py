@@ -1277,6 +1277,8 @@ def _apply_match(comic, match, scraper=None):
                 # Update page count if it was already set
                 if comic.page_count:
                     comic.page_count += inserted
+                from .cover_cache import invalidate_comic_pages
+                invalidate_comic_pages(comic.pk)
 
     # Transition through scraped -> counted
     comic.state = Comic.STATE_COUNTED
@@ -2797,12 +2799,14 @@ def search_alt_covers(request, pk):
         if comic.page_count:
             comic.page_count += inserted
         comic.save()
+        from .cover_cache import invalidate_comic_pages
+        invalidate_comic_pages(comic.pk)
         return JsonResponse({
-            "success": True, 
+            "success": True,
             "message": f"Successfully inserted {inserted} variant cover(s)",
             "inserted": inserted
         })
-    
+
     return JsonResponse({"success": False, "error": "Failed to insert variant covers (no new images downloaded)"})
 
 

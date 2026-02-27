@@ -115,8 +115,8 @@
           <div class="text-[10px] text-center mt-1 opacity-50">Main</div>
         </div>
         {% for page_num in alt_cover_range %}
-        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/page/{{ page_num }}/', 'Variant {{ forloop.counter }}')">
-          <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Variant {{ forloop.counter }}" />
+        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}', 'Variant {{ forloop.counter }}')">
+          <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Variant {{ forloop.counter }}" />
           <div class="text-[10px] text-center mt-1 opacity-50">Variant {{ forloop.counter }}</div>
         </div>
         {% endfor %}
