@@ -220,11 +220,13 @@ def _detect_flags(file_format: str, page_count: int | None, filename: str, parse
     - cover_only: Likely just a cover (≤3 pages + "cover" in filename)
     - needs_conversion: CBR/CB7 files need conversion to CBZ
     """
+    from .models import get_setting
+
     flags = {}
     filename_lower = filename.lower()
 
     # Low page count (default threshold: 5)
-    min_pages = 5
+    min_pages = get_setting("min_page_count", 5)
     if page_count is not None and page_count < min_pages:
         flags["low_page_count"] = True
 
@@ -237,7 +239,7 @@ def _detect_flags(file_format: str, page_count: int | None, filename: str, parse
         flags["no_series"] = True
 
     # Cover-only files (≤3 pages and "cover" in filename)
-    cover_threshold = 3
+    cover_threshold = get_setting("cover_page_threshold", 3)
     if page_count is not None and page_count <= cover_threshold:
         if "cover" in filename_lower:
             flags["cover_only"] = True
