@@ -46,6 +46,14 @@ def audit_paths_task(self):
     )
 
     for i, comic_id in enumerate(comic_ids):
+        from apps.core.tasks import is_cancelled, clear_cancel
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {
+                "scanned": i, "mismatched": mismatched, "matched": matched,
+                "total": total, "errors": errors, "cancelled": True,
+            }
+
         try:
             comic = Comic.objects.get(pk=comic_id)
         except Comic.DoesNotExist:
@@ -87,6 +95,7 @@ def audit_paths_task(self):
         "matched": matched,
         "total": total,
         "errors": errors,
+        "cancelled": False,
     }
 
 
@@ -125,6 +134,11 @@ def reorganize_all_flagged_task(self):
     )
 
     for i, comic_id in enumerate(comic_ids):
+        from apps.core.tasks import is_cancelled, clear_cancel
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {"moved": moved, "already_ok": already_ok, "total": total, "errors": errors, "cancelled": True}
+
         try:
             comic = Comic.objects.get(pk=comic_id)
         except Comic.DoesNotExist:
@@ -151,4 +165,4 @@ def reorganize_all_flagged_task(self):
             },
         )
 
-    return {"moved": moved, "already_ok": already_ok, "total": total, "errors": errors}
+    return {"moved": moved, "already_ok": already_ok, "total": total, "errors": errors, "cancelled": False}

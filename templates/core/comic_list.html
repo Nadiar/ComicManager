@@ -823,26 +823,24 @@ function scrapeAllComics(btn) {
 
     fetch('/comics/scrape-all/', {
       method: 'POST',
-      headers: {
-        'X-CSRFToken': getCsrfToken(),
-      }
+      headers: {'X-CSRFToken': getCsrfToken()},
     })
     .then(response => response.json())
     .then(data => {
-      if (data.success) {
+      if (data.task_id) {
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-info');
+        btn.innerHTML = 'Running...';
+        if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Scraping comics');
+      } else if (data.success) {
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-success');
-        btn.innerHTML = `Done (${data.matched} matched, ${data.failed} failed)`;
-
-        if (data.errors && data.errors.length > 0) {
-          alert(`Scraping complete with ${data.failed} failure(s):\n\n${data.errors.join('\n')}`);
-        }
-
+        btn.innerHTML = 'Done';
         setTimeout(() => window.location.reload(), 1500);
       } else {
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-error');
-        btn.innerHTML = 'Error';
+        btn.innerHTML = data.error || 'Error';
         btn.disabled = false;
       }
     })
@@ -1293,31 +1291,30 @@ function convertAllComics(btn) {
   }
 
   btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Converting...';
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
 
   fetch('/comics/convert-all/', {
     method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
+    headers: {'X-CSRFToken': getCsrfToken()},
   })
   .then(response => response.json())
   .then(data => {
-    if (data.success) {
+    if (data.task_id) {
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-info');
+      btn.innerHTML = 'Running...';
+      if (window.startTaskPolling) {
+        window.startTaskPolling(data.task_id, 'Converting files');
+      }
+    } else if (data.success) {
       btn.classList.remove('btn-primary');
       btn.classList.add('btn-success');
-      btn.innerHTML = `Done (${data.converted} converted)`;
-
-      if (data.errors && data.errors.length > 0) {
-        alert(`Conversion complete with ${data.errors.length} error(s):\n\n${data.errors.join('\n')}`);
-      }
-
-      // Reload page after 1.5 seconds to show updated data
+      btn.innerHTML = 'Done';
       setTimeout(() => window.location.reload(), 1500);
     } else {
       btn.classList.remove('btn-primary');
       btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
+      btn.innerHTML = data.error || 'Error';
       btn.disabled = false;
     }
   })
@@ -1437,23 +1434,24 @@ function tagAllComics(btn) {
 
   fetch('/comics/tag-all/', {
     method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
+    headers: {'X-CSRFToken': getCsrfToken()},
   })
   .then(response => response.json())
   .then(data => {
-    if (data.success) {
+    if (data.task_id) {
+      btn.classList.remove('btn-accent');
+      btn.classList.add('btn-info');
+      btn.innerHTML = 'Running...';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Tagging comics');
+    } else if (data.success) {
       btn.classList.remove('btn-accent');
       btn.classList.add('btn-success');
-      btn.innerHTML = `Done (${data.tagged} tagged)`;
-
-      // Reload page after 1.5 seconds to show updated data
+      btn.innerHTML = 'Done';
       setTimeout(() => window.location.reload(), 1500);
     } else {
       btn.classList.remove('btn-accent');
       btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
+      btn.innerHTML = data.error || 'Error';
       btn.disabled = false;
     }
   })
@@ -1530,15 +1528,20 @@ function formatAllComics(btn) {
   })
   .then(response => response.json())
   .then(data => {
-    if (data.success) {
+    if (data.task_id) {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-info');
+      btn.innerHTML = 'Running...';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Formatting comics');
+    } else if (data.success) {
       btn.classList.remove('btn-info');
       btn.classList.add('btn-success');
-      btn.innerHTML = `Done (${data.formatted} formatted)`;
+      btn.innerHTML = 'Done';
       setTimeout(() => window.location.reload(), 1500);
     } else {
       btn.classList.remove('btn-info');
       btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
+      btn.innerHTML = data.error || 'Error';
       btn.disabled = false;
     }
   })
@@ -1557,25 +1560,28 @@ function deduplicateAllComics(btn) {
   }
 
   btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Processing...';
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
 
   fetch('/comics/deduplicate-all/', {
     method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
+    headers: {'X-CSRFToken': getCsrfToken()},
   })
   .then(response => response.json())
   .then(data => {
-    if (data.success) {
+    if (data.task_id) {
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-info');
+      btn.innerHTML = 'Running...';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Deduplicating');
+    } else if (data.success) {
       btn.classList.remove('btn-secondary');
       btn.classList.add('btn-success');
-      btn.innerHTML = `Done (${data.deduplicated} processed)`;
+      btn.innerHTML = 'Done';
       setTimeout(() => window.location.reload(), 1500);
     } else {
       btn.classList.remove('btn-secondary');
       btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
+      btn.innerHTML = data.error || 'Error';
       btn.disabled = false;
     }
   })
@@ -1594,30 +1600,28 @@ function organizeAllComics(btn) {
   }
 
   btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Organizing...';
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
 
   fetch('/comics/organize-all/', {
     method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
+    headers: {'X-CSRFToken': getCsrfToken()},
   })
   .then(response => response.json())
   .then(data => {
-    if (data.success) {
+    if (data.task_id) {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-info');
+      btn.innerHTML = 'Running...';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Organizing comics');
+    } else if (data.success) {
       btn.classList.remove('btn-info');
       btn.classList.add('btn-success');
-      btn.innerHTML = `Done (${data.total_moved} moved)`;
-
-      if (data.total_errors > 0) {
-        alert(`Organization complete. Moved ${data.total_moved} files. Errors: ${data.total_errors}`);
-      }
-
+      btn.innerHTML = 'Done';
       setTimeout(() => window.location.reload(), 1500);
     } else {
       btn.classList.remove('btn-info');
       btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
+      btn.innerHTML = data.error || 'Error';
       btn.disabled = false;
     }
   })
@@ -1640,25 +1644,23 @@ function writeAllComics(btn) {
 
   fetch('/comics/write-all/', {
     method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
+    headers: {'X-CSRFToken': getCsrfToken()},
   })
   .then(response => response.json())
   .then(data => {
-    if (data.success) {
+    if (data.task_id) {
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-info');
+      btn.innerHTML = 'Running...';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Writing comics');
+    } else if (data.success) {
       btn.classList.remove('btn-success');
       btn.classList.add('btn-neutral');
-      btn.innerHTML = `Done (${data.written} written)`;
-
-      if (data.errors && data.errors.length > 0) {
-        alert(`Write complete with ${data.errors.length} error(s):\n\n${data.errors.join('\n')}`);
-      }
-
+      btn.innerHTML = 'Done';
       setTimeout(() => window.location.reload(), 1500);
     } else {
       btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
+      btn.innerHTML = data.error || 'Error';
       btn.disabled = false;
     }
   })

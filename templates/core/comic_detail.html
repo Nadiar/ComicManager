@@ -1097,7 +1097,13 @@ async function runAction(action) {
 
     const data = await response.json();
 
-    if (data.success) {
+    if (data.task_id) {
+      // Async task (e.g. search-alt-covers downloads images in background)
+      btn.innerHTML = '<span class="text-info">Running...</span>';
+      if (window.startTaskPolling) {
+        window.startTaskPolling(data.task_id, actionLabels[action] || 'Processing');
+      }
+    } else if (data.success) {
       btn.innerHTML = '<span class="text-success">Done!</span>';
 
       // Show result modal for actions that have one
@@ -1108,8 +1114,12 @@ async function runAction(action) {
       } else if (action === 'organize') {
         showOrganizeResultModal(comicTitle, data);
       } else {
-        // For write and refresh-credits, just reload
-        setTimeout(() => location.reload(), 800);
+        // For write, refresh-credits, etc. — show toast then reload
+        if (window.showQuickToast) {
+          window.showQuickToast(data.message || 'Done!');
+        } else {
+          setTimeout(() => location.reload(), 800);
+        }
       }
     } else {
       btn.innerHTML = '<span class="text-error">Error</span>';

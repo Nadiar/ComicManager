@@ -92,6 +92,20 @@ def index(request):
             "count": Comic.objects.filter(flags__count_updated=True).count(),
             "action": "rewrite",
         },
+        {
+            "flag": "scrape_no_match",
+            "label": "Scrape: No Match",
+            "description": "No ComicVine match found — needs manual matching or skip",
+            "count": Comic.objects.filter(flags__scrape_no_match=True).count(),
+            "action": "review",
+        },
+        {
+            "flag": "scrape_error",
+            "label": "Scrape: Error",
+            "description": "Exception during scraping (API unavailable, hash failure, etc.)",
+            "count": Comic.objects.filter(flags__scrape_error=True).count(),
+            "action": "review",
+        },
     ]
 
     flagged_count = Comic.objects.exclude(flags={}).count()

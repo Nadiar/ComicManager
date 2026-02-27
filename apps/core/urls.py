@@ -23,6 +23,7 @@ urlpatterns = [
     path("sync-library-paths/", views.sync_library_paths, name="sync_library_paths"),
     path("rewrite-updated/", views.rewrite_updated_comics, name="rewrite_updated"),
     path("task-progress/<str:task_id>/", views.task_progress, name="task_progress"),
+    path("task-cancel/<str:task_id>/", views.cancel_task, name="cancel_task"),
     path("cv-cover/<int:issue_id>/", views.cv_cover, name="cv_cover"),
     path("<uuid:pk>/", views.comic_detail, name="detail"),
     path("<uuid:pk>/edit/", views.comic_edit, name="edit"),

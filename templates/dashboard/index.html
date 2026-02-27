@@ -82,36 +82,36 @@
                 {% endif %}
 
                 {% if stage.state == 'new' %}
-                <button onclick="runAction('/comics/scan-untagged/', this)" class="btn btn-xs btn-info">Scan Untagged</button>
+                <button onclick="runAction('/comics/scan-untagged/', this, 'Scanning untagged')" class="btn btn-xs btn-info">Scan Untagged</button>
                 {% if stage.count > 0 %}
-                <button onclick="runAction('/comics/accept-all/', this)" class="btn btn-xs btn-success">Accept All</button>
+                <button onclick="runAction('/comics/accept-all/', this, 'Accepting comics')" class="btn btn-xs btn-success">Accept All</button>
                 {% endif %}
                 {% endif %}
 
                 {% if stage.state == 'imported' and stage.count > 0 %}
-                <button onclick="runAction('/comics/scrape-all/', this)" class="btn btn-xs btn-success">Scrape All</button>
+                <button onclick="runAction('/comics/scrape-all/', this, 'Scraping comics')" class="btn btn-xs btn-success">Scrape All</button>
                 {% endif %}
 
                 {% if stage.state == 'counted' and stage.count > 0 %}
-                <button onclick="runAction('/comics/tag-all/', this)" class="btn btn-xs btn-success">Tag All</button>
+                <button onclick="runAction('/comics/tag-all/', this, 'Tagging comics')" class="btn btn-xs btn-success">Tag All</button>
                 {% endif %}
 
                 {% if stage.state == 'tagged' and stage.count > 0 %}
-                <button onclick="runAction('/comics/format-all/', this)" class="btn btn-xs btn-success">Format All</button>
+                <button onclick="runAction('/comics/format-all/', this, 'Formatting comics')" class="btn btn-xs btn-success">Format All</button>
                 <a href="{% url 'core:format_review' %}" class="btn btn-xs btn-info">Review Formats</a>
                 {% endif %}
 
                 {% if stage.state == 'formatted' and stage.count > 0 %}
                 <a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-info">Review Dupes</a>
-                <button onclick="runAction('/comics/deduplicate-all/', this)" class="btn btn-xs btn-success">Detect Dupes</button>
+                <button onclick="runAction('/comics/deduplicate-all/', this, 'Deduplicating')" class="btn btn-xs btn-success">Detect Dupes</button>
                 {% endif %}
 
                 {% if stage.state == 'deduplicated' and stage.count > 0 %}
-                <button onclick="runAction('/comics/organize-all/', this)" class="btn btn-xs btn-success">Organize All</button>
+                <button onclick="runAction('/comics/organize-all/', this, 'Organizing comics')" class="btn btn-xs btn-success">Organize All</button>
                 {% endif %}
 
                 {% if stage.state == 'organized' and stage.count > 0 %}
-                <button onclick="runWriteTask('/comics/write-all/', this)" class="btn btn-xs btn-success" id="btn-write-all">Write All</button>
+                <button onclick="runAction('/comics/write-all/', this, 'Writing comics')" class="btn btn-xs btn-success" id="btn-write-all">Write All</button>
                 {% endif %}
 
                 {% if stage.state == 'written' %}
@@ -132,42 +132,7 @@ function getCsrfToken() {
          document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
 }
 
-async function runAction(url, btn) {
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Processing...';
-
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': getCsrfToken(),
-        'Content-Type': 'application/json',
-      },
-    });
-    const data = await resp.json();
-
-    if (data.success) {
-      btn.textContent = 'Done!';
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-info');
-      // Reload page after short delay to show updated counts
-      setTimeout(() => location.reload(), 1000);
-    } else {
-      btn.textContent = 'Error';
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-error');
-      console.error(data);
-    }
-  } catch (err) {
-    btn.textContent = 'Error';
-    btn.classList.remove('btn-success');
-    btn.classList.add('btn-error');
-    console.error(err);
-  }
-}
-
-async function runWriteTask(url, btn) {
+async function runAction(url, btn, taskLabel) {
   const originalText = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Starting...';
@@ -175,23 +140,28 @@ async function runWriteTask(url, btn) {
   try {
     const resp = await fetch(url, {
       method: 'POST',
-      headers: {
-        'X-CSRFToken': getCsrfToken(),
-        'Content-Type': 'application/json',
-      },
+      headers: {'X-CSRFToken': getCsrfToken()},
     });
     const data = await resp.json();
 
-    if (data.success && data.task_id) {
+    if (data.task_id) {
+      // Async task dispatched
       btn.textContent = 'Running...';
-      btn.classList.remove('btn-success');
+      btn.classList.remove('btn-success', 'btn-info');
       btn.classList.add('btn-info');
       if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id);
+        window.startTaskPolling(data.task_id, taskLabel || originalText);
       }
     } else if (data.success) {
-      btn.textContent = 'No comics';
-      setTimeout(() => location.reload(), 1500);
+      // Synchronous operation completed
+      btn.textContent = 'Done!';
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-info');
+      if (window.showQuickToast) {
+        window.showQuickToast(data.message || 'Done!');
+      } else {
+        setTimeout(() => location.reload(), 1500);
+      }
     } else {
       btn.textContent = data.error || 'Error';
       btn.classList.remove('btn-success');
@@ -209,6 +179,11 @@ async function runWriteTask(url, btn) {
     btn.classList.add('btn-error');
     console.error(err);
   }
+}
+
+// Alias for backward compatibility with existing write-all buttons
+async function runWriteTask(url, btn) {
+  return runAction(url, btn, 'Writing comics');
 }
 
 // Disable Write All button if a task is already running
@@ -266,7 +241,7 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                 <button onclick="runAction('/comics/detect-count-mismatches/', this)" class="btn btn-xs btn-info">Detect Mismatches</button>
                 {% endif %}
                 {% if item.flag == 'count_updated' %}
-                <button onclick="runWriteTask('/comics/rewrite-updated/', this)" class="btn btn-xs btn-success">Rewrite All</button>
+                <button onclick="runAction('/comics/rewrite-updated/', this, 'Rewriting comics')" class="btn btn-xs btn-success">Rewrite All</button>
                 {% endif %}
               </td>
             </tr>

@@ -46,6 +46,15 @@ def run_smartlist_action_task(self, smart_list_id, action):
     )
 
     for i, comic_id in enumerate(comic_ids):
+        from apps.core.tasks import is_cancelled, clear_cancel
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {
+                "success": True, "action": action, "processed": processed,
+                "success_count": success_count, "total": total, "errors": errors,
+                "cancelled": True,
+            }
+
         try:
             comic = Comic.objects.get(pk=comic_id)
         except Comic.DoesNotExist:
@@ -86,6 +95,7 @@ def run_smartlist_action_task(self, smart_list_id, action):
         "success_count": success_count,
         "total": total,
         "errors": errors,
+        "cancelled": False,
     }
 
 
