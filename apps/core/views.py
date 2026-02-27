@@ -738,6 +738,204 @@ def comic_page(request, pk, page_num):
 
 
 @require_GET
+def comic_pages_list(request, pk):
+    """
+    GET → JSON: {page_count: N, pages: [{index, url}]}
+    Lists all pages of a CBZ comic for the page manager UI.
+    """
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return JsonResponse({"error": "Not a digital comic with a file"}, status=400)
+
+    page_count = comic.page_count or 0
+    pages = [
+        {"index": i, "url": f"/comics/{pk}/page/{i}/"}
+        for i in range(page_count)
+    ]
+    return JsonResponse({"page_count": page_count, "pages": pages})
+
+
+@require_POST
+def comic_pages_reorder(request, pk):
+    """
+    POST → JSON: {success, page_count}
+    Body: {order: [0, 3, 1, 2, ...]}  — list of old indices in new sequence.
+    """
+    import json
+    from .cbz_utils import reorder_pages
+    from .cover_cache import invalidate_comic_pages
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return JsonResponse({"error": "Not a digital comic with a file"}, status=400)
+
+    try:
+        body = json.loads(request.body)
+        new_order = body.get("order", [])
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+
+    if not isinstance(new_order, list) or not new_order:
+        return JsonResponse({"error": "order must be a non-empty list"}, status=400)
+
+    success = reorder_pages(comic.file_path, new_order)
+    if not success:
+        return JsonResponse({"error": "Reorder failed"}, status=500)
+
+    invalidate_comic_pages(comic.pk)
+    comic.page_count = len(new_order)
+    comic.save(update_fields=["page_count"])
+
+    return JsonResponse({"success": True, "page_count": comic.page_count})
+
+
+@require_POST
+def comic_pages_delete(request, pk):
+    """
+    POST → JSON: {success, page_count}
+    Body: {indices: [0, 2]}  — 0-based page indices to delete.
+    """
+    import json
+    from .cbz_utils import delete_pages
+    from .cover_cache import invalidate_comic_pages
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return JsonResponse({"error": "Not a digital comic with a file"}, status=400)
+
+    try:
+        body = json.loads(request.body)
+        indices = body.get("indices", [])
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({"error": "Invalid JSON body"}, status=400)
+
+    if not isinstance(indices, list) or not indices:
+        return JsonResponse({"error": "indices must be a non-empty list"}, status=400)
+
+    success = delete_pages(comic.file_path, indices)
+    if not success:
+        return JsonResponse({"error": "Delete failed"}, status=500)
+
+    invalidate_comic_pages(comic.pk)
+    new_count = (comic.page_count or 0) - len(set(indices))
+    comic.page_count = max(0, new_count)
+    comic.save(update_fields=["page_count"])
+
+    return JsonResponse({"success": True, "page_count": comic.page_count})
+
+
+@require_POST
+def comic_pages_add(request, pk):
+    """
+    POST (multipart) → JSON: {success, page_count}
+    Form fields: file (image), position (int, 0-based).
+    """
+    import os as _os
+    from .cbz_utils import add_page_from_upload
+    from .cover_cache import invalidate_comic_pages
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return JsonResponse({"error": "Not a digital comic with a file"}, status=400)
+
+    uploaded = request.FILES.get("file")
+    if not uploaded:
+        return JsonResponse({"error": "No file uploaded"}, status=400)
+
+    position = request.POST.get("position", "0")
+    try:
+        position = int(position)
+    except ValueError:
+        position = 0
+
+    image_bytes = uploaded.read()
+    _, ext = _os.path.splitext(uploaded.name.lower())
+    if ext not in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}:
+        ext = ".jpg"
+
+    success = add_page_from_upload(comic.file_path, image_bytes, position, ext)
+    if not success:
+        return JsonResponse({"error": "Add page failed"}, status=500)
+
+    invalidate_comic_pages(comic.pk)
+    comic.page_count = (comic.page_count or 0) + 1
+    comic.save(update_fields=["page_count"])
+
+    return JsonResponse({"success": True, "page_count": comic.page_count})
+
+
+@require_POST
+def comic_pages_save(request, pk):
+    """
+    POST (multipart) → JSON: {success, page_count}
+    Form fields:
+        layout  – JSON string: [{type, index|key}, ...]
+        file_N  – uploaded image files referenced by "new" layout entries
+    Replaces the entire page sequence in one atomic operation.
+    """
+    import json as _json
+    import os as _os
+    from .cbz_utils import save_page_layout
+    from .cover_cache import invalidate_comic_pages
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return JsonResponse({"error": "Not a digital comic with a file"}, status=400)
+
+    layout_raw = request.POST.get("layout", "")
+    try:
+        layout = _json.loads(layout_raw)
+    except (_json.JSONDecodeError, TypeError):
+        return JsonResponse({"error": "Invalid layout JSON"}, status=400)
+
+    if not isinstance(layout, list) or not layout:
+        return JsonResponse({"error": "layout must be a non-empty list"}, status=400)
+
+    # Collect uploaded files; derive extension from original filename
+    uploaded_files = {}
+    for key, f in request.FILES.items():
+        _, ext = _os.path.splitext(f.name.lower())
+        if ext not in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}:
+            ext = ".jpg"
+        # Store as key+ext so save_page_layout can pick the right extension
+        uploaded_files[key] = f.read()
+        # Patch layout entries to carry the correct extension in the key
+        for entry in layout:
+            if entry.get("type") == "new" and entry.get("key") == key:
+                entry["_ext"] = ext
+
+    # Re-key upload_files to include extension for the backend function
+    keyed = {}
+    for key, data in uploaded_files.items():
+        ext = next(
+            (e.get("_ext", ".jpg") for e in layout if e.get("type") == "new" and e.get("key") == key),
+            ".jpg"
+        )
+        keyed[key + ext] = data
+
+    # Update layout keys to match
+    for entry in layout:
+        if entry.get("type") == "new":
+            entry["key"] = entry["key"] + entry.pop("_ext", ".jpg")
+
+    success = save_page_layout(comic.file_path, layout, keyed)
+    if not success:
+        return JsonResponse({"error": "Save failed"}, status=500)
+
+    invalidate_comic_pages(comic.pk)
+    new_count = len(layout)
+    comic.page_count = new_count
+    comic.save(update_fields=["page_count"])
+
+    return JsonResponse({"success": True, "page_count": new_count})
+
+
+@require_GET
 def cv_cover(request, issue_id):
     """
     Proxy endpoint for ComicVine cover images.

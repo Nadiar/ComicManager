@@ -130,3 +130,10 @@ def invalidate_comic_cover(comic_pk) -> None:
     """Remove cached cover for a comic (e.g. after re-scrape or file change)."""
     cache_path = COVER_CACHE_DIR / f"{comic_pk}.jpg"
     cache_path.unlink(missing_ok=True)
+
+
+def invalidate_comic_pages(comic_pk) -> None:
+    """Remove all cached page images for a comic (cover + all page thumbnails)."""
+    invalidate_comic_cover(comic_pk)
+    for path in COVER_CACHE_DIR.glob(f"{comic_pk}_p*.jpg"):
+        path.unlink(missing_ok=True)

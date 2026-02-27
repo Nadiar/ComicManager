@@ -5,6 +5,14 @@ All notable changes to ComicManager will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **CBZ Page Manager** — "Manage Pages" button on digital comic detail pages opens a modal to reorder, delete, and add pages inside a CBZ file. Drag-and-drop reordering via Sortable.js. Per-page delete with red overlay preview. Upload staging is client-side: select an image and it appears at the front of the grid immediately — no server call until "Save Changes". All operations (reorder + delete + new pages) are committed atomically in a single POST to a new `/pages/save/` endpoint. Cover and page thumbnail cache is automatically invalidated after save.
+- **Variant cover scraping, file insertion, and gallery preview** — After scraping a comic, variant covers are automatically fetched from ComicVine, downloaded, and inserted into the CBZ file after the main cover. A gallery of variant cover thumbnails is shown on the comic detail page. Clicking any thumbnail opens it in the full-size image lightbox.
+- **Custom value editing in comic edit form** — The comic edit page now includes an editable table for `CustomValues` (the JSON field storing ComicVine IDs and non-standard metadata). Rows can be added, edited, and removed directly in the form.
+- **State reset in comic edit form** — Comic edit form has a new "Reset State" option to move a comic back to an earlier workflow state, useful for forcing a re-run of a specific pipeline phase.
+- **Auto-scan page count on comic detail** — When a digital comic's page count is missing (null/0), the detail page now automatically extracts and saves it from the CBZ file on first load.
+- **Cover lightbox on comic detail** — The cover thumbnail in the comic detail header is now clickable and opens the full-size image in the existing lightbox modal. Click anywhere outside the image to dismiss.
+- **Settings for low page count and cover-only detection** — Import scan thresholds for `low_page_count` and `cover_only` flags are now configurable via the Settings page instead of being hardcoded.
+
 - **Dynamic Column Customization** — Complete system for customizing table columns across the app. Includes a global `COLUMNS_REGISTRY` in `core.utils` supporting 50+ fields (metadata, credits, file info, system timestamps, and custom JSON values).
 - **Layout Persistence** — Live views (`/comics/`) can save column layouts as defaults per workflow state or flag into the `Setting` model. Smart Lists save their own column configurations into the database.
 - **Dynamic Column Selector** — Added a column picker dropdown to the main comic list and a selection grid to the Smart List form.

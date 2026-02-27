@@ -84,6 +84,13 @@
               Compare All Sources
             </button>
           </li>
+          {% if comic.is_digital and comic.file_path %}
+          <li>
+            <button onclick="openPageManager()" id="action-manage-pages">
+              Manage Pages
+            </button>
+          </li>
+          {% endif %}
           <li class="menu-title mt-2"><span class="text-error">Danger Zone</span></li>
           <li>
             <button onclick="deleteComic()" id="action-delete" class="text-error hover:bg-error hover:text-error-content">
@@ -650,6 +657,52 @@
     <div class="modal-action">
       <form method="dialog">
         <button class="btn btn-ghost">Close</button>
+      </form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<!-- Page Manager Modal -->
+<dialog id="page-manager-modal" class="modal">
+  <div class="modal-box max-w-4xl">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&#x2715;</button>
+    </form>
+    <h3 class="font-bold text-lg mb-1">Manage Pages</h3>
+    <p class="text-xs text-base-content/50 mb-3">Drag to reorder &bull; &#x2715; to delete &bull; changes saved together</p>
+
+    <div id="pm-error" class="alert alert-error hidden mb-3">
+      <span id="pm-error-text"></span>
+    </div>
+
+    <!-- Loading -->
+    <div id="pm-loading" class="flex items-center justify-center py-12">
+      <span class="loading loading-spinner loading-md"></span>
+    </div>
+
+    <!-- Scrollable thumbnail grid -->
+    <div id="pm-grid" class="flex flex-wrap gap-2 overflow-y-auto max-h-[60vh] p-1" style="display:none!important">
+      <!-- Thumbnails injected by JS -->
+    </div>
+
+    <!-- Upload section -->
+    <div id="pm-upload-section" class="border-t border-base-300 pt-3 mt-3 flex items-center gap-3" style="display:none">
+      <span class="text-sm font-medium shrink-0">Add page:</span>
+      <label class="btn btn-sm btn-accent gap-2 cursor-pointer">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        Choose Image
+        <input type="file" id="pm-upload-file" accept="image/*" class="hidden" onchange="pmAddPage(this)" />
+      </label>
+      <span class="text-xs text-base-content/50">Added to beginning — drag to reposition</span>
+    </div>
+
+    <div class="modal-action mt-3">
+      <button type="button" id="pm-apply-btn" class="btn btn-primary" onclick="pmApplyChanges()" disabled>Save Changes</button>
+      <form method="dialog">
+        <button class="btn btn-ghost">Cancel</button>
       </form>
     </div>
   </div>
@@ -1291,10 +1344,193 @@ function openImageModal(src, caption) {
   const modal = document.getElementById('image-modal');
   const img = document.getElementById('modal-full-img');
   const cap = document.getElementById('modal-img-caption');
-  
+
   img.src = src;
   cap.textContent = caption;
   modal.showModal();
+}
+
+// ── Page Manager ──────────────────────────────────────────────────────────────
+
+let pmSortable = null;
+let pmUploadCounter = 0;
+let pmPendingUploads = new Map();  // uploadKey → File
+let pmHasChanges = false;
+
+function openPageManager() {
+  document.activeElement.blur();
+  pmUploadCounter = 0;
+  pmPendingUploads = new Map();
+  pmHasChanges = false;
+  document.getElementById('pm-apply-btn').disabled = true;
+  document.getElementById('pm-error').classList.add('hidden');
+  document.getElementById('page-manager-modal').showModal();
+  pmLoadPages();
+}
+
+function pmMakeThumb(imgSrc, labelText, dataset, isNew) {
+  const item = document.createElement('div');
+  item.className = 'pm-thumb relative cursor-grab select-none';
+  Object.assign(item.dataset, dataset);
+
+  const border = isNew ? 'border-2 border-success' : 'border border-base-300';
+  item.innerHTML = `
+    <div class="relative group">
+      <img src="${imgSrc}"
+           class="w-24 h-auto rounded ${border} shadow-sm pointer-events-none"
+           draggable="false" />
+      <button type="button"
+        class="pm-delete-btn absolute -top-1.5 -right-1.5 btn btn-xs btn-circle btn-error opacity-60 hover:opacity-100 transition-opacity z-10"
+        onclick="pmMarkDelete(this)" title="Delete page">&#x2715;</button>
+      ${isNew ? '<span class="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-success text-success-content rounded-b font-bold">NEW</span>' : ''}
+      <div class="pm-deleted-overlay absolute inset-0 bg-error/40 rounded hidden pointer-events-none"></div>
+    </div>
+    <div class="text-[10px] text-center mt-0.5 opacity-50 leading-none">${labelText}</div>
+  `;
+  return item;
+}
+
+async function pmLoadPages() {
+  const grid = document.getElementById('pm-grid');
+  const loading = document.getElementById('pm-loading');
+  const upload = document.getElementById('pm-upload-section');
+
+  loading.style.display = 'flex';
+  grid.style.setProperty('display', 'none', 'important');
+  upload.style.display = 'none';
+
+  try {
+    const resp = await fetch(`/comics/${comicPk}/pages/`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    grid.innerHTML = '';
+    data.pages.forEach(page => {
+      const thumb = pmMakeThumb(page.url, `p.${page.index + 1}`, {type: 'existing', index: page.index}, false);
+      grid.appendChild(thumb);
+    });
+
+    loading.style.display = 'none';
+    grid.style.removeProperty('display');
+    upload.style.display = 'flex';
+
+    if (pmSortable) { pmSortable.destroy(); pmSortable = null; }
+
+    if (typeof Sortable === 'undefined') {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js';
+      script.onload = () => pmInitSortable(grid);
+      document.head.appendChild(script);
+    } else {
+      pmInitSortable(grid);
+    }
+  } catch (err) {
+    loading.style.display = 'none';
+    document.getElementById('pm-error-text').textContent = 'Failed to load pages: ' + err.message;
+    document.getElementById('pm-error').classList.remove('hidden');
+  }
+}
+
+function pmInitSortable(grid) {
+  pmSortable = Sortable.create(grid, {
+    animation: 150,
+    ghostClass: 'opacity-20',
+    onEnd() { pmHasChanges = true; pmUpdateApplyBtn(); }
+  });
+}
+
+function pmMarkDelete(btn) {
+  const item = btn.closest('.pm-thumb');
+  const overlay = item.querySelector('.pm-deleted-overlay');
+  const label = item.querySelector('div:last-child');
+  if (item.dataset.deleted === 'true') {
+    delete item.dataset.deleted;
+    overlay.classList.add('hidden');
+    item.style.opacity = '1';
+    label.style.textDecoration = '';
+  } else {
+    item.dataset.deleted = 'true';
+    overlay.classList.remove('hidden');
+    item.style.opacity = '0.45';
+    label.style.textDecoration = 'line-through';
+  }
+  pmHasChanges = true;
+  pmUpdateApplyBtn();
+}
+
+function pmUpdateApplyBtn() {
+  document.getElementById('pm-apply-btn').disabled = !pmHasChanges;
+}
+
+function pmAddPage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+
+  const key = `file_${pmUploadCounter++}`;
+  pmPendingUploads.set(key, file);
+
+  const objectUrl = URL.createObjectURL(file);
+  const thumb = pmMakeThumb(objectUrl, 'NEW', {type: 'new', uploadKey: key, objectUrl}, true);
+  const grid = document.getElementById('pm-grid');
+  grid.prepend(thumb);
+
+  pmHasChanges = true;
+  pmUpdateApplyBtn();
+}
+
+async function pmApplyChanges() {
+  const btn = document.getElementById('pm-apply-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const grid = document.getElementById('pm-grid');
+    const allThumbs = Array.from(grid.querySelectorAll('.pm-thumb'));
+    const layout = [];
+
+    for (const el of allThumbs) {
+      if (el.dataset.deleted === 'true') continue;
+      if (el.dataset.type === 'existing') {
+        layout.push({type: 'existing', index: parseInt(el.dataset.index)});
+      } else {
+        layout.push({type: 'new', key: el.dataset.uploadKey});
+      }
+    }
+
+    if (layout.length === 0) {
+      throw new Error('Cannot save: all pages would be deleted.');
+    }
+
+    const formData = new FormData();
+    formData.append('layout', JSON.stringify(layout));
+    for (const [key, file] of pmPendingUploads) {
+      formData.append(key, file, file.name);
+    }
+
+    const resp = await fetch(`/comics/${comicPk}/pages/save/`, {
+      method: 'POST',
+      headers: {'X-CSRFToken': csrfToken},
+      body: formData
+    });
+
+    if (!resp.ok) {
+      const d = await resp.json();
+      throw new Error(d.error || `HTTP ${resp.status}`);
+    }
+
+    // Revoke object URLs before reload
+    for (const el of allThumbs) {
+      if (el.dataset.objectUrl) URL.revokeObjectURL(el.dataset.objectUrl);
+    }
+
+    location.reload();
+  } catch (err) {
+    document.getElementById('pm-error-text').textContent = 'Error: ' + err.message;
+    document.getElementById('pm-error').classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = 'Save Changes';
+  }
 }
 </script>
 {% endblock %}
