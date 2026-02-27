@@ -110,17 +110,15 @@
     <div class="card-body p-4">
       <h2 class="card-title text-sm opacity-70 mb-2">Variant Covers</h2>
       <div class="flex flex-wrap gap-4">
-        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/cover/', 'Local Cover')">
+        <div class="group relative cursor-pointer" onclick="openGallery(0, 'variants')">
           <img src="/comics/{{ comic.pk }}/cover/" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Local Cover" />
           <div class="text-[10px] text-center mt-1 opacity-50">Local Cover</div>
         </div>
         {% for page_num in alt_cover_range %}
-        {% with label=forloop.first|yesno:"Main,Variant "|add:forloop.counter0 %}
-        <div class="group relative cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}', '{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}')">
+        <div class="group relative cursor-pointer" onclick="openGallery({{ forloop.counter }}, 'variants')">
           <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}" />
           <div class="text-[10px] text-center mt-1 opacity-50">{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}</div>
         </div>
-        {% endwith %}
         {% endfor %}
       </div>
     </div>
@@ -713,19 +711,6 @@
   </form>
 </dialog>
 
-<!-- Full-size Image Modal -->
-<dialog id="image-modal" class="modal">
-  <div class="modal-box max-w-4xl p-0 bg-transparent shadow-none cursor-pointer" onclick="document.getElementById('image-modal').close()">
-    <div class="flex flex-col items-center">
-      <img id="modal-full-img" src="" class="max-h-[90vh] w-auto rounded-lg shadow-2xl border border-white/10" alt="Full size" />
-      <div id="modal-img-caption" class="mt-4 text-white font-semibold bg-black/50 px-4 py-2 rounded-full backdrop-blur-sm"></div>
-    </div>
-  </div>
-  <form method="dialog" class="modal-backdrop bg-black/80 backdrop-blur-sm">
-    <button>close</button>
-  </form>
-</dialog>
-
 <script>
 const comicPk = '{{ comic.pk }}';
 const csrfToken = '{{ csrf_token }}';
@@ -750,6 +735,38 @@ const actionLabels = {
   'refresh-credits': 'Refreshing...',
   'search-alt-covers': 'Searching...',
 };
+
+// ── Gallery Logic ────────────────────────────────────────────────────────────
+
+function openGallery(index, context) {
+  let items = [];
+  
+  if (context === 'variants') {
+    items.push({ url: '/comics/{{ comic.pk }}/cover/', caption: 'Local Cover' });
+    {% for page_num in alt_cover_range %}
+    items.push({ 
+      url: '/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}', 
+      caption: '{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}' 
+    });
+    {% endfor %}
+  } else if (context === 'pagemanager') {
+    const thumbs = Array.from(document.querySelectorAll('#pm-grid .pm-thumb:not([data-deleted="true"])'));
+    items = thumbs.map((thumb, i) => {
+      const img = thumb.querySelector('img');
+      const label = thumb.querySelector('div:last-child').textContent;
+      return { url: img.src, caption: `Page ${i + 1} (${label})` };
+    });
+  }
+
+  window.openLightbox(items, index);
+}
+
+// Legacy support for single-image calls
+function openImageModal(url, caption) {
+  window.openLightbox([{ url, caption }], 0);
+}
+
+// ── Scrape modal functions ───────────────────────────────────────────────────
 
 // Scrape modal functions
 function openScrapeModal() {
@@ -1372,23 +1389,40 @@ function openPageManager() {
 
 function pmMakeThumb(imgSrc, labelText, dataset, isNew) {
   const item = document.createElement('div');
-  item.className = 'pm-thumb relative cursor-grab select-none';
+  item.className = 'pm-thumb relative select-none';
   Object.assign(item.dataset, dataset);
 
   const border = isNew ? 'border-2 border-success' : 'border border-base-300';
-  item.innerHTML = `
-    <div class="relative group">
-      <img src="${imgSrc}"
-           class="w-24 h-auto rounded ${border} shadow-sm pointer-events-none"
-           draggable="false" />
-      <button type="button"
-        class="pm-delete-btn absolute -top-1.5 -right-1.5 btn btn-xs btn-circle btn-error opacity-60 hover:opacity-100 transition-opacity z-10"
-        onclick="pmMarkDelete(this)" title="Delete page">&#x2715;</button>
-      ${isNew ? '<span class="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-success text-success-content rounded-b font-bold">NEW</span>' : ''}
-      <div class="pm-deleted-overlay absolute inset-0 bg-error/40 rounded hidden pointer-events-none"></div>
-    </div>
-    <div class="text-[10px] text-center mt-0.5 opacity-50 leading-none">${labelText}</div>
+  
+  // Create image element separately to attach listener
+  const imgWrapper = document.createElement('div');
+  imgWrapper.className = 'relative group cursor-pointer';
+  imgWrapper.onclick = (e) => {
+    // Only open if not currently dragging and not clicking delete
+    if (item.dataset.deleted === 'true') return;
+    const thumbs = Array.from(document.querySelectorAll('#pm-grid .pm-thumb:not([data-deleted="true"])'));
+    const idx = thumbs.indexOf(item);
+    if (idx !== -1) openGallery(idx, 'pagemanager');
+  };
+
+  imgWrapper.innerHTML = `
+    <img src="${imgSrc}"
+         class="w-24 h-auto rounded ${border} shadow-sm pointer-events-none"
+         draggable="false" />
+    <button type="button"
+      class="pm-delete-btn absolute -top-1.5 -right-1.5 btn btn-xs btn-circle btn-error opacity-60 hover:opacity-100 transition-opacity z-10"
+      onclick="event.stopPropagation(); pmMarkDelete(this)" title="Delete page">&#x2715;</button>
+    ${isNew ? '<span class="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-success text-success-content rounded-b font-bold">NEW</span>' : ''}
+    <div class="pm-deleted-overlay absolute inset-0 bg-error/40 rounded hidden pointer-events-none"></div>
   `;
+  
+  item.appendChild(imgWrapper);
+  
+  const label = document.createElement('div');
+  label.className = 'text-[10px] text-center mt-0.5 opacity-50 leading-none';
+  label.textContent = labelText;
+  item.appendChild(label);
+  
   return item;
 }
 

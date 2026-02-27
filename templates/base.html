@@ -86,7 +86,118 @@
     </div>
   </div>
 
+  <!-- Global Gallery Lightbox -->
+  <dialog id="image-modal" class="modal">
+    <div class="modal-box max-w-fit p-0 bg-transparent shadow-none relative overflow-visible">
+      <div class="flex flex-col items-center">
+        <!-- Gallery Row -->
+        <div class="flex items-center gap-4 px-12">
+          <!-- Prev Arrow -->
+          <button id="gallery-prev" class="btn btn-circle btn-lg bg-black/30 hover:bg-black/60 text-white border-none hidden sm:flex shrink-0 items-center justify-center" onclick="galleryPrev(event)">❮</button>
+
+          <!-- Image Container -->
+          <div class="relative group">
+            <img id="modal-full-img" src="" class="max-h-[85vh] w-auto rounded-lg shadow-2xl border border-white/10 select-none" alt="Full size" />
+            
+            <!-- Close button - Top right of image -->
+            <form method="dialog">
+              <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-50 bg-black/30 hover:bg-black/60 text-white border-none">✕</button>
+            </form>
+          </div>
+
+          <!-- Next Arrow -->
+          <button id="gallery-next" class="btn btn-circle btn-lg bg-black/30 hover:bg-black/60 text-white border-none hidden sm:flex shrink-0 items-center justify-center" onclick="galleryNext(event)">❯</button>
+        </div>
+
+        <!-- Caption & Counter -->
+        <div class="mt-4 flex flex-col items-center gap-2 pointer-events-none">
+          <div id="modal-img-caption" class="text-white font-semibold bg-black/50 px-6 py-2 rounded-full backdrop-blur-sm"></div>
+          <div id="gallery-counter" class="text-white/60 text-xs bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm"></div>
+        </div>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop bg-black/60 backdrop-blur-sm">
+      <button>close</button>
+    </form>
+  </dialog>
+
   <script>
+  // ── Global Gallery Logic ──────────────────────────────────────────────────
+  (function() {
+    let currentGallery = [];
+    let currentGalleryIndex = 0;
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    window.openLightbox = function(items, startIndex = 0) {
+      currentGallery = items || [];
+      currentGalleryIndex = startIndex;
+      updateGalleryUI();
+      document.getElementById('image-modal').showModal();
+    };
+
+    window.galleryPrev = function(e) {
+      if (e) e.stopPropagation();
+      if (currentGallery.length <= 1) return;
+      currentGalleryIndex = (currentGalleryIndex - 1 + currentGallery.length) % currentGallery.length;
+      updateGalleryUI();
+    };
+
+    window.galleryNext = function(e) {
+      if (e) e.stopPropagation();
+      if (currentGallery.length <= 1) return;
+      currentGalleryIndex = (currentGalleryIndex + 1) % currentGallery.length;
+      updateGalleryUI();
+    };
+
+    function updateGalleryUI() {
+      const item = currentGallery[currentGalleryIndex];
+      if (!item) return;
+
+      const img = document.getElementById('modal-full-img');
+      const cap = document.getElementById('modal-img-caption');
+      const counter = document.getElementById('gallery-counter');
+      const prevBtn = document.getElementById('gallery-prev');
+      const nextBtn = document.getElementById('gallery-next');
+      
+      img.src = item.url;
+      cap.textContent = item.caption || '';
+      
+      if (currentGallery.length > 1) {
+        counter.textContent = (currentGalleryIndex + 1) + ' / ' + currentGallery.length;
+        counter.classList.remove('hidden');
+        prevBtn.classList.remove('hidden');
+        nextBtn.classList.remove('hidden');
+      } else {
+        counter.classList.add('hidden');
+        prevBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+      }
+    }
+
+    function handleSwipe() {
+      const threshold = 50;
+      if (touchEndX < touchStartX - threshold) galleryNext();
+      if (touchEndX > touchStartX + threshold) galleryPrev();
+    }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', function() {
+      const modal = document.getElementById('image-modal');
+      if (!modal) return;
+      
+      modal.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, false);
+      modal.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, false);
+
+      document.addEventListener('keydown', e => {
+        if (!modal.open) return;
+        if (e.key === 'ArrowLeft') galleryPrev();
+        if (e.key === 'ArrowRight') galleryNext();
+      });
+    });
+  })();
+
+  // ── Task Progress Logic ─────────────────────────────────────────────────────
   (function() {
     var POLL_INTERVAL = 2000;
     var activeTaskId = null;
