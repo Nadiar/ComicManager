@@ -308,8 +308,7 @@ def scrape_all_task(self):
     )
 
     from apps.scraper.comicvine import ComicVineScraper
-    from apps.scraper.hasher import extract_cover_hashes
-    from .views import _try_hash_match, _try_metadata_match, _apply_match
+    from apps.scraper.services import try_hash_match, try_metadata_match, apply_cv_match
 
     scraper = ComicVineScraper()
 
@@ -335,11 +334,9 @@ def scrape_all_task(self):
             comic.save(update_fields=["flags"])
 
         try:
-            match = None
-            if comic.file_path:
-                match = _try_hash_match(comic, scraper, max_distance=10)
+            match = try_hash_match(comic, scraper, max_distance=10)
             if not match:
-                match = _try_metadata_match(comic, scraper)
+                match = try_metadata_match(comic, scraper)
 
             before_series = comic.series
             before_publisher = comic.publisher
@@ -347,7 +344,7 @@ def scrape_all_task(self):
             before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
 
             if match:
-                _apply_match(comic, match, scraper)
+                apply_cv_match(comic, match, scraper)
                 matched += 1
 
                 from .audit import log_batch_entry
