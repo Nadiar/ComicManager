@@ -30,6 +30,7 @@ _INLINE_EDITABLE_FIELDS = {"proposed_series", "proposed_number", "proposed_volum
 
 # Flag display names for the UI
 FLAG_LABELS = {
+    "corrupted_archive": "Corrupted Archive",
     "low_page_count": "Low Page Count",
     "is_pdf": "PDF File",
     "no_series": "No Series Parsed",
@@ -208,14 +209,17 @@ def comic_detail(request, pk):
     comparison = None
     reorganize_preview = None
 
-    # Auto-scan page count if missing
+    # Auto-scan page count if missing; flag corrupted archives
     if comic.is_digital and comic.file_path and not comic.page_count:
         if comic.file_path.lower().endswith('.cbz'):
             from .services import _get_cbz_page_count
-            count = _get_cbz_page_count(Path(comic.file_path))
+            count, is_corrupted = _get_cbz_page_count(Path(comic.file_path))
             if count:
                 comic.page_count = count
                 comic.save(update_fields=["page_count"])
+            elif is_corrupted and not comic.has_flag("corrupted_archive"):
+                comic.add_flag("corrupted_archive")
+                comic.save(update_fields=["flags"])
 
     # For digital comics, try to read ComicInfo.xml from the file
     if comic.is_digital and comic.file_path:
@@ -253,6 +257,40 @@ def comic_detail(request, pk):
         "show_series_completion": show_series_completion,
         "alt_cover_range": alt_cover_range,
     })
+
+
+@require_POST
+def try_rezip(request, pk):
+    """
+    Attempt to recover a corrupted CBZ by re-extracting readable entries and repacking.
+    On success, clears the corrupted_archive flag and updates page_count.
+    """
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return JsonResponse({"success": False, "error": "Not a digital comic with a file"}, status=400)
+
+    if not comic.file_path.lower().endswith(".cbz"):
+        return JsonResponse({"success": False, "error": "Not a CBZ file"}, status=400)
+
+    if not os.path.exists(comic.file_path):
+        return JsonResponse({"success": False, "error": "File not found on disk"}, status=404)
+
+    from .services import try_rezip_cbz
+    result = try_rezip_cbz(Path(comic.file_path))
+
+    if result["success"]:
+        comic.remove_flag("corrupted_archive")
+        if result.get("page_count"):
+            comic.page_count = result["page_count"]
+        comic.save(update_fields=["flags", "page_count"])
+        return JsonResponse({
+            "success": True,
+            "message": f"Recovered {result['extracted']} entries. The file has been repacked.",
+            "page_count": result.get("page_count"),
+        })
+
+    return JsonResponse({"success": False, "error": result["error"]}, status=500)
 
 
 @require_POST

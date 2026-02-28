@@ -37,6 +37,13 @@ def index(request):
     # Review queue
     review_queue = [
         {
+            "flag": "corrupted_archive",
+            "label": "Corrupted Archive",
+            "description": "CBZ file is corrupted or truncated and cannot be opened",
+            "count": Comic.objects.filter(flags__corrupted_archive=True).count(),
+            "action": "review",
+        },
+        {
             "flag": "low_page_count",
             "label": "Low Page Count",
             "description": "Less than 5 pages - likely incomplete",
@@ -174,6 +181,7 @@ FILTER_FIELD_OPTIONS = [
     ("last_written", "Last Written"),
     ("imported_at", "Import Date"),
     # Flags (stored in JSONField — use flags__<key> syntax)
+    ("flags__corrupted_archive", "Flag: Corrupted Archive"),
     ("flags__low_page_count", "Flag: Low Page Count"),
     ("flags__is_pdf", "Flag: PDF"),
     ("flags__no_series", "Flag: No Series"),

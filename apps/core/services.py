@@ -75,8 +75,9 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
 
             # Extract page count for CBZ files
             page_count = None
+            is_corrupted = False
             if file_format == "cbz":
-                page_count = _get_cbz_page_count(file_path)
+                page_count, is_corrupted = _get_cbz_page_count(file_path)
 
             # Detect flags for review queue
             flags = _detect_flags(
@@ -84,6 +85,7 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
                 page_count=page_count,
                 filename=file_path.name,
                 parsed=parsed,
+                is_corrupted=is_corrupted,
             )
 
             comic_data = {
@@ -193,8 +195,80 @@ def _parse_filename(filename: str) -> dict:
     return result
 
 
-def _get_cbz_page_count(cbz_path: Path) -> int | None:
-    """Count image files inside a CBZ archive."""
+def try_rezip_cbz(cbz_path: Path) -> dict:
+    """
+    Attempt to recover a corrupted CBZ by re-extracting all readable entries
+    and repacking them into a fresh archive in place.
+
+    Returns a dict:
+    - success (bool)
+    - page_count (int|None): image count in the recovered archive
+    - extracted (int): total entries recovered
+    - error (str): failure reason if not successful
+    """
+    import shutil
+    import tempfile
+
+    tmp_dir = Path(tempfile.mkdtemp())
+    tmp_out = cbz_path.with_suffix(".cbz.tmp")
+
+    try:
+        try:
+            zf_in = zipfile.ZipFile(cbz_path, "r")
+        except (zipfile.BadZipFile, EOFError) as exc:
+            return {"success": False, "error": f"Archive cannot be opened: {exc}"}
+
+        extracted = []
+        with zf_in:
+            for info in zf_in.infolist():
+                try:
+                    zf_in.extract(info, tmp_dir)
+                    extracted.append(info.filename)
+                except Exception:
+                    pass
+
+        if not extracted:
+            return {"success": False, "error": "No entries could be extracted from the archive"}
+
+        image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+        image_count = sum(
+            1 for f in extracted
+            if f.lower().endswith(image_extensions)
+            and not f.startswith("__MACOSX")
+            and not f.startswith(".")
+        )
+
+        with zipfile.ZipFile(tmp_out, "w", zipfile.ZIP_DEFLATED) as zf_out:
+            for filename in sorted(extracted):
+                src = tmp_dir / filename
+                if src.exists():
+                    zf_out.write(src, filename)
+
+        tmp_out.replace(cbz_path)
+
+        return {
+            "success": True,
+            "page_count": image_count if image_count > 0 else None,
+            "extracted": len(extracted),
+        }
+
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if tmp_out.exists():
+            tmp_out.unlink(missing_ok=True)
+
+
+def _get_cbz_page_count(cbz_path: Path) -> tuple[int | None, bool]:
+    """
+    Count image files inside a CBZ archive.
+
+    Returns (count, is_corrupted):
+    - (count, False) on success (count may be None if no images found)
+    - (None, True) if the archive is corrupted or truncated
+    """
     try:
         with zipfile.ZipFile(cbz_path, "r") as zf:
             image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
@@ -204,16 +278,23 @@ def _get_cbz_page_count(cbz_path: Path) -> int | None:
                 and not name.startswith("__MACOSX")
                 and not name.startswith(".")
             )
-            return count if count > 0 else None
-    except zipfile.BadZipFile:
-        return None
+            return (count if count > 0 else None, False)
+    except (zipfile.BadZipFile, EOFError):
+        return (None, True)
 
 
-def _detect_flags(file_format: str, page_count: int | None, filename: str, parsed: dict) -> dict:
+def _detect_flags(
+    file_format: str,
+    page_count: int | None,
+    filename: str,
+    parsed: dict,
+    is_corrupted: bool = False,
+) -> dict:
     """
     Detect issues that need user review.
 
     Flags:
+    - corrupted_archive: CBZ archive is corrupted or truncated (cannot be opened)
     - low_page_count: Less than 5 pages (configurable)
     - is_pdf: PDF files need manual review
     - no_series: Couldn't parse series name from filename
@@ -224,6 +305,10 @@ def _detect_flags(file_format: str, page_count: int | None, filename: str, parse
 
     flags = {}
     filename_lower = filename.lower()
+
+    # Corrupted or truncated archive
+    if is_corrupted:
+        flags["corrupted_archive"] = True
 
     # Low page count (default threshold: 5)
     min_pages = get_setting("min_page_count", 5)

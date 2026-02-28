@@ -92,7 +92,7 @@ class Comic(models.Model):
     custom_values = models.JSONField(default=dict, blank=True)
 
     # Flags for review queue - stores issue flags that need user attention
-    # e.g. {"low_page_count": true, "is_pdf": true, "no_series": true, "cover_only": true}
+    # e.g. {"corrupted_archive": true, "low_page_count": true, "is_pdf": true, "no_series": true}
     flags = models.JSONField(default=dict, blank=True)
 
     # Duplicates

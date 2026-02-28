@@ -104,6 +104,30 @@
     </div>
   </div>
 
+  {% if comic.flags.corrupted_archive %}
+  <!-- Corrupted Archive Alert -->
+  <div class="alert alert-error" id="corrupted-alert">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+    </svg>
+    <div class="flex-1">
+      <p class="font-semibold">Corrupted archive</p>
+      <p class="text-sm">This CBZ file cannot be opened. It may be truncated or corrupted.</p>
+      <p class="text-sm mt-1">
+        Try rezipping to recover any readable entries, or delete it and re-import a working copy.
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <button id="btn-rezip" class="btn btn-sm btn-warning" onclick="tryRezip()">
+        Try Rezip
+      </button>
+      <button class="btn btn-sm btn-error btn-outline" onclick="deleteComic()">
+        Delete
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
   {% if alt_cover_range %}
   <!-- Variant Covers Gallery -->
   <div class="card bg-base-200 shadow-sm border border-base-300">
@@ -1073,6 +1097,37 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+async function tryRezip() {
+  const btn = document.getElementById('btn-rezip');
+  const originalText = btn.textContent;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Rezipping...';
+  btn.disabled = true;
+
+  try {
+    const response = await fetch(`/comics/${comicPk}/rezip/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    const data = await response.json();
+
+    if (data.success) {
+      document.getElementById('corrupted-alert').remove();
+      if (window.showQuickToast) {
+        window.showQuickToast(data.message || 'File recovered successfully.');
+      }
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      btn.textContent = originalText;
+      btn.disabled = false;
+      alert('Rezip failed: ' + (data.error || 'Unknown error') + '\n\nThe file may be too corrupted to recover. Please delete it and re-import a working copy.');
+    }
+  } catch (err) {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    alert('Network error: ' + err.message);
+  }
 }
 
 async function runAction(action) {
