@@ -17,6 +17,7 @@ from apps.scraper.hasher import extract_cover_hashes, extract_cover_image
 from apps.scraper.services import (
     try_hash_match as _try_hash_match,
     try_metadata_match as _try_metadata_match,
+    find_best_match as _find_best_match,
     apply_cv_match as _apply_match,
     metadata_alignment_score as _metadata_alignment_score,
     series_matches as _series_matches,
@@ -487,10 +488,14 @@ def scrape_preview(request, pk):
     Preview scrape matches for a comic without applying them.
 
     Returns a list of potential matches with cover URLs for user review.
+    When the local DB is unavailable, returns an empty match list so the
+    user can switch to the "Search API" tab in the scrape modal.
 
     Query params:
         force=1: Skip state check (for re-scraping comics in any state)
     """
+    from apps.scraper.cv_sources import is_cv_db_available
+
     comic = get_object_or_404(Comic, pk=pk)
 
     force = request.GET.get("force") == "1"
@@ -503,41 +508,40 @@ def scrape_preview(request, pk):
     scraper = ComicVineScraper()
     max_distance = 10
     all_matches = []
-
-    # Collect raw matches first
     raw_matches = []
 
-    # Try hash matching first
-    if comic.file_path:
-        hashes = extract_cover_hashes(comic.file_path)
-        if hashes:
-            comic.phash = hashes.phash_hex
-            comic.ahash = hashes.ahash_hex
+    if is_cv_db_available():
+        # Try hash matching first
+        if comic.file_path:
+            hashes = extract_cover_hashes(comic.file_path)
+            if hashes:
+                comic.phash = hashes.phash_hex
+                comic.ahash = hashes.ahash_hex
 
-            hash_matches = scraper.match_by_hash_fast(
-                hashes.phash,
-                hashes.ahash,
-                max_distance=max_distance,
-                limit=5,
+                hash_matches = scraper.match_by_hash_fast(
+                    hashes.phash,
+                    hashes.ahash,
+                    max_distance=max_distance,
+                    limit=5,
+                )
+                raw_matches.extend(hash_matches)
+
+        # Also try metadata matching
+        if comic.series and comic.number:
+            meta_matches = scraper.match_by_metadata(
+                series=comic.series,
+                issue_number=comic.number,
+                year=comic.year,
             )
-            raw_matches.extend(hash_matches)
 
-    # Also try metadata matching
-    if comic.series and comic.number:
-        meta_matches = scraper.match_by_metadata(
-            series=comic.series,
-            issue_number=comic.number,
-            year=comic.year,
-        )
+            # Add metadata matches that aren't already in hash matches
+            existing_ids = {m.issue_id for m in raw_matches}
+            for match in meta_matches[:3]:
+                if match.issue_id not in existing_ids:
+                    raw_matches.append(match)
 
-        # Add metadata matches that aren't already in hash matches
-        existing_ids = {m.issue_id for m in raw_matches}
-        for match in meta_matches[:3]:
-            if match.issue_id not in existing_ids:
-                raw_matches.append(match)
-
-    # Enrich all matches with all cover URLs
-    raw_matches = scraper.enrich_matches_with_covers(raw_matches)
+        # Enrich all matches with all cover URLs
+        raw_matches = scraper.enrich_matches_with_covers(raw_matches)
 
     # Convert to dict format for JSON response
     for match in raw_matches:
@@ -1005,28 +1009,23 @@ def scrape_comic(request, pk):
             "error": f"Comic is not in 'imported' state (current: {comic.state})"
         }, status=400)
 
+    from apps.scraper.cv_sources import is_cv_db_available
+
     scraper = ComicVineScraper()
     match = None
 
     # Check if a specific CV issue ID was provided
     if cv_issue_id:
         # User selected a specific match — try local DB first, then API
-        match = scraper.get_issue_details(int(cv_issue_id))
+        if is_cv_db_available():
+            match = scraper.get_issue_details(int(cv_issue_id))
         if not match:
             match = scraper.get_issue_from_api(int(cv_issue_id))
         if match:
             match.match_type = "manual"
     else:
-        # Auto-select best match
-        max_distance = 10
-
-        # Try hash matching first
-        if comic.file_path:
-            match = _try_hash_match(comic, scraper, max_distance)
-
-        # Fall back to metadata matching
-        if not match:
-            match = _try_metadata_match(comic, scraper)
+        # Auto-select best match using unified strategy (DB -> API fallback)
+        match = _find_best_match(comic, scraper)
 
     if not match:
         return JsonResponse({
@@ -2016,24 +2015,24 @@ def force_scrape(request, pk):
             "error": "Cannot scrape physical comics"
         }, status=400)
 
+    from apps.scraper.cv_sources import is_cv_db_available
+
     scraper = ComicVineScraper()
     match = None
 
     # If we have a stored CV issue ID, use it directly
     cv_issue_id = comic.custom_values.get("comicvine_issue")
     if cv_issue_id:
-        match = scraper.get_issue_details(int(cv_issue_id))
+        if is_cv_db_available():
+            match = scraper.get_issue_details(int(cv_issue_id))
         if not match:
             match = scraper.get_issue_from_api(int(cv_issue_id))
         if match:
             match.match_type = "refresh"
 
-    # Otherwise try to find a new match
+    # Otherwise find the best match using the unified strategy (DB or API)
     if not match:
-        if comic.file_path:
-            match = _try_hash_match(comic, scraper, max_distance=10)
-        if not match:
-            match = _try_metadata_match(comic, scraper)
+        match = _find_best_match(comic, scraper)
 
     if not match:
         return JsonResponse({
@@ -2473,6 +2472,13 @@ def series_audit(request, pk):
         from django.shortcuts import redirect
         return redirect("core:detail", pk=pk)
 
+    if data.get("unavailable"):
+        return render(request, "core/series_audit.html", {
+            "comic": comic,
+            "unavailable": True,
+            "unavailable_reason": data.get("reason", "No local CV data source available."),
+        })
+
     return render(request, "core/series_audit.html", {
         "comic": comic,
         "data": data,
@@ -2701,6 +2707,12 @@ def series_audit_volume(request, cv_volume_id):
         from django.http import Http404
         raise Http404("Volume not found")
 
+    if data.get("unavailable"):
+        return render(request, "core/series_audit.html", {
+            "unavailable": True,
+            "unavailable_reason": data.get("reason", "No local CV data source available."),
+        })
+
     return render(request, "core/series_audit.html", {
         "data": data,
     })
@@ -2711,11 +2723,15 @@ def character_audit_search(request):
     Search for series by main character/team and show completion status for each.
     """
     from apps.dashboard.services import get_volume_completion
+    from apps.scraper.cv_sources import get_cv_source_status
+
+    cv_status = get_cv_source_status()
+    audit_available = cv_status["db"] or cv_status["mcl"]
 
     query = request.GET.get("q", "").strip()
     volumes_data = []
 
-    if query:
+    if query and audit_available:
         # Get all unique volume IDs for comics matching this character/team
         volume_ids = Comic.objects.filter(
             main_character_or_team__iexact=query
@@ -2728,7 +2744,7 @@ def character_audit_search(request):
         for vid in volume_ids:
             if vid:
                 data = get_volume_completion(vid)
-                if data:
+                if data and not data.get("unavailable"):
                     volumes_data.append(data)
 
         # Sort by completion (asc) then name
@@ -2737,4 +2753,6 @@ def character_audit_search(request):
     return render(request, "core/character_audit_search.html", {
         "query": query,
         "volumes_data": volumes_data,
+        "audit_available": audit_available,
+        "cv_status": cv_status,
     })

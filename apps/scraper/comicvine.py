@@ -533,8 +533,12 @@ class ComicVineScraper:
 
         This is called after a match is selected to populate the full details
         that aren't fetched during the initial hash/metadata search.
+        Returns the match unchanged if the local DB is unavailable.
         """
-        conn = self._get_connection()
+        try:
+            conn = self._get_connection()
+        except Exception:
+            return match
         cursor = conn.cursor()
 
         cursor.execute("""
@@ -688,6 +692,11 @@ class ComicVineScraper:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 data = json.loads(resp.read().decode())
                 if data.get("error") == "OK" and data.get("results") is not None:
+                    try:
+                        from apps.scraper.cv_sources import increment_api_call_count
+                        increment_api_call_count()
+                    except Exception:
+                        pass
                     return data
                 logger.warning("CV API error: %s", data.get("error"))
                 return None

@@ -107,6 +107,7 @@ def seed_default_settings(sender, **kwargs):
         dict(key="untagged_dir",          label="Untagged (drop) folder",      type="path",   group="Library",    help_text="Where new digital comics are dropped for import", value="/comics/untagged"),
         dict(key="library_dir",           label="Organized library folder",    type="path",   group="Library",    help_text="Where the Library Organizer moves finished comics", value="/comics/library"),
         dict(key="cv_db_path",            label="ComicVine SQLite DB path",    type="path",   group="Library",    help_text="Path to your local ComicVine SQLite index", value="/cv_db/comicvine.db"),
+        dict(key="cv_mcl_path",           label="ComicVine MCL file path",     type="path",   group="Library",    help_text="Path to latest.mcl (semicolon-delimited volume/issue index). Used for Series Audit when comicvine.db is unavailable.", value="/cv_db/latest.mcl"),
         dict(key="dry_run_organizer",     label="Dry-run Library Organizer",   type="bool",   group="Library",    help_text="Preview moves without touching any files", value="true"),
         # Format Detection
         dict(key="one_shot_max_count",       label="One-Shot Max Count",       type="int", group="Format", help_text="Comics with count <= this value are One-Shot (default: 1)", value="1"),

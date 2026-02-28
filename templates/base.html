@@ -343,6 +343,7 @@
             showLogLink();
             activeTaskId = null;
             showDismiss();
+            setTimeout(function() { window.dismissTaskToast(); }, 5000);
 
           } else if (data.state === 'FAILURE') {
             hideCancel();

@@ -284,8 +284,15 @@ def convert_all_cbr_task(self):
 def scrape_all_task(self):
     """
     Scrape all comics in 'imported' state against the ComicVine database.
+
+    When the local comicvine.db is unavailable, falls back to the ComicVine API
+    (API-only mode). The API budget is checked before each comic; if the 200/hour
+    limit is reached the task stops early with a clear error message.
     """
     from .models import Comic
+    from apps.scraper.comicvine import ComicVineScraper
+    from apps.scraper.cv_sources import is_cv_db_available, check_api_budget, get_api_calls_remaining
+    from apps.scraper.services import find_best_match, apply_cv_match
 
     comic_ids = list(
         Comic.objects.filter(
@@ -298,17 +305,17 @@ def scrape_all_task(self):
     if total == 0:
         return {"matched": 0, "failed": 0, "total": 0, "errors": [], "cancelled": False}
 
+    db_available = is_cv_db_available()
     matched = 0
     failed = 0
     errors = []
+    budget_exhausted = False
 
     self.update_state(
         state="PROGRESS",
-        meta={"current": 0, "total": total, "processed": 0, "errors": []},
+        meta={"current": 0, "total": total, "processed": 0, "errors": [],
+              "api_mode": not db_available},
     )
-
-    from apps.scraper.comicvine import ComicVineScraper
-    from apps.scraper.services import try_hash_match, try_metadata_match, apply_cv_match
 
     scraper = ComicVineScraper()
 
@@ -320,6 +327,16 @@ def scrape_all_task(self):
                 "processed": matched + failed,
                 "total": total, "errors": errors, "cancelled": True,
             }
+
+        # In API-only mode, stop early if budget is exhausted
+        if not db_available and not check_api_budget(required=3):
+            remaining = get_api_calls_remaining()
+            budget_exhausted = True
+            errors.append(
+                f"API budget exhausted ({remaining} calls left). "
+                f"Processed {i}/{total} comics. Retry in up to an hour."
+            )
+            break
 
         try:
             comic = Comic.objects.get(pk=comic_id)
@@ -334,9 +351,7 @@ def scrape_all_task(self):
             comic.save(update_fields=["flags"])
 
         try:
-            match = try_hash_match(comic, scraper, max_distance=10)
-            if not match:
-                match = try_metadata_match(comic, scraper)
+            match = find_best_match(comic, scraper)
 
             before_series = comic.series
             before_publisher = comic.publisher
@@ -389,10 +404,20 @@ def scrape_all_task(self):
                 "total": total,
                 "processed": matched + failed,
                 "errors": errors,
+                "api_mode": not db_available,
             },
         )
 
-    return {"matched": matched, "failed": failed, "processed": matched + failed, "total": total, "errors": errors, "cancelled": False}
+    return {
+        "matched": matched,
+        "failed": failed,
+        "processed": matched + failed,
+        "total": total,
+        "errors": errors,
+        "cancelled": False,
+        "budget_exhausted": budget_exhausted,
+        "api_mode": not db_available,
+    }
 
 
 # =============================================================================

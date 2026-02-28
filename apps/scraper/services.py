@@ -154,6 +154,92 @@ def try_metadata_match(comic, scraper):
     return matches[0] if matches else None
 
 
+def find_best_match(comic, scraper, max_distance=10):
+    """
+    Find the best ComicVine match for a comic, automatically choosing the
+    right strategy based on available data sources.
+
+    Strategy (in order):
+    1. Local DB available: hash match -> metadata match
+    2. Local DB unavailable: API metadata match
+
+    Returns the best CVMatch or None. Callers should not need to know which
+    strategy was used — the match_type field on the result reflects it.
+    """
+    from apps.scraper.cv_sources import is_cv_db_available
+
+    if is_cv_db_available():
+        match = try_hash_match(comic, scraper, max_distance=max_distance)
+        if not match:
+            match = try_metadata_match(comic, scraper)
+        return match
+
+    return try_api_metadata_match(comic, scraper)
+
+
+def try_api_metadata_match(comic, scraper):
+    """
+    Match a comic using the ComicVine API search endpoint.
+
+    Used when the local comicvine.db is unavailable (API-only mode).
+    Checks the rolling API budget before making any calls and returns None
+    immediately if the budget is exhausted.
+
+    Typical API calls per comic:
+    - search_api(query, limit=5): 1 call + up to 5 volume-info calls
+    - get_issue_from_api(issue_id): 1 call + 1 volume call for credits
+
+    Returns the best CVMatch (with full credits) or None.
+    """
+    from apps.scraper.cv_sources import check_api_budget
+
+    cv_series = comic.series or comic.proposed_series
+    cv_number = comic.number or comic.proposed_number
+
+    if not cv_series or not cv_number:
+        return None
+
+    if not check_api_budget(required=3):
+        import logging
+        logging.getLogger(__name__).warning(
+            "CV API budget exhausted — skipping comic %s", comic.pk
+        )
+        return None
+
+    query = f"{cv_series} #{cv_number}"
+    candidates = scraper.search_api(query, limit=5)
+
+    if not candidates:
+        return None
+
+    # Score each candidate and take the best
+    scored = []
+    for match in candidates:
+        score = metadata_alignment_score(comic, match)
+        if score > 0:
+            scored.append((match, score))
+
+    if not scored:
+        return None
+
+    scored.sort(key=lambda x: -x[1])
+    best = scored[0][0]
+
+    # Fetch full credits for the chosen match
+    if not check_api_budget(required=2):
+        # Budget too low for the detail call — return shallow match
+        best.match_type = f"api+search"
+        return best
+
+    detailed = scraper.get_issue_from_api(best.issue_id)
+    if detailed:
+        detailed.match_type = "api+detail"
+        return detailed
+
+    best.match_type = "api+search"
+    return best
+
+
 def apply_cv_match(comic, match, scraper=None):
     """
     Apply ComicVine match data to a comic and advance its workflow state.

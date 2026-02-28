@@ -133,6 +133,11 @@ def index(request):
                 entry["total_issues"] = missing_data["total_count"]
         dashboard_smartlists.append(entry)
 
+    from apps.scraper.cv_sources import get_cv_source_status, get_api_calls_used, get_api_calls_remaining, CV_API_BUDGET_LIMIT
+    cv_status = get_cv_source_status()
+    api_remaining = get_api_calls_remaining()
+    api_remaining_pct = round(api_remaining / CV_API_BUDGET_LIMIT * 100)
+
     return render(request, "dashboard/index.html", {
         "stats": stats,
         "pipeline": pipeline,
@@ -140,6 +145,11 @@ def index(request):
         "flagged_count": flagged_count,
         "needs_reorganize_count": needs_reorganize_count,
         "dashboard_smartlists": dashboard_smartlists,
+        "cv_status": cv_status,
+        "api_calls_used": get_api_calls_used(),
+        "api_calls_remaining": api_remaining,
+        "api_calls_remaining_pct": api_remaining_pct,
+        "api_budget_limit": CV_API_BUDGET_LIMIT,
     })
 
 

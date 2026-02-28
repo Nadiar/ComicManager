@@ -101,6 +101,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 UNTAGGED_DIR = os.environ.get("UNTAGGED_DIR", "/comics/untagged")
 LIBRARY_DIR = os.environ.get("LIBRARY_DIR", "/comics/library")
 CV_DB_PATH = os.environ.get("CV_DB_PATH", "/cv_db/comicvine.db")
+CV_MCL_PATH = os.environ.get("CV_MCL_PATH", "/cv_db/latest.mcl")
 COVER_CACHE_DIR = os.environ.get("COVER_CACHE_DIR", "/app/cover_cache")
 AUDIT_LOG_PATH = os.environ.get("AUDIT_LOG_PATH", "/app/logs/batch_actions.jsonl")
 

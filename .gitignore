@@ -197,3 +197,5 @@ static/css/main.css
 cover_cache/*
 Comicrack_guide/*
 docs/*
+*.mcl
+PROGRESS.md

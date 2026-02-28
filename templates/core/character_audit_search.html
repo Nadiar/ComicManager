@@ -18,7 +18,25 @@
     </form>
   </div>
 
-  {% if query %}
+  {% if not audit_available %}
+  <div class="alert alert-warning">
+    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
+    <div>
+      <div class="font-bold">Series Audit unavailable</div>
+      <div class="text-sm">No local ComicVine data source found (comicvine.db or latest.mcl). Searching the API for every volume would use too many of the 200 calls/hour budget.</div>
+      <div class="text-sm mt-1">Provide <code class="font-mono">./data/comicvine.db</code> or <code class="font-mono">./data/latest.mcl</code> to enable this feature.</div>
+    </div>
+  </div>
+  {% else %}
+    {% if cv_status.mcl and not cv_status.db %}
+    <div class="alert alert-info text-sm py-2">
+      Using latest.mcl — volume names and cover images are not available. Issue counts are based on the MCL file.
+    </div>
+    {% endif %}
+
+    {% if query %}
     <div class="divider">Results for "{{ query }}"</div>
 
     {% if volumes_data %}
@@ -35,7 +53,7 @@
                   <span class="text-sm font-mono">
                     {{ data.owned_count }}/{{ data.total_count }} — {{ data.completion }}%
                   </span>
-                  <a href="{% url 'core:series_audit_volume' data.volume_id %}" 
+                  <a href="{% url 'core:series_audit_volume' data.volume_id %}"
                      class="btn btn-xs btn-outline">
                     Details
                   </a>
@@ -44,7 +62,7 @@
 
               <div class="w-full bg-base-300 rounded-full h-4 overflow-hidden">
                 <div class="h-full rounded-full transition-all
-                  {% if data.completion >= 90 %}bg-success{% elif data.completion >= 70 %}bg-info{% elif data.completion >= 30 %}bg-warning{% else %}bg-error{% endif %}" 
+                  {% if data.completion >= 90 %}bg-success{% elif data.completion >= 70 %}bg-info{% elif data.completion >= 30 %}bg-warning{% else %}bg-error{% endif %}"
                   style="width: {{ data.completion }}%">
                 </div>
               </div>
@@ -60,6 +78,7 @@
       <div class="text-center py-12 bg-base-200 rounded-xl border-2 border-dashed border-base-300">
         <p class="text-base-content/50">No series found with Main Character or Team matching "{{ query }}".</p>
       </div>
+    {% endif %}
     {% endif %}
   {% endif %}
 </div>

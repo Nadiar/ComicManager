@@ -127,8 +127,22 @@ def get_volume_completion(cv_volume_id):
 
     Takes a ComicVine volume ID directly.
     Returns dict with volume_info, owned_issues, missing_issues, completion stats.
-    Returns None if the volume is not found.
+
+    Data source precedence:
+    1. comicvine.db SQLite index (full metadata + cover URLs)
+    2. latest.mcl CSV index (issue IDs and numbers only, no covers)
+    3. Neither available: returns {"unavailable": True, "reason": "..."}
     """
+    from apps.scraper.cv_sources import is_cv_db_available, is_mcl_available, get_volume_completion_from_mcl
+
+    if not is_cv_db_available():
+        if is_mcl_available():
+            return get_volume_completion_from_mcl(cv_volume_id)
+        return {
+            "unavailable": True,
+            "reason": "No local ComicVine data source available (comicvine.db or latest.mcl).",
+        }
+
     # 1. Query CV SQLite DB for volume info and all issues
     db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
     try:
@@ -260,8 +274,16 @@ def search_cv_volumes(query, limit=20):
     """
     Search ComicVine volumes by name. Returns list of dicts.
     Used by the HTMX search endpoint in the smart list form.
+
+    Returns empty list when comicvine.db is unavailable (MCL does not contain
+    volume names, so text search is not possible without the DB).
     """
+    from apps.scraper.cv_sources import is_cv_db_available
+
     if not query or len(query) < 2:
+        return []
+
+    if not is_cv_db_available():
         return []
 
     db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")

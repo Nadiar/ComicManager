@@ -12,7 +12,14 @@ def settings_index(request):
     grouped = {}
     for s in settings:
         grouped.setdefault(s.group, []).append(s)
-    return render(request, "core/settings.html", {"grouped": grouped})
+
+    from apps.scraper.cv_sources import get_cv_source_status
+    cv_status = get_cv_source_status()
+
+    return render(request, "core/settings.html", {
+        "grouped": grouped,
+        "cv_status": cv_status,
+    })
 
 
 def settings_update(request):

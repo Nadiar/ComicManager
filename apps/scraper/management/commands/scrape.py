@@ -16,6 +16,7 @@ from apps.scraper.services import (
     normalize_issue_number,
     series_matches,
     apply_cv_match,
+    find_best_match,
 )
 
 
@@ -93,13 +94,15 @@ class Command(BaseCommand):
 
             match = None
 
-            # Try hash matching first (most reliable)
-            if method in ("hash", "both") and comic.file_path:
-                match = self._try_hash_match(comic, scraper, max_distance)
-
-            # Fall back to metadata matching
-            if not match and method in ("metadata", "both"):
-                match = self._try_metadata_match(comic, scraper)
+            if method == "both":
+                # Unified strategy: automatically uses DB or API based on availability
+                match = find_best_match(comic, scraper, max_distance=max_distance)
+            else:
+                # Explicit method selection (DB only, verbose output)
+                if method == "hash" and comic.file_path:
+                    match = self._try_hash_match(comic, scraper, max_distance)
+                elif method == "metadata":
+                    match = self._try_metadata_match(comic, scraper)
 
             if match:
                 matched += 1
