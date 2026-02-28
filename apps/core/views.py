@@ -39,6 +39,7 @@ FLAG_LABELS = {
     "needs_conversion": "Needs Conversion",
     "missing_count": "Missing Issue Count",
     "count_mismatch": "Count Mismatch",
+    "metadata_mismatch": "Metadata Mismatch",
     "scrape_no_match": "Scrape: No Match",
     "scrape_error": "Scrape: Error",
 }
@@ -2662,7 +2663,7 @@ def comic_rollback(request, pk):
     if to_state in ("new", "imported"):
         for key in ("comicvine_issue", "comicvine_volume", "scrape_score", "scrape_source"):
             cv.pop(key, None)
-        for flag in ("scrape_no_match", "scrape_error", "scrape_error_detail"):
+        for flag in ("scrape_no_match", "scrape_error", "scrape_error_detail", "metadata_mismatch"):
             comic.flags.pop(flag, None)
         comic.custom_values = cv
         comic.state = Comic.STATE_NEW if to_state == "new" else Comic.STATE_IMPORTED
@@ -2733,14 +2734,16 @@ def character_audit_search(request):
 
     if query and audit_available:
         # Get all unique volume IDs for comics matching this character/team
-        volume_ids = Comic.objects.filter(
+        comics_matching = Comic.objects.filter(
             main_character_or_team__iexact=query
         ).exclude(
             custom_values__comicvine_volume__isnull=True
         ).exclude(
             custom_values__comicvine_volume=""
-        ).values_list("custom_values__comicvine_volume", flat=True).distinct()
-
+        )
+        
+        volume_ids = list(comics_matching.values_list("custom_values__comicvine_volume", flat=True).distinct())
+        
         for vid in volume_ids:
             if vid:
                 data = get_volume_completion(vid)
@@ -2756,3 +2759,21 @@ def character_audit_search(request):
         "audit_available": audit_available,
         "cv_status": cv_status,
     })
+
+
+@require_POST
+def audit_metadata_mismatches(request):
+    """
+    Dispatch a Celery task to audit metadata mismatches between local DB and ComicVine.
+    """
+    from celery.result import AsyncResult
+    from .tasks import audit_metadata_task
+
+    active = request.session.get("active_task_id")
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+
+    result = audit_metadata_task.delay()
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Auditing metadata"
+    return JsonResponse({"success": True, "task_id": result.id, "message": "Auditing metadata mismatches in background"})

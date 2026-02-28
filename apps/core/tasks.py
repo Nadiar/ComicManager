@@ -2,12 +2,8 @@
 Celery tasks for long-running core operations.
 """
 
-import logging
-
 from celery import shared_task
 from django.utils import timezone
-
-logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -632,3 +628,130 @@ def search_alt_covers_task(self, comic_pk, variant_urls):
         return {"success": True, "inserted": inserted, "processed": inserted, "total": len(variant_urls)}
 
     return {"success": False, "error": "No covers downloaded", "inserted": 0}
+
+
+@shared_task(bind=True, name="core.audit_metadata", queue="scrape")
+def audit_metadata_task(self):
+    """
+    Background task to audit metadata mismatches between local DB and ComicVine.
+    Checks all comics with a ComicVine Volume ID.
+    """
+    import sqlite3
+    from django.conf import settings
+    from .models import Comic
+    from apps.scraper.cv_sources import is_cv_db_available
+
+    if not is_cv_db_available():
+        return {"success": False, "error": "ComicVine database not available."}
+
+    comics_qs = Comic.objects.exclude(
+        custom_values__comicvine_volume__isnull=True
+    ).exclude(
+        custom_values__comicvine_volume=""
+    )
+    
+    comic_ids = list(comics_qs.values_list("pk", flat=True))
+    total = len(comic_ids)
+
+    if total == 0:
+        return {"success": True, "checked": 0, "flagged": 0, "cleared": 0, "total": 0}
+
+    self.update_state(state="PROGRESS", meta={"current": 0, "total": total, "processed": 0, "errors": []})
+
+    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
+        cursor = conn.cursor()
+    except Exception as e:
+        return {"success": False, "error": f"Failed to open CV database: {str(e)}"}
+
+    def _clean(text):
+        return "".join(filter(str.isalnum, str(text or ""))).lower()
+
+    flagged = 0
+    cleared = 0
+    checked = 0
+    errors = []
+
+    for i, comic_id in enumerate(comic_ids):
+        if is_cancelled(self.request.id):
+            conn.close()
+            clear_cancel(self.request.id)
+            return {
+                "success": True, "checked": checked, "flagged": flagged, 
+                "cleared": cleared, "total": total, "cancelled": True
+            }
+
+        try:
+            comic = Comic.objects.get(pk=comic_id)
+            vid = comic.custom_values.get("comicvine_volume")
+            if not vid:
+                continue
+
+            checked += 1
+            cursor.execute("SELECT name FROM cv_volume WHERE id = ?", (int(vid),))
+            row = cursor.fetchone()
+            
+            if row:
+                cv_name = row[0]
+                db_name = comic.series or ""
+
+                # Fuzzy mismatch logic
+                clean_cv = _clean(cv_name)
+                clean_db = _clean(db_name)
+
+                is_mismatch = clean_cv not in clean_db and clean_db not in clean_cv
+
+                if is_mismatch:
+                    if not comic.has_flag("metadata_mismatch"):
+                        from .audit import log_batch_entry
+                        log_batch_entry(
+                            "audit_metadata",
+                            comic,
+                            comic.state,
+                            comic.state,
+                            {"metadata_mismatch": [f"Series: {db_name}", f"CV Volume: {cv_name}"]}
+                        )
+                        comic.add_flag("metadata_mismatch")
+                        comic.save(update_fields=["flags"])
+                        flagged += 1
+                else:
+                    if comic.has_flag("metadata_mismatch"):
+                        comic.remove_flag("metadata_mismatch")
+                        comic.save(update_fields=["flags"])
+                        cleared += 1
+                        
+                        from .audit import log_batch_entry
+                        log_batch_entry(
+                            "audit_metadata", 
+                            comic, 
+                            comic.state, 
+                            comic.state, 
+                            {"metadata_mismatch": ["Flagged", "Cleared"]}
+                        )
+        except Exception as e:
+            errors.append(f"Error checking comic {comic_id}: {str(e)}")
+
+        if (i + 1) % 10 == 0 or (i + 1) == total:
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": i + 1, 
+                    "total": total, 
+                    "processed": checked,
+                    "flagged": flagged,
+                    "cleared": cleared,
+                    "errors": errors[:10] # Limit reported errors
+                }
+            )
+
+    conn.close()
+    return {
+        "success": True,
+        "checked": checked,
+        "flagged": flagged,
+        "cleared": cleared,
+        "total": total,
+        "errors": errors,
+        "cancelled": False
+    }

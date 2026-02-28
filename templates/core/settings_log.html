@@ -22,6 +22,7 @@
       {% if action == 'scrape_all' %}Scrape
       {% elif action == 'tag_all' %}Tag
       {% elif action == 'format_all' %}Format
+      {% elif action == 'audit_metadata' %}Audit
       {% else %}{{ action }}{% endif %}
     </a>
     {% endfor %}
@@ -53,6 +54,7 @@
               {% if entry.action == 'scrape_all' %}badge-secondary
               {% elif entry.action == 'tag_all' %}badge-accent
               {% elif entry.action == 'format_all' %}badge-info
+              {% elif entry.action == 'audit_metadata' %}badge-warning
               {% else %}badge-neutral{% endif %}">
               {{ entry.action }}
             </span>
@@ -118,6 +120,16 @@
                     hx-swap="outerHTML"
                     hx-confirm="Reset this comic to 'tagged' and clear format?">
               To tagged
+            </button>
+            {% elif entry.action == 'audit_metadata' %}
+            {# Mismatched metadata — send back to scraping phase #}
+            <button class="btn btn-xs btn-warning"
+                    hx-post="{% url 'core:comic_rollback' entry.uuid %}"
+                    hx-vals='{"to_state": "imported"}'
+                    hx-target="#log-row-{{ forloop.counter }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Reset this comic to 'imported' phase? Clears mismatch flag and match data.">
+              To Scrape
             </button>
             {% endif %}
           </td>

@@ -69,5 +69,5 @@ def settings_log(request):
         "page_obj": page_obj,
         "total_count": paginator.count,
         "action_filter": action_filter,
-        "actions": ["scrape_all", "tag_all", "format_all"],
+        "actions": ["scrape_all", "tag_all", "format_all", "audit_metadata"],
     })

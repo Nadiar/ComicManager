@@ -252,6 +252,13 @@
     }
 
     function progressText(data) {
+      if (data.flagged !== undefined && data.cleared !== undefined) {
+        // Audit-specific progress
+        var parts = [];
+        if (data.flagged > 0) parts.push(data.flagged + ' flagged');
+        if (data.cleared > 0) parts.push(data.cleared + ' cleared');
+        return parts.length ? parts.join(', ') : (data.current || 0) + ' checked';
+      }
       if (data.action) {
         var actionLabel = {tag: 'tagged', format: 'formatted', organize: 'organized', write: 'written'}[data.action] || 'processed';
         return (data.success_count || 0) + ' ' + actionLabel +
@@ -269,6 +276,13 @@
       if (r.cancelled) {
         var done = r.processed || r.written || r.success_count || 0;
         return 'Cancelled after ' + done + ' processed';
+      }
+      if (r.flagged !== undefined && r.cleared !== undefined) {
+        // Audit-specific success
+        var parts = [];
+        if (r.flagged > 0) parts.push(r.flagged + ' flagged');
+        if (r.cleared > 0) parts.push(r.cleared + ' cleared');
+        return (parts.length ? parts.join(', ') : 'No changes') + ' (of ' + (r.total || 0) + ' checked)';
       }
       if (r.action) {
         var actionLabel = {tag: 'tagged', format: 'formatted', organize: 'organized', write: 'written'}[r.action] || 'processed';

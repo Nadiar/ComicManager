@@ -59,6 +59,7 @@ urlpatterns = [
     path("<uuid:pk>/series-audit/", views.series_audit, name="series_audit"),
     path("series-audit/volume/<int:cv_volume_id>/", views.series_audit_volume, name="series_audit_volume"),
     path("series-audit/search/", views.character_audit_search, name="character_audit_search"),
+    path("audit-metadata-mismatches/", views.audit_metadata_mismatches, name="audit_metadata_mismatches"),
     path("<uuid:pk>/delete/", views.delete_comic, name="delete"),
     path("<uuid:pk>/inline-field/", views.comic_inline_field, name="comic_inline_field"),
     path("<uuid:pk>/rollback/", views.comic_rollback, name="comic_rollback"),

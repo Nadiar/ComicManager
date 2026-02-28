@@ -233,7 +233,8 @@ def parse_comicinfo_xml(xml_content: bytes) -> dict:
             name = cv.get("name")
             value = cv.get("value")
             if name and value:
-                custom_values[name] = value
+                # Ensure all values are strings to prevent PostgreSQL type mismatch
+                custom_values[name] = str(value)
 
     if custom_values:
         data["custom_values"] = custom_values
