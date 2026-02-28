@@ -3,7 +3,6 @@ Scraper views - web interface for testing and running the scraper.
 """
 
 import io
-import re
 from django.shortcuts import render
 from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -12,6 +11,7 @@ from apps.core.models import Comic
 from apps.core.utils import natural_number_annotation
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
+from apps.scraper.services import metadata_alignment_score as _metadata_alignment_score
 
 
 def index(request):
@@ -201,73 +201,3 @@ def _try_metadata_match_with_log(comic, scraper):
     return None, log.getvalue()
 
 
-def _metadata_alignment_score(comic, match):
-    """Score how well a CV match aligns with parsed metadata."""
-    # If we have no parsed metadata, we can't validate - return 1 (tentative match)
-    # This allows hash-only matches when filename parsing fails
-    if not comic.proposed_series and not comic.proposed_number:
-        return 1  # Tentative - hash matched but can't validate
-
-    score = 0
-
-    # Normalize issue numbers
-    proposed_num = _normalize_issue_number(comic.proposed_number)
-    match_num = _normalize_issue_number(match.issue_number)
-
-    # If we have a proposed number, it must match
-    if proposed_num and match_num:
-        if proposed_num != match_num:
-            return 0
-        score = 1
-
-    # Check series name
-    if comic.proposed_series and match.series:
-        if _series_matches(comic.proposed_series, match.series):
-            score = 2
-
-            # Check year
-            if comic.proposed_year and match.start_year:
-                try:
-                    proposed_year = int(comic.proposed_year)
-                    match_year = int(match.start_year)
-                    if abs(proposed_year - match_year) <= 2:
-                        score = 3
-                except (ValueError, TypeError):
-                    pass
-    elif not comic.proposed_series and score == 0:
-        # No series to compare, but we got here - give tentative score
-        score = 1
-
-    return score
-
-
-def _normalize_issue_number(num):
-    """Normalize issue number for comparison."""
-    if not num:
-        return ""
-    return str(num).lstrip("0").lower() or "0"
-
-
-def _series_matches(proposed, matched):
-    """Check if series names are similar."""
-    def normalize(s):
-        s = s.lower()
-        s = re.sub(r"[^\w\s]", " ", s)
-        s = re.sub(r"\s+", " ", s).strip()
-        return s
-
-    proposed_norm = normalize(proposed)
-    matched_norm = normalize(matched)
-
-    if proposed_norm == matched_norm:
-        return True
-
-    if proposed_norm in matched_norm or matched_norm in proposed_norm:
-        return True
-
-    proposed_words = proposed_norm.split()
-    matched_words = matched_norm.split()
-    if proposed_words and matched_words and proposed_words[0] == matched_words[0]:
-        return True
-
-    return False
