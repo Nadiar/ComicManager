@@ -6,16 +6,17 @@ Matches unscraped comics using:
 2. Metadata matching (series + issue number) as fallback
 """
 
-import re
-
 from django.core.management.base import BaseCommand
-from django.utils.html import strip_tags
 
 from apps.core.models import Comic
-from apps.core.utils import html_to_text
-from apps.core.cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
+from apps.scraper.services import (
+    metadata_alignment_score,
+    normalize_issue_number,
+    series_matches,
+    apply_cv_match,
+)
 
 
 class Command(BaseCommand):
@@ -110,7 +111,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"    Match type: {match.match_type} (score: {match.match_score})")
 
                 if not dry_run:
-                    self._apply_match(comic, match)
+                    apply_cv_match(comic, match)
             else:
                 failed += 1
                 self.stdout.write(self.style.WARNING("    NO MATCH FOUND"))
@@ -152,7 +153,7 @@ class Command(BaseCommand):
         # Cross-validate hash matches against parsed metadata
         validated = []
         for match in matches:
-            score = self._metadata_alignment_score(comic, match)
+            score = metadata_alignment_score(comic, match)
             if score > 0:
                 validated.append((match, score))
                 self.stdout.write(
@@ -179,109 +180,22 @@ class Command(BaseCommand):
         self.stdout.write(self.style.WARNING("    No hash matches passed metadata validation"))
         return None
 
-    def _metadata_alignment_score(self, comic: Comic, match: CVMatch) -> int:
-        """
-        Score how well a CV match aligns with parsed metadata.
-
-        Returns:
-            0 = no alignment (reject)
-            1 = partial/tentative alignment (hash match, no metadata to validate OR issue matches)
-            2 = good alignment (series similar + issue matches)
-            3 = excellent alignment (series + issue + year match)
-        """
-        # If we have no parsed metadata, we can't validate - return 1 (tentative match)
-        # This allows hash-only matches when filename parsing fails
-        if not comic.proposed_series and not comic.proposed_number:
-            return 1  # Tentative - hash matched but can't validate
-
-        score = 0
-
-        # Normalize issue numbers for comparison
-        proposed_num = self._normalize_issue_number(comic.proposed_number)
-        match_num = self._normalize_issue_number(match.issue_number)
-
-        # If we have a proposed number, it must match
-        if proposed_num and match_num:
-            if proposed_num != match_num:
-                return 0
-            score = 1  # Issue number matches
-
-        # Check series name similarity
-        if comic.proposed_series and match.series:
-            if self._series_matches(comic.proposed_series, match.series):
-                score = 2  # Series matches
-
-                # Check year alignment
-                if comic.proposed_year and match.start_year:
-                    try:
-                        proposed_year = int(comic.proposed_year)
-                        match_year = int(match.start_year)
-                        # Allow ±2 year tolerance (cover date vs start year)
-                        if abs(proposed_year - match_year) <= 2:
-                            score = 3  # Year also matches
-                    except (ValueError, TypeError):
-                        pass
-        elif not comic.proposed_series and score == 0:
-            # No series to compare, but we got here - give tentative score
-            score = 1
-
-        return score
-
-    def _normalize_issue_number(self, num: str | None) -> str:
-        """Normalize issue number for comparison."""
-        if not num:
-            return ""
-        # Remove leading zeros, convert to lowercase
-        return num.lstrip("0").lower() or "0"
-
-    def _series_matches(self, proposed: str, matched: str) -> bool:
-        """
-        Check if series names are similar enough to be the same series.
-
-        Handles cases like:
-        - "Batgirl" vs "Batgirl"
-        - "Batman" vs "Batman (2016)"
-        - "X-Men" vs "X-Men: Gold"
-        """
-        # Normalize: lowercase, remove punctuation, collapse whitespace
-        def normalize(s: str) -> str:
-            s = s.lower()
-            s = re.sub(r"[^\w\s]", " ", s)  # Replace punctuation with space
-            s = re.sub(r"\s+", " ", s).strip()  # Collapse whitespace
-            return s
-
-        proposed_norm = normalize(proposed)
-        matched_norm = normalize(matched)
-
-        # Exact match
-        if proposed_norm == matched_norm:
-            return True
-
-        # One contains the other (handles "Batman" vs "Batman 2016")
-        if proposed_norm in matched_norm or matched_norm in proposed_norm:
-            return True
-
-        # Check if first word matches (handles "Batgirl" vs "Batgirl Returns")
-        proposed_words = proposed_norm.split()
-        matched_words = matched_norm.split()
-        if proposed_words and matched_words and proposed_words[0] == matched_words[0]:
-            # First word matches - likely same series
-            return True
-
-        return False
-
     def _try_metadata_match(self, comic: Comic, scraper: ComicVineScraper):
         """Try to match comic by series name and issue number."""
         self.stdout.write("    Trying metadata match (fallback)...")
 
-        if not comic.proposed_series or not comic.proposed_number:
+        cv_series = comic.series or comic.proposed_series
+        cv_number = comic.number or comic.proposed_number
+        cv_year = comic.year or comic.proposed_year
+
+        if not cv_series or not cv_number:
             self.stdout.write("    Missing series or number, skipping metadata match")
             return None
 
         matches = scraper.match_by_metadata(
-            series=comic.proposed_series,
-            issue_number=comic.proposed_number,
-            year=comic.proposed_year,
+            series=cv_series,
+            issue_number=cv_number,
+            year=cv_year,
         )
 
         if matches:
@@ -295,84 +209,3 @@ class Command(BaseCommand):
             return best
 
         return None
-
-    def _apply_match(self, comic: Comic, match):
-        """Apply ComicVine match data to comic and update state."""
-        # Copy confirmed data from match
-        comic.series = match.series
-        comic.number = match.issue_number
-        comic.title = match.title
-        comic.publisher = match.publisher
-        comic.count = match.issue_count
-
-        # Parse year from start_year or cover_date
-        if match.start_year:
-            try:
-                comic.volume = int(match.start_year)
-            except ValueError:
-                pass
-
-        if match.cover_date:
-            # cover_date format: "2025-04-01"
-            try:
-                parts = match.cover_date.split("-")
-                comic.year = int(parts[0])
-                if len(parts) > 1:
-                    comic.month = int(parts[1])
-                if len(parts) > 2:
-                    comic.day = int(parts[2])
-            except (ValueError, IndexError):
-                pass
-
-        if match.description:
-            comic.summary = html_to_text(match.description)
-
-        # Set Notes with CV reference (like ComicRack)
-        if not comic.notes and match.issue_id:
-            comic.notes = f"Scraped metadata from ComicVine [CVDB{match.issue_id}]."
-
-        if match.teams:
-            comic.teams = match.teams
-        if match.locations:
-            comic.locations = match.locations
-
-        # Store ComicVine IDs in custom_values
-        comic.custom_values["comicvine_issue"] = str(match.issue_id)
-        comic.custom_values["comicvine_volume"] = str(match.volume_id)
-        if match.issue_count:
-            comic.custom_values["comicvine_issue_count"] = str(match.issue_count)
-
-        # Record scrape source
-        comic.custom_values["scrape_source"] = match.match_type
-        comic.custom_values["scrape_score"] = str(match.match_score)
-
-        # Download and insert variant covers if available and not already processed
-        if (comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz") 
-            and match.cover_urls and comic.custom_values.get("HasAltCovers") != "Yes"):
-            
-            # Include all unique covers as variants, including the primary one 
-            # because the local file's cover might be different (edition, condition, etc.)
-            variants = []
-            seen_urls = set()
-            for url in match.cover_urls:
-                if url and url not in seen_urls:
-                    variants.append(url)
-                    seen_urls.add(url)
-            
-            if variants:
-                self.stdout.write(f"    Found {len(variants)} variant covers, inserting...")
-                inserted = insert_variant_covers(comic.file_path, variants)
-                if inserted > 0:
-                    self.stdout.write(self.style.SUCCESS(f"    Successfully inserted {inserted} variant cover(s)"))
-                    comic.custom_values["HasAltCovers"] = "Yes"
-                    comic.custom_values["AltCoverCount"] = inserted
-                    # Force a refresh of the page count from the file
-                    from apps.core.services import _get_cbz_page_count
-                    comic.page_count = _get_cbz_page_count(Path(comic.file_path))
-                else:
-                    self.stdout.write(self.style.WARNING("    Failed to insert variant covers"))
-
-        # Update state
-        comic.state = Comic.STATE_SCRAPED
-
-        comic.save()
