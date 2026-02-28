@@ -110,6 +110,9 @@ def index(request):
 
     flagged_count = Comic.objects.exclude(flags={}).count()
 
+    # Needs-reorganize queue
+    needs_reorganize_count = Comic.objects.filter(needs_reorganize=True).count()
+
     # Smart lists for dashboard
     dashboard_smartlists = []
     for sl in SmartList.objects.filter(show_on_dashboard=True):
@@ -128,6 +131,7 @@ def index(request):
         "pipeline": pipeline,
         "review_queue": review_queue,
         "flagged_count": flagged_count,
+        "needs_reorganize_count": needs_reorganize_count,
         "dashboard_smartlists": dashboard_smartlists,
     })
 

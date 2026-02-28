@@ -254,6 +254,28 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
   </div>
   {% endif %}
 
+  <!-- Needs Re-organize Widget -->
+  {% if needs_reorganize_count > 0 %}
+  <div class="card bg-base-200 border border-info">
+    <div class="card-body">
+      <div class="flex flex-wrap justify-between items-center gap-2">
+        <div>
+          <h2 class="card-title text-info">Library Re-organize Queue</h2>
+          <p class="text-sm text-base-content/60 mt-1">
+            {{ needs_reorganize_count }} comic{{ needs_reorganize_count|pluralize }} flagged — metadata changed after last organize, or organizer profile template was updated.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <a href="{% url 'organizer:path_audit' %}" class="btn btn-sm btn-ghost">Path Audit</a>
+          <button onclick="runAction('{% url 'organizer:start_reorganize_all' %}', this, 'Re-organizing comics')" class="btn btn-sm btn-info">
+            Re-organize All ({{ needs_reorganize_count }})
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Smart Lists -->
   {% if dashboard_smartlists %}
   <div class="card bg-base-200">
