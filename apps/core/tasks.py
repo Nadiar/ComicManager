@@ -87,6 +87,9 @@ def write_all_comics_task(self):
         comic.save()
         written += 1
 
+        from .audit import log_batch_entry
+        log_batch_entry("write_all", comic, Comic.STATE_ORGANIZED, comic.state, {"comicinfo": ["pending", "written"]})
+
         self.update_state(
             state="PROGRESS",
             meta={"current": i + 1, "total": total, "written": written, "errors": errors},

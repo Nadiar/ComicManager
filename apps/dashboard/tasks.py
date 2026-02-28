@@ -149,6 +149,7 @@ def _run_organize(comic):
     import shutil
     from apps.core.models import Comic
     from apps.organizer.services import preview_organization, LIBRARY_BASE
+    from apps.core.audit import log_batch_entry
 
     if not comic.is_digital or not comic.file_path:
         return
@@ -159,6 +160,7 @@ def _run_organize(comic):
     preview = preview_organization(comic)
     old_path = comic.file_path
     new_path = preview["new_path"]
+    state_before = comic.state
 
     if os.path.abspath(old_path) != os.path.abspath(new_path):
         os.makedirs(os.path.dirname(new_path), exist_ok=True)
@@ -191,11 +193,17 @@ def _run_organize(comic):
     comic.expected_path = None
     comic.save()
 
+    changes = {}
+    if old_path != comic.file_path:
+        changes["path"] = [old_path, comic.file_path]
+    log_batch_entry("organize_all", comic, state_before, comic.state, changes)
+
 
 def _run_write(comic):
     """Write ComicInfo.xml to a comic's CBZ file."""
     from apps.core.models import Comic
     from apps.core.utils import write_comicinfo_xml
+    from apps.core.audit import log_batch_entry
     from django.utils import timezone
 
     if not comic.is_digital or not comic.file_path:
@@ -204,6 +212,7 @@ def _run_write(comic):
     if not comic.file_path.lower().endswith(".cbz"):
         return
 
+    state_before = comic.state
     success = write_comicinfo_xml(comic.file_path, comic)
     if not success:
         raise Exception("Failed to write ComicInfo.xml")
@@ -217,3 +226,4 @@ def _run_write(comic):
         comic.flags.pop("count_updated", None)
 
     comic.save()
+    log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})

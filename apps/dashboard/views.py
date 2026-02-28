@@ -100,6 +100,13 @@ def index(request):
             "action": "rewrite",
         },
         {
+            "flag": "metadata_mismatch",
+            "label": "Metadata Mismatch",
+            "description": "Series name doesn't match the ComicVine volume — needs re-scrape",
+            "count": Comic.objects.filter(flags__metadata_mismatch=True).count(),
+            "action": "review",
+        },
+        {
             "flag": "scrape_no_match",
             "label": "Scrape: No Match",
             "description": "No ComicVine match found — needs manual matching or skip",

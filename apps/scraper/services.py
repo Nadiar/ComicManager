@@ -340,6 +340,7 @@ def apply_cv_match(comic, match, scraper=None):
                 from apps.core.cover_cache import invalidate_comic_pages
                 invalidate_comic_pages(comic.pk)
 
+    comic.remove_flag("metadata_mismatch")
     comic.state = Comic.STATE_COUNTED
     comic.save()
 

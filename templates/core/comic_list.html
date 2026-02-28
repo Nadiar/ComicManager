@@ -184,7 +184,7 @@
         Accept All
       </button>
       {% endif %}
-      {% if current_state == 'imported' and comics %}
+      {% if current_state == 'imported' and comics or current_flag == 'metadata_mismatch' and comics %}
       <label class="label cursor-pointer gap-2 mr-2">
         <span class="label-text text-sm">Confirm each</span>
         <input type="checkbox" id="confirm-scrape-checkbox" class="checkbox checkbox-sm" />
@@ -360,7 +360,7 @@
               Accept
             </button>
             {% endif %}
-            {% if comic.state == 'imported' %}
+            {% if comic.state == 'imported' or current_flag == 'metadata_mismatch' %}
             <button
               type="button"
               class="btn btn-xs btn-secondary"
@@ -702,6 +702,9 @@
 </style>
 
 <script>
+// Force-scrape mode: skip state check for re-scraping mismatched comics
+const isForceScrape = {% if current_flag == 'metadata_mismatch' %}true{% else %}false{% endif %};
+
 function getCsrfToken() {
   const name = 'csrftoken';
   const cookies = document.cookie.split(';');
@@ -835,6 +838,10 @@ function scrapeAllComics(btn) {
     processNextScrape();
   } else {
     // Auto mode: scrape all without confirmation
+    if (isForceScrape) {
+      alert('Use "Confirm each" mode to review and re-scrape mismatched comics individually.');
+      return;
+    }
     if (!confirm('Scrape all imported comics against ComicVine? This may take a while.')) {
       return;
     }
@@ -908,7 +915,7 @@ function scrapeComic(pk, btn) {
     btn.disabled = true;
     btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
 
-    fetch(`/comics/${pk}/scrape/`, {
+    fetch(`/comics/${pk}/scrape/${isForceScrape ? '?force=1' : ''}`, {
       method: 'POST',
       headers: {
         'X-CSRFToken': getCsrfToken(),
@@ -975,7 +982,7 @@ function openScrapeModal(pk, btn) {
   modal.showModal();
 
   // Fetch preview matches
-  fetch(`/comics/${pk}/scrape/preview/`)
+  fetch(`/comics/${pk}/scrape/preview/${isForceScrape ? '?force=1' : ''}`)
     .then(response => response.json())
     .then(data => {
       loadingDiv.classList.add('hidden');
@@ -1224,7 +1231,7 @@ function selectMatch(comicPk, issueId) {
   const formData = new FormData();
   formData.append('cv_issue_id', issueId);
 
-  fetch(`/comics/${comicPk}/scrape/`, {
+  fetch(`/comics/${comicPk}/scrape/${isForceScrape ? '?force=1' : ''}`, {
     method: 'POST',
     headers: {
       'X-CSRFToken': getCsrfToken(),

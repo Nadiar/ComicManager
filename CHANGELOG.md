@@ -30,6 +30,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Single-comic action results in toast**: Fast single-comic actions (Re-tag, Re-format, Re-organize, etc.) no longer do a silent page reload. Results are shown briefly in the notification toast via `showQuickToast()` before the page refreshes.
 - **Task failure dismiss button**: When a batch task finishes with errors or fails entirely, a "Dismiss" button replaces the auto-hide timer so the user can read the error details before reloading.
 
+- **Metadata mismatch audit**: New "Audit Metadata Mismatches" background task under Settings > Database Audits. Compares each comic's local `series` name against the linked ComicVine volume name in `comicvine.db`. Comics with a significant name mismatch (neither name contained within the other, after stripping non-alphanumeric characters) are flagged `metadata_mismatch`. The flag appears in the dashboard review queue and is available as a Smart List filter field. The task reports real-time flagged/cleared counts in the progress toast. Results are written to the Batch Log (filterable by the new "Audit" tab); each entry has a "To Scrape" rollback button to clear the bad match data and reset the comic to `imported` for re-scraping. Requires `comicvine.db` — the button is disabled when only MCL or API is available.
+
+- **`metadata_mismatch` dashboard Review Queue and scrape UI**: The `metadata_mismatch` flag now appears as a row in the dashboard Review Queue table with a count and "View" link. The flag list view at `/comics/?flag=metadata_mismatch` now shows the full scrape UI: a "Scrape All" button with "Confirm each" toggle and per-row "Scrape" buttons. All scrape requests from this view pass `?force=1` to bypass the `imported`-only state check. `apply_cv_match` now clears the `metadata_mismatch` flag after any successful re-scrape (batch and individual paths), resetting the comic to `counted` to continue through the pipeline.
+
+- **Batch audit log extended to organize and write**: The batch audit log now covers all pipeline stages. `organize_all` entries record the old and new file path when a comic is moved. `write_all` entries record ComicInfo.xml writes. Both action types are filterable in the batch log UI at `/settings/log/`. The `_run_organize` and `_run_write` helpers in `apps/dashboard/tasks.py` (used by Smart List actions) also write to the log, matching the bulk-task coverage.
+
+- **ComicVine API-only mode**: The scraper now auto-detects when `comicvine.db` is absent and gracefully falls back to the ComicVine REST API for batch scraping and the `latest.mcl` CSV file for volume completion / Series Audit. Key additions:
+  - `apps/scraper/cv_sources.py`: availability helpers (`is_cv_db_available`, `is_mcl_available`, `get_cv_source_status`), a `latest.mcl` parser (`load_mcl_index`, `get_volume_completion_from_mcl`), and a Redis-backed rolling API call budget tracker (`increment_api_call_count`, `check_api_budget`, 200 calls/hour limit).
+  - `try_api_metadata_match()` in `apps/scraper/services.py`: queries `search_api()`, scores candidates with `metadata_alignment_score`, fetches full credits via `get_issue_from_api()`, and respects the budget before each call.
+  - `apps/scraper/comicvine.py`: `_api_request()` now increments the budget counter on every successful call.
+  - `apps/core/tasks.py` (`scrape_all_task`): checks `is_cv_db_available()` and stops with a user-visible message when the API budget is exhausted mid-run.
+  - `apps/dashboard/services.py` (`get_volume_completion`): tries DB first, then MCL, then returns `{"unavailable": True, "reason": "..."}` when neither source is present.
+  - Settings page: shows a "ComicVine Data Sources" status block (DB / MCL / API key badges and current mode).
+  - Dashboard: shows an API budget banner (remaining calls + progress bar) when operating in API-only mode.
+  - Series Audit and Character Audit pages: show a disabled-with-message banner when neither DB nor MCL is available.
+  - `docker-compose.yml`: optional `./data/latest.mcl:/cv_db/latest.mcl:ro` volume mount for the MCL file.
+  - `cv_mcl_path` added as a runtime setting (default `/cv_db/latest.mcl`) in `apps/core/signals.py`.
+
 - **Navigable Lightbox Gallery**: Refactored the image lightbox into a full navigable gallery. Supports "Previous" and "Next" navigation via on-screen arrows (desktop), keyboard arrows (Left/Right), and horizontal swipe gestures (mobile/tablet). Includes an image counter (e.g., "2 / 5") and dynamic captions.
 - **Page Manager Lightbox Previews**: Clicking any page thumbnail in the "Manage Pages" modal now opens the navigable lightbox. The gallery is built dynamically from the current state of the reorderable grid, allowing users to verify page content even for newly uploaded or reordered pages before saving.
 - **CBZ Page Manager**: "Manage Pages" button on digital comic detail pages opens a modal to reorder, delete, and add pages inside a CBZ file. Drag-and-drop reordering via Sortable.js. Per-page delete with red overlay preview. Upload staging is client-side: select an image and it appears at the front of the grid immediately, no server call until "Save Changes". All operations (reorder, delete, new pages) are committed atomically in a single POST to a new `/pages/save/` endpoint. Cover and page thumbnail cache is automatically invalidated after save.
@@ -58,6 +76,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Unified scraper entry point**: All scraping code paths (batch task, management command, scrape modal views) now call a single `find_best_match(comic, scraper)` function in `apps/scraper/services.py`. The function internally decides whether to use the local ComicVine DB (hash + metadata) or the API (`try_api_metadata_match`), based on `is_cv_db_available()`. Callers no longer need to know which strategy was used.
+
+- **Celery toast auto-dismiss on success**: The progress toast now automatically dismisses after 5 seconds when a batch task completes successfully, removing the need to manually click "Dismiss" for routine operations. Failed tasks still require a manual dismiss so the error details can be read.
+
 - **Variant cover gallery improvements**: Updated insertion logic to include ComicVine's primary cover as a variant, as it often differs from the local file's cover. Gallery labels updated to "Local Cover" (for the local file), "Main" (for the primary online reference), and "Variant N" for subsequent covers.
 - **Workflow pipeline reduced from 9 to 8 states**: Removed unused "scraped" state since scraping goes directly to "counted". Dashboard and comic list now show the correct 8-state workflow.
 - **Organizer profiles use configured `base_folder`**: Profiles now use their own configured `base_folder` instead of the hardcoded `/comics/library` path, allowing each profile to organize comics into a different root folder.
@@ -66,6 +88,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Workflow navigation bar**: Comic list pages (`/comics/?state=XXX`) now show a clickable navigation bar with all 8 workflow states for easy jumping between stages.
 
 ### Fixed
+
+- **PostgreSQL JSONField type mismatch for CV IDs**: `parse_comicinfo_xml` in `core/utils.py` now explicitly casts all `CustomValue` entries to `str`. Previously, numeric values imported from `ComicInfo.xml` could be stored as integers in the `custom_values` JSONField. PostgreSQL JSON lookups are type-sensitive, so string-based queries (e.g., `custom_values__comicvine_volume="93370"`) returned zero results when the stored value was the integer `93370`. This caused "0 Owned" counts in Series Audit and broke character audit search volume matching.
+
+- **Series Audit showing wrong owned counts after CV ID type mismatch**: `get_volume_completion` (dashboard services) already filters with `custom_values__comicvine_volume=str(cv_volume_id)`, correctly handling string IDs. Comics stored with integer IDs during the pre-normalization period will be corrected the next time their `ComicInfo.xml` is re-imported or saved.
+
+- **Scrape modal crashes when comicvine.db is absent**: `scrape_preview`, `scrape_comic`, and `force_scrape` views called `match_by_hash_fast`, `match_by_metadata`, `enrich_matches_with_covers`, and `get_issue_details` directly without checking whether the local DB was available. All three views now guard DB calls with `is_cv_db_available()` and route to `find_best_match` (API path) when the DB is absent.
+
+- **API scrapes not logged to audit log**: `enrich_match_with_credits()` in `ComicVineScraper` tried to open a SQLite connection even when the DB was unavailable, raising `sqlite3.OperationalError`. This was caught by the outer `except Exception` in the batch task, causing comics to be flagged `scrape_error` instead of advancing to `counted`. Fixed by wrapping the `_get_connection()` call in a try/except inside `enrich_match_with_credits()`, returning the match unchanged when the DB is absent.
 
 - **Variant cover indexing and metadata sync**: Fixed an issue where variant thumbnails pointed to the wrong page index. Comic page count is now automatically synchronized from the file after variant covers are inserted.
 - **Dashboard pipeline circle overflow**: Workflow pipeline circles now expand into ovals for 4-6 digit counts, preventing text overflow.

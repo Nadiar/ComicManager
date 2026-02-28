@@ -36,6 +36,7 @@
 - [x] [P2.2] Implemented `Scrape error flags` (`scrape_no_match`, `scrape_error`, `scrape_error_detail`) for handling scrape failures.
 - [x] [P2.3] Implemented matching strategies: pHash / aHash, filename + series + number fuzzy match, ComicVine API fallback, and manual match UI.
 - [x] [P2.4] Confirmed `ComicVine API fallback` feature.
+- [x] [P2.14] Metadata mismatch audit — background task compares local `series` name against CV volume name in `comicvine.db`. Flags `metadata_mismatch` on comics linked to the wrong volume. Real-time flagged/cleared progress in toast. Results in Batch Log with "To Scrape" rollback per entry. Button only active when `comicvine.db` is present. Flag appears in the dashboard Review Queue. The flag list view uses the full scrape UI (Scrape All + per-row Scrape buttons) with `?force=1` to allow re-scraping from any workflow state. `apply_cv_match` clears the flag after a successful re-scrape. See `AUDIT_FUNC.md` for full details.
 - [x] [P2.5] Created `apps/scraper/services.py` as single source of truth for matching logic (`try_hash_match`, `try_metadata_match`, `apply_cv_match`, `metadata_alignment_score`, `series_matches`, `normalize_issue_number`). Removed duplicate implementations from `core/views.py` and `scraper/views.py`. Batch task and management command now import from service layer. Unified `metadata_alignment_score` handles both fresh imports and re-scrapes. Pending: resilience (rate limit retry), metadata depth (story arcs).
 - [-] [P2.6] (Cancelled) Implement priority-based queuing for scraping: `0Day`, `Backlog`, `Skipped`, `Rescrape`.
 - [ ] [P2.7] Implement mechanism to mark comics for later scraping (`skipped` flag or `CVDBSKIP`).
@@ -89,6 +90,7 @@
 - [ ] [P5.11] Implement smart list/logic to flag comics whose format changed and need re-organizing.
 - [ ] [P5.12] Refine existing rules for TPB, Omnibus, Director's Cut, etc. to avoid mis-tagging.
 - [x] [P5.13] Fixed search/filter bar on `/comics/?state=new` — see P1.19.
+- [ ] [P5.14] We need to show page count, so we can see if we talk about TPB or limited series on low issue count. 
 
 ### Phase 6: Duplicate Detection (Comicrack_guide 07 - Duplicated)
 
@@ -101,6 +103,7 @@
 - [x] [P6.4] Implemented duplicate resolution UI with side-by-side comparison and actions (keep/soft-delete/delete).
 - [x] [P6.5] Implemented soft-delete only (`is_duplicate=True`, `duplicate_of` FK set).
 - [ ] [P6.6] Implement an audit log entry for every duplicate resolution decision.
+- [ ] [P6.7] Duplicate Review needs better explenation for what Keep, Re-Q, Del does. Right now if we say Keep on one of the pairs, the other set just disappeard, so the user should delete the one they dont want. 
 
 ### Phase 7: Library Organizer (Comicrack_guide 08 - Library Organizer)
 
@@ -182,15 +185,17 @@
 - [x] [UI.6] Confirmed `Celery notifications for all batch actions` covers various bulk actions.
 - [ ] [UI.7] Further develop a visual pipeline funnel and counts per smart list on the dashboard.
 - [ ] [UI.8] Consolidate and enhance existing settings into a single, comprehensive settings UI for templates, publisher rules, and API keys.
-- [x] [UI.9] Batch audit log at `/settings/log/` — filterable by action (Scrape/Tag/Format), per-comic changes diff, copyable UUID, rollback buttons. Log written to `./data/logs/batch_actions.jsonl`.
+- [x] [UI.9] Batch audit log at `/settings/log/` — filterable by action (Scrape/Tag/Format/Organize/Write/Audit), per-comic changes diff, copyable UUID, rollback buttons. Log written to `./data/logs/batch_actions.jsonl`. Audit entries include a "To Scrape" rollback button to reset bad matches. Log entries are only written when a flag is newly added or cleared (not on repeated re-runs). All pipeline stages now log: `scrape_all`, `tag_all`, `format_all`, `organize_all` (records old/new path), `write_all` (records comicinfo write), `audit_metadata`.
 - [ ] [UI.10] Implement functionality to export comic metadata as JSON for individual comics and potentially in bulk.
 - [ ] [UI.11] Enhance global search to return both digital and physical comics, clearly indicating the medium with a "medium badge".
 - [ ] [UI.12] Ensure all smart lists have full pagination, sorting, and column toggling capabilities.
 - [ ] [UI.13] Extend existing bulk actions framework to encompass more granular bulk actions like delete file, flag ok, etc.
 - [ ] [UI.14] Add search functionality for minor characters and main characters to the comic table.
-- [ ] [UI.15] If the user does not have a comicvine.db, we need to implement an option to use comicvine API for everything. This is a major task as we only have 200 API calls an hour, but it should be doable.
+- [x] [UI.15] ComicVine API-only mode when comicvine.db is absent. Auto-detects DB/MCL availability. Batch scraping falls back to API search (try_api_metadata_match). Series Audit uses latest.mcl CSV fallback (mount ./data/latest.mcl; format: one row per volume, semicolon-delimited, comma-separated issue IDs and numbers). API call budget tracked in Redis (200/hour). Dashboard banner shows mode + remaining calls. Settings page shows data source status. Series Audit disabled (with message) when neither DB nor MCL is available. Unified find_best_match() entry point in services.py replaces scattered if-db-available branches in tasks, views, and management command. Scrape modal views (scrape_preview, scrape_comic, force_scrape) now guard all DB calls with is_cv_db_available() to prevent 500 errors. enrich_match_with_credits() no longer crashes when DB is absent. Celery task stops gracefully (with user-visible message) when API budget is exhausted mid-run.
 - [ ] [UI.16] character_audit_search opens a new SQLite connection per volume in a loop (N+1). For characters with many volumes this will be slow. Consider batching the CV DB lookups in a single connection inside get_volume_completion or a new bulk variant.
-
+- [ ] [UI.17] Edit comic needs a 'clear flag'. 
+- [ ] [UI.18] ALL popups needs to use a custom modal and not browser based popup. 
+- [ ] [UI.19] Edit comic needs a save to DB (where we skip saving to XML), as we can alwyas use the re-write option later on. 
 
 ## Major Issues / Bugs
 
@@ -205,6 +210,7 @@
 - [x] [BUG.6] Implemented variant covers swipe/arrows support (`Navigable Lightbox Gallery`).
 - [x] [BUG.7] Implemented 'Manage Pages' lightbox preview.
 - [x] [BUG.8] Addressed major issue: Re-search for alt covers does not work (`Variant cover gallery no longer shows stale images`).
+- [x] [BUG.15] Fixed PostgreSQL JSONField integer/string type mismatch for `custom_values` CV IDs. `parse_comicinfo_xml` now casts all `CustomValue` entries to `str` on import. Previously, numeric IDs stored as integers caused string-based queries to return zero results, breaking Series Audit owned counts and character audit volume matching.
 - [ ] [BUG.9] Ensure `Summary` and `Notes` fields are multi-line in UI, especially in "Compare All Sources" and "Metadata Comparison" tables.
 - [ ] [BUG.10] Implement validation to prevent saving tagging rulesets without a modifier and show an error.
 - [ ] [BUG.11] Add a button/action to refresh all file & system info (hashes, page count, filesize).
