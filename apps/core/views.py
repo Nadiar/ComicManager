@@ -78,12 +78,19 @@ def comic_list(request):
     # Search filter
     search = request.GET.get("q", "").strip()
     if search:
-        comics = comics.filter(
-            Q(series__icontains=search) |
-            Q(title__icontains=search) |
-            Q(publisher__icontains=search) |
-            Q(number__icontains=search)
-        )
+        if state == Comic.STATE_NEW:
+            comics = comics.filter(
+                Q(proposed_series__icontains=search) |
+                Q(proposed_number__icontains=search) |
+                Q(file_path__icontains=search)
+            )
+        else:
+            comics = comics.filter(
+                Q(series__icontains=search) |
+                Q(title__icontains=search) |
+                Q(publisher__icontains=search) |
+                Q(number__icontains=search)
+            )
 
     if state:
         comics = comics.filter(state=state)
@@ -124,6 +131,9 @@ def comic_list(request):
         "format": ["format", "series", "volume", "number_sort_key", "number"],
         "pages": ["page_count", "series", "volume", "number_sort_key", "number"],
         "updated": ["updated_at"],
+        "proposed_series": ["proposed_series", "proposed_volume", "proposed_number"],
+        "proposed_number": ["proposed_number", "proposed_series"],
+        "proposed_year": ["proposed_year", "proposed_series", "proposed_number"],
     }
 
     order_fields = sort_fields.get(sort, ["series", "volume", "number_sort_key", "number"])
