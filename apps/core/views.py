@@ -2688,3 +2688,53 @@ def comic_rollback(request, pk):
         f'<td></td>'
         f'</tr>'
     )
+
+
+def series_audit_volume(request, cv_volume_id):
+    """
+    Volume-centric series audit view.
+    """
+    from apps.dashboard.services import get_volume_completion
+
+    data = get_volume_completion(cv_volume_id)
+    if not data:
+        from django.http import Http404
+        raise Http404("Volume not found")
+
+    return render(request, "core/series_audit.html", {
+        "data": data,
+    })
+
+
+def character_audit_search(request):
+    """
+    Search for series by main character/team and show completion status for each.
+    """
+    from apps.dashboard.services import get_volume_completion
+
+    query = request.GET.get("q", "").strip()
+    volumes_data = []
+
+    if query:
+        # Get all unique volume IDs for comics matching this character/team
+        volume_ids = Comic.objects.filter(
+            main_character_or_team__iexact=query
+        ).exclude(
+            custom_values__comicvine_volume__isnull=True
+        ).exclude(
+            custom_values__comicvine_volume=""
+        ).values_list("custom_values__comicvine_volume", flat=True).distinct()
+
+        for vid in volume_ids:
+            if vid:
+                data = get_volume_completion(vid)
+                if data:
+                    volumes_data.append(data)
+
+        # Sort by completion (asc) then name
+        volumes_data.sort(key=lambda x: (x["completion"], x["volume_info"]["name"]))
+
+    return render(request, "core/character_audit_search.html", {
+        "query": query,
+        "volumes_data": volumes_data,
+    })

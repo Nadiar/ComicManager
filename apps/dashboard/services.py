@@ -230,6 +230,7 @@ def get_volume_completion(cv_volume_id):
     owned_count = len(owned_issues)
 
     return {
+        "volume_id": cv_volume_id,
         "volume_info": volume_info,
         "all_issues": all_issues,
         "owned_issues": owned_issues,

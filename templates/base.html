@@ -41,6 +41,7 @@
         <li><a href="/" class="{% block nav_dashboard %}{% endblock %}">Dashboard</a></li>
         <li><a href="/comics/" class="{% block nav_comics %}{% endblock %}">Comics</a></li>
         <li><a href="/smartlists/" class="{% block nav_smartlists %}{% endblock %}">Smart Lists</a></li>
+        <li><a href="{% url 'core:character_audit_search' %}" class="{% block nav_audit %}{% endblock %}">Series Audit</a></li>
         <li><a href="/physical/" class="{% block nav_physical %}{% endblock %}">Physical</a></li>
         <li>
           <details>

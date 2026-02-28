@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Series Audit Search — ComicManager{% endblock %}
+{% block nav_audit %}active{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-8">
+  <!-- Search Header -->
+  <div class="text-center space-y-4">
+    <h1 class="text-4xl font-bold">Series Audit</h1>
+    <p class="text-base-content/60 text-lg">Search for completion status by Main Character or Team.</p>
+    
+    <form method="get" action="{% url 'core:character_audit_search' %}" class="flex gap-2 max-w-md mx-auto mt-6">
+      <div class="join w-full">
+        <input type="text" name="q" value="{{ query }}" placeholder="e.g. Batgirl, X-Men..." 
+               class="input input-bordered join-item w-full focus:outline-none" autofocus />
+        <button type="submit" class="btn btn-primary join-item px-8">Search</button>
+      </div>
+    </form>
+  </div>
+
+  {% if query %}
+    <div class="divider">Results for "{{ query }}"</div>
+
+    {% if volumes_data %}
+      <div class="grid grid-cols-1 gap-6">
+        {% for data in volumes_data %}
+          <div class="card bg-base-200 shadow-xl border border-base-300">
+            <div class="card-body py-4">
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold text-sm">
+                  Series Completion — {{ data.volume_info.name }}
+                  {% if data.volume_info.start_year %}({{ data.volume_info.start_year }}){% endif %}
+                </h3>
+                <div class="flex items-center gap-3">
+                  <span class="text-sm font-mono">
+                    {{ data.owned_count }}/{{ data.total_count }} — {{ data.completion }}%
+                  </span>
+                  <a href="{% url 'core:series_audit_volume' data.volume_id %}" 
+                     class="btn btn-xs btn-outline">
+                    Details
+                  </a>
+                </div>
+              </div>
+
+              <div class="w-full bg-base-300 rounded-full h-4 overflow-hidden">
+                <div class="h-full rounded-full transition-all
+                  {% if data.completion >= 90 %}bg-success{% elif data.completion >= 70 %}bg-info{% elif data.completion >= 30 %}bg-warning{% else %}bg-error{% endif %}" 
+                  style="width: {{ data.completion }}%">
+                </div>
+              </div>
+              <div class="flex justify-between text-xs text-base-content/50 mt-1">
+                <span>{{ data.owned_count }} owned</span>
+                <span>{{ data.missing_count }} missing</span>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="text-center py-12 bg-base-200 rounded-xl border-2 border-dashed border-base-300">
+        <p class="text-base-content/50">No series found with Main Character or Team matching "{{ query }}".</p>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

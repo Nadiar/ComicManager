@@ -188,6 +188,9 @@
 - [ ] [UI.12] Ensure all smart lists have full pagination, sorting, and column toggling capabilities.
 - [ ] [UI.13] Extend existing bulk actions framework to encompass more granular bulk actions like delete file, flag ok, etc.
 - [ ] [UI.14] Add search functionality for minor characters and main characters to the comic table.
+- [ ] [UI.15] If the user does not have a comicvine.db, we need to implement an option to use comicvine API for everything. This is a major task as we only have 200 API calls an hour, but it should be doable.
+- [ ] [UI.16] character_audit_search opens a new SQLite connection per volume in a loop (N+1). For characters with many volumes this will be slow. Consider batching the CV DB lookups in a single connection inside get_volume_completion or a new bulk variant.
+
 
 ## Major Issues / Bugs
 

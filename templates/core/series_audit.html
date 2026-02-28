@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Series Audit — {{ data.volume_info.name }} — ComicManager{% endblock %}
-{% block nav_comics %}active{% endblock %}
+{% block nav_audit %}active{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -18,14 +18,17 @@
       </div>
     </div>
     <div class="flex gap-2">
-      <a href="{% url 'core:detail' comic.pk %}" class="btn btn-ghost">Back to Comic</a>
+      {% if comic %}
+        <a href="{% url 'core:detail' comic.pk %}" class="btn btn-ghost">Back to Comic</a>
+      {% endif %}
+      <a href="{% url 'core:character_audit_search' %}" class="btn btn-ghost">Audit Search</a>
     </div>
   </div>
 
   <!-- Progress bar -->
   <div class="w-full bg-base-300 rounded-full h-4 overflow-hidden">
     <div class="h-full rounded-full transition-all
-      {% if data.completion == 100 %}bg-success{% elif data.completion >= 75 %}bg-info{% elif data.completion >= 50 %}bg-warning{% else %}bg-error{% endif %}"
+      {% if data.completion >= 90 %}bg-success{% elif data.completion >= 70 %}bg-info{% elif data.completion >= 30 %}bg-warning{% else %}bg-error{% endif %}"
       style="width: {{ data.completion }}%">
     </div>
   </div>
