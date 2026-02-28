@@ -8,5 +8,5 @@ class CoreConfig(AppConfig):
     def ready(self):
         # Seed default settings after migrations
         from django.db.models.signals import post_migrate
-        from .signals import seed_default_settings
+        from .signals import seed_default_settings, _capture_path_fields_before_save, flag_needs_reorganize_on_metadata_change  # noqa: F401 — connect via @receiver
         post_migrate.connect(seed_default_settings, sender=self)

@@ -1,3 +1,79 @@
+from django.db.models.signals import pre_save, post_save
+from django.dispatch import receiver
+
+
+# Fields that affect the library organizer's computed path
+_PATH_RELEVANT_FIELDS = frozenset({"publisher", "series", "format", "main_character_or_team", "volume"})
+
+
+@receiver(pre_save)
+def _capture_path_fields_before_save(sender, instance, update_fields, **kwargs):
+    """
+    Store the current values of path-relevant fields before saving.
+
+    Called for all models; filters to Comic instances in organized/written state.
+    Stored as `_pre_save_path_snapshot` on the instance for use by the
+    post_save handler. Uses `.only()` to minimise the extra DB read.
+    """
+    from .models import Comic
+
+    if sender is not Comic:
+        return
+    if instance.pk is None:
+        instance._pre_save_path_snapshot = None
+        return
+
+    # Skip if none of the relevant fields are being written
+    if update_fields is not None and not _PATH_RELEVANT_FIELDS.intersection(update_fields):
+        instance._pre_save_path_snapshot = None
+        return
+
+    try:
+        old = Comic.objects.only(*_PATH_RELEVANT_FIELDS, "state", "medium", "file_path").get(pk=instance.pk)
+    except Comic.DoesNotExist:
+        instance._pre_save_path_snapshot = None
+        return
+
+    # Only track changes for comics that are already in the organized library
+    if old.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
+        instance._pre_save_path_snapshot = None
+        return
+
+    if old.medium != Comic.MEDIUM_DIGITAL or not old.file_path:
+        instance._pre_save_path_snapshot = None
+        return
+
+    instance._pre_save_path_snapshot = {f: getattr(old, f) for f in _PATH_RELEVANT_FIELDS}
+
+
+@receiver(post_save)
+def flag_needs_reorganize_on_metadata_change(sender, instance, created, **kwargs):
+    """
+    Set needs_reorganize=True when a path-relevant field changes on an
+    organized or written digital comic.
+
+    Uses the snapshot captured by _capture_path_fields_before_save. Writes
+    via QuerySet.update() to avoid triggering another post_save cycle.
+    """
+    from .models import Comic
+
+    if sender is not Comic or created:
+        return
+
+    if instance.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
+        return
+
+    snapshot = getattr(instance, "_pre_save_path_snapshot", None)
+    if snapshot is None:
+        return
+
+    for field in _PATH_RELEVANT_FIELDS:
+        if getattr(instance, field) != snapshot.get(field):
+            if not instance.needs_reorganize:
+                Comic.objects.filter(pk=instance.pk).update(needs_reorganize=True)
+            return
+
+
 def seed_default_settings(sender, **kwargs):
     """
     Seeds default settings into Postgres after migrations.
