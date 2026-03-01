@@ -9,6 +9,8 @@ import re
 import zipfile
 from pathlib import Path
 
+from django.conf import settings
+
 from .models import Comic
 
 
