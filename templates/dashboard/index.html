@@ -165,6 +165,21 @@ function getCsrfToken() {
 
 async function runAction(url, btn, taskLabel) {
   const originalText = btn.textContent;
+
+  if (window.isTaskActive && window.isTaskActive()) {
+    if (window.enqueueAction) {
+      window.enqueueAction(
+        async () => {
+          const r = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+          return r.json();
+        },
+        taskLabel || originalText,
+        btn
+      );
+    }
+    return;
+  }
+
   btn.disabled = true;
   btn.textContent = 'Starting...';
 

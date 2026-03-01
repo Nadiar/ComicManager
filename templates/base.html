@@ -93,6 +93,7 @@
         </div>
         <progress id="task-progress-bar" class="progress progress-primary w-full" value="0" max="100"></progress>
         <div id="task-progress-status" class="text-xs text-base-content/60 mt-1"></div>
+        <div id="task-queue-status" class="hidden text-xs text-base-content/40 mt-0.5"></div>
         <div id="task-log-link" class="hidden mt-1">
           <a href="/settings/log/" class="text-xs link link-primary" hx-boost="false" target="_blank" rel="noopener">View batch log &rarr;</a>
         </div>
@@ -277,10 +278,58 @@
     var count = document.getElementById('task-progress-count');
     var bar = document.getElementById('task-progress-bar');
     var status = document.getElementById('task-progress-status');
+    var queueStatus = document.getElementById('task-queue-status');
     var cancelBtn = document.getElementById('task-cancel-btn');
     var dismissBtn = document.getElementById('task-dismiss-btn');
     var errorList = document.getElementById('task-error-list');
     var logLink = document.getElementById('task-log-link');
+
+    // Action queue — holds deferred fetches to dispatch one at a time
+    var actionQueue = []; // [{action: async fn, label: string, btn: el|null}]
+
+    function updateQueueIndicator() {
+      if (!queueStatus) return;
+      if (actionQueue.length === 0) {
+        queueStatus.classList.add('hidden');
+        queueStatus.textContent = '';
+      } else {
+        queueStatus.textContent = actionQueue.length === 1 ? '1 more task queued' : actionQueue.length + ' more tasks queued';
+        queueStatus.classList.remove('hidden');
+      }
+    }
+
+    async function processNextAction() {
+      if (actionQueue.length === 0) {
+        showDismiss();
+        setTimeout(function() { window.dismissTaskToast(); }, 5000);
+        return;
+      }
+      var next = actionQueue.shift();
+      updateQueueIndicator();
+      if (next.btn) { next.btn.textContent = 'Starting...'; }
+      try {
+        var data = await next.action();
+        if (data && data.task_id) {
+          startPolling(data.task_id, next.label);
+        } else {
+          // 0 comics or synchronous — move to next immediately
+          processNextAction();
+        }
+      } catch (err) {
+        processNextAction();
+      }
+    }
+
+    window.isTaskActive = function() { return !!activeTaskId; };
+
+    window.enqueueAction = function(actionFn, label, btn) {
+      actionQueue.push({ action: actionFn, label: label, btn: btn || null });
+      updateQueueIndicator();
+      if (btn) {
+        btn.textContent = 'Queued';
+        btn.disabled = true;
+      }
+    };
 
     function showToast() { toast.classList.remove('hidden'); }
     function hideToast() { toast.classList.add('hidden'); }
@@ -409,8 +458,13 @@
             showErrors(r.errors);
             showLogLink();
             activeTaskId = null;
-            showDismiss();
-            setTimeout(function() { window.dismissTaskToast(); }, 5000);
+            if (actionQueue.length > 0) {
+              status.textContent = 'Starting next task...';
+              setTimeout(processNextAction, 800);
+            } else {
+              showDismiss();
+              setTimeout(function() { window.dismissTaskToast(); }, 5000);
+            }
 
           } else if (data.state === 'FAILURE') {
             hideCancel();
@@ -419,7 +473,11 @@
             bar.classList.remove('progress-primary');
             bar.classList.add('progress-error');
             activeTaskId = null;
-            showDismiss();
+            if (actionQueue.length > 0) {
+              setTimeout(processNextAction, 800);
+            } else {
+              showDismiss();
+            }
 
           } else {
             status.textContent = data.state === 'STARTED' ? 'Starting...' : 'Queued...';
@@ -447,6 +505,8 @@
     window.startTaskPolling = startPolling;
 
     window.dismissTaskToast = function() {
+      actionQueue = [];
+      updateQueueIndicator();
       hideToast();
       location.reload();
     };

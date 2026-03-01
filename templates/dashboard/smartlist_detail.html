@@ -224,6 +224,25 @@ function runSmartListAction(action) {
   // Close dropdown
   document.activeElement.blur();
 
+  if (window.isTaskActive && window.isTaskActive()) {
+    if (window.enqueueAction) {
+      const queueUrl = `{% url 'dashboard:smartlist_run_action' smart_list.pk %}`;
+      window.enqueueAction(
+        async () => {
+          const r = await fetch(queueUrl, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `action=${action}`,
+          });
+          return r.json();
+        },
+        label + ' comics',
+        null
+      );
+    }
+    return;
+  }
+
   try {
     const resp = await fetch(`{% url 'dashboard:smartlist_run_action' smart_list.pk %}`, {
       method: 'POST',
