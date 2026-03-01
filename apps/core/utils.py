@@ -151,6 +151,7 @@ COLUMNS_REGISTRY = {
     "medium": {"label": "Medium", "sort": "medium", "attr": "medium"},
     "imported": {"label": "Imported", "sort": "imported_at", "attr": "imported_at"},
     "updated": {"label": "Updated", "sort": "updated_at", "attr": "updated_at"},
+    "last_written": {"label": "Last Written", "sort": "last_written", "attr": "last_written"},
     
     # Custom Values / ComicVine
     "first_series": {"label": "First Series", "sort": "custom_values__First Series", "attr": "custom_values.First Series"},

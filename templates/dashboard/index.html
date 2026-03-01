@@ -307,6 +307,28 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
   </div>
   {% endif %}
 
+  <!-- Stale Metadata Widget -->
+  {% if stale_count > 0 %}
+  <div class="card bg-base-200 border border-warning">
+    <div class="card-body">
+      <div class="flex flex-wrap justify-between items-center gap-2">
+        <div>
+          <h2 class="card-title text-warning">Stale Metadata Queue</h2>
+          <p class="text-sm text-base-content/60 mt-1">
+            {{ stale_count }} comic{{ stale_count|pluralize }} — database updated after last ComicInfo.xml write.
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <a href="{% url 'core:list' %}?state=written" class="btn btn-sm btn-ghost">View Comics</a>
+          <button onclick="runAction('{% url 'core:write_all' %}', this, 'Writing comics')" class="btn btn-sm btn-warning">
+            Write All Stale ({{ stale_count }})
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Smart Lists -->
   {% if dashboard_smartlists %}
   <div class="card bg-base-200">

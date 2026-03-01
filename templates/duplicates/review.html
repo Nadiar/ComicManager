@@ -58,6 +58,19 @@
     </div>
   </div>
 
+  <!-- Action guide -->
+  {% if total_pending > 0 %}
+  <div class="alert alert-info">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-5 w-5 shrink-0 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+    <div>
+      <strong>Keep &amp; Del Rest</strong>: keeps this comic and permanently deletes all others in the group — resolves in one click.
+      <strong>Keep</strong>: advances this comic only; you must still delete or re-queue the others.
+      <strong>Re-Q</strong>: removes from this group and sends back to Imported for re-scraping.
+      <strong>Del</strong>: permanently deletes this comic's file and record from disk.
+    </div>
+  </div>
+  {% endif %}
+
   <!-- CV ID Duplicates -->
   {% if cv_groups %}
   <div class="card bg-base-200">

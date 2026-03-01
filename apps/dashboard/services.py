@@ -1,5 +1,6 @@
 import sqlite3
 from django.conf import settings
+from django.db.models import BooleanField, Case, F, Value, When
 from apps.core.models import Comic
 from apps.core.utils import natural_number_annotation
 
@@ -16,6 +17,8 @@ ALLOWED_FIELDS = {
     "proposed_series", "proposed_number", "proposed_volume", "proposed_year",
     # Workflow tracking
     "needs_reorganize", "needs_reformat", "last_written", "imported_at", "updated_at",
+    # Computed annotations
+    "is_stale",
 }
 
 # Also allow JSONField nested lookups
@@ -76,6 +79,15 @@ def build_queryset(smart_list):
     Returns an ordered QuerySet.
     """
     qs = Comic.objects.all()
+
+    # Annotate is_stale: True when written before but DB has since changed
+    qs = qs.annotate(
+        is_stale=Case(
+            When(last_written__isnull=False, updated_at__gt=F("last_written"), then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        )
+    )
 
     for f in (smart_list.filters or []):
         field = f.get("field", "")

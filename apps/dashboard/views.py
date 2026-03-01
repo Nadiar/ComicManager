@@ -127,6 +127,16 @@ def index(request):
     # Needs-reorganize queue
     needs_reorganize_count = Comic.objects.filter(needs_reorganize=True).count()
 
+    # Stale metadata queue (written before but DB updated since)
+    from django.db.models import BooleanField, Case, F, Value, When
+    stale_count = Comic.objects.annotate(
+        is_stale=Case(
+            When(last_written__isnull=False, updated_at__gt=F("last_written"), then=Value(True)),
+            default=Value(False),
+            output_field=BooleanField(),
+        )
+    ).filter(is_stale=True).count()
+
     # Smart lists for dashboard
     dashboard_smartlists = []
     for sl in SmartList.objects.filter(show_on_dashboard=True):
@@ -151,6 +161,7 @@ def index(request):
         "review_queue": review_queue,
         "flagged_count": flagged_count,
         "needs_reorganize_count": needs_reorganize_count,
+        "stale_count": stale_count,
         "dashboard_smartlists": dashboard_smartlists,
         "cv_status": cv_status,
         "api_calls_used": get_api_calls_used(),

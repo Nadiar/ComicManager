@@ -13,6 +13,7 @@ from .services import (
     run_duplicate_detection,
     scan_all_for_duplicates,
     resolve_keep,
+    resolve_keep_and_delete_rest,
     resolve_requeue,
     resolve_delete,
     resolve_keep_all,
@@ -167,6 +168,8 @@ def resolve_group_htmx(request, pk):
 
     if action == "keep" and comic_id:
         result = resolve_keep(group, comic_id, reason)
+    elif action == "keep_and_delete_rest" and comic_id:
+        result = resolve_keep_and_delete_rest(group, comic_id, reason)
     elif action == "requeue" and comic_id:
         result = resolve_requeue(group, comic_id, reason)
     elif action == "delete" and comic_id:

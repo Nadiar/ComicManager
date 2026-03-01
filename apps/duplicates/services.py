@@ -544,6 +544,40 @@ def resolve_keep(
     }
 
 
+def resolve_keep_and_delete_rest(
+    group: DuplicateGroup,
+    winner_comic_id: str,
+    reason: str = "",
+) -> dict:
+    """
+    Keep one comic as the winner and hard-delete all other pending comics in the group.
+    Resolves the group in a single action.
+    """
+    # Collect IDs of other pending comics before marking the winner as kept
+    others_to_delete = list(
+        group.memberships
+        .filter(resolution=DuplicateGroupMembership.RESOLUTION_PENDING)
+        .exclude(comic_id=winner_comic_id)
+        .values_list("comic_id", flat=True)
+    )
+
+    keep_result = resolve_keep(group, winner_comic_id, reason)
+
+    deleted = []
+    for comic_id in others_to_delete:
+        try:
+            del_result = resolve_delete(group, str(comic_id), reason="Deleted: keep-and-delete-rest action")
+            deleted.append(del_result.get("comic", str(comic_id)))
+        except Exception:
+            pass
+
+    return {
+        "success": True,
+        "message": f"Kept: {keep_result['comic']}. Deleted {len(deleted)} comic(s).",
+        "deleted": deleted,
+    }
+
+
 def resolve_requeue(
     group: DuplicateGroup,
     comic_id: str,

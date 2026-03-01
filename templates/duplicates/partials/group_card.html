@@ -31,7 +31,7 @@
         <thead>
           <tr>
             <th class="w-28">Cover</th>
-            <th class="w-36">Actions</th>
+            <th>Actions</th>
             <th>Series</th>
             <th>#</th>
             <th>Vol</th>
@@ -58,7 +58,7 @@
               />
             </td>
             <td>
-              <div class="flex gap-1">
+              <div class="flex flex-wrap gap-1 max-w-[11rem]">
                 <button
                   class="btn btn-xs btn-success"
                   hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
@@ -68,6 +68,17 @@
                   title="Keep this comic, advance to deduplicated"
                 >
                   Keep
+                </button>
+                <button
+                  class="btn btn-xs btn-success btn-outline"
+                  hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
+                  hx-vals='{"action": "keep_and_delete_rest", "comic_id": "{{ comic.id }}"}'
+                  hx-target="#group-{{ group.id }}"
+                  hx-swap="outerHTML"
+                  hx-confirm="Keep this comic and DELETE all others in this group? This cannot be undone!"
+                  title="Keep this comic and permanently delete all others in the group"
+                >
+                  Keep &amp; Del Rest
                 </button>
                 <button
                   class="btn btn-xs btn-warning"
