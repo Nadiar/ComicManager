@@ -76,11 +76,50 @@ def ruleset_detail(request, pk):
     })
 
 
+def _validate_ruleset_form(post_data):
+    """
+    Check that every rule and action row has both a field and a modifier.
+
+    Returns a list of human-readable error strings (empty means valid).
+    """
+    errors = []
+    i = 0
+    while f"rule_field_{i}" in post_data:
+        field = post_data.get(f"rule_field_{i}", "").strip()
+        modifier = post_data.get(f"rule_modifier_{i}", "").strip()
+        if field and not modifier:
+            errors.append(f"Rule {i + 1}: a modifier is required when a field is selected.")
+        elif modifier and not field:
+            errors.append(f"Rule {i + 1}: a field is required when a modifier is selected.")
+        i += 1
+
+    i = 0
+    while f"action_field_{i}" in post_data:
+        field = post_data.get(f"action_field_{i}", "").strip()
+        modifier = post_data.get(f"action_modifier_{i}", "").strip()
+        if field and not modifier:
+            errors.append(f"Action {i + 1}: a modifier is required when a field is selected.")
+        elif modifier and not field:
+            errors.append(f"Action {i + 1}: a field is required when a modifier is selected.")
+        i += 1
+
+    return errors
+
+
 def ruleset_create(request):
     """
     Create a new ruleset.
     """
     if request.method == "POST":
+        errors = _validate_ruleset_form(request.POST)
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            context = _get_form_context()
+            return render(request, "tagging/ruleset_form.html", {
+                "action": "Create",
+                **context,
+            })
         ruleset = _save_ruleset_from_form(request.POST)
         messages.success(request, f"Ruleset '{ruleset.name}' created successfully.")
         return redirect("tagging:ruleset_detail", pk=ruleset.pk)
@@ -100,6 +139,16 @@ def ruleset_edit(request, pk):
     ruleset = get_object_or_404(DataManagerRuleset, pk=pk)
 
     if request.method == "POST":
+        errors = _validate_ruleset_form(request.POST)
+        if errors:
+            for error in errors:
+                messages.error(request, error)
+            context = _get_form_context()
+            return render(request, "tagging/ruleset_form.html", {
+                "action": "Edit",
+                "ruleset": ruleset,
+                **context,
+            })
         _save_ruleset_from_form(request.POST, ruleset)
         messages.success(request, f"Ruleset '{ruleset.name}' updated successfully.")
         return redirect("tagging:ruleset_detail", pk=ruleset.pk)
