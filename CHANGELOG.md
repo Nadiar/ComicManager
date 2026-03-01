@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Comic list "No Comics Found" empty state**: Removed the docker import command hint from the empty-state message in the comic table. The message now simply reads "No Comics Found".
+
+- **Column header sorting broken (UI.21)**: Clicking a column header was silently falling back to series sort because the COLUMNS_REGISTRY `sort` values (`page_count`, `updated_at`, etc.) did not match the aliases used as keys in the view's `sort_fields` dict (`pages`, `updated`). All sort keys are now unified to use the actual model field names. The sort dropdown option values have been updated to match. Any column present in the table is now sortable via header click, including credits and custom-value columns, using a safe fallback of `[field, series, volume, number]` for columns without an explicit multi-field sort definition.
+
+- **Pages column sort with NULL values**: Sorting by page count now places comics with no page count at the bottom in both ascending and descending order. Previously, a descending sort put all NULL-page-count comics first, making the result appear random.
+
 - **Custom confirm/alert modals (UI.18)**: All browser-native `confirm()` and `alert()` calls across 11 templates replaced with custom DaisyUI modals. Two global helpers added to `base.html`: `showConfirm(message, onConfirm, label, danger)` shows a dialog modal with Cancel and a styled Confirm button (red when `danger=true`); `showMsgToast(message, type)` shows a non-blocking toast notification (info/success/error) that auto-hides after 4 seconds without reloading the page. Form-based deletes (rulesets, profiles, smart lists) now use a button with `onclick` instead of `onsubmit` on the form, keeping the same UX.
 
 - **Format detection rewritten to follow canonical rules**: `detect_format` now follows the 3-step algorithm defined in `Comic_Book_Format_Definitions.md`. Step 1 checks edition modifiers (Director's Cut, Black & White) from series/title text. Step 2 checks collection formats: Omnibus by keyword or page_count ≥ 300, TPB by keyword or (page_count ≥ 80 + issue range in description like "#1-5"). Step 3 classifies by issue count (Annual → One-Shot → Limited Series → Main Series). The old pattern-list approach that included formats like HC, Special, Giant-Size, King-Size, and Deluxe has been removed; only the 8 supported formats remain. The duplicate `FORMAT_PATTERNS` and `_detect_format` in `views.py` have been removed — views now import `detect_format` from `services.py`.
@@ -24,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Edit page: save to DB without writing XML**: The comic edit form now defaults to a DB-only save ("Save to DB" button). A second "Save + Write XML" button is available for digital CBZ comics when you want to immediately write ComicInfo.xml as well. Previously every save on a digital comic unconditionally wrote the XML.
 
 ### Added
+
+- **Smart search tokens in comic list**: The search box now parses structured modifiers out of the query string. `#N` filters by exact issue number (e.g. `Batgirl #10`), `(YYYY)` filters by year (e.g. `Batman (1940)`), and `VYYY` filters by volume (e.g. `Batman V2`). Tokens can be combined freely: `Grant Morrison V2 #15 (2016)` searches credits/series for "Grant Morrison" and then AND-filters to volume 2, issue 15, year 2016. A `#N`-only query (no text) returns all comics with that issue number.
+
+- **Expanded comic list search fields**: Free-text search now queries writer, penciller, inker, colorist, letterer, cover artist, editor, characters, teams, genre, and notes — in addition to series, title, publisher, and number.
 
 - **Re-organize auto-detection**: Comics in the `organized` or `written` state are now automatically flagged `needs_reorganize=True` when a path-relevant metadata field changes (`publisher`, `series`, `format`, `main_character_or_team`, `volume`). A `post_save` signal handles per-comic detection; a separate `pre_save` signal on `OrganizerProfile` flags all organized/written comics when `folder_template`, `file_template`, or `base_folder` is changed. A dashboard widget shows the queue count and provides a direct "Re-organize All" button when any comics are flagged.
 

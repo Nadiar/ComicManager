@@ -57,6 +57,38 @@ WORKFLOW_STATES = [
 ]
 
 
+def _parse_smart_search(query):
+    """
+    Parse structured tokens out of a free-text search query.
+
+    Recognised modifiers (extracted and removed from the base text):
+      #N       -> issue number  (e.g. #10, #10.1, #Annual)
+      (YYYY)   -> 4-digit year in parentheses
+      VYYY     -> volume number  (e.g. V2, V12)
+
+    Returns a dict: {text, number, year, volume}
+    """
+    text = query
+    number = year = volume = None
+
+    m = re.search(r'#(\S+)', text)
+    if m:
+        number = m.group(1)
+        text = (text[:m.start()] + text[m.end():]).strip()
+
+    m = re.search(r'\((\d{4})\)', text)
+    if m:
+        year = int(m.group(1))
+        text = (text[:m.start()] + text[m.end():]).strip()
+
+    m = re.search(r'\bV(\d+)\b', text, re.IGNORECASE)
+    if m:
+        volume = int(m.group(1))
+        text = (text[:m.start()] + text[m.end():]).strip()
+
+    return {"text": text, "number": number, "year": year, "volume": volume}
+
+
 def comic_list(request):
     from django.db.models import Q
     from django.core.paginator import Paginator
@@ -89,19 +121,43 @@ def comic_list(request):
     # Search filter
     search = request.GET.get("q", "").strip()
     if search:
+        parsed = _parse_smart_search(search)
+        base_text = parsed["text"]
+
         if state == Comic.STATE_NEW:
-            comics = comics.filter(
-                Q(proposed_series__icontains=search) |
-                Q(proposed_number__icontains=search) |
-                Q(file_path__icontains=search)
-            )
+            if base_text:
+                comics = comics.filter(
+                    Q(proposed_series__icontains=base_text) |
+                    Q(proposed_number__icontains=base_text) |
+                    Q(file_path__icontains=base_text)
+                )
+            if parsed["number"]:
+                comics = comics.filter(proposed_number__iexact=parsed["number"])
         else:
-            comics = comics.filter(
-                Q(series__icontains=search) |
-                Q(title__icontains=search) |
-                Q(publisher__icontains=search) |
-                Q(number__icontains=search)
-            )
+            if base_text:
+                comics = comics.filter(
+                    Q(series__icontains=base_text) |
+                    Q(title__icontains=base_text) |
+                    Q(publisher__icontains=base_text) |
+                    Q(number__icontains=base_text) |
+                    Q(writer__icontains=base_text) |
+                    Q(penciller__icontains=base_text) |
+                    Q(inker__icontains=base_text) |
+                    Q(colorist__icontains=base_text) |
+                    Q(letterer__icontains=base_text) |
+                    Q(cover_artist__icontains=base_text) |
+                    Q(editor__icontains=base_text) |
+                    Q(characters__icontains=base_text) |
+                    Q(teams__icontains=base_text) |
+                    Q(genre__icontains=base_text) |
+                    Q(notes__icontains=base_text)
+                )
+            if parsed["number"]:
+                comics = comics.filter(number__iexact=parsed["number"])
+            if parsed["year"]:
+                comics = comics.filter(year=parsed["year"])
+            if parsed["volume"]:
+                comics = comics.filter(volume=parsed["volume"])
 
     if state:
         comics = comics.filter(state=state)
@@ -132,7 +188,8 @@ def comic_list(request):
     sort = request.GET.get("sort", "series")
     sort_dir = request.GET.get("dir", "asc")
 
-    # Map sort field names to model fields
+    # Map sort keys (matching COLUMNS_REGISTRY sort values) to ordered model field lists.
+    # Keys not listed here fall back to [sort_key, "series", "volume", ...] automatically.
     sort_fields = {
         "series": ["series", "volume", "number_sort_key", "number"],
         "number": ["number_sort_key", "number"],
@@ -140,18 +197,25 @@ def comic_list(request):
         "year": ["year", "series", "volume", "number_sort_key", "number"],
         "state": ["state", "series", "volume", "number_sort_key", "number"],
         "format": ["format", "series", "volume", "number_sort_key", "number"],
-        "pages": ["page_count", "series", "volume", "number_sort_key", "number"],
-        "updated": ["updated_at"],
+        "updated_at": ["updated_at"],
+        "imported_at": ["imported_at"],
+        "last_written": ["last_written"],
         "proposed_series": ["proposed_series", "proposed_volume", "proposed_number"],
         "proposed_number": ["proposed_number", "proposed_series"],
         "proposed_year": ["proposed_year", "proposed_series", "proposed_number"],
     }
 
-    order_fields = sort_fields.get(sort, ["series", "volume", "number_sort_key", "number"])
-    if sort_dir == "desc":
-        order_fields = [f"-{f}" for f in order_fields]
-
-    comics = comics.order_by(*order_fields)
+    from django.db.models import F
+    if sort == "page_count":
+        # Use NULLS LAST so comics without a page count always sort to the bottom
+        page_order = F("page_count").desc(nulls_last=True) if sort_dir == "desc" else F("page_count").asc(nulls_last=True)
+        comics = comics.order_by(page_order, "series", "volume", "number_sort_key", "number")
+    else:
+        # Unknown sort keys fall back to [sort_key, secondary...] so any column is sortable
+        order_fields = sort_fields.get(sort, [sort, "series", "volume", "number_sort_key", "number"])
+        if sort_dir == "desc":
+            order_fields = [f"-{f}" for f in order_fields]
+        comics = comics.order_by(*order_fields)
 
     # Paginate (100 per page)
     per_page = int(request.GET.get("per_page", 100))

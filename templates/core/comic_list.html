@@ -33,7 +33,7 @@
           <span class="label-text text-xs">Search</span>
         </label>
         <input type="text" name="q" value="{{ current_search|default:'' }}"
-               placeholder="{% if current_state == 'new' %}Proposed series, number, filename...{% else %}Series, title, publisher...{% endif %}"
+               placeholder="{% if current_state == 'new' %}Series, filename... (#N V2 for number/volume){% else %}Series, writer, characters... (#N (YYYY) V2){% endif %}"
                class="input input-sm input-bordered w-full" />
       </div>
 
@@ -87,8 +87,8 @@
           <option value="proposed_series" {% if current_sort == 'proposed_series' %}selected{% endif %}>Proposed Series</option>
           <option value="proposed_number" {% if current_sort == 'proposed_number' %}selected{% endif %}>Proposed #</option>
           <option value="proposed_year" {% if current_sort == 'proposed_year' %}selected{% endif %}>Year</option>
-          <option value="pages" {% if current_sort == 'pages' %}selected{% endif %}>Pages</option>
-          <option value="updated" {% if current_sort == 'updated' %}selected{% endif %}>Updated</option>
+          <option value="page_count" {% if current_sort == 'page_count' %}selected{% endif %}>Pages</option>
+          <option value="updated_at" {% if current_sort == 'updated_at' %}selected{% endif %}>Updated</option>
           {% else %}
           <option value="series" {% if current_sort == 'series' %}selected{% endif %}>Series</option>
           <option value="number" {% if current_sort == 'number' %}selected{% endif %}>Number</option>
@@ -96,8 +96,8 @@
           <option value="year" {% if current_sort == 'year' %}selected{% endif %}>Year</option>
           <option value="state" {% if current_sort == 'state' %}selected{% endif %}>State</option>
           <option value="format" {% if current_sort == 'format' %}selected{% endif %}>Format</option>
-          <option value="pages" {% if current_sort == 'pages' %}selected{% endif %}>Pages</option>
-          <option value="updated" {% if current_sort == 'updated' %}selected{% endif %}>Updated</option>
+          <option value="page_count" {% if current_sort == 'page_count' %}selected{% endif %}>Pages</option>
+          <option value="updated_at" {% if current_sort == 'updated_at' %}selected{% endif %}>Updated</option>
           {% endif %}
         </select>
       </div>
@@ -458,8 +458,7 @@
     <span>No comics with flag "{{ flag_label }}".</span>
     <a href="/comics/" class="link">View all comics</a>
     {% else %}
-    <span>No comics found. Import your library using:</span>
-    <code class="ml-2">docker compose run --rm web python manage.py import_library</code>
+    <span>No Comics Found</span>
     {% endif %}
   </div>
   {% endif %}

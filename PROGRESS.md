@@ -197,7 +197,7 @@
 - [x] [UI.18] ALL popups needs to use a custom modal and not browser based popup.
 - [x] [UI.19] Edit comic needs a save to DB (where we skip saving to XML), as we can alwyas use the re-write option later on.
 - [ ] [UI.20] `/comics` table column selector shows columns in random/insertion order. Should be sorted alphabetically so the user can find columns quickly.
-- [ ] [UI.21] `/comics` table search, filter, and sort UX needs a review pass: ensure all selectable columns are also sortable and filterable, and that the filter/sort controls are consistent and discoverable.
+- [x] [UI.21] `/comics` table search, filter, and sort overhauled: (1) search expanded to writer, penciller, inker, colorist, letterer, cover_artist, editor, characters, teams, genre, notes; (2) smart search tokens: `#N` filters by issue number, `(YYYY)` by year, `VYYY` by volume, combinable freely; (3) column header sort fixed (sort key mismatch between COLUMNS_REGISTRY and view's sort_fields dict was silently falling back to series sort for every non-trivial column); (4) pages sort uses `NULLS LAST` in both directions. Documented in `docs/guide/searching.md`.
 - [ ] [UI.22] `/settings/log/` batch log — replace the raw UUID in the comic column with an "Info" link that opens the comic detail page in a new tab, so the user can jump directly to the comic from a log entry.
 
 ## Major Issues / Bugs
@@ -226,6 +226,9 @@
 - [x] [BUG.19] Fixed auto_now race condition in all four write paths (`write_comic`, `force_write`, `write_all_comics_task`, `_run_write`). After `comic.save()`, `Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))` syncs `last_written` to the exact same value Django set for `updated_at`.
 - [x] [BUG.20] Batch log link in toast now opens in a new tab (`target="_blank"`) with `hx-boost="false"` to prevent HTMX interference.
 - [x] [BUG.21] `Last Written` timestamp now shown in the File & System Info section on the comic detail page.
+- [x] [BUG.22b] Simplified "No Comics Found" empty state in the comics table: removed the docker import command hint; now just shows "No Comics Found".
+- [ ] [BUG.22] Library Re-organize Queue (Re-organize All) does not log errors correctly to the batch log at `/settings/log/`.
+- [ ] [BUG.23] Library Re-organize Queue toast shows correct progress count (e.g. "293 / 302") during the run but reports "0 processed" in the completion message, even when no errors occurred and the task completed successfully.
 
 ## Code to Port
 
