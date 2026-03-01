@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - will be released as v1.0.0
 
+### Fixed
+
+- **scrape_no_match flag not cleared on manual re-scrape**: `apply_cv_match` now removes `scrape_no_match`, `scrape_error`, and `scrape_error_detail` on every successful match. Previously these flags were only cleared by the batch task path, so comics manually re-scraped via the UI would advance state but still show as flagged in the dashboard review queue.
+
+- **Edit page: clear flags inline**: The comic edit page now shows an "Active Flags" section when a comic has any flags set. Each flag is displayed as a badge with a checkbox; checking it and saving removes the flag from the database. Previously flags could only be cleared via specific action buttons on the detail page.
+
+- **Edit page: save to DB without writing XML**: The comic edit form now defaults to a DB-only save ("Save to DB" button). A second "Save + Write XML" button is available for digital CBZ comics when you want to immediately write ComicInfo.xml as well. Previously every save on a digital comic unconditionally wrote the XML.
+
 ### Added
 
 - **Re-organize auto-detection**: Comics in the `organized` or `written` state are now automatically flagged `needs_reorganize=True` when a path-relevant metadata field changes (`publisher`, `series`, `format`, `main_character_or_team`, `volume`). A `post_save` signal handles per-comic detection; a separate `pre_save` signal on `OrganizerProfile` flags all organized/written comics when `folder_template`, `file_template`, or `base_folder` is changed. A dashboard widget shows the queue count and provides a direct "Re-organize All" button when any comics are flagged.

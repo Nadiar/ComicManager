@@ -193,9 +193,9 @@
 - [ ] [UI.14] Add search functionality for minor characters and main characters to the comic table.
 - [x] [UI.15] ComicVine API-only mode when comicvine.db is absent. Auto-detects DB/MCL availability. Batch scraping falls back to API search (try_api_metadata_match). Series Audit uses latest.mcl CSV fallback (mount ./data/latest.mcl; format: one row per volume, semicolon-delimited, comma-separated issue IDs and numbers). API call budget tracked in Redis (200/hour). Dashboard banner shows mode + remaining calls. Settings page shows data source status. Series Audit disabled (with message) when neither DB nor MCL is available. Unified find_best_match() entry point in services.py replaces scattered if-db-available branches in tasks, views, and management command. Scrape modal views (scrape_preview, scrape_comic, force_scrape) now guard all DB calls with is_cv_db_available() to prevent 500 errors. enrich_match_with_credits() no longer crashes when DB is absent. Celery task stops gracefully (with user-visible message) when API budget is exhausted mid-run.
 - [ ] [UI.16] character_audit_search opens a new SQLite connection per volume in a loop (N+1). For characters with many volumes this will be slow. Consider batching the CV DB lookups in a single connection inside get_volume_completion or a new bulk variant.
-- [ ] [UI.17] Edit comic needs a 'clear flag'. 
-- [ ] [UI.18] ALL popups needs to use a custom modal and not browser based popup. 
-- [ ] [UI.19] Edit comic needs a save to DB (where we skip saving to XML), as we can alwyas use the re-write option later on. 
+- [x] [UI.17] Edit comic needs a 'clear flag'.
+- [ ] [UI.18] ALL popups needs to use a custom modal and not browser based popup.
+- [x] [UI.19] Edit comic needs a save to DB (where we skip saving to XML), as we can alwyas use the re-write option later on.
 
 ## Major Issues / Bugs
 
@@ -215,7 +215,7 @@
 - [ ] [BUG.10] Implement validation to prevent saving tagging rulesets without a modifier and show an error.
 - [ ] [BUG.11] Add a button/action to refresh all file & system info (hashes, page count, filesize).
 - [ ] [BUG.12] Verify and implement specific handling of warnings for data-destructive operations in Celery tasks (tell user, finish current comic, stop next).
-- [ ] [BUG.13] When a comic has flag scrape_no_match and is re-scraped, the flag is not removed, even though the comic moves on to the next stage.
+- [x] [BUG.13] When a comic has flag scrape_no_match and is re-scraped, the flag is not removed, even though the comic moves on to the next stage.
 - [x] [BUG.14] Fixed corrupted/truncated CBZ files causing blank detail pages and missing page counts. Comics with unreadable archives are now flagged `corrupted_archive` at import and on first detail-page visit. A "Try Rezip" action on the detail page recovers readable entries and repacks the archive in place; if too damaged, the user is prompted to delete and reimport.
 
 ## Code to Port

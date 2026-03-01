@@ -1589,7 +1589,7 @@ def comic_edit(request, pk):
     Edit a comic's metadata.
 
     GET: Display edit form
-    POST: Save changes to DB and (for digital comics) to ComicInfo.xml in the CBZ
+    POST: Save changes to DB. Writes ComicInfo.xml only if write_xml=1 is submitted.
     """
     from django.contrib import messages
     from .utils import (
@@ -1604,6 +1604,11 @@ def comic_edit(request, pk):
     comic = get_object_or_404(Comic, pk=pk)
 
     if request.method == "POST":
+        # Clear flags submitted for removal
+        for flag_key in request.POST.getlist("clear_flag"):
+            if flag_key in FLAG_LABELS:
+                comic.remove_flag(flag_key)
+
         # Update standard fields from form data
         update_comic_from_form(comic, request.POST)
 
@@ -1643,15 +1648,16 @@ def comic_edit(request, pk):
         comic.custom_values = new_custom
         comic.save()
 
-        # For digital comics with CBZ files, also update the XML
+        # Write ComicInfo.xml only when explicitly requested
         xml_updated = False
-        if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
-            xml_updated = write_comicinfo_xml(comic.file_path, comic)
+        if request.POST.get("write_xml") == "1":
+            if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
+                xml_updated = write_comicinfo_xml(comic.file_path, comic)
 
         if xml_updated:
             messages.success(request, "Comic updated successfully (database and ComicInfo.xml).")
         else:
-            messages.success(request, "Comic updated successfully (database only).")
+            messages.success(request, "Comic saved to database.")
 
         # Redirect back to detail page
         from django.shortcuts import redirect
@@ -1673,6 +1679,13 @@ def comic_edit(request, pk):
         if k not in _STANDARD_XML_FIELDS
     ]
 
+    # Build list of active flags with labels for the UI
+    active_flags = [
+        (key, FLAG_LABELS.get(key, key))
+        for key in (comic.flags or {})
+        if comic.flags[key]
+    ]
+
     return render(request, "core/comic_edit.html", {
         "comic": comic,
         "xml_data": xml_data,
@@ -1680,6 +1693,7 @@ def comic_edit(request, pk):
         "editable_fields": EDITABLE_FIELDS,
         "custom_values_list": custom_values_list,
         "state_choices": Comic.STATE_CHOICES,
+        "active_flags": active_flags,
     })
 
 
