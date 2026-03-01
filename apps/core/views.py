@@ -1339,8 +1339,8 @@ def format_comic(request, pk):
     patterns_checked = [
         {"pattern": "Director's Cut (text)", "matched": detected_format == "Director's Cut"},
         {"pattern": "Black & White (text)", "matched": detected_format == "Black & White"},
-        {"pattern": "Omnibus (keyword)", "matched": detected_format == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text, re.IGNORECASE))},
-        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages)", "matched": detected_format == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text, re.IGNORECASE)},
+        {"pattern": "Omnibus (keyword in title/summary)", "matched": detected_format == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
+        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)", "matched": detected_format == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
         {"pattern": "TPB (keyword)", "matched": detected_format == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
         {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected_format == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
         {"pattern": "Annual (keyword)", "matched": detected_format == "Annual"},
@@ -2075,8 +2075,8 @@ def force_format(request, pk):
     patterns_checked = [
         {"pattern": "Director's Cut (text)", "matched": detected == "Director's Cut"},
         {"pattern": "Black & White (text)", "matched": detected == "Black & White"},
-        {"pattern": "Omnibus (keyword)", "matched": detected == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text, re.IGNORECASE))},
-        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages)", "matched": detected == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text, re.IGNORECASE)},
+        {"pattern": "Omnibus (keyword in title/summary)", "matched": detected == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
+        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)", "matched": detected == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
         {"pattern": "TPB (keyword)", "matched": detected == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
         {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
         {"pattern": "Annual (keyword)", "matched": detected == "Annual"},

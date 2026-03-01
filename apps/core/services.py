@@ -335,7 +335,8 @@ def _detect_flags(
 
 
 # Page count thresholds for collection format detection (see Comic_Book_Format_Definitions.md)
-OMNIBUS_MIN_PAGES = 300
+# 500+ pages with no other signals is reliably Omnibus territory (1000-1500 page Omnibus editions)
+OMNIBUS_MIN_PAGES = 500
 TPB_MIN_PAGES = 80
 
 # Matches issue ranges in a description: "#1-5", "#2-#8", "Collects Batman #10-15", etc.
@@ -352,9 +353,11 @@ def detect_format(comic) -> str | None:
     Step 1 — Edition modifiers (series/title text):
         Director's Cut, Black & White
 
-    Step 2 — Collection formats:
-        Omnibus: keyword in series/title OR page_count >= 300
-        TPB: keyword in series/title OR (page_count >= 80 AND description has issue range)
+    Step 2 — Collection formats (in priority order):
+        1. Omnibus keyword in series/title/summary: definitive
+        2. TPB keyword in series/title: definitive
+        3. TPB by pages: page_count >= 80 AND summary has issue range (beats page-count Omnibus)
+        4. Omnibus by pages: page_count >= 500 with no TPB signals (last resort fallback)
 
     Step 3 — Publication structure:
         Annual: keyword in series/title
@@ -373,12 +376,17 @@ def detect_format(comic) -> str | None:
         return "Black & White"
 
     # Step 2: Collection formats
-    if re.search(r"\bOmnibus\b", text, re.IGNORECASE) or page_count >= OMNIBUS_MIN_PAGES:
+    # Omnibus keyword in title/series OR summary is definitive
+    if re.search(r"\bOmnibus\b", text + " " + summary, re.IGNORECASE):
         return "Omnibus"
+    # TPB signals evaluated before page-count Omnibus fallback
     if re.search(r"\bTPB\b|\bTrade\s+Paperback\b", text, re.IGNORECASE):
         return "TPB"
     if page_count >= TPB_MIN_PAGES and TPB_ISSUE_RANGE_RE.search(summary):
         return "TPB"
+    # Page-count-only Omnibus: 500+ pages is reliably Omnibus territory
+    if page_count >= OMNIBUS_MIN_PAGES:
+        return "Omnibus"
 
     # Step 3: Publication structure
     if re.search(r"\bAnnual\b", text, re.IGNORECASE):
