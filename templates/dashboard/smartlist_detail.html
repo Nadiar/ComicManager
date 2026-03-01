@@ -218,10 +218,9 @@ const actionLabels = {
 
 let pollInterval = null;
 
-async function runSmartListAction(action) {
+function runSmartListAction(action) {
   const label = actionLabels[action] || action;
-  if (!confirm(`${label} all {{ comic_count }} comics in this smart list?`)) return;
-
+  showConfirm(`${label} all {{ comic_count }} comics in this smart list?`, async () => {
   // Close dropdown
   document.activeElement.blur();
 
@@ -246,13 +245,13 @@ async function runSmartListAction(action) {
     }
 
     if (!data.success) {
-      alert('Error: ' + (data.error || 'Unknown'));
+      showMsgToast('Error: ' + (data.error || 'Unknown'), 'error');
       return;
     }
 
     if (!data.task_id) {
       // Completed synchronously (0 comics)
-      alert(data.message || 'Done');
+      showMsgToast(data.message || 'Done', 'info');
       return;
     }
 
@@ -263,8 +262,9 @@ async function runSmartListAction(action) {
       window.startTaskPolling(data.task_id, label + ' comics');
     }
   } catch (err) {
-    alert('Network error: ' + err.message);
+    showMsgToast('Network error: ' + err.message, 'error');
   }
+  });
 }
 
 function startPolling(taskId, label) {

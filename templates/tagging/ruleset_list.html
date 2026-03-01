@@ -106,11 +106,11 @@
                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
                 <button type="submit" class="btn btn-xs btn-ghost" title="Duplicate">Copy</button>
               </form>
-              <form method="post" action="{% url 'tagging:ruleset_delete' ruleset.pk %}" class="inline"
-                    onsubmit="return confirm('Delete ruleset \'{{ ruleset.name|escapejs }}\'?')">
+              <form method="post" action="{% url 'tagging:ruleset_delete' ruleset.pk %}" class="inline">
                 {% csrf_token %}
                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button type="submit" class="btn btn-xs btn-ghost text-error" title="Delete">Delete</button>
+                <button type="button" class="btn btn-xs btn-ghost text-error" title="Delete"
+                        onclick="showConfirm('Delete ruleset {{ ruleset.name|escapejs }}?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
               </form>
             </div>
           </td>

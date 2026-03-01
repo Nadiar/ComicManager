@@ -907,13 +907,13 @@ async function selectMatch(issueId) {
       // Reload page to show updated metadata
       location.reload();
     } else {
-      alert('Error: ' + (data.error || 'Unknown error'));
+      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
       matchesDiv.querySelectorAll('.card').forEach(card => {
         card.classList.remove('opacity-50', 'pointer-events-none');
       });
     }
   } catch (err) {
-    alert('Network error: ' + err.message);
+    showMsgToast('Network error: ' + err.message, 'error');
     matchesDiv.querySelectorAll('.card').forEach(card => {
       card.classList.remove('opacity-50', 'pointer-events-none');
     });
@@ -1123,12 +1123,12 @@ async function tryRezip() {
     } else {
       btn.textContent = originalText;
       btn.disabled = false;
-      alert('Rezip failed: ' + (data.error || 'Unknown error') + '\n\nThe file may be too corrupted to recover. Please delete it and re-import a working copy.');
+      showMsgToast('Rezip failed: ' + (data.error || 'Unknown error'), 'error');
     }
   } catch (err) {
     btn.textContent = originalText;
     btn.disabled = false;
-    alert('Network error: ' + err.message);
+    showMsgToast('Network error: ' + err.message, 'error');
   }
 }
 
@@ -1180,7 +1180,7 @@ async function runAction(action) {
       }
     } else {
       btn.innerHTML = '<span class="text-error">Error</span>';
-      alert('Error: ' + (data.error || 'Unknown error'));
+      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
       setTimeout(() => {
         btn.innerHTML = originalHtml;
         btn.disabled = false;
@@ -1188,7 +1188,7 @@ async function runAction(action) {
     }
   } catch (err) {
     btn.innerHTML = '<span class="text-error">Error</span>';
-    alert('Network error: ' + err.message);
+    showMsgToast('Network error: ' + err.message, 'error');
     setTimeout(() => {
       btn.innerHTML = originalHtml;
       btn.disabled = false;
@@ -1319,7 +1319,7 @@ function showOrganizeResultModal(comicTitle, data) {
   modal.showModal();
 }
 
-async function deleteComic() {
+function deleteComic() {
   const confirmMsg = `DELETE this comic?\n\n` +
     `Series: {{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}\n` +
     `File: {{ comic.file_path|default:"No file" }}\n\n` +
@@ -1327,10 +1327,7 @@ async function deleteComic() {
     `{% if comic.file_path %} AND the file from disk{% endif %}.\n\n` +
     `This cannot be undone!`;
 
-  if (!confirm(confirmMsg)) {
-    return;
-  }
-
+  showConfirm(confirmMsg, async () => {
   const btn = document.getElementById('action-delete');
   btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Deleting...';
   btn.disabled = true;
@@ -1357,7 +1354,7 @@ async function deleteComic() {
       }, 500);
     } else {
       btn.innerHTML = '<span class="text-error">Error</span>';
-      alert('Error: ' + (data.error || 'Unknown error'));
+      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
       setTimeout(() => {
         btn.innerHTML = 'Delete Comic';
         btn.disabled = false;
@@ -1365,12 +1362,13 @@ async function deleteComic() {
     }
   } catch (err) {
     btn.innerHTML = '<span class="text-error">Error</span>';
-    alert('Network error: ' + err.message);
+    showMsgToast('Network error: ' + err.message, 'error');
     setTimeout(() => {
       btn.innerHTML = 'Delete Comic';
       btn.disabled = false;
     }, 2000);
   }
+  }, 'Delete', true);
 }
 
 async function reorganizeComic(pk) {
@@ -1406,7 +1404,7 @@ async function reorganizeComic(pk) {
       btn.textContent = 'Error';
       btn.classList.remove('btn-warning');
       btn.classList.add('btn-error');
-      alert('Error: ' + data.error);
+      showMsgToast('Error: ' + data.error, 'error');
       setTimeout(() => {
         btn.textContent = originalText;
         btn.classList.remove('btn-error');
@@ -1418,7 +1416,7 @@ async function reorganizeComic(pk) {
     btn.textContent = 'Error';
     btn.classList.remove('btn-warning');
     btn.classList.add('btn-error');
-    alert('Network error: ' + err.message);
+    showMsgToast('Network error: ' + err.message, 'error');
     setTimeout(() => {
       btn.textContent = originalText;
       btn.classList.remove('btn-error');

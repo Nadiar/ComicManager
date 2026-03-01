@@ -135,12 +135,12 @@ function toggleProfile(pk, btn) {
       location.reload();
     } else {
       btn.disabled = false;
-      alert(data.error || 'Failed to toggle profile');
+      showMsgToast(data.error || 'Failed to toggle profile', 'error');
     }
   })
   .catch(err => {
     btn.disabled = false;
-    alert('Error: ' + err);
+    showMsgToast('Error: ' + err, 'error');
   });
 }
 </script>

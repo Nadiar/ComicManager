@@ -120,10 +120,7 @@
 
 <script>
 function runMetadataAudit(btn) {
-  if (!confirm('Audit all linked comics for metadata mismatches? This will check local ComicVine data.')) {
-    return;
-  }
-
+  showConfirm('Audit all linked comics for metadata mismatches? This will check local ComicVine data.', () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Auditing...';
 
@@ -152,6 +149,7 @@ function runMetadataAudit(btn) {
     btn.innerHTML = 'Error';
     btn.disabled = false;
     console.error(err);
+  });
   });
 }
 </script>

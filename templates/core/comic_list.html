@@ -716,10 +716,7 @@ function getCsrfToken() {
 }
 
 function acceptAllComics(btn) {
-  if (!confirm('Accept all comics and move them to "imported" state?')) {
-    return;
-  }
-
+  showConfirm('Accept all comics and move them to "imported" state?', () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Accepting...';
 
@@ -751,6 +748,7 @@ function acceptAllComics(btn) {
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
+  });
   });
 }
 
@@ -825,7 +823,7 @@ function scrapeAllComics(btn) {
     });
 
     if (scrapeQueue.length === 0) {
-      alert('No comics to scrape');
+      showMsgToast('No comics to scrape', 'info');
       return;
     }
 
@@ -839,13 +837,10 @@ function scrapeAllComics(btn) {
   } else {
     // Auto mode: scrape all without confirmation
     if (isForceScrape) {
-      alert('Use "Confirm each" mode to review and re-scrape mismatched comics individually.');
+      showMsgToast('Use "Confirm each" mode to review and re-scrape mismatched comics individually.', 'info');
       return;
     }
-    if (!confirm('Scrape all imported comics against ComicVine? This may take a while.')) {
-      return;
-    }
-
+    showConfirm('Scrape all imported comics against ComicVine? This may take a while.', () => {
     btn.disabled = true;
     btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Scraping...';
 
@@ -878,6 +873,7 @@ function scrapeAllComics(btn) {
       btn.innerHTML = 'Error';
       btn.title = err.toString();
       btn.disabled = false;
+    });
     });
   }
 }
@@ -1314,10 +1310,7 @@ function updateRowAfterScrape(btn, data) {
 }
 
 function convertAllComics(btn) {
-  if (!confirm('Convert all CBR/CB7 files to CBZ? This may take a while.')) {
-    return;
-  }
-
+  showConfirm('Convert all CBR/CB7 files to CBZ? This may take a while.', () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
 
@@ -1352,6 +1345,7 @@ function convertAllComics(btn) {
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
+  });
   });
 }
 
@@ -1453,10 +1447,7 @@ function tagComic(pk, btn) {
 }
 
 function tagAllComics(btn) {
-  if (!confirm('Apply DataManager tagging rules to all counted comics?')) {
-    return;
-  }
-
+  showConfirm('Apply DataManager tagging rules to all counted comics?', () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Tagging...';
 
@@ -1489,6 +1480,7 @@ function tagAllComics(btn) {
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
+  });
   });
 }
 
@@ -1541,10 +1533,7 @@ function formatComic(pk, btn) {
 }
 
 function formatAllComics(btn) {
-  if (!confirm('Apply format detection to all tagged comics?')) {
-    return;
-  }
-
+  showConfirm('Apply format detection to all tagged comics?', () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Formatting...';
 
@@ -1580,13 +1569,11 @@ function formatAllComics(btn) {
     btn.title = err.toString();
     btn.disabled = false;
   });
+  });
 }
 
 function deduplicateAllComics(btn) {
-  if (!confirm('Process deduplication for all formatted comics?')) {
-    return;
-  }
-
+  showConfirm('Process deduplication for all formatted comics?', () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
 
@@ -1620,13 +1607,11 @@ function deduplicateAllComics(btn) {
     btn.title = err.toString();
     btn.disabled = false;
   });
+  });
 }
 
 function organizeAllComics(btn) {
-  if (!confirm('Organize all deduplicated comics? Files will be moved to the library folder.')) {
-    return;
-  }
-
+  showConfirm('Organize all deduplicated comics? Files will be moved to the library folder.', () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
 
@@ -1660,13 +1645,11 @@ function organizeAllComics(btn) {
     btn.title = err.toString();
     btn.disabled = false;
   });
+  });
 }
 
 function writeAllComics(btn) {
-  if (!confirm('Write ComicInfo.xml for all organized comics? This will update the files.')) {
-    return;
-  }
-
+  showConfirm('Write ComicInfo.xml for all organized comics? This will update the files.', () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Writing...';
 
@@ -1697,6 +1680,7 @@ function writeAllComics(btn) {
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
+  });
   });
 }
 
@@ -1938,7 +1922,7 @@ function writeComic(pk, btn) {
 function saveColumnLayout() {
   const cols = Array.from(document.querySelectorAll('.col-toggle:checked')).map(el => el.value);
   if (cols.length === 0) {
-    alert('Select at least one column');
+    showMsgToast('Select at least one column', 'info');
     return;
   }
 
@@ -1957,13 +1941,12 @@ function saveColumnLayout() {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      alert('Layout saved successfully');
       window.location.reload();
     } else {
-      alert('Error: ' + data.error);
+      showMsgToast('Error: ' + data.error, 'error');
     }
   })
-  .catch(err => alert('Error: ' + err.toString()));
+  .catch(err => showMsgToast('Error: ' + err.toString(), 'error'));
 }
 
 // Sort by clicking column headers

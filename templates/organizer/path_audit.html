@@ -265,9 +265,8 @@ async function runAudit(btn) {
   }
 }
 
-async function reorganizeAll(btn) {
-  if (!confirm('Move all flagged comics to their correct locations?')) return;
-
+function reorganizeAll(btn) {
+  showConfirm('Move all flagged comics to their correct locations?', async () => {
   btn.disabled = true;
   const origText = btn.textContent;
   btn.textContent = 'Starting...';
@@ -303,6 +302,7 @@ async function reorganizeAll(btn) {
       btn.disabled = false;
     }, 3000);
   }
+  });
 }
 
 async function reorganizeSingle(pk, btn) {

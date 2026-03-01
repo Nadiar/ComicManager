@@ -201,11 +201,8 @@ function getCsrfToken() {
          '{{ csrf_token }}';
 }
 
-async function runDetection(btn) {
-  if (!confirm('Run duplicate detection on all formatted comics?')) {
-    return;
-  }
-
+function runDetection(btn) {
+  showConfirm('Run duplicate detection on all formatted comics?', async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Detecting...';
 
@@ -233,13 +230,11 @@ async function runDetection(btn) {
     btn.innerHTML = 'Error';
     btn.disabled = false;
   }
+  });
 }
 
-async function scanAll(btn) {
-  if (!confirm('Scan ALL digital comics for duplicates regardless of state? This catches existing duplicates that already passed through the workflow.')) {
-    return;
-  }
-
+function scanAll(btn) {
+  showConfirm('Scan ALL digital comics for duplicates regardless of state? This catches existing duplicates that already passed through the workflow.', async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Scanning...';
 
@@ -267,6 +262,7 @@ async function scanAll(btn) {
     btn.innerHTML = 'Error';
     btn.disabled = false;
   }
+  });
 }
 </script>
 {% endblock %}

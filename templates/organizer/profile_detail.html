@@ -92,9 +92,10 @@
           {% csrf_token %}
           <button type="submit" class="btn btn-outline">Duplicate</button>
         </form>
-        <form method="post" action="{% url 'organizer:profile_delete' profile.pk %}" class="inline" onsubmit="return confirm('Delete this profile?')">
+        <form method="post" action="{% url 'organizer:profile_delete' profile.pk %}" class="inline">
           {% csrf_token %}
-          <button type="submit" class="btn btn-error btn-outline">Delete</button>
+          <button type="button" class="btn btn-error btn-outline"
+                  onclick="showConfirm('Delete this profile?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
         </form>
       </div>
     </div>

@@ -139,10 +139,10 @@
     <!-- Actions -->
     <div class="flex gap-2 justify-end">
       {% if mode == 'edit' %}
-      <form method="POST" action="{% url 'dashboard:smartlist_delete' smart_list.pk %}" class="inline"
-            onsubmit="return confirm('Delete this smart list?')">
+      <form method="POST" action="{% url 'dashboard:smartlist_delete' smart_list.pk %}" class="inline">
         {% csrf_token %}
-        <button type="submit" class="btn btn-error btn-outline">Delete</button>
+        <button type="button" class="btn btn-error btn-outline"
+                onclick="showConfirm('Delete this smart list?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
       </form>
       {% endif %}
       <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Cancel</a>

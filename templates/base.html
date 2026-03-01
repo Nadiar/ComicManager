@@ -101,6 +101,29 @@
     </div>
   </div>
 
+  <!-- Confirm Modal -->
+  <dialog id="confirm-modal" class="modal">
+    <div class="modal-box max-w-sm">
+      <p id="confirm-modal-message" class="text-sm leading-relaxed whitespace-pre-line"></p>
+      <div class="modal-action mt-4">
+        <form method="dialog">
+          <button class="btn btn-ghost btn-sm">Cancel</button>
+        </form>
+        <button id="confirm-modal-ok" class="btn btn-sm btn-primary">Confirm</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+
+  <!-- Message Toast (info / error / success, no auto-reload) -->
+  <div id="msg-toast" class="toast toast-end z-[100] hidden" style="bottom: 6rem;">
+    <div id="msg-toast-inner" class="alert shadow-lg max-w-sm">
+      <span id="msg-toast-text"></span>
+    </div>
+  </div>
+
   <!-- Global Gallery Lightbox -->
   <dialog id="image-modal" class="modal">
     <div class="modal-box max-w-fit p-0 bg-transparent shadow-none relative overflow-visible">
@@ -137,6 +160,36 @@
   </dialog>
 
   <script>
+  // ── Confirm Modal ─────────────────────────────────────────────────────────
+  window.showConfirm = function(message, onConfirm, label, danger) {
+    var modal = document.getElementById('confirm-modal');
+    document.getElementById('confirm-modal-message').textContent = message;
+    var okBtn = document.getElementById('confirm-modal-ok');
+    okBtn.textContent = label || 'Confirm';
+    okBtn.className = 'btn btn-sm ' + (danger ? 'btn-error' : 'btn-primary');
+    okBtn.onclick = function() {
+      modal.close();
+      if (onConfirm) onConfirm();
+    };
+    modal.showModal();
+  };
+
+  // ── Message Toast (no auto-reload) ────────────────────────────────────────
+  var _msgToastTimer = null;
+  window.showMsgToast = function(message, type) {
+    var toast = document.getElementById('msg-toast');
+    var inner = document.getElementById('msg-toast-inner');
+    document.getElementById('msg-toast-text').textContent = message;
+    inner.className = 'alert shadow-lg max-w-sm' +
+      (type === 'error' ? ' alert-error' : type === 'success' ? ' alert-success' : ' alert-info');
+    toast.classList.remove('hidden');
+    if (_msgToastTimer) clearTimeout(_msgToastTimer);
+    _msgToastTimer = setTimeout(function() {
+      toast.classList.add('hidden');
+      _msgToastTimer = null;
+    }, 4000);
+  };
+
   // ── Global Gallery Logic ──────────────────────────────────────────────────
   (function() {
     let currentGallery = [];
