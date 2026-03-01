@@ -55,6 +55,7 @@ urlpatterns = [
     path("<uuid:pk>/force-organize/", views.force_organize, name="force_organize"),
     path("<uuid:pk>/force-write/", views.force_write, name="force_write"),
     path("<uuid:pk>/refresh-credits/", views.refresh_credits, name="refresh_credits"),
+    path("<uuid:pk>/refresh-file-info/", views.refresh_file_info, name="refresh_file_info"),
     path("<uuid:pk>/series-completion/", views.series_completion, name="series_completion"),
     path("<uuid:pk>/series-audit/", views.series_audit, name="series_audit"),
     path("series-audit/volume/<int:cv_volume_id>/", views.series_audit_volume, name="series_audit_volume"),

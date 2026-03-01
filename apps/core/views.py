@@ -2344,6 +2344,34 @@ def scan_untagged(request):
 
 
 # =============================================================================
+# Refresh File Info
+# =============================================================================
+
+@require_POST
+def refresh_file_info(request, pk):
+    """
+    Re-read page count, file size, and cover hashes from disk and update the DB record.
+    """
+    from .services import refresh_file_info as _refresh
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return JsonResponse({"success": False, "error": "Not a digital comic with a file."}, status=400)
+
+    result = _refresh(comic)
+
+    if result["error"]:
+        return JsonResponse({"success": False, "error": result["error"]}, status=404)
+
+    updated = result["updated"]
+    count = len(updated)
+    message = f"Refreshed {count} field(s): {', '.join(updated.keys())}." if updated else "No changes detected — file info is already up to date."
+
+    return JsonResponse({"success": True, "updated": updated, "message": message})
+
+
+# =============================================================================
 # Delete Comic
 # =============================================================================
 

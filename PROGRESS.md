@@ -211,9 +211,9 @@
 - [x] [BUG.7] Implemented 'Manage Pages' lightbox preview.
 - [x] [BUG.8] Addressed major issue: Re-search for alt covers does not work (`Variant cover gallery no longer shows stale images`).
 - [x] [BUG.15] Fixed PostgreSQL JSONField integer/string type mismatch for `custom_values` CV IDs. `parse_comicinfo_xml` now casts all `CustomValue` entries to `str` on import. Previously, numeric IDs stored as integers caused string-based queries to return zero results, breaking Series Audit owned counts and character audit volume matching.
-- [ ] [BUG.9] Ensure `Summary` and `Notes` fields are multi-line in UI, especially in "Compare All Sources" and "Metadata Comparison" tables.
-- [ ] [BUG.10] Implement validation to prevent saving tagging rulesets without a modifier and show an error.
-- [ ] [BUG.11] Add a button/action to refresh all file & system info (hashes, page count, filesize).
+- [x] [BUG.9] Ensure `Summary` and `Notes` fields are multi-line in UI, especially in "Compare All Sources" and "Metadata Comparison" tables.
+- [x] [BUG.10] Implement validation to prevent saving tagging rulesets without a modifier and show an error.
+- [x] [BUG.11] Add a button/action to refresh all file & system info (hashes, page count, filesize).
 - [ ] [BUG.12] Verify and implement specific handling of warnings for data-destructive operations in Celery tasks (tell user, finish current comic, stop next).
 - [x] [BUG.13] When a comic has flag scrape_no_match and is re-scraped, the flag is not removed, even though the comic moves on to the next stage.
 - [x] [BUG.14] Fixed corrupted/truncated CBZ files causing blank detail pages and missing page counts. Comics with unreadable archives are now flagged `corrupted_archive` at import and on first detail-page visit. A "Try Rezip" action on the detail page recovers readable entries and repacks the archive in place; if too damaged, the user is prompted to delete and reimport.

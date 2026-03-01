@@ -69,6 +69,13 @@
           </li>
           {% endif %}
           <li class="menu-title mt-2"><span>Other</span></li>
+          {% if comic.is_digital and comic.file_path %}
+          <li>
+            <button onclick="refreshFileInfo()" id="action-refresh-file-info">
+              Refresh File Info
+            </button>
+          </li>
+          {% endif %}
           <li>
             <button onclick="runAction('refresh-credits')" id="action-refresh-credits">
               Refresh Credits from CV
@@ -1098,6 +1105,38 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+async function refreshFileInfo() {
+  const btn = document.getElementById('action-refresh-file-info');
+  const originalText = btn.textContent;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Refreshing...';
+  btn.disabled = true;
+  document.activeElement.blur();
+
+  try {
+    const response = await fetch(`/comics/${comicPk}/refresh-file-info/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    const data = await response.json();
+    if (data.success) {
+      if (Object.keys(data.updated).length > 0) {
+        window.location.reload();
+      } else {
+        btn.innerHTML = '<span class="text-success">Up to date</span>';
+        setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
+      }
+    } else {
+      btn.textContent = originalText;
+      btn.disabled = false;
+      showMsgToast('Refresh failed: ' + data.error, 'error');
+    }
+  } catch (e) {
+    btn.textContent = originalText;
+    btn.disabled = false;
+    showMsgToast('Refresh failed: ' + e.message, 'error');
+  }
 }
 
 async function tryRezip() {

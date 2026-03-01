@@ -281,6 +281,63 @@ def _get_cbz_page_count(cbz_path: Path) -> tuple[int | None, bool]:
         return (None, True)
 
 
+def refresh_file_info(comic: "Comic") -> dict:
+    """
+    Re-read page count, file size, and cover hashes from the comic's file on disk.
+
+    Returns a dict:
+    {
+        "updated": {field: new_value, ...},  -- only fields that changed
+        "error": str | None,                 -- set if the file could not be read
+    }
+    """
+    from apps.scraper.hasher import extract_cover_hashes
+
+    if not comic.file_path:
+        return {"updated": {}, "error": "No file path set on this comic."}
+
+    path = Path(comic.file_path)
+    if not path.exists():
+        return {"updated": {}, "error": "File not found on disk."}
+
+    updated = {}
+    save_fields = []
+
+    # File size
+    new_size = path.stat().st_size
+    if comic.file_size != new_size:
+        comic.file_size = new_size
+        updated["file_size"] = new_size
+        save_fields.append("file_size")
+
+    # Page count and cover hashes (CBZ only)
+    if path.suffix.lower() == ".cbz":
+        new_count, is_corrupted = _get_cbz_page_count(path)
+        if is_corrupted:
+            comic.add_flag("corrupted_archive")
+            save_fields.append("flags")
+        elif new_count is not None and comic.page_count != new_count:
+            comic.page_count = new_count
+            updated["page_count"] = new_count
+            save_fields.append("page_count")
+
+        hashes = extract_cover_hashes(path)
+        if hashes:
+            if comic.phash != hashes.phash_hex:
+                comic.phash = hashes.phash_hex
+                updated["phash"] = hashes.phash_hex
+                save_fields.append("phash")
+            if comic.ahash != hashes.ahash_hex:
+                comic.ahash = hashes.ahash_hex
+                updated["ahash"] = hashes.ahash_hex
+                save_fields.append("ahash")
+
+    if save_fields:
+        comic.save(update_fields=list(set(save_fields)))
+
+    return {"updated": updated, "error": None}
+
+
 def _detect_flags(
     file_format: str,
     page_count: int | None,
