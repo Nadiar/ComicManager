@@ -379,7 +379,7 @@ def _update_volume_issue_count(volume_id: str, new_count: int, exclude_pk=None):
             comic.count = new_count
             comic.custom_values["comicvine_issue_count"] = str(new_count)
             comic.flags["count_updated"] = True
-            if comic.format in Comic.COUNT_BASED_FORMATS:
+            if comic.format in Comic.COUNT_BASED_FORMATS and not getattr(comic, "format_ok", False):
                 if comic.format != _get_count_format(new_count):
                     comic.needs_reformat = True
             comic.save()

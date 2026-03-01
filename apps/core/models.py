@@ -114,6 +114,10 @@ class Comic(models.Model):
     # Re-format tracking (when count changes for count-based formats)
     needs_reformat = models.BooleanField(default=False, db_index=True)
 
+    # Manually confirmed format — auto-detection will not overwrite this comic's format
+    # and count changes will not set needs_reformat=True
+    format_ok = models.BooleanField(default=False)
+
     # Count-based format types that can change when issue count changes
     COUNT_BASED_FORMATS = frozenset({"One-Shot", "Limited Series", "Main Series"})
 

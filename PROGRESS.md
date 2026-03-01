@@ -82,15 +82,15 @@
 - [x] [P5.3] Implemented manual format assignment with confirmation (via `Detail page actions now show result modals`).
 - [x] [P5.4] Implemented `Search, filter, and sort for comic list`.
 - [x] [P5.5] Implemented `Auto-scan page count on comic detail`.
-- [ ] [P5.6] Implement a `format_ok` boolean field on the `Comic` model to suppress false positives in smart lists.
+- [x] [P5.6] Implement a `format_ok` boolean field on the `Comic` model to suppress false positives in smart lists.
 - [ ] [P5.7] Implement smart list/logic to detect mismatched formats within the same `comicvine_volume`.
 - [ ] [P5.8] Implement smart list/logic to detect scraping conflicts (same Series + Volume + Format, different `comicvine_volume`).
 - [ ] [P5.9] Implement smart list/logic to surface comics with no format set.
 - [ ] [P5.10] Implement smart list/logic to detect format upgrades for ongoing series (One-Shot → Limited → Main Series).
 - [ ] [P5.11] Implement smart list/logic to flag comics whose format changed and need re-organizing.
-- [ ] [P5.12] Refine existing rules for TPB, Omnibus, Director's Cut, etc. to avoid mis-tagging.
+- [x] [P5.12] Refine existing rules for TPB, Omnibus, Director's Cut, etc. to avoid mis-tagging.
 - [x] [P5.13] Fixed search/filter bar on `/comics/?state=new` — see P1.19.
-- [ ] [P5.14] We need to show page count, so we can see if we talk about TPB or limited series on low issue count. 
+- [x] [P5.14] We need to show page count, so we can see if we talk about TPB or limited series on low issue count.
 
 ### Phase 6: Duplicate Detection (Comicrack_guide 07 - Duplicated)
 

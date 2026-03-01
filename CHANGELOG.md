@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Format detection rewritten to follow canonical rules**: `detect_format` now follows the 3-step algorithm defined in `Comic_Book_Format_Definitions.md`. Step 1 checks edition modifiers (Director's Cut, Black & White) from series/title text. Step 2 checks collection formats: Omnibus by keyword or page_count ≥ 300, TPB by keyword or (page_count ≥ 80 + issue range in description like "#1-5"). Step 3 classifies by issue count (Annual → One-Shot → Limited Series → Main Series). The old pattern-list approach that included formats like HC, Special, Giant-Size, King-Size, and Deluxe has been removed; only the 8 supported formats remain. The duplicate `FORMAT_PATTERNS` and `_detect_format` in `views.py` have been removed — views now import `detect_format` from `services.py`.
+
+- **format_ok field**: New `BooleanField(default=False)` on `Comic`. When `format_ok=True`, auto-detection will not overwrite the comic's format and count changes will not set `needs_reformat=True`. The field is exposed as a "Format confirmed" checkbox on the edit page. Migration `0007_comic_format_ok` added.
+
+- **Page count visible during format review**: The format detection modal now shows issue count and page count alongside series and title, making it easier to distinguish TPBs from limited series on low issue counts. Both tables in the Format Review page now include a Pages column.
+
 - **scrape_no_match flag not cleared on manual re-scrape**: `apply_cv_match` now removes `scrape_no_match`, `scrape_error`, and `scrape_error_detail` on every successful match. Previously these flags were only cleared by the batch task path, so comics manually re-scraped via the UI would advance state but still show as flagged in the dashboard review queue.
 
 - **Edit page: clear flags inline**: The comic edit page now shows an "Active Flags" section when a comic has any flags set. Each flag is displayed as a badge with a checkbox; checking it and saving removes the flag from the database. Previously flags could only be cleared via specific action buttons on the detail page.

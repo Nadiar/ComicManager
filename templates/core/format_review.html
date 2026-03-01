@@ -47,6 +47,7 @@
               <th>Vol</th>
               <th>#</th>
               <th>Count</th>
+              <th>Pages</th>
               <th>Title</th>
               <th>Publisher</th>
               <th>Current Format</th>
@@ -64,6 +65,7 @@
               <td>{{ comic.volume|default:"-" }}</td>
               <td>{{ comic.number|default:"-" }}</td>
               <td>{{ comic.count|default:"-" }}</td>
+              <td>{{ comic.page_count|default:"-" }}</td>
               <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
               <td>{{ comic.publisher|default:"-" }}</td>
               <td>
@@ -123,6 +125,7 @@
               <th>Vol</th>
               <th>#</th>
               <th>Count</th>
+              <th>Pages</th>
               <th>Title</th>
               <th>Publisher</th>
               <th>Current Format</th>
@@ -139,6 +142,7 @@
               <td>{{ comic.volume|default:"-" }}</td>
               <td>{{ comic.number|default:"-" }}</td>
               <td>{{ comic.count|default:"-" }}</td>
+              <td>{{ comic.page_count|default:"-" }}</td>
               <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
               <td>{{ comic.publisher|default:"-" }}</td>
               <td>

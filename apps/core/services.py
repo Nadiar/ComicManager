@@ -334,36 +334,55 @@ def _detect_flags(
     return flags
 
 
-# Format patterns for auto-detection (shared between views and tasks)
-FORMAT_PATTERNS = [
-    (r"\bTPB\b|\bTrade Paperback\b", "TPB"),
-    (r"\bHC\b|\bHardcover\b", "HC"),
-    (r"\bAnnual\b", "Annual"),
-    (r"\bSpecial\b", "Special"),
-    (r"\bOne[- ]?Shot\b", "One-Shot"),
-    (r"\bGiant[- ]?Size\b", "Giant-Size"),
-    (r"\bKing[- ]?Size\b", "King-Size"),
-    (r"\bOmnibus\b", "Omnibus"),
-    (r"\bDeluxe\b", "Deluxe"),
-    (r"\bDirector'?s Cut\b", "Director's Cut"),
-]
+# Page count thresholds for collection format detection (see Comic_Book_Format_Definitions.md)
+OMNIBUS_MIN_PAGES = 300
+TPB_MIN_PAGES = 80
+
+# Matches issue ranges in a description: "#1-5", "#2-#8", "Collects Batman #10-15", etc.
+TPB_ISSUE_RANGE_RE = re.compile(
+    r"#\s*\d+\s*[-\u2013]\s*#?\s*\d+|Collects\b",
+    re.IGNORECASE,
+)
 
 
 def detect_format(comic) -> str | None:
     """
-    Auto-detect comic format from series name, title, or issue count.
+    Auto-detect comic format using the 3-step classification from Comic_Book_Format_Definitions.md.
 
-    Detection priority:
-    1. Special formats (TPB, HC, Omnibus, etc.) from series/title text
-    2. Classify by issue count: One-Shot, Limited Series, Main Series
+    Step 1 — Edition modifiers (series/title text):
+        Director's Cut, Black & White
+
+    Step 2 — Collection formats:
+        Omnibus: keyword in series/title OR page_count >= 300
+        TPB: keyword in series/title OR (page_count >= 80 AND description has issue range)
+
+    Step 3 — Publication structure:
+        Annual: keyword in series/title
+        Count-based: One-Shot (count=1), Limited Series (2-15), Main Series (16+)
     """
     from .models import get_setting
 
-    text_to_check = f"{comic.series or ''} {comic.title or ''}"
+    text = f"{comic.series or ''} {comic.title or ''}"
+    summary = comic.summary or ""
+    page_count = comic.page_count or 0
 
-    for pattern, format_name in FORMAT_PATTERNS:
-        if re.search(pattern, text_to_check, re.IGNORECASE):
-            return format_name
+    # Step 1: Edition modifiers
+    if re.search(r"\bDirector'?s\s+Cut\b", text, re.IGNORECASE):
+        return "Director's Cut"
+    if re.search(r"\bBlack\s*&\s*White\b|\bB&W\b", text, re.IGNORECASE):
+        return "Black & White"
+
+    # Step 2: Collection formats
+    if re.search(r"\bOmnibus\b", text, re.IGNORECASE) or page_count >= OMNIBUS_MIN_PAGES:
+        return "Omnibus"
+    if re.search(r"\bTPB\b|\bTrade\s+Paperback\b", text, re.IGNORECASE):
+        return "TPB"
+    if page_count >= TPB_MIN_PAGES and TPB_ISSUE_RANGE_RE.search(summary):
+        return "TPB"
+
+    # Step 3: Publication structure
+    if re.search(r"\bAnnual\b", text, re.IGNORECASE):
+        return "Annual"
 
     if comic.count is not None:
         one_shot_max = get_setting("one_shot_max_count", 1)
@@ -383,12 +402,15 @@ def detect_and_set_format(comic) -> dict:
     """
     Detect format and apply it to a comic. Advances state to formatted.
 
+    If comic.format_ok is True the detected format is NOT written — the manually
+    confirmed format is preserved. State still advances and needs_reformat is cleared.
+
     Returns dict with detection results for reporting.
     """
     old_format = comic.format
     detected = detect_format(comic)
 
-    if detected:
+    if detected and not getattr(comic, "format_ok", False):
         comic.format = detected
 
     if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,

@@ -545,6 +545,8 @@
         <div class="bg-base-200 p-3 rounded-lg text-sm">
           <div><span class="text-base-content/60">Series:</span> <span id="format-series" class="font-medium"></span></div>
           <div><span class="text-base-content/60">Title:</span> <span id="format-title" class="font-medium"></span></div>
+          <div><span class="text-base-content/60">Issue Count:</span> <span id="format-count" class="font-medium"></span></div>
+          <div><span class="text-base-content/60">Page Count:</span> <span id="format-page-count" class="font-medium"></span></div>
         </div>
       </div>
 
@@ -1264,6 +1266,8 @@ function showFormatResultModal(comicTitle, data) {
   document.getElementById('format-modal-comic-title').textContent = comicTitle;
   document.getElementById('format-series').textContent = data.series || '(none)';
   document.getElementById('format-title').textContent = data.title || '(none)';
+  document.getElementById('format-count').textContent = data.count != null ? data.count : '—';
+  document.getElementById('format-page-count').textContent = data.page_count != null ? data.page_count + ' pages' : '—';
 
   const resultBox = document.getElementById('format-result-box');
   const resultText = document.getElementById('format-result-text');

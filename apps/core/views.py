@@ -1292,54 +1292,7 @@ def tag_preview(request, pk):
 # Phase 5: Format Detection (TPB, Annual, etc.)
 # =============================================================================
 
-# Format patterns for auto-detection
-FORMAT_PATTERNS = [
-    (r"\bTPB\b|\bTrade Paperback\b", "TPB"),
-    (r"\bHC\b|\bHardcover\b", "HC"),
-    (r"\bAnnual\b", "Annual"),
-    (r"\bSpecial\b", "Special"),
-    (r"\bOne[- ]?Shot\b", "One-Shot"),
-    (r"\bGiant[- ]?Size\b", "Giant-Size"),
-    (r"\bKing[- ]?Size\b", "King-Size"),
-    (r"\bOmnibus\b", "Omnibus"),
-    (r"\bDeluxe\b", "Deluxe"),
-    (r"\bDirector'?s Cut\b", "Director's Cut"),
-]
-
-
-def _detect_format(comic) -> str | None:
-    """
-    Auto-detect comic format from series name, title, or issue count.
-
-    Detection priority:
-    1. Special formats (TPB, HC, Omnibus, Annual, etc.) from series/title text
-    2. If no special format found, classify by issue count using configurable thresholds:
-       - One-Shot: count <= one_shot_max_count (default: 1)
-       - Limited Series: count <= limited_series_max_count (default: 15)
-       - Main Series: count > limited_series_max_count
-    """
-    from .models import get_setting
-
-    text_to_check = f"{comic.series or ''} {comic.title or ''}"
-
-    # First check for special formats in series/title
-    for pattern, format_name in FORMAT_PATTERNS:
-        if re.search(pattern, text_to_check, re.IGNORECASE):
-            return format_name
-
-    # If no special format found, classify by issue count
-    if comic.count is not None:
-        one_shot_max = get_setting("one_shot_max_count", 1)
-        limited_max = get_setting("limited_series_max_count", 15)
-
-        if comic.count <= one_shot_max:
-            return "One-Shot"
-        elif comic.count <= limited_max:
-            return "Limited Series"
-        else:
-            return "Main Series"
-
-    return None
+from .services import detect_format as _detect_format, OMNIBUS_MIN_PAGES, TPB_MIN_PAGES, TPB_ISSUE_RANGE_RE
 
 
 def _apply_format_detection(comic):
@@ -1380,21 +1333,20 @@ def format_comic(request, pk):
     comic.state = Comic.STATE_FORMATTED
     comic.save()
 
-    # Build list of patterns that were checked
+    _text = f"{comic.series or ''} {comic.title or ''}"
+    _summary = comic.summary or ""
+    _pages = comic.page_count or 0
     patterns_checked = [
-        {"pattern": "TPB / Trade Paperback", "matched": detected_format == "TPB"},
-        {"pattern": "HC / Hardcover", "matched": detected_format == "HC"},
-        {"pattern": "Annual", "matched": detected_format == "Annual"},
-        {"pattern": "Special", "matched": detected_format == "Special"},
-        {"pattern": "One-Shot (text)", "matched": detected_format == "One-Shot" and "one" in f"{comic.series or ''} {comic.title or ''}".lower()},
-        {"pattern": "Giant-Size", "matched": detected_format == "Giant-Size"},
-        {"pattern": "King-Size", "matched": detected_format == "King-Size"},
-        {"pattern": "Omnibus", "matched": detected_format == "Omnibus"},
-        {"pattern": "Deluxe", "matched": detected_format == "Deluxe"},
-        {"pattern": "Director's Cut", "matched": detected_format == "Director's Cut"},
-        {"pattern": f"One-Shot (count=1)", "matched": detected_format == "One-Shot" and comic.count == 1},
-        {"pattern": f"Limited Series (count 2-15)", "matched": detected_format == "Limited Series"},
-        {"pattern": f"Main Series (count>15)", "matched": detected_format == "Main Series"},
+        {"pattern": "Director's Cut (text)", "matched": detected_format == "Director's Cut"},
+        {"pattern": "Black & White (text)", "matched": detected_format == "Black & White"},
+        {"pattern": "Omnibus (keyword)", "matched": detected_format == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text, re.IGNORECASE))},
+        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages)", "matched": detected_format == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text, re.IGNORECASE)},
+        {"pattern": "TPB (keyword)", "matched": detected_format == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
+        {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected_format == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
+        {"pattern": "Annual (keyword)", "matched": detected_format == "Annual"},
+        {"pattern": "One-Shot (count=1)", "matched": detected_format == "One-Shot"},
+        {"pattern": "Limited Series (count 2-15)", "matched": detected_format == "Limited Series"},
+        {"pattern": "Main Series (count>15)", "matched": detected_format == "Main Series"},
     ]
 
     return JsonResponse({
@@ -1407,6 +1359,7 @@ def format_comic(request, pk):
         "series": comic.series,
         "title": comic.title,
         "count": comic.count,
+        "page_count": comic.page_count,
         "state": comic.state,
     })
 
@@ -1433,14 +1386,10 @@ def format_all_comics(request):
 # Format types in display order: (display_name, url_slug)
 FORMAT_DISPLAY_ORDER = [
     ("TPB", "tpb"),
-    ("HC", "hc"),
     ("Omnibus", "omnibus"),
-    ("Deluxe", "deluxe"),
     ("Director's Cut", "directors-cut"),
+    ("Black & White", "black-and-white"),
     ("Annual", "annual"),
-    ("Special", "special"),
-    ("Giant-Size", "giant-size"),
-    ("King-Size", "king-size"),
     ("One-Shot", "one-shot"),
     ("Limited Series", "limited-series"),
     ("Main Series", "main-series"),
@@ -1611,6 +1560,9 @@ def comic_edit(request, pk):
 
         # Update standard fields from form data
         update_comic_from_form(comic, request.POST)
+
+        # Handle format_ok toggle (checkbox — present means True, absent means False)
+        comic.format_ok = "format_ok" in request.POST
 
         # Handle state reset
         new_state = request.POST.get("state")
@@ -2117,19 +2069,18 @@ def force_format(request, pk):
     result = detect_and_set_format(comic)
     detected = result["detected_format"]
 
-    # Build list of patterns that were checked (for the modal UI)
+    _text = f"{comic.series or ''} {comic.title or ''}"
+    _summary = comic.summary or ""
+    _pages = comic.page_count or 0
     patterns_checked = [
-        {"pattern": "TPB / Trade Paperback", "matched": detected == "TPB"},
-        {"pattern": "HC / Hardcover", "matched": detected == "HC"},
-        {"pattern": "Annual", "matched": detected == "Annual"},
-        {"pattern": "Special", "matched": detected == "Special"},
-        {"pattern": "One-Shot (text)", "matched": detected == "One-Shot" and "one" in f"{comic.series or ''} {comic.title or ''}".lower()},
-        {"pattern": "Giant-Size", "matched": detected == "Giant-Size"},
-        {"pattern": "King-Size", "matched": detected == "King-Size"},
-        {"pattern": "Omnibus", "matched": detected == "Omnibus"},
-        {"pattern": "Deluxe", "matched": detected == "Deluxe"},
-        {"pattern": "Director's Cut", "matched": detected == "Director's Cut"},
-        {"pattern": "One-Shot (count=1)", "matched": detected == "One-Shot" and comic.count is not None and comic.count <= 1},
+        {"pattern": "Director's Cut (text)", "matched": detected == "Director's Cut"},
+        {"pattern": "Black & White (text)", "matched": detected == "Black & White"},
+        {"pattern": "Omnibus (keyword)", "matched": detected == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text, re.IGNORECASE))},
+        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages)", "matched": detected == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text, re.IGNORECASE)},
+        {"pattern": "TPB (keyword)", "matched": detected == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
+        {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
+        {"pattern": "Annual (keyword)", "matched": detected == "Annual"},
+        {"pattern": "One-Shot (count=1)", "matched": detected == "One-Shot"},
         {"pattern": "Limited Series (count 2-15)", "matched": detected == "Limited Series"},
         {"pattern": "Main Series (count>15)", "matched": detected == "Main Series"},
     ]
@@ -2145,6 +2096,7 @@ def force_format(request, pk):
         "series": comic.series,
         "title": comic.title,
         "count": comic.count,
+        "page_count": comic.page_count,
         "new_state": comic.state,
     })
 

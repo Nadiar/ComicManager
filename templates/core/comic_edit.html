@@ -86,6 +86,12 @@
             <label class="label"><span class="label-text">Format</span></label>
             <input type="text" name="format" value="{{ comic.format|default:'' }}" class="input input-bordered" placeholder="e.g. TPB, Annual, One-Shot" />
           </div>
+          <div class="form-control justify-end">
+            <label class="label cursor-pointer gap-2">
+              <span class="label-text">Format confirmed (skip auto-detect)</span>
+              <input type="checkbox" name="format_ok" class="checkbox checkbox-success" {% if comic.format_ok %}checked{% endif %} />
+            </label>
+          </div>
           <div class="form-control">
             <label class="label"><span class="label-text">Genre</span></label>
             <input type="text" name="genre" value="{{ comic.genre|default:'' }}" class="input input-bordered" />
