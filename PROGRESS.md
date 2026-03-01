@@ -196,6 +196,9 @@
 - [x] [UI.17] Edit comic needs a 'clear flag'.
 - [x] [UI.18] ALL popups needs to use a custom modal and not browser based popup.
 - [x] [UI.19] Edit comic needs a save to DB (where we skip saving to XML), as we can alwyas use the re-write option later on.
+- [ ] [UI.20] `/comics` table column selector shows columns in random/insertion order. Should be sorted alphabetically so the user can find columns quickly.
+- [ ] [UI.21] `/comics` table search, filter, and sort UX needs a review pass: ensure all selectable columns are also sortable and filterable, and that the filter/sort controls are consistent and discoverable.
+- [ ] [UI.22] `/settings/log/` batch log — replace the raw UUID in the comic column with an "Info" link that opens the comic detail page in a new tab, so the user can jump directly to the comic from a log entry.
 
 ## Major Issues / Bugs
 
@@ -217,12 +220,12 @@
 - [ ] [BUG.12] Verify and implement specific handling of warnings for data-destructive operations in Celery tasks (tell user, finish current comic, stop next).
 - [x] [BUG.13] When a comic has flag scrape_no_match and is re-scraped, the flag is not removed, even though the comic moves on to the next stage.
 - [x] [BUG.14] Fixed corrupted/truncated CBZ files causing blank detail pages and missing page counts. Comics with unreadable archives are now flagged `corrupted_archive` at import and on first detail-page visit. A "Try Rezip" action on the detail page recovers readable entries and repacks the archive in place; if too damaged, the user is prompted to delete and reimport.
-- [ ] [BUG.16] Stale Metadata dashboard widget "View Comics" link goes to all written-state comics, not filtered to just the stale ones. There is no URL filter for the `is_stale` computed annotation. Need a dedicated view or smart-list-based link that actually shows only stale comics.
-- [ ] [BUG.17] Comics that were transitioned to `written` state before `last_written` tracking was added have no `last_written` value. These show `Last Written = -` in the comic list even though they are in written state, and are not counted as stale even though their ComicInfo.xml may be outdated. A backfill migration or manual re-write pass is needed.
-- [ ] [BUG.18] The "Write All Stale" button on the Stale Metadata dashboard widget calls the generic `core:write_all` endpoint, which writes ALL comics in written state — not just the stale ones. Either a dedicated stale-only write endpoint/task is needed, or the button should be relabelled to avoid confusion.
-- [ ] [BUG.19] After running Write All, the stale count increases instead of decreasing. Root cause: `comic.save()` triggers Django's `auto_now` on `updated_at`, setting it to a time fractionally after `last_written` was assigned, so every freshly-written comic immediately appears stale again. Fix: set both fields to the same timestamp (e.g. via `update_fields` or `Model.objects.filter(pk=pk).update(last_written=now, updated_at=now)`).
-- [ ] [BUG.20] The Write All task toast notification shows a "View Batch Log" link that does nothing when clicked. The batch log page either does not receive an anchor/filter to the relevant entries or the write task does not write any log entries, so the link appears broken.
-- [ ] [BUG.21] `Last Written` is not shown in the "File & System Info" section on the comic detail page, making it impossible to see the value from the UI without adding it as a custom column on the list view.
+- [x] [BUG.16] Stale Metadata dashboard widget "View Comics" link relabelled to "View Written" (honest label since filtering by is_stale at URL level is not possible without a dedicated endpoint).
+- [x] [BUG.17] Backfill migration 0008 sets `last_written = updated_at` for all existing comics in `written` state with no `last_written`, so they no longer appear stale after the migration runs.
+- [x] [BUG.18] Added dedicated `core:write_stale` endpoint and `write_stale_comics_task` Celery task that filters `state=written AND updated_at > last_written`. Dashboard widget button updated to call this endpoint.
+- [x] [BUG.19] Fixed auto_now race condition in all four write paths (`write_comic`, `force_write`, `write_all_comics_task`, `_run_write`). After `comic.save()`, `Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))` syncs `last_written` to the exact same value Django set for `updated_at`.
+- [x] [BUG.20] Batch log link in toast now opens in a new tab (`target="_blank"`) with `hx-boost="false"` to prevent HTMX interference.
+- [x] [BUG.21] `Last Written` timestamp now shown in the File & System Info section on the comic detail page.
 
 ## Code to Port
 

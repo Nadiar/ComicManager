@@ -80,15 +80,79 @@ def write_all_comics_task(self):
                 )
                 continue
 
+        from django.db.models import F
         comic.state = Comic.STATE_WRITTEN
-        comic.last_written = timezone.now()
         if comic.flags.get("count_updated"):
             comic.flags.pop("count_updated", None)
         comic.save()
+        # Sync last_written to updated_at so the comic is not immediately stale
+        Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
         written += 1
 
         from .audit import log_batch_entry
         log_batch_entry("write_all", comic, Comic.STATE_ORGANIZED, comic.state, {"comicinfo": ["pending", "written"]})
+
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": i + 1, "total": total, "written": written, "errors": errors},
+        )
+
+    return {"written": written, "total": total, "errors": errors, "cancelled": False}
+
+
+@shared_task(bind=True, name="core.write_stale_comics", queue="write")
+def write_stale_comics_task(self):
+    """
+    Write ComicInfo.xml for all comics in 'written' state where the DB has
+    been updated since the last write (updated_at > last_written).
+    Reports progress via self.update_state().
+    """
+    from .models import Comic
+    from .utils import write_comicinfo_xml
+    from django.db.models import F
+
+    comic_ids = list(
+        Comic.objects.filter(
+            state=Comic.STATE_WRITTEN,
+            last_written__isnull=False,
+        ).filter(
+            updated_at__gt=F("last_written")
+        ).values_list("pk", flat=True)
+    )
+    total = len(comic_ids)
+
+    if total == 0:
+        return {"written": 0, "total": 0, "errors": [], "cancelled": False}
+
+    written = 0
+    errors = []
+
+    for i, comic_id in enumerate(comic_ids):
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {"written": written, "total": total, "errors": errors, "cancelled": True}
+
+        try:
+            comic = Comic.objects.get(pk=comic_id)
+        except Comic.DoesNotExist:
+            continue
+
+        if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
+            success = write_comicinfo_xml(comic.file_path, comic)
+            if not success:
+                errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
+                self.update_state(
+                    state="PROGRESS",
+                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
+                )
+                continue
+
+        comic.save()
+        Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+        written += 1
+
+        from .audit import log_batch_entry
+        log_batch_entry("write_all", comic, Comic.STATE_WRITTEN, comic.state, {"comicinfo": ["stale", "written"]})
 
         self.update_state(
             state="PROGRESS",

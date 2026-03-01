@@ -20,6 +20,7 @@ urlpatterns = [
     path("deduplicate-all/", views.deduplicate_all_comics, name="deduplicate_all"),
     path("organize-all/", views.organize_all_comics, name="organize_all"),
     path("write-all/", views.write_all_comics, name="write_all"),
+    path("write-stale/", views.write_stale_comics, name="write_stale"),
     path("sync-library-paths/", views.sync_library_paths, name="sync_library_paths"),
     path("rewrite-updated/", views.rewrite_updated_comics, name="rewrite_updated"),
     path("task-progress/<str:task_id>/", views.task_progress, name="task_progress"),

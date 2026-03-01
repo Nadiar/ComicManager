@@ -319,8 +319,8 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
           </p>
         </div>
         <div class="flex gap-2">
-          <a href="{% url 'core:list' %}?state=written" class="btn btn-sm btn-ghost">View Comics</a>
-          <button onclick="runAction('{% url 'core:write_all' %}', this, 'Writing comics')" class="btn btn-sm btn-warning">
+          <a href="{% url 'core:list' %}?state=written" class="btn btn-sm btn-ghost">View Written</a>
+          <button onclick="runAction('{% url 'core:write_stale' %}', this, 'Writing stale comics')" class="btn btn-sm btn-warning">
             Write All Stale ({{ stale_count }})
           </button>
         </div>

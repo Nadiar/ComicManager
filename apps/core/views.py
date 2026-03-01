@@ -1853,14 +1853,16 @@ def write_comic(request, pk):
             }, status=500)
 
     # Advance state and record write time
+    from django.db.models import F
     comic.state = Comic.STATE_WRITTEN
-    comic.last_written = timezone.now()
 
     # Clear the count_updated flag if set
     if comic.flags.get("count_updated"):
         comic.flags.pop("count_updated", None)
 
     comic.save()
+    # Sync last_written to updated_at so the comic is not immediately stale
+    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
 
     return JsonResponse({
         "success": True,
@@ -1906,6 +1908,50 @@ def write_all_comics(request):
         "task_id": result.id,
         "total": count,
         "message": f"Started writing {count} comics in background",
+    })
+
+
+@require_POST
+def write_stale_comics(request):
+    """
+    Dispatch a Celery task to rewrite ComicInfo.xml for all stale written comics
+    (state=written, updated_at > last_written).
+    """
+    from celery.result import AsyncResult
+    from django.db.models import F
+
+    active_task_id = request.session.get("write_task_id")
+    if active_task_id:
+        result = AsyncResult(active_task_id)
+        if result.state in ("PENDING", "STARTED", "PROGRESS"):
+            return JsonResponse({
+                "success": False,
+                "error": "A write task is already running",
+                "task_id": active_task_id,
+            }, status=409)
+
+    count = Comic.objects.filter(
+        state=Comic.STATE_WRITTEN,
+        last_written__isnull=False,
+    ).filter(updated_at__gt=F("last_written")).count()
+
+    if count == 0:
+        return JsonResponse({
+            "success": True,
+            "written": 0,
+            "total": 0,
+            "message": "No stale comics to write",
+        })
+
+    from .tasks import write_stale_comics_task
+    result = write_stale_comics_task.delay()
+    request.session["write_task_id"] = result.id
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": count,
+        "message": f"Started writing {count} stale comic(s) in background",
     })
 
 
@@ -2303,16 +2349,17 @@ def force_write(request, pk):
         }, status=500)
 
     # Advance state to written
+    from django.db.models import F
     if comic.state != Comic.STATE_WRITTEN:
         comic.state = Comic.STATE_WRITTEN
-
-    comic.last_written = timezone.now()
 
     # Clear the count_updated flag if set
     if comic.flags.get("count_updated"):
         comic.flags.pop("count_updated", None)
 
     comic.save()
+    # Sync last_written to updated_at so the comic is not immediately stale
+    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
 
     return JsonResponse({
         "success": True,

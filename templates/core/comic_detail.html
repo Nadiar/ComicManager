@@ -365,6 +365,7 @@
           <div><span class="text-base-content/60">Medium:</span> {{ comic.medium }}</div>
           <div><span class="text-base-content/60">Imported:</span> {{ comic.imported_at|date:"Y-m-d H:i" }}</div>
           <div><span class="text-base-content/60">Updated:</span> {{ comic.updated_at|date:"Y-m-d H:i" }}</div>
+          <div><span class="text-base-content/60">Last Written:</span> {% if comic.last_written %}{{ comic.last_written|date:"Y-m-d H:i:s" }}{% else %}-{% endif %}</div>
         </div>
 
         {% if comic.phash or comic.ahash %}

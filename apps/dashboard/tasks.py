@@ -217,13 +217,14 @@ def _run_write(comic):
     if not success:
         raise Exception("Failed to write ComicInfo.xml")
 
+    from django.db.models import F
     if comic.state != Comic.STATE_WRITTEN:
         comic.state = Comic.STATE_WRITTEN
-
-    comic.last_written = timezone.now()
 
     if comic.flags.get("count_updated"):
         comic.flags.pop("count_updated", None)
 
     comic.save()
+    # Sync last_written to updated_at so the comic is not immediately stale
+    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
     log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})

@@ -38,6 +38,8 @@ def get_col_value(comic, col_id):
             pass
     elif col_id in ["updated", "imported"] and val:
         val = val.strftime("%Y-%m-%d")
+    elif col_id == "last_written" and val:
+        val = val.strftime("%Y-%m-%d %H:%M:%S")
         
     return val
 
