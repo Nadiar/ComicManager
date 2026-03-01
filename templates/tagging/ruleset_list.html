@@ -15,141 +15,179 @@
   </div>
 </div>
 
-<!-- Filters -->
-<div class="card bg-base-200 mb-6">
-  <div class="card-body p-4">
-    <form method="get" class="flex flex-wrap gap-4 items-end">
-      <div class="form-control">
-        <label class="label py-1">
-          <span class="label-text">Search</span>
-        </label>
-        <input type="text" name="search" value="{{ search }}" placeholder="Name or path..." class="input input-bordered input-sm w-48">
-      </div>
+<div class="flex gap-4 items-start">
 
-      <div class="form-control">
-        <label class="label py-1">
-          <span class="label-text">Group</span>
-        </label>
-        <select name="group" class="select select-bordered select-sm w-48">
-          <option value="">All Groups</option>
-          {% for g in top_level_groups %}
-          <option value="{{ g }}" {% if group == g %}selected{% endif %}>{{ g }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="form-control">
-        <label class="label py-1">
-          <span class="label-text">Status</span>
-        </label>
-        <select name="enabled" class="select select-bordered select-sm w-32">
-          <option value="">All</option>
-          <option value="true" {% if enabled == "true" %}selected{% endif %}>Enabled</option>
-          <option value="false" {% if enabled == "false" %}selected{% endif %}>Disabled</option>
-        </select>
-      </div>
-
-      <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-      <a href="{% url 'tagging:ruleset_list' %}" class="btn btn-sm btn-ghost">Clear</a>
-    </form>
-  </div>
-</div>
-
-<!-- Rulesets Table -->
-<div class="card bg-base-200">
-  <div class="overflow-x-auto">
-    <table class="table table-sm">
-      <thead>
-        <tr>
-          <th>Priority</th>
-          <th>Name</th>
-          <th>Group Path</th>
-          <th>Mode</th>
-          <th>Rules</th>
-          <th>Actions</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for ruleset in rulesets %}
-        <tr class="hover">
-          <td class="text-xs text-base-content/50">{{ ruleset.priority }}</td>
-          <td>
-            <a href="{% url 'tagging:ruleset_detail' ruleset.pk %}" class="link link-primary font-medium">
-              {{ ruleset.name }}
+  <!-- Folder Tree Sidebar -->
+  <div class="w-56 shrink-0">
+    <div class="card bg-base-200">
+      <div class="card-body p-3">
+        <p class="text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-2">Groups</p>
+        <ul class="space-y-px">
+          <li>
+            <a href="{% url 'tagging:ruleset_list' %}?search={{ search }}&enabled={{ enabled }}"
+               class="flex items-center gap-1.5 px-2 py-1 rounded text-sm {% if not group %}bg-primary text-primary-content font-medium{% else %}hover:bg-base-300{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
+              </svg>
+              All Groups
             </a>
-          </td>
-          <td class="text-sm text-base-content/70 max-w-xs truncate" title="{{ ruleset.group_path }}">
-            {{ ruleset.group_path|default:"-" }}
-          </td>
-          <td>
-            <span class="badge badge-sm {% if ruleset.mode == 'AND' %}badge-info{% else %}badge-warning{% endif %}">
-              {{ ruleset.mode }}
-            </span>
-          </td>
-          <td class="text-center">{{ ruleset.rule_count }}</td>
-          <td class="text-center">{{ ruleset.action_count }}</td>
-          <td>
-            <button
-              onclick="toggleRuleset({{ ruleset.pk }}, this)"
-              class="badge badge-sm cursor-pointer {% if ruleset.is_enabled %}badge-success{% else %}badge-error{% endif %}"
-            >
-              {% if ruleset.is_enabled %}Enabled{% else %}Disabled{% endif %}
-            </button>
-          </td>
-          <td>
-            <div class="flex gap-1">
-              <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="btn btn-xs btn-ghost" title="Edit">Edit</a>
-              <form method="post" action="{% url 'tagging:ruleset_duplicate' ruleset.pk %}" class="inline">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button type="submit" class="btn btn-xs btn-ghost" title="Duplicate">Copy</button>
-              </form>
-              <form method="post" action="{% url 'tagging:ruleset_delete' ruleset.pk %}" class="inline">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                <button type="button" class="btn btn-xs btn-ghost text-error" title="Delete"
-                        onclick="showConfirm('Delete ruleset {{ ruleset.name|escapejs }}?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
-              </form>
-            </div>
-          </td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="8" class="text-center py-8 text-base-content/50">
-            No rulesets found.
-            {% if search or group or enabled %}
-            <a href="{% url 'tagging:ruleset_list' %}" class="link link-primary">Clear filters</a>
-            {% else %}
-            <a href="{% url 'tagging:import' %}" class="link link-primary">Import dataman.dat</a>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+          </li>
+          {% for node in group_tree %}
+          <li>
+            <a href="?group={{ node.path }}&search={{ search }}&enabled={{ enabled }}"
+               style="padding-left: calc(0.5rem + {{ node.indent }}px)"
+               class="flex items-center gap-1.5 pr-2 py-1 rounded text-sm
+                      {% if node.is_selected %}bg-primary text-primary-content font-medium
+                      {% elif node.is_ancestor %}bg-base-300 font-medium
+                      {% else %}hover:bg-base-300 text-base-content/80{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
+              </svg>
+              <span class="truncate" title="{{ node.path }}">{{ node.label }}</span>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
   </div>
-</div>
 
-<!-- Pagination -->
-{% if rulesets.has_other_pages %}
-<div class="flex justify-center mt-6">
-  <div class="join">
-    {% if rulesets.has_previous %}
-    <a href="?page={{ rulesets.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="join-item btn btn-sm">«</a>
+  <!-- Main Content -->
+  <div class="flex-1 min-w-0">
+
+    <!-- Filters -->
+    <div class="card bg-base-200 mb-4">
+      <div class="card-body p-3">
+        <form method="get" class="flex flex-wrap gap-3 items-end">
+          {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}
+          <div class="form-control">
+            <label class="label py-1">
+              <span class="label-text">Search</span>
+            </label>
+            <input type="text" name="search" value="{{ search }}" placeholder="Name or path..." class="input input-bordered input-sm w-48">
+          </div>
+
+          <div class="form-control">
+            <label class="label py-1">
+              <span class="label-text">Status</span>
+            </label>
+            <select name="enabled" class="select select-bordered select-sm w-32">
+              <option value="">All</option>
+              <option value="true" {% if enabled == "true" %}selected{% endif %}>Enabled</option>
+              <option value="false" {% if enabled == "false" %}selected{% endif %}>Disabled</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+          <a href="{% url 'tagging:ruleset_list' %}" class="btn btn-sm btn-ghost">Clear</a>
+        </form>
+        {% if group %}
+        <p class="text-xs text-base-content/50 mt-2">
+          Showing: <span class="font-mono">{{ group }}</span>
+          <a href="{% url 'tagging:ruleset_list' %}?search={{ search }}&enabled={{ enabled }}" class="link link-primary ml-1">clear folder</a>
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Rulesets Table -->
+    <div class="card bg-base-200">
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Priority</th>
+              <th>Name</th>
+              <th>Group Path</th>
+              <th>Mode</th>
+              <th>Rules</th>
+              <th>Actions</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ruleset in rulesets %}
+            <tr class="hover">
+              <td class="text-xs text-base-content/50">{{ ruleset.priority }}</td>
+              <td>
+                <a href="{% url 'tagging:ruleset_detail' ruleset.pk %}" class="link link-primary font-medium">
+                  {{ ruleset.name }}
+                </a>
+              </td>
+              <td class="text-sm text-base-content/70 max-w-xs truncate" title="{{ ruleset.group_path }}">
+                {{ ruleset.group_path|default:"-" }}
+              </td>
+              <td>
+                <span class="badge badge-sm {% if ruleset.mode == 'AND' %}badge-info{% else %}badge-warning{% endif %}">
+                  {{ ruleset.mode }}
+                </span>
+              </td>
+              <td class="text-center">{{ ruleset.rule_count }}</td>
+              <td class="text-center">{{ ruleset.action_count }}</td>
+              <td>
+                <button
+                  onclick="toggleRuleset({{ ruleset.pk }}, this)"
+                  class="badge badge-sm cursor-pointer {% if ruleset.is_enabled %}badge-success{% else %}badge-error{% endif %}"
+                >
+                  {% if ruleset.is_enabled %}Enabled{% else %}Disabled{% endif %}
+                </button>
+              </td>
+              <td>
+                <div class="flex gap-1">
+                  <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="btn btn-xs btn-ghost" title="Edit">Edit</a>
+                  <form method="post" action="{% url 'tagging:ruleset_duplicate' ruleset.pk %}" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="btn btn-xs btn-ghost" title="Duplicate">Copy</button>
+                  </form>
+                  <form method="post" action="{% url 'tagging:ruleset_delete' ruleset.pk %}" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="button" class="btn btn-xs btn-ghost text-error" title="Delete"
+                            onclick="showConfirm('Delete ruleset {{ ruleset.name|escapejs }}?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="8" class="text-center py-8 text-base-content/50">
+                No rulesets found.
+                {% if search or group or enabled %}
+                <a href="{% url 'tagging:ruleset_list' %}" class="link link-primary">Clear filters</a>
+                {% else %}
+                <a href="{% url 'tagging:import' %}" class="link link-primary">Import dataman.dat</a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if rulesets.has_other_pages %}
+    <div class="flex justify-center mt-6">
+      <div class="join">
+        {% if rulesets.has_previous %}
+        <a href="?page={{ rulesets.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="join-item btn btn-sm">«</a>
+        {% endif %}
+
+        <span class="join-item btn btn-sm btn-disabled">
+          Page {{ rulesets.number }} of {{ rulesets.paginator.num_pages }}
+        </span>
+
+        {% if rulesets.has_next %}
+        <a href="?page={{ rulesets.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="join-item btn btn-sm">»</a>
+        {% endif %}
+      </div>
+    </div>
     {% endif %}
 
-    <span class="join-item btn btn-sm btn-disabled">
-      Page {{ rulesets.number }} of {{ rulesets.paginator.num_pages }}
-    </span>
-
-    {% if rulesets.has_next %}
-    <a href="?page={{ rulesets.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="join-item btn btn-sm">»</a>
-    {% endif %}
   </div>
 </div>
-{% endif %}
 
 <script>
 function getCsrfToken() {

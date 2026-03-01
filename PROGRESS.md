@@ -45,7 +45,7 @@
 - [ ] [P2.9] Implement metadata-only matching for physical comics, leveraging the same queue system but bypassing hash-based matching.
 - [x] [P2.10] Confirmed all ComicVine fields are stored correctly and `scrape_source` is recorded.
 - [x] [P2.11] Confirmed `Comic.state` is updated to `counted` (as `scraped` state was removed).
-- [ ] [P2.12] Implement explicit prioritization/workflow for scraping TPBs and Director's Cuts *before* general scraping.
+- [-] [P2.12] (Cancelled) Scraping TPBs/Director's Cuts first is unnecessary — format detection (P5.12) handles mis-tagging prevention; pipeline order does not matter.
 - [ ] [P2.13] Implement metadata-only matching for physical comics.
 
 ### Phase 3: Issue Count (Comicrack_guide 04 - Add Count)

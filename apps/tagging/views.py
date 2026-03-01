@@ -14,6 +14,33 @@ from .parser import import_datamanager_file, export_datamanager_xml
 from .engine import FIELD_MAP, RULE_MODIFIERS, ACTION_MODIFIERS
 
 
+def _build_group_tree(paths):
+    """Build a nested dict tree from a list of slash-separated paths."""
+    tree = {}
+    for path in paths:
+        if not path:
+            continue
+        node = tree
+        for part in path.split("/"):
+            node = node.setdefault(part, {})
+    return tree
+
+
+def _flatten_group_tree(tree, prefix="", depth=0):
+    """Flatten a nested tree into a list of dicts with path, label, depth, indent."""
+    result = []
+    for key in sorted(tree.keys()):
+        full_path = f"{prefix}/{key}" if prefix else key
+        result.append({
+            "path": full_path,
+            "label": key,
+            "depth": depth,
+            "indent": depth * 16,
+        })
+        result.extend(_flatten_group_tree(tree[key], full_path, depth + 1))
+    return result
+
+
 def ruleset_list(request):
     """
     List all rulesets with filtering and grouping options.
@@ -41,9 +68,14 @@ def ruleset_list(request):
 
     rulesets = rulesets.order_by("priority", "group_path", "name")
 
-    # Get unique top-level groups for filter dropdown
-    all_groups = DataManagerRuleset.objects.values_list("group_path", flat=True).distinct()
-    top_level_groups = sorted(set(g.split("/")[0] for g in all_groups if g))
+    # Build folder tree for sidebar
+    all_paths = DataManagerRuleset.objects.values_list("group_path", flat=True).distinct()
+    tree = _build_group_tree(all_paths)
+    group_tree = _flatten_group_tree(tree)
+    # Annotate each node with active/selected state
+    for node in group_tree:
+        node["is_selected"] = group == node["path"]
+        node["is_ancestor"] = bool(group) and group.startswith(node["path"] + "/")
 
     # Pagination
     paginator = Paginator(rulesets, 50)
@@ -59,7 +91,7 @@ def ruleset_list(request):
         "search": search,
         "group": group,
         "enabled": enabled,
-        "top_level_groups": top_level_groups,
+        "group_tree": group_tree,
         "total_count": total_count,
         "enabled_count": enabled_count,
     })
