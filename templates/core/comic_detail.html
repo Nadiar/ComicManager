@@ -211,18 +211,14 @@
               <td class="font-medium">{{ item.label }}</td>
               <td class="max-w-xs">
                 {% if item.db_value %}
-                <span class="{% if item.status == 'differ' %}text-warning{% endif %}">
-                  {{ item.db_value|truncatechars:100 }}
-                </span>
+                <span class="whitespace-pre-wrap {% if item.status == 'differ' %}text-warning{% endif %}">{{ item.db_value }}</span>
                 {% else %}
                 <span class="text-base-content/30">-</span>
                 {% endif %}
               </td>
               <td class="max-w-xs">
                 {% if item.xml_value %}
-                <span class="{% if item.status == 'differ' %}text-warning{% endif %}">
-                  {{ item.xml_value|truncatechars:100 }}
-                </span>
+                <span class="whitespace-pre-wrap {% if item.status == 'differ' %}text-warning{% endif %}">{{ item.xml_value }}</span>
                 {% else %}
                 <span class="text-base-content/30">-</span>
                 {% endif %}
@@ -1047,6 +1043,11 @@ function openCvCompareModal() {
 
       // Common fields table
       const tbody = document.getElementById('cv-compare-common-body');
+      const fmtVal = (v) => {
+        if (v == null || !String(v).trim()) return '<span class="text-base-content/30">-</span>';
+        return `<span class="text-xs whitespace-pre-wrap">${escapeHtml(String(v))}</span>`;
+      };
+
       data.common.forEach(item => {
         const tr = document.createElement('tr');
         const statusClass = item.status === 'differ' ? 'bg-warning/10' : '';
@@ -1056,8 +1057,6 @@ function openCvCompareModal() {
         if (item.status === 'match') statusBadge = '<span class="badge badge-success badge-sm">Match</span>';
         else if (item.status === 'differ') statusBadge = '<span class="badge badge-warning badge-sm">Different</span>';
         else statusBadge = '<span class="badge badge-ghost badge-sm">Empty</span>';
-
-        const fmtVal = v => v != null && String(v).trim() ? `<span class="text-xs">${escapeHtml(String(v).substring(0, 120))}${String(v).length > 120 ? '...' : ''}</span>` : '<span class="text-base-content/30">-</span>';
 
         tr.innerHTML = `
           <td class="font-medium text-sm">${escapeHtml(item.label)}</td>
@@ -1082,7 +1081,7 @@ function openCvCompareModal() {
           tr.innerHTML = `
             <td class="font-medium text-sm">${escapeHtml(item.label)}</td>
             <td><span class="badge badge-sm ${sourceBadges[item.source] || 'badge-ghost'}">${sourceLabels[item.source] || item.source}</span></td>
-            <td class="max-w-md text-xs">${escapeHtml(String(item.value).substring(0, 150))}${String(item.value).length > 150 ? '...' : ''}</td>
+            <td class="max-w-md text-xs whitespace-pre-wrap">${escapeHtml(String(item.value))}</td>
           `;
           extrasBody.appendChild(tr);
         });
