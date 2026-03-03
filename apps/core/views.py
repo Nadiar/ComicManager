@@ -256,7 +256,7 @@ def comic_list(request):
         "publishers": publishers,
         "formats": formats,
         "active_columns": active_columns,
-        "all_columns": COLUMNS_REGISTRY,
+        "all_columns": dict(sorted(COLUMNS_REGISTRY.items(), key=lambda x: x[1]["label"])),
         "inline_editable_cols": list(_INLINE_EDITABLE_FIELDS),
     })
 

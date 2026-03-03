@@ -39,7 +39,7 @@
           <th>Action</th>
           <th>Comic</th>
           <th>Changes</th>
-          <th>UUID</th>
+          <th></th>
           <th>Send back</th>
         </tr>
       </thead>
@@ -73,12 +73,12 @@
             {% endfor %}
           </td>
           <td>
-            <span class="font-mono text-xs badge badge-ghost"
-                  title="{{ entry.uuid }}"
-                  onclick="navigator.clipboard.writeText('{{ entry.uuid }}')"
-                  style="cursor:pointer">
-              {{ entry.uuid|slice:":8" }}&hellip;
-            </span>
+            <a href="{% url 'core:detail' entry.uuid %}"
+               target="_blank"
+               class="btn btn-xs btn-ghost"
+               title="{{ entry.uuid }}">
+              Info
+            </a>
           </td>
           <td>
             {% if entry.action == 'scrape_all' %}

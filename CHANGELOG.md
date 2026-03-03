@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Re-organize Queue: completion toast showed "0 processed" (BUG.23)**: `successText()` and `progressText()` in `base.html` now handle the `moved` result field. The toast completion message now reads "X moved, Y already ok (of Z)" instead of falling through to the generic `processed` fallback.
+- **Comic list column selector alphabetical order**: The "Visible Columns" dropdown now lists columns sorted alphabetically by label, making it easier to find a specific column in long lists.
+
+- **Batch log "Info" link**: The UUID column in `/settings/log/` is now an "Info" button that opens the comic detail page in a new tab, replacing the raw truncated UUID badge.
+
+- **Re-organize Queue: completion toast showed "0 processed"**: `successText()` and `progressText()` in `base.html` now handle the `moved` result field. The toast completion message now reads "X moved, Y already ok (of Z)" instead of falling through to the generic `processed` fallback.
 
 - **Re-organize Queue: moves not logged to batch log (BUG.22)**: `reorganize_all_flagged_task` now calls `log_batch_entry("organize_all", ...)` for each file it actually moves, recording old and new paths. Entries appear in `/settings/log/` under the "organize_all" filter.
 

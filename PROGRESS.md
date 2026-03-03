@@ -199,9 +199,9 @@
 - [x] [UI.17] Edit comic needs a 'clear flag'.
 - [x] [UI.18] ALL popups needs to use a custom modal and not browser based popup.
 - [x] [UI.19] Edit comic needs a save to DB (where we skip saving to XML), as we can alwyas use the re-write option later on.
-- [ ] [UI.20] `/comics` table column selector shows columns in random/insertion order. Should be sorted alphabetically so the user can find columns quickly.
+- [x] [UI.20] `/comics` table column selector now sorts columns alphabetically by label. Fixed by sorting `COLUMNS_REGISTRY` by `label` in the view before passing `all_columns` to the template.
 - [x] [UI.21] `/comics` table search, filter, and sort overhauled: (1) search expanded to writer, penciller, inker, colorist, letterer, cover_artist, editor, characters, teams, genre, notes; (2) smart search tokens: `#N` filters by issue number, `(YYYY)` by year, `VYYY` by volume, combinable freely; (3) column header sort fixed (sort key mismatch between COLUMNS_REGISTRY and view's sort_fields dict was silently falling back to series sort for every non-trivial column); (4) pages sort uses `NULLS LAST` in both directions. Documented in `docs/guide/searching.md`.
-- [ ] [UI.22] `/settings/log/` batch log — replace the raw UUID in the comic column with an "Info" link that opens the comic detail page in a new tab, so the user can jump directly to the comic from a log entry.
+- [x] [UI.22] `/settings/log/` batch log — the UUID column is now an "Info" button that opens the comic detail page in a new tab.
 
 ## Major Issues / Bugs
 
