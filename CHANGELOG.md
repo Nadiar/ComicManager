@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - will be released as v1.0.0
 
+### Added
+
+- **Missing Format review queue item**: Comics that complete format detection with no format assigned are now flagged with `missing_format`. The flag is cleared when a format is eventually set. A "Missing Format" entry in the dashboard Review Queue links to all affected comics for manual assignment.
+
 ### Fixed
 
 - **Duplicate Review UX improvements**: (1) Each group card now shows a tip explaining that deleting unwanted comics causes the last one to be auto-kept, and that "Keep & Del Rest" resolves everything in one step. (2) Pressing "Keep" on a comic now automatically sets `format_ok = True` on the winner. (3) Series links in the group card and the "View" button in the group detail page now open in a new tab. (4) The "Keep & Del Rest" confirmation uses the DaisyUI custom modal instead of the browser `confirm()` popup.

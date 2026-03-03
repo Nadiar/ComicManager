@@ -1368,6 +1368,9 @@ def _apply_format_detection(comic):
     detected_format = _detect_format(comic)
     if detected_format:
         comic.format = detected_format
+        comic.flags.pop("missing_format", None)
+    elif not comic.format:
+        comic.flags["missing_format"] = True
 
     comic.state = Comic.STATE_FORMATTED
     comic.save()
@@ -1393,6 +1396,9 @@ def format_comic(request, pk):
 
     if detected_format:
         comic.format = detected_format
+        comic.flags.pop("missing_format", None)
+    elif not comic.format:
+        comic.flags["missing_format"] = True
 
     comic.state = Comic.STATE_FORMATTED
     comic.save()

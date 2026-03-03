@@ -85,7 +85,7 @@
 - [x] [P5.6] Implement a `format_ok` boolean field on the `Comic` model to suppress false positives in smart lists.
 - [ ] [P5.7] Implement smart list/logic to detect mismatched formats within the same `comicvine_volume`.
 - [ ] [P5.8] Implement smart list/logic to detect scraping conflicts (same Series + Volume + Format, different `comicvine_volume`).
-- [ ] [P5.9] Implement smart list/logic to surface comics with no format set.
+- [x] [P5.9] Implement smart list/logic to surface comics with no format set. Implemented as a `missing_format` flag (set during format detection when no format can be determined, cleared when a format is assigned). Appears in the dashboard Review Queue.
 - [ ] [P5.10] Implement smart list/logic to detect format upgrades for ongoing series (One-Shot → Limited → Main Series).
 - [ ] [P5.11] Implement smart list/logic to flag comics whose format changed and need re-organizing.
 - [x] [P5.12] Refine existing rules for TPB, Omnibus, Director's Cut, etc. to avoid mis-tagging.
@@ -102,7 +102,7 @@
 - [x] [P6.3] Confirmed "Digital + Physical same CV ID is explicitly NOT a duplicate" rule.
 - [x] [P6.4] Implemented duplicate resolution UI with side-by-side comparison and actions (keep/soft-delete/delete).
 - [x] [P6.5] Implemented soft-delete only (`is_duplicate=True`, `duplicate_of` FK set).
-- [ ] [P6.6] Implement an audit log entry for every duplicate resolution decision.
+- [x] [P6.6] Audit log already implemented via `DuplicateResolution` model. Every resolve_keep / resolve_requeue / resolve_delete / resolve_keep_all call creates a `DuplicateResolution` entry. Viewable at `/duplicates/history/`.
 - [x] [P6.7] Duplicate Review group card now shows a tip line: "Delete unwanted comics first — the last remaining one is auto-kept. Or use Keep & Del Rest to decide in one step."
 - [x] [P6.8] `resolve_keep` now sets `winner.format_ok = True` so the kept comic is marked as format-confirmed.
 - [x] [P6.9] Series link in the group card and "View" button in the group detail page both open in a new tab (`target="_blank"`).
@@ -160,10 +160,10 @@
 - [x] [SL.1] Implemented `Smart Lists` framework (saved, named queries with filters, optional sorting, dashboard visibility).
 - [x] [SL.2] Implemented `Dynamic column customization` for table columns.
 - [x] [SL.3] Extended smart list filter field whitelist (`ALLOWED_FIELDS`) and UI dropdown (`FILTER_FIELD_OPTIONS`) to support `proposed_*` fields, all `flags__*` keys, `file_format`, `needs_reorganize`, `needs_reformat`, `last_written`, `imported_at`, `custom_values__comicvine_issue`, `custom_values__scrape_source`, and two new sort options (`Import Date`, `Last Written`). Documented flag filter usage in README.
-- [ ] [SL.P1.1] **Phase 1 Smart Lists:** 1.2 — Page Count Too Low (digital, `page_count < 5`)
-- [ ] [SL.P1.2] **Phase 1 Smart Lists:** 1.3 — PDF Files (`file_format = 'pdf'`)
-- [ ] [SL.P1.3] **Phase 1 Smart Lists:** 1.4 — Unparseable Filename (`proposed_series` is null)
-- [ ] [SL.P1.4] **Phase 1 Smart Lists:** 1.7 — Standalone Covers (`page_count <= 3` + "cover" in filename)
+- [-] [SL.P1.1] (Superseded) Page Count Too Low — already surfaced via `low_page_count` flag in the dashboard Review Queue.
+- [-] [SL.P1.2] (Superseded) PDF Files — already surfaced via `is_pdf` flag in the dashboard Review Queue.
+- [-] [SL.P1.3] (Superseded) Unparseable Filename — already surfaced via `missing_series` flag in the dashboard Review Queue.
+- [-] [SL.P1.4] (Superseded) Standalone Covers — already surfaced via `standalone_cover` flag in the dashboard Review Queue.
 - [ ] [SL.P5.1] **Phase 5 Smart Lists:** Format Mismatches (same `comicvine_volume`, different `format`)
 - [ ] [SL.P5.2] **Phase 5 Smart Lists:** CV Volume Conflicts (same Series+Volume+Format, different `comicvine_volume`)
 - [ ] [SL.P5.3] **Phase 5 Smart Lists:** Missing Format (`format` is null)

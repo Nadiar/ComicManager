@@ -479,6 +479,9 @@ def detect_and_set_format(comic) -> dict:
 
     if detected and not getattr(comic, "format_ok", False):
         comic.format = detected
+        comic.flags.pop("missing_format", None)
+    elif not comic.format:
+        comic.flags["missing_format"] = True
 
     if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
                        Comic.STATE_COUNTED, Comic.STATE_TAGGED):

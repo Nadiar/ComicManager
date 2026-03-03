@@ -120,6 +120,13 @@ def index(request):
             "count": Comic.objects.filter(flags__scrape_error=True).count(),
             "action": "review",
         },
+        {
+            "flag": "missing_format",
+            "label": "Missing Format",
+            "description": "Format detection returned no result — needs manual format assignment",
+            "count": Comic.objects.filter(flags__missing_format=True).count(),
+            "action": "edit",
+        },
     ]
 
     flagged_count = Comic.objects.exclude(flags={}).count()
