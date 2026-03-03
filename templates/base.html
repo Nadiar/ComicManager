@@ -370,6 +370,10 @@
         return (data.written || 0) + ' written' +
           (data.errors && data.errors.length > 0 ? ', ' + data.errors.length + ' errors' : '');
       }
+      if (data.moved !== undefined) {
+        return (data.moved || 0) + ' moved' +
+          (data.errors && data.errors.length > 0 ? ', ' + data.errors.length + ' errors' : '');
+      }
       return (data.processed || 0) + ' processed' +
         (data.errors && data.errors.length > 0 ? ', ' + data.errors.length + ' errors' : '');
     }
@@ -394,6 +398,12 @@
       if (r.written !== undefined) {
         return (r.written || 0) + ' of ' + (r.total || 0) + ' written' +
           (r.errors && r.errors.length > 0 ? ', ' + r.errors.length + ' errors' : '');
+      }
+      if (r.moved !== undefined) {
+        var parts = [(r.moved || 0) + ' moved'];
+        if (r.already_ok > 0) parts.push(r.already_ok + ' already ok');
+        if (r.errors && r.errors.length > 0) parts.push(r.errors.length + ' errors');
+        return parts.join(', ') + ' (of ' + (r.total || 0) + ')';
       }
       // Scrape-specific: show matched vs failed breakdown
       if (r.matched !== undefined && r.failed !== undefined) {

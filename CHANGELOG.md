@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Re-organize Queue: completion toast showed "0 processed" (BUG.23)**: `successText()` and `progressText()` in `base.html` now handle the `moved` result field. The toast completion message now reads "X moved, Y already ok (of Z)" instead of falling through to the generic `processed` fallback.
+
+- **Re-organize Queue: moves not logged to batch log (BUG.22)**: `reorganize_all_flagged_task` now calls `log_batch_entry("organize_all", ...)` for each file it actually moves, recording old and new paths. Entries appear in `/settings/log/` under the "organize_all" filter.
+
 - **Comic list "No Comics Found" empty state**: Removed the docker import command hint from the empty-state message in the comic table. The message now simply reads "No Comics Found".
 
 - **Column header sorting broken (UI.21)**: Clicking a column header was silently falling back to series sort because the COLUMNS_REGISTRY `sort` values (`page_count`, `updated_at`, etc.) did not match the aliases used as keys in the view's `sort_fields` dict (`pages`, `updated`). All sort keys are now unified to use the actual model field names. The sort dropdown option values have been updated to match. Any column present in the table is now sortable via header click, including credits and custom-value columns, using a safe fallback of `[field, series, volume, number]` for columns without an explicit multi-field sort definition.

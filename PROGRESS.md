@@ -103,7 +103,10 @@
 - [x] [P6.4] Implemented duplicate resolution UI with side-by-side comparison and actions (keep/soft-delete/delete).
 - [x] [P6.5] Implemented soft-delete only (`is_duplicate=True`, `duplicate_of` FK set).
 - [ ] [P6.6] Implement an audit log entry for every duplicate resolution decision.
-- [ ] [P6.7] Duplicate Review needs better explenation for what Keep, Re-Q, Del does. Right now if we say Keep on one of the pairs, the other set just disappeard, so the user should delete the one they dont want. 
+- [ ] [P6.7] Duplicate Review needs better explenation for what Keep, Re-Q, Del does. Right now if we say Keep on one of the pairs, the other set just disappeard, so the user should delete the one they dont want.
+- [ ] [P6.8] Duplicate Review: when the user presses Keep on a comic, automatically check off `format_ok` (Format confirmed) on that comic.
+- [ ] [P6.9] Duplicate Review: add a direct link to the comic detail page next to each entry, opening in a new tab.
+- [ ] [P6.10] Duplicate Review: "Keep & Del Rest" confirmation uses a browser `confirm()` popup instead of a DaisyUI modal — replace with the custom modal pattern (see UI.18).
 
 ### Phase 7: Library Organizer (Comicrack_guide 08 - Library Organizer)
 
@@ -227,8 +230,9 @@
 - [x] [BUG.20] Batch log link in toast now opens in a new tab (`target="_blank"`) with `hx-boost="false"` to prevent HTMX interference.
 - [x] [BUG.21] `Last Written` timestamp now shown in the File & System Info section on the comic detail page.
 - [x] [BUG.22b] Simplified "No Comics Found" empty state in the comics table: removed the docker import command hint; now just shows "No Comics Found".
-- [ ] [BUG.22] Library Re-organize Queue (Re-organize All) does not log errors correctly to the batch log at `/settings/log/`.
-- [ ] [BUG.23] Library Re-organize Queue toast shows correct progress count (e.g. "293 / 302") during the run but reports "0 processed" in the completion message, even when no errors occurred and the task completed successfully.
+- [ ] [BUG.24] Triggering a second batch task (e.g. "Write All") while another is already running in the toast causes the second task to be silently lost — the toast only tracks the first task ID, and when it finishes nothing picks up the second. Need to support task queuing: either prevent double-trigger with a clear "already running" message, or queue the second task and show it in the toast once the first completes.
+- [x] [BUG.22] Library Re-organize Queue (Re-organize All) now calls `log_batch_entry("organize_all", ...)` for every file that was actually moved, recording `old_path` → `new_path` in the batch log at `/settings/log/`.
+- [x] [BUG.23] Library Re-organize Queue toast completion message now shows "X moved, Y already ok (of Z)" instead of "0 processed". Fixed by handling `r.moved` in `successText()` and `progressText()` in `base.html`.
 
 ## Code to Port
 

@@ -147,6 +147,11 @@ def reorganize_all_flagged_task(self):
         result = reorganize_comic(comic)
         if result["success"]:
             if result.get("moved"):
+                from apps.core.audit import log_batch_entry
+                log_batch_entry(
+                    "organize_all", comic, comic.state, comic.state,
+                    {"path": [result["old_path"], result["new_path"]]},
+                )
                 moved += 1
             else:
                 already_ok += 1
