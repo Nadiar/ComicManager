@@ -515,6 +515,7 @@ def resolve_keep(
         # (don't downgrade already-processed comics)
         winner.is_duplicate = False
         winner.duplicate_of = None
+        winner.format_ok = True
         if winner.state == Comic.STATE_FORMATTED:
             winner.state = Comic.STATE_DEDUPLICATED
         winner.save()
@@ -568,8 +569,8 @@ def resolve_keep_and_delete_rest(
         try:
             del_result = resolve_delete(group, str(comic_id), reason="Deleted: keep-and-delete-rest action")
             deleted.append(del_result.get("comic", str(comic_id)))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error("keep_and_delete_rest: failed to delete comic %s: %s", comic_id, e)
 
     return {
         "success": True,
@@ -757,10 +758,13 @@ def _check_group_resolved(group: DuplicateGroup):
     pending_count = pending_memberships.count()
 
     if pending_count == 0:
-        # All resolved
+        # All resolved — only update status fields, not kept_comic.
+        # The kept_comic FK may have been CASCADE-nullified if that comic was
+        # deleted in the same transaction (e.g. keep_and_delete_rest), and
+        # saving the stale Python object would cause an IntegrityError.
         group.status = DuplicateGroup.STATUS_RESOLVED
         group.resolved_at = timezone.now()
-        group.save()
+        group.save(update_fields=["status", "resolved_at"])
     elif pending_count == 1:
         # Only 1 comic left - auto-keep it since it's no longer a duplicate
         membership = pending_memberships.first()

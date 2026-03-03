@@ -7,6 +7,9 @@
           {{ group.comic_count }} comic{{ group.comic_count|pluralize }} &bull;
           {{ group.detection_method_display }}
         </p>
+        <p class="text-xs text-base-content/40 mt-0.5">
+          Delete unwanted comics first — the last remaining one is auto-kept. Or use "Keep &amp; Del Rest" to decide in one step.
+        </p>
       </div>
       <div class="flex gap-2">
         <a href="{% url 'duplicates:group_detail' group.id %}" class="btn btn-xs btn-ghost">
@@ -71,11 +74,7 @@
                 </button>
                 <button
                   class="btn btn-xs btn-success btn-outline"
-                  hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
-                  hx-vals='{"action": "keep_and_delete_rest", "comic_id": "{{ comic.id }}"}'
-                  hx-target="#group-{{ group.id }}"
-                  hx-swap="outerHTML"
-                  hx-confirm="Keep this comic and DELETE all others in this group? This cannot be undone!"
+                  onclick="(function(btn){ showConfirm('Keep this comic and DELETE all others in this group? This cannot be undone!', function() { htmx.ajax('POST', '{% url 'duplicates:resolve_htmx' group.id %}', {source: btn, target: '#group-{{ group.id }}', swap: 'outerHTML', values: {action: 'keep_and_delete_rest', comic_id: '{{ comic.id }}'}}); }, 'Delete Rest', true); })(this)"
                   title="Keep this comic and permanently delete all others in the group"
                 >
                   Keep &amp; Del Rest
@@ -105,7 +104,7 @@
               </div>
             </td>
             <td>
-              <a href="{% url 'core:detail' comic.id %}" class="link link-primary">
+              <a href="{% url 'core:detail' comic.id %}" class="link link-primary" target="_blank" rel="noopener noreferrer">
                 {{ comic.series|default:"-"|truncatechars:30 }}
               </a>
             </td>

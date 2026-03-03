@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Duplicate Review UX improvements**: (1) Each group card now shows a tip explaining that deleting unwanted comics causes the last one to be auto-kept, and that "Keep & Del Rest" resolves everything in one step. (2) Pressing "Keep" on a comic now automatically sets `format_ok = True` on the winner. (3) Series links in the group card and the "View" button in the group detail page now open in a new tab. (4) The "Keep & Del Rest" confirmation uses the DaisyUI custom modal instead of the browser `confirm()` popup.
+
 - **Comic list column selector alphabetical order**: The "Visible Columns" dropdown now lists columns sorted alphabetically by label, making it easier to find a specific column in long lists.
 
 - **Batch log "Info" link**: The UUID column in `/settings/log/` is now an "Info" button that opens the comic detail page in a new tab, replacing the raw truncated UUID badge.
