@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Publishers - ComicManager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+  <div class="flex justify-between items-center">
+    <div>
+      <h1 class="text-2xl font-bold">Publishers</h1>
+      <p class="text-base-content/70">{{ known_count }} covered by rulesets, {{ uncovered_count }} uncovered</p>
+    </div>
+    <a href="{% url 'tagging:ruleset_list' %}" class="btn btn-outline btn-sm">Back to Rulesets</a>
+  </div>
+
+  {% if uncovered %}
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-warning">Uncovered Publishers ({{ uncovered_count }})</h2>
+      <p class="text-sm text-base-content/60">These publishers have no matching tagging ruleset. Comics from these publishers are flagged as "Unknown Publisher".</p>
+      <div class="overflow-x-auto mt-2">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Publisher</th>
+              <th class="text-right">Comics</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pub in uncovered %}
+            <tr class="hover">
+              <td class="font-medium">{{ pub.name }}</td>
+              <td class="text-right">
+                <a href="/comics/?publisher={{ pub.name|urlencode }}" class="link link-hover">{{ pub.comic_count }}</a>
+              </td>
+              <td class="text-right">
+                <a href="{% url 'tagging:ruleset_create' %}?publisher={{ pub.name|urlencode }}" class="btn btn-xs btn-primary">Create Ruleset</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title text-success">Covered Publishers ({{ known_count }})</h2>
+      <p class="text-sm text-base-content/60">These publishers are matched by at least one enabled tagging ruleset.</p>
+      {% if known %}
+      <div class="overflow-x-auto mt-2">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Publisher</th>
+              <th class="text-right">Comics</th>
+              <th>Rulesets</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pub in known %}
+            <tr class="hover">
+              <td class="font-medium">{{ pub.name }}</td>
+              <td class="text-right">
+                {% if pub.comic_count %}
+                <a href="/comics/?publisher={{ pub.name|urlencode }}" class="link link-hover">{{ pub.comic_count }}</a>
+                {% else %}
+                <span class="text-base-content/40">0</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="flex flex-wrap gap-1">
+                  {% for rs in pub.rulesets %}
+                  <a href="{% url 'tagging:ruleset_detail' rs.id %}" class="badge badge-sm badge-outline hover:badge-primary">{{ rs.name }}</a>
+                  {% endfor %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="alert alert-info mt-2">
+        <span>No rulesets with Publisher rules found. Import or create rulesets to define known publishers.</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

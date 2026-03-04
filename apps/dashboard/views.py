@@ -134,6 +134,13 @@ def index(request):
             "count": Comic.objects.filter(flags__scrape_skipped=True).count(),
             "action": "review",
         },
+        {
+            "flag": "unknown_publisher",
+            "label": "Unknown Publisher",
+            "description": "Publisher not covered by any tagging ruleset — create a ruleset or review",
+            "count": Comic.objects.filter(flags__unknown_publisher=True).count(),
+            "action": "review",
+        },
     ]
 
     flagged_count = Comic.objects.exclude(flags={}).count()
@@ -234,6 +241,7 @@ FILTER_FIELD_OPTIONS = [
     ("flags__scrape_no_match", "Flag: No Scrape Match"),
     ("flags__scrape_error", "Flag: Scrape Error"),
     ("flags__scrape_skipped", "Flag: Scrape Skipped"),
+    ("flags__unknown_publisher", "Flag: Unknown Publisher"),
     # ComicVine custom values
     ("custom_values__comicvine_volume", "CV Volume ID"),
     ("custom_values__comicvine_issue", "CV Issue ID"),

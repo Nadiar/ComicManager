@@ -38,6 +38,12 @@ def tag_comic(comic: Comic) -> dict:
         # Mark as processed by DataManager
         comic.custom_values["DataManager_Processed"] = "Yes"
 
+        # Clear unknown_publisher if this publisher is now covered by a ruleset
+        if comic.publisher and comic.has_flag("unknown_publisher"):
+            from .engine import is_publisher_known
+            if is_publisher_known(comic.publisher):
+                comic.remove_flag("unknown_publisher")
+
         # Transition state
         comic.state = Comic.STATE_TAGGED
         comic.save()

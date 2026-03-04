@@ -43,6 +43,7 @@ FLAG_LABELS = {
     "scrape_no_match": "Scrape: No Match",
     "scrape_error": "Scrape: Error",
     "scrape_skipped": "Scrape: Skipped",
+    "unknown_publisher": "Unknown Publisher",
 }
 
 # Workflow states in order (for navigation)
@@ -1370,6 +1371,29 @@ def tag_all_comics(request):
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Tagging {total} comics in background"})
 
 
+@require_POST
+def retag_flagged(request):
+    """
+    Dispatch a Celery task to re-tag all comics with a specific flag.
+    """
+    from celery.result import AsyncResult
+    from .tasks import retag_flagged_task
+
+    flag = request.POST.get("flag", "").strip()
+    if not flag:
+        return JsonResponse({"success": False, "error": "No flag specified"}, status=400)
+
+    active = request.session.get("active_task_id")
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+
+    total = Comic.objects.filter(**{f"flags__{flag}": True}).count()
+    result = retag_flagged_task.delay(flag)
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = f"Re-tagging {flag} comics"
+    return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Re-tagging {total} comics in background"})
+
+
 def tag_preview(request, pk):
     """
     Preview which DataManager rules would match a comic.
@@ -2185,6 +2209,12 @@ def force_tag(request, pk):
 
     # Mark as processed by DataManager
     comic.custom_values["DataManager_Processed"] = "Yes"
+
+    # Clear unknown_publisher if this publisher is now covered by a ruleset
+    if comic.publisher and comic.has_flag("unknown_publisher"):
+        from apps.tagging.engine import is_publisher_known
+        if is_publisher_known(comic.publisher):
+            comic.remove_flag("unknown_publisher")
 
     # Advance state if needed (to at least tagged)
     if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):

@@ -13,6 +13,9 @@ urlpatterns = [
     path("rulesets/<int:pk>/duplicate/", views.ruleset_duplicate, name="ruleset_duplicate"),
     path("rulesets/<int:pk>/toggle/", views.ruleset_toggle, name="ruleset_toggle"),
 
+    # Publishers
+    path("publishers/", views.publisher_list, name="publisher_list"),
+
     # Import/Export
     path("import/", views.import_datamanager, name="import"),
     path("export/", views.export_datamanager, name="export"),

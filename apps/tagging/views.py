@@ -158,6 +158,17 @@ def ruleset_create(request):
 
     # Get field/modifier options for form
     context = _get_form_context()
+
+    # Pre-fill publisher rule if coming from publishers page
+    prefill_publisher = request.GET.get("publisher", "").strip()
+    if prefill_publisher:
+        prefill = DataManagerRuleset(
+            name=prefill_publisher,
+            rules=[{"field": "Publisher", "modifier": "Is", "value": prefill_publisher}],
+            actions=[],
+        )
+        context["ruleset"] = prefill
+
     return render(request, "tagging/ruleset_form.html", {
         "action": "Create",
         **context,
@@ -304,6 +315,45 @@ def export_datamanager(request):
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+
+def publisher_list(request):
+    """
+    Show known publishers (from rulesets) vs uncovered publishers in the library.
+    """
+    from apps.core.models import Comic
+    from django.db.models import Count
+    from .engine import get_known_publishers, is_publisher_known
+
+    known = get_known_publishers()
+    known_names = {p["name"].lower() for p in known}
+
+    # Get all distinct publishers with comic counts
+    publisher_counts = dict(
+        Comic.objects.exclude(publisher__isnull=True)
+        .exclude(publisher="")
+        .values_list("publisher")
+        .annotate(count=Count("id"))
+        .values_list("publisher", "count")
+    )
+
+    # Annotate known publishers with comic counts
+    for pub in known:
+        pub["comic_count"] = publisher_counts.pop(pub["name"], 0)
+
+    # Remaining are uncovered publishers
+    uncovered = []
+    for name, count in sorted(publisher_counts.items(), key=lambda x: x[0].lower()):
+        # Double-check with full modifier evaluation (handles Contains, StartsWith, etc.)
+        if not is_publisher_known(name):
+            uncovered.append({"name": name, "comic_count": count})
+
+    return render(request, "tagging/publishers.html", {
+        "known": known,
+        "uncovered": uncovered,
+        "known_count": len(known),
+        "uncovered_count": len(uncovered),
+    })
 
 
 def _get_form_context():

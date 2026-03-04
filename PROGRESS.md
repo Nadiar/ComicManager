@@ -67,8 +67,8 @@
 - [x] [P4.2] Confirmed `Organizer profile rule editor` provides UI for creating and editing matching rules.
 - [x] [P4.3] Confirmed rules populate `series_group`, `main_character_team`, `first_series`, `datamanager_processed`.
 - [x] [P4.4] Confirmed rules are stored in DB and are editable via UI.
-- [ ] [P4.5] Implement mechanism to "Surface comics from publishers not yet in the system; prompt keep or delete."
-- [ ] [P4.6] Implement UI for "Publisher config: maintain 'known publishers' list with associated tagging rules."
+- [x] [P4.5] `unknown_publisher` flag set after scraping when publisher is not covered by any enabled ruleset's Publisher rules. Appears in dashboard Review Queue.
+- [x] [P4.6] Publishers page at `/tagging/publishers/` shows covered publishers (from rulesets) vs uncovered publishers with comic counts. "Create Ruleset" button pre-fills publisher rule.
 - [-] [P4.7] (Cancelled) Built-in rulesets for Marvel and DC — rulesets are user-managed via the rule editor.
 - [-] [P4.8] (Cancelled) Star Wars ruleset — user-managed via the rule editor.
 

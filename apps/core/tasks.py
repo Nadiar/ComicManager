@@ -538,6 +538,56 @@ def tag_all_task(self):
     return {"processed": processed, "total": total, "errors": errors, "cancelled": False}
 
 
+@shared_task(bind=True, name="core.retag_flagged", queue="write")
+def retag_flagged_task(self, flag_name):
+    """
+    Re-tag all comics that have a specific flag (e.g. unknown_publisher).
+    Uses force-tag logic: applies rules regardless of current state.
+    """
+    from .models import Comic
+    from apps.dashboard.tasks import _run_tag
+
+    comic_ids = list(
+        Comic.objects.filter(**{f"flags__{flag_name}": True})
+        .values_list("pk", flat=True)
+    )
+    total = len(comic_ids)
+
+    if total == 0:
+        return {"processed": 0, "total": 0, "errors": [], "cancelled": False}
+
+    processed = 0
+    errors = []
+
+    self.update_state(
+        state="PROGRESS",
+        meta={"current": 0, "total": total, "processed": 0, "errors": []},
+    )
+
+    for i, comic_id in enumerate(comic_ids):
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {"processed": processed, "total": total, "errors": errors, "cancelled": True}
+
+        try:
+            comic = Comic.objects.get(pk=comic_id)
+        except Comic.DoesNotExist:
+            continue
+
+        try:
+            _run_tag(comic)
+            processed += 1
+        except Exception as e:
+            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
+
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": i + 1, "total": total, "processed": processed, "errors": errors},
+        )
+
+    return {"processed": processed, "total": total, "errors": errors, "cancelled": False}
+
+
 @shared_task(bind=True, name="core.format_all", queue="write")
 def format_all_task(self):
     """

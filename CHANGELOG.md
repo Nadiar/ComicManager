@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Populate Counts background task (P3.2)**: The synchronous "Populate Counts" and "Detect Count Mismatches" actions are now wrapped in a single Celery task (`populate_counts_task`) with progress reporting and cooperative cancellation. Dispatched via POST to `/comics/populate-counts-all/`. Runs in two phases: first populates missing counts from the CV SQLite DB, then detects count mismatches within volumes.
+
+- **Unknown Publisher flagging (P4.5)**: After scraping, comics whose publisher is not covered by any enabled DataManager ruleset's Publisher rules are automatically flagged `unknown_publisher`. The flag appears in the dashboard Review Queue. Supports all rule modifiers (Is, Contains, StartsWith, RegEx, etc.) for matching. The flag is cleared on re-scrape, re-tag, or batch re-tag when the publisher becomes covered by a ruleset.
+
+- **Publishers page (P4.6)**: New page at `/tagging/publishers/` (Workflow > Publishers) shows all publishers in the library split into two groups: those covered by at least one tagging ruleset (with linked ruleset badges) and those not covered. Each row shows the comic count. Uncovered publishers have a "Create Ruleset" button that opens the ruleset form with the publisher name and a Publisher "Is" rule pre-filled.
+
+- **Re-tag flagged comics**: A "Re-tag All" button appears on the comic list when filtering by `unknown_publisher` flag. Dispatches a Celery background task that re-applies DataManager rules to all flagged comics, clearing the `unknown_publisher` flag for any publisher now covered by a ruleset. Comics whose publisher still has no ruleset keep the flag.
+
+- **Scrape skip flag (P2.7)**: Comics can be marked to skip batch scraping via a `scrape_skipped` flag. Toggled from the comic detail Actions menu and per-row Skip/Un-skip buttons on the imported list. Batch scrape excludes flagged comics. "Confirm each" defaults to checked on the imported state. Cancel during confirm-each mode skips the current comic instead of freezing.
+
 - **Missing Format review queue item**: Comics that complete format detection with no format assigned are now flagged with `missing_format`. The flag is cleared when a format is eventually set. A "Missing Format" entry in the dashboard Review Queue links to all affected comics for manual assignment.
 
 ### Fixed

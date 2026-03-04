@@ -110,6 +110,12 @@ def _run_tag(comic):
     apply_datamanager_rules(comic, save=False)
     comic.custom_values["DataManager_Processed"] = "Yes"
 
+    # Clear unknown_publisher if this publisher is now covered by a ruleset
+    if comic.publisher and comic.has_flag("unknown_publisher"):
+        from apps.tagging.engine import is_publisher_known
+        if is_publisher_known(comic.publisher):
+            comic.remove_flag("unknown_publisher")
+
     from apps.core.models import Comic
     state_before = comic.state
     if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):

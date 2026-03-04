@@ -218,6 +218,16 @@
         Tag All
       </button>
       {% endif %}
+      {% if current_flag == 'unknown_publisher' and comics %}
+      <button
+        type="button"
+        id="retag-flagged-btn"
+        class="btn btn-sm btn-accent"
+        onclick="retagFlagged(this, 'unknown_publisher')"
+      >
+        Re-tag All
+      </button>
+      {% endif %}
       {% if current_state == 'tagged' and comics %}
       <button
         type="button"
@@ -1538,6 +1548,48 @@ function tagAllComics(btn) {
       btn.classList.add('btn-info');
       btn.innerHTML = 'Running...';
       if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Tagging comics');
+    } else if (data.success) {
+      btn.classList.remove('btn-accent');
+      btn.classList.add('btn-success');
+      btn.innerHTML = 'Done';
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      btn.classList.remove('btn-accent');
+      btn.classList.add('btn-error');
+      btn.innerHTML = data.error || 'Error';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-accent');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+  });
+}
+
+function retagFlagged(btn, flagName) {
+  showConfirm('Re-tag all comics with the ' + flagName + ' flag?', () => {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Re-tagging...';
+
+  const body = new URLSearchParams();
+  body.append('flag', flagName);
+
+  fetch('/comics/retag-flagged/', {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/x-www-form-urlencoded'},
+    body: body,
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.task_id) {
+      btn.classList.remove('btn-accent');
+      btn.classList.add('btn-info');
+      btn.innerHTML = 'Running...';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Re-tagging comics');
     } else if (data.success) {
       btn.classList.remove('btn-accent');
       btn.classList.add('btn-success');

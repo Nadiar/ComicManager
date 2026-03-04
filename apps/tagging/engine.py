@@ -481,6 +481,67 @@ def apply_datamanager_rules(comic: Comic, save: bool = True) -> dict:
     }
 
 
+# ============================================================================
+# Publisher helpers
+# ============================================================================
+
+
+def is_publisher_known(publisher_name: str) -> bool:
+    """
+    Check if a publisher is covered by any enabled ruleset's Publisher rules.
+    Evaluates all modifier types (Is, Contains, StartsWith, etc.) correctly.
+    """
+    if not publisher_name:
+        return False
+
+    rulesets = DataManagerRuleset.objects.filter(is_enabled=True)
+    for rs in rulesets:
+        for rule in (rs.rules or []):
+            if rule.get("field") != "Publisher":
+                continue
+            modifier = rule.get("modifier", "")
+            rule_value = rule.get("value", "")
+            match_func = RULE_MODIFIERS.get(modifier)
+            if match_func and match_func(publisher_name, rule_value):
+                return True
+    return False
+
+
+def get_known_publishers() -> list[dict]:
+    """
+    Extract known publishers from enabled rulesets for the publishers UI.
+
+    Returns a list of dicts: {"name": str, "rulesets": [{"id": int, "name": str}]}
+    Only extracts explicit values from Is and IsAnyOf modifiers.
+    """
+    publisher_rulesets = {}
+    rulesets = DataManagerRuleset.objects.filter(is_enabled=True).order_by("priority")
+
+    for rs in rulesets:
+        for rule in (rs.rules or []):
+            if rule.get("field") != "Publisher":
+                continue
+            modifier = rule.get("modifier", "")
+            value = rule.get("value", "")
+
+            names = []
+            if modifier == "Is":
+                names = [value.strip()] if value.strip() else []
+            elif modifier == "IsAnyOf":
+                names = [v.strip() for v in value.split("||") if v.strip()]
+
+            for name in names:
+                if name not in publisher_rulesets:
+                    publisher_rulesets[name] = []
+                if not any(r["id"] == rs.id for r in publisher_rulesets[name]):
+                    publisher_rulesets[name].append({"id": rs.id, "name": rs.name})
+
+    return sorted(
+        [{"name": name, "rulesets": rs_list} for name, rs_list in publisher_rulesets.items()],
+        key=lambda x: x["name"].lower(),
+    )
+
+
 def preview_matching_rules(comic: Comic) -> list[dict]:
     """
     Preview which rules would match a comic without applying changes.

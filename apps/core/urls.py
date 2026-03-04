@@ -14,6 +14,7 @@ urlpatterns = [
     path("detect-count-mismatches/", views.detect_count_mismatches, name="detect_count_mismatches"),
     path("populate-counts-all/", views.populate_counts_all, name="populate_counts_all"),
     path("tag-all/", views.tag_all_comics, name="tag_all"),
+    path("retag-flagged/", views.retag_flagged, name="retag_flagged"),
     path("format-all/", views.format_all_comics, name="format_all"),
     path("format/", views.format_review, name="format_review"),
     path("format/accept/<slug:format_type>/", views.accept_format_group, name="format_accept"),

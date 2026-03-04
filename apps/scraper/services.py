@@ -344,6 +344,15 @@ def apply_cv_match(comic, match, scraper=None):
     comic.remove_flag("scrape_error")
     comic.remove_flag("scrape_error_detail")
     comic.remove_flag("metadata_mismatch")
+
+    # Flag comics from publishers not covered by any tagging ruleset
+    if comic.publisher:
+        from apps.tagging.engine import is_publisher_known
+        if is_publisher_known(comic.publisher):
+            comic.remove_flag("unknown_publisher")
+        else:
+            comic.add_flag("unknown_publisher")
+
     comic.state = Comic.STATE_COUNTED
     comic.save()
 
