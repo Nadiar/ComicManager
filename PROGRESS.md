@@ -39,7 +39,7 @@
 - [x] [P2.14] Metadata mismatch audit — background task compares local `series` name against CV volume name in `comicvine.db`. Flags `metadata_mismatch` on comics linked to the wrong volume. Real-time flagged/cleared progress in toast. Results in Batch Log with "To Scrape" rollback per entry. Button only active when `comicvine.db` is present. Flag appears in the dashboard Review Queue. The flag list view uses the full scrape UI (Scrape All + per-row Scrape buttons) with `?force=1` to allow re-scraping from any workflow state. `apply_cv_match` clears the flag after a successful re-scrape. See `AUDIT_FUNC.md` for full details.
 - [x] [P2.5] Created `apps/scraper/services.py` as single source of truth for matching logic (`try_hash_match`, `try_metadata_match`, `apply_cv_match`, `metadata_alignment_score`, `series_matches`, `normalize_issue_number`). Removed duplicate implementations from `core/views.py` and `scraper/views.py`. Batch task and management command now import from service layer. Unified `metadata_alignment_score` handles both fresh imports and re-scrapes. Pending: resilience (rate limit retry), metadata depth (story arcs).
 - [-] [P2.6] (Cancelled) Implement priority-based queuing for scraping: `0Day`, `Backlog`, `Skipped`, `Rescrape`.
-- [ ] [P2.7] Implement mechanism to mark comics for later scraping (`skipped` flag or `CVDBSKIP`).
+- [x] [P2.7] Implement mechanism to mark comics for later scraping (`skipped` flag or `CVDBSKIP`). `scrape_skipped` flag added — toggled via comic detail Actions menu. Batch scrape excludes flagged comics. Appears in dashboard Review Queue.
 - [x] [P2.8] Implement rescrape logic for comics with `CVDB` note (or error flags) but missing `comicvine_issue`.
     *   *Analysis:* Existing `scrape_all` task already clears error flags and retries comics in the `IMPORTED` state. Individual re-scrape is available via UI.
 - [ ] [P2.9] Implement metadata-only matching for physical comics, leveraging the same queue system but bypassing hash-based matching.
@@ -69,8 +69,8 @@
 - [x] [P4.4] Confirmed rules are stored in DB and are editable via UI.
 - [ ] [P4.5] Implement mechanism to "Surface comics from publishers not yet in the system; prompt keep or delete."
 - [ ] [P4.6] Implement UI for "Publisher config: maintain 'known publishers' list with associated tagging rules."
-- [ ] [P4.7] Implement/verify built-in rule sets for Marvel and DC within the existing rule editor.
-- [ ] [P4.8] Continue development of experimental Star Wars ruleset (WIP).
+- [-] [P4.7] (Cancelled) Built-in rulesets for Marvel and DC — rulesets are user-managed via the rule editor.
+- [-] [P4.8] (Cancelled) Star Wars ruleset — user-managed via the rule editor.
 
 ### Phase 5: Format Tagging (Comicrack_guide 06 - Format)
 
@@ -136,7 +136,7 @@
 - [x] [P8.4] Confirmed physical comics are skipped.
 - [x] [P8.5] Implemented Celery notifications for `Write to File` and confirmed `force_write` advances state.
 - [x] [P8.6] Implemented `ComicInfo.xml output parity` (XML matches ComicRack format, includes `DataManager_Processed`, standard fields).
-- [ ] [P8.7] Embed UUID as a custom field in `ComicInfo.xml` for re-linking records if files move.
+- [-] [P8.7] (Cancelled) Embed UUID as a custom field in `ComicInfo.xml` — not needed.
 - [ ] [P8.8] Implement validation before allowing `ComicInfo.xml` to be written, ensuring all required metadata fields are populated.
 
 ## Re-organize Efficiency
@@ -186,7 +186,7 @@
 - [x] [UI.4] Confirmed `Search, filter, and sort for comic list` provides search bar functionality.
 - [x] [UI.5] Confirmed `Dynamic column customization`, `Server-side pagination`, and sortable column headers are implemented.
 - [x] [UI.6] Confirmed `Celery notifications for all batch actions` covers various bulk actions.
-- [ ] [UI.7] Further develop a visual pipeline funnel and counts per smart list on the dashboard.
+- [x] [UI.7] Visual pipeline funnel and smart list counts on the dashboard — both already implemented. Pipeline shows 8-stage `steps` component with per-stage counts and action buttons. Smart lists with `show_on_dashboard=True` render as count cards with optional CV completion progress bars.
 - [ ] [UI.8] Consolidate and enhance existing settings into a single, comprehensive settings UI for templates, publisher rules, and API keys.
 - [x] [UI.9] Batch audit log at `/settings/log/` — filterable by action (Scrape/Tag/Format/Organize/Write/Audit), per-comic changes diff, copyable UUID, rollback buttons. Log written to `./data/logs/batch_actions.jsonl`. Audit entries include a "To Scrape" rollback button to reset bad matches. Log entries are only written when a flag is newly added or cleared (not on repeated re-runs). All pipeline stages now log: `scrape_all`, `tag_all`, `format_all`, `organize_all` (records old/new path), `write_all` (records comicinfo write), `audit_metadata`.
 - [ ] [UI.10] Implement functionality to export comic metadata as JSON for individual comics and potentially in bulk.

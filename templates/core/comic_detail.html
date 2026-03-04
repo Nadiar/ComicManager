@@ -45,6 +45,11 @@
               <span class="badge badge-xs badge-secondary">1</span> Re-scrape
             </button>
           </li>
+          <li>
+            <button id="btn-toggle-skip" onclick="toggleScrapeSkip()" class="{% if comic.flags.scrape_skipped %}text-warning{% endif %}">
+              {% if comic.flags.scrape_skipped %}Un-skip Scraping{% else %}Skip Scraping{% endif %}
+            </button>
+          </li>
           {% endif %}
           <li>
             <button onclick="runAction('tag')" id="action-tag">
@@ -1168,6 +1173,41 @@ async function tryRezip() {
     btn.textContent = originalText;
     btn.disabled = false;
     showMsgToast('Network error: ' + err.message, 'error');
+  }
+}
+
+async function toggleScrapeSkip() {
+  const btn = document.getElementById('btn-toggle-skip');
+  const originalText = btn.textContent.trim();
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+  btn.disabled = true;
+  document.activeElement.blur();
+
+  try {
+    const response = await fetch(`/comics/${comicPk}/toggle-scrape-skip/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+    });
+    const data = await response.json();
+    if (data.success) {
+      if (data.skipped) {
+        btn.textContent = 'Un-skip Scraping';
+        btn.classList.add('text-warning');
+        if (window.showQuickToast) window.showQuickToast('Comic marked as skipped for batch scraping.');
+      } else {
+        btn.textContent = 'Skip Scraping';
+        btn.classList.remove('text-warning');
+        if (window.showQuickToast) window.showQuickToast('Comic un-skipped — will be included in batch scraping.');
+      }
+    } else {
+      btn.textContent = originalText;
+      showMsgToast('Toggle failed', 'error');
+    }
+  } catch (e) {
+    btn.textContent = originalText;
+    showMsgToast('Network error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 

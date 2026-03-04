@@ -187,7 +187,7 @@
       {% if current_state == 'imported' and comics or current_flag == 'metadata_mismatch' and comics %}
       <label class="label cursor-pointer gap-2 mr-2">
         <span class="label-text text-sm">Confirm each</span>
-        <input type="checkbox" id="confirm-scrape-checkbox" class="checkbox checkbox-sm" />
+        <input type="checkbox" id="confirm-scrape-checkbox" class="checkbox checkbox-sm" {% if current_state == 'imported' %}checked{% endif %} />
       </label>
       <button
         type="button"
@@ -365,8 +365,20 @@
               type="button"
               class="btn btn-xs btn-secondary"
               onclick="scrapeComic('{{ comic.pk }}', this)"
+              {% if comic.flags.scrape_skipped %}data-scrape-skipped="true"{% endif %}
             >
               Scrape
+            </button>
+            {% endif %}
+            {% if comic.state == 'imported' %}
+            <button
+              type="button"
+              id="skip-btn-{{ comic.pk }}"
+              class="btn btn-xs {% if comic.flags.scrape_skipped %}btn-warning{% else %}btn-ghost btn-outline{% endif %}"
+              onclick="toggleSkipComic('{{ comic.pk }}', this)"
+              title="{% if comic.flags.scrape_skipped %}Remove skip flag — include in batch scraping{% else %}Skip this comic in batch scraping{% endif %}"
+            >
+              {% if comic.flags.scrape_skipped %}Un-skip{% else %}Skip{% endif %}
             </button>
             {% endif %}
             {% if comic.flags.needs_conversion %}
@@ -799,6 +811,42 @@ function acceptComic(pk, btn) {
   });
 }
 
+async function toggleSkipComic(pk, btn) {
+  const originalText = btn.textContent.trim();
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+  try {
+    const resp = await fetch(`/comics/${pk}/toggle-scrape-skip/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrfToken() },
+    });
+    const data = await resp.json();
+    if (data.success) {
+      const scrapeBtn = btn.closest('tr').querySelector('button[onclick^="scrapeComic"]');
+      if (data.skipped) {
+        btn.textContent = 'Un-skip';
+        btn.classList.remove('btn-ghost', 'btn-outline');
+        btn.classList.add('btn-warning');
+        btn.title = 'Remove skip flag — include in batch scraping';
+        if (scrapeBtn) scrapeBtn.dataset.scrapeSkipped = 'true';
+      } else {
+        btn.textContent = 'Skip';
+        btn.classList.remove('btn-warning');
+        btn.classList.add('btn-ghost', 'btn-outline');
+        btn.title = 'Skip this comic in batch scraping';
+        if (scrapeBtn) delete scrapeBtn.dataset.scrapeSkipped;
+      }
+    } else {
+      btn.textContent = originalText;
+    }
+  } catch (e) {
+    btn.textContent = originalText;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // Scrape state for confirmation mode
 let scrapeQueue = [];
 let currentScrapeBtn = null;
@@ -813,7 +861,7 @@ function scrapeAllComics(btn) {
     scrapeQueue = [];
     rows.forEach(row => {
       const scrapeBtn = row.querySelector('button[onclick^="scrapeComic"]');
-      if (scrapeBtn) {
+      if (scrapeBtn && scrapeBtn.dataset.scrapeSkipped !== 'true') {
         const match = scrapeBtn.getAttribute('onclick').match(/scrapeComic\('([^']+)'/);
         if (match) {
           scrapeQueue.push({ pk: match[1], btn: scrapeBtn, row: row });
@@ -939,6 +987,7 @@ function scrapeComic(pk, btn) {
 }
 
 function openScrapeModal(pk, btn) {
+  window._scrapeModalHandled = false;
   const modal = document.getElementById('scrape-modal');
   const matchesDiv = document.getElementById('modal-matches');
   const loadingDiv = document.getElementById('modal-loading');
@@ -1198,6 +1247,9 @@ function searchApi() {
     });
 }
 
+// Track whether modal close was handled by selectMatch/skipCurrentComic
+window._scrapeModalHandled = false;
+
 // Allow Enter key in API search input
 document.addEventListener('DOMContentLoaded', () => {
   const apiInput = document.getElementById('api-search-input');
@@ -1209,12 +1261,36 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // Handle Cancel/backdrop close during confirm-each batch
+  const scrapeModal = document.getElementById('scrape-modal');
+  if (scrapeModal) {
+    scrapeModal.addEventListener('close', () => {
+      if (window._scrapeModalHandled) {
+        window._scrapeModalHandled = false;
+        return;
+      }
+      // Unhandled close (Cancel or backdrop) during batch mode
+      if (scrapeQueue.length > 0) {
+        const btn = window._currentScrapeBtn;
+        if (btn) {
+          btn.classList.remove('btn-secondary');
+          btn.classList.add('btn-warning');
+          btn.innerHTML = 'Skipped';
+        }
+        scrapeStats.skipped++;
+        scrapeQueue.shift();
+        processNextScrape();
+      }
+    });
+  }
 });
 
 function selectMatch(comicPk, issueId) {
   const modal = document.getElementById('scrape-modal');
   const btn = window._currentScrapeBtn;
 
+  window._scrapeModalHandled = true;
   closeScrapeModal();
 
   if (btn) {
@@ -1269,6 +1345,7 @@ function selectMatch(comicPk, issueId) {
 }
 
 function skipCurrentComic() {
+  window._scrapeModalHandled = true;
   closeScrapeModal();
 
   const btn = window._currentScrapeBtn;

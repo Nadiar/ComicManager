@@ -42,6 +42,7 @@ FLAG_LABELS = {
     "metadata_mismatch": "Metadata Mismatch",
     "scrape_no_match": "Scrape: No Match",
     "scrape_error": "Scrape: Error",
+    "scrape_skipped": "Scrape: Skipped",
 }
 
 # Workflow states in order (for navigation)
@@ -357,6 +358,20 @@ def try_rezip(request, pk):
         })
 
     return JsonResponse({"success": False, "error": result["error"]}, status=500)
+
+
+@require_POST
+def toggle_scrape_skip(request, pk):
+    """Toggle the scrape_skipped flag on a comic."""
+    comic = get_object_or_404(Comic, pk=pk)
+    if comic.flags.get("scrape_skipped"):
+        comic.remove_flag("scrape_skipped")
+        skipped = False
+    else:
+        comic.add_flag("scrape_skipped")
+        skipped = True
+    comic.save(update_fields=["flags"])
+    return JsonResponse({"success": True, "skipped": skipped})
 
 
 @require_POST

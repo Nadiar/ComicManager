@@ -127,6 +127,13 @@ def index(request):
             "count": Comic.objects.filter(flags__missing_format=True).count(),
             "action": "edit",
         },
+        {
+            "flag": "scrape_skipped",
+            "label": "Scrape: Skipped",
+            "description": "Marked to be skipped by batch scraping — review or un-skip when ready",
+            "count": Comic.objects.filter(flags__scrape_skipped=True).count(),
+            "action": "review",
+        },
     ]
 
     flagged_count = Comic.objects.exclude(flags={}).count()
@@ -226,6 +233,7 @@ FILTER_FIELD_OPTIONS = [
     ("flags__count_mismatch", "Flag: Count Mismatch"),
     ("flags__scrape_no_match", "Flag: No Scrape Match"),
     ("flags__scrape_error", "Flag: Scrape Error"),
+    ("flags__scrape_skipped", "Flag: Scrape Skipped"),
     # ComicVine custom values
     ("custom_values__comicvine_volume", "CV Volume ID"),
     ("custom_values__comicvine_issue", "CV Issue ID"),
