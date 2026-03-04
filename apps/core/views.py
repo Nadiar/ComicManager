@@ -1297,6 +1297,26 @@ def detect_count_mismatches(request):
     })
 
 
+@require_POST
+def populate_counts_all(request):
+    """Dispatch Celery task to populate missing counts and detect mismatches."""
+    from celery.result import AsyncResult
+    from .tasks import populate_counts_task
+
+    active = request.session.get("active_task_id")
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+
+    total = Comic.objects.filter(count__isnull=True).exclude(
+        custom_values__comicvine_volume__isnull=True,
+    ).exclude(custom_values__comicvine_volume="").count()
+
+    result = populate_counts_task.delay()
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Populating counts"
+    return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Populating counts for {total} comics in background"})
+
+
 # =============================================================================
 # Phase 4: DataManager Tagging (Publisher Management)
 # =============================================================================

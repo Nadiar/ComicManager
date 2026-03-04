@@ -824,3 +824,179 @@ def audit_metadata_task(self):
         "errors": errors,
         "cancelled": False
     }
+
+
+# =============================================================================
+# Populate counts task
+# =============================================================================
+
+@shared_task(bind=True, name="core.populate_counts", queue="write")
+def populate_counts_task(self):
+    """
+    Populate missing issue counts from CV SQLite DB, then detect count mismatches.
+    Wraps the synchronous _populate_missing_counts() and _detect_count_mismatches()
+    helpers into a cancellable background task with progress reporting.
+    """
+    from .models import Comic
+    from apps.scraper.cv_sources import is_cv_db_available
+    import sqlite3
+    from django.conf import settings
+
+    if not is_cv_db_available():
+        return {"success": False, "error": "ComicVine database not available."}
+
+    # Phase 1: Populate missing counts
+    comics = list(
+        Comic.objects.filter(
+            count__isnull=True,
+        ).exclude(
+            custom_values__comicvine_volume__isnull=True,
+        ).exclude(
+            custom_values__comicvine_volume="",
+        )
+    )
+
+    total = len(comics)
+    self.update_state(
+        state="PROGRESS",
+        meta={"current": 0, "total": total, "phase": "populating", "populated": 0, "failed": 0},
+    )
+
+    if total == 0 and not Comic.objects.filter(count__isnull=False).exclude(
+        custom_values__comicvine_volume__isnull=True,
+    ).exclude(custom_values__comicvine_volume="").exists():
+        return {
+            "success": True, "populated": 0, "failed": 0,
+            "mismatched_volumes": 0, "flagged": 0, "cleared": 0,
+            "total": 0, "cancelled": False,
+        }
+
+    # Batch query CV DB for count_of_issues
+    volume_ids = set()
+    for c in comics:
+        vid = c.custom_values.get("comicvine_volume")
+        if vid:
+            volume_ids.add(int(vid))
+
+    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
+    volume_counts = {}
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
+        cursor = conn.cursor()
+        volume_id_list = list(volume_ids)
+        for i in range(0, len(volume_id_list), 500):
+            chunk = volume_id_list[i:i + 500]
+            placeholders = ",".join("?" * len(chunk))
+            cursor.execute(
+                f"SELECT id, count_of_issues FROM cv_volume WHERE id IN ({placeholders})",
+                chunk,
+            )
+            for row in cursor.fetchall():
+                if row[1] is not None:
+                    volume_counts[row[0]] = row[1]
+        conn.close()
+    except Exception:
+        return {"success": False, "error": "Failed to query ComicVine database."}
+
+    populated = 0
+    failed = 0
+
+    for i, comic in enumerate(comics):
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {
+                "success": True, "populated": populated, "failed": failed,
+                "mismatched_volumes": 0, "flagged": 0, "cleared": 0,
+                "total": total, "cancelled": True,
+            }
+
+        vid = comic.custom_values.get("comicvine_volume")
+        if not vid:
+            continue
+
+        count = volume_counts.get(int(vid))
+        if count is not None:
+            comic.count = count
+            comic.custom_values["comicvine_issue_count"] = str(count)
+            comic.remove_flag("missing_count")
+            comic.save()
+            populated += 1
+        else:
+            comic.add_flag("missing_count")
+            comic.save()
+            failed += 1
+
+        if (i + 1) % 10 == 0 or (i + 1) == total:
+            self.update_state(
+                state="PROGRESS",
+                meta={
+                    "current": i + 1, "total": total,
+                    "phase": "populating", "populated": populated, "failed": failed,
+                },
+            )
+
+    # Phase 2: Detect count mismatches
+    self.update_state(
+        state="PROGRESS",
+        meta={
+            "current": total, "total": total,
+            "phase": "detecting mismatches", "populated": populated, "failed": failed,
+        },
+    )
+
+    comics_with_volume = Comic.objects.filter(
+        count__isnull=False,
+    ).exclude(
+        custom_values__comicvine_volume__isnull=True,
+    ).exclude(
+        custom_values__comicvine_volume="",
+    )
+
+    volume_comics = {}
+    for comic in comics_with_volume:
+        vid = comic.custom_values.get("comicvine_volume")
+        if not vid:
+            continue
+        if vid not in volume_comics:
+            volume_comics[vid] = []
+        volume_comics[vid].append(comic)
+
+    flagged = 0
+    cleared = 0
+    mismatched_volumes = 0
+
+    for vid, comics_in_vol in volume_comics.items():
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {
+                "success": True, "populated": populated, "failed": failed,
+                "mismatched_volumes": mismatched_volumes,
+                "flagged": flagged, "cleared": cleared,
+                "total": total, "cancelled": True,
+            }
+
+        counts = set(c.count for c in comics_in_vol)
+        if len(counts) > 1:
+            mismatched_volumes += 1
+            for comic in comics_in_vol:
+                if not comic.has_flag("count_mismatch"):
+                    comic.add_flag("count_mismatch")
+                    comic.save()
+                    flagged += 1
+        else:
+            for comic in comics_in_vol:
+                if comic.has_flag("count_mismatch"):
+                    comic.remove_flag("count_mismatch")
+                    comic.save()
+                    cleared += 1
+
+    return {
+        "success": True,
+        "populated": populated,
+        "failed": failed,
+        "mismatched_volumes": mismatched_volumes,
+        "flagged": flagged,
+        "cleared": cleared,
+        "total": total,
+        "cancelled": False,
+    }

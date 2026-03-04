@@ -12,6 +12,7 @@ urlpatterns = [
     path("scrape-all/", views.scrape_all_comics, name="scrape_all"),
     path("populate-counts/", views.populate_counts, name="populate_counts"),
     path("detect-count-mismatches/", views.detect_count_mismatches, name="detect_count_mismatches"),
+    path("populate-counts-all/", views.populate_counts_all, name="populate_counts_all"),
     path("tag-all/", views.tag_all_comics, name="tag_all"),
     path("format-all/", views.format_all_comics, name="format_all"),
     path("format/", views.format_review, name="format_review"),

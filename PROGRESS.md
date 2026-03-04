@@ -54,7 +54,7 @@
 
 **Current Status & Tasks:**
 - [x] [P3.1] Implemented `Issue count management` (detect, populate missing counts from local CV DB, auto-flag `missing_count`, detect `count_mismatch`).
-- [ ] [P3.2] Leverage existing `Issue count management` to create a Celery task to retrieve and update `count` for `comicvine_volume`, and populate `comicvine_issue_count` custom field.
+- [x] [P3.2] Celery task `populate_counts_task` wraps `_populate_missing_counts()` + `_detect_count_mismatches()` with progress reporting and cancellation. Dispatch via POST `/comics/populate-counts-all/`.
 - [ ] [P3.3] Implement a smart list for comics where `count` is null or `comicvine_issue_count` is missing.
 - [ ] [P3.4] Implement a smart list to detect comics sharing a `comicvine_volume` but having differing `count` values, with an action to re-run the CVIssueCount task.
 
