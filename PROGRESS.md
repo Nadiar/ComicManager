@@ -234,6 +234,23 @@
 - [x] [BUG.22] Library Re-organize Queue (Re-organize All) now calls `log_batch_entry("organize_all", ...)` for every file that was actually moved, recording `old_path` → `new_path` in the batch log at `/settings/log/`.
 - [x] [BUG.23] Library Re-organize Queue toast completion message now shows "X moved, Y already ok (of Z)" instead of "0 processed". Fixed by handling `r.moved` in `successText()` and `progressText()` in `base.html`.
 
+## I.N.D.U.C.K.S. Integration
+
+**Goal:** Integrate the I.N.D.U.C.K.S. database as an alternative scraping source for Disney/European comics not covered by ComicVine.
+
+**Current Status & Tasks:**
+- [x] [IND.1] ISV download script (`download_isv.sh`) downloads and builds a local SQLite database (`data/inducks.db`) from inducks.org ISV flat files (75 tables, 7M+ rows).
+- [x] [IND.2] Standalone CLI search tool (`search_inducks.py`) for querying inducks.db by story title, publication title, author, and country code.
+- [x] [IND.3] `InducksScraper` class (`apps/scraper/inducks.py`) with `search()` and `get_issue_details()` methods. Searches publication titles, story titles, and entry titles. Returns `InducksMatch` dataclass with credits, characters, publisher, cover date, pages, and Inducks URLs.
+- [x] [IND.4] `apply_inducks_match()` in `apps/scraper/services.py` maps Inducks metadata to the Comic model. Sets `custom_values["scrape_source"] = "inducks"` and `custom_values["inducks_issuecode"]`.
+- [x] [IND.5] Settings: `inducks_enabled`, `inducks_username`, `inducks_password`, `inducks_country_lock`, `inducks_country_codes`, `inducks_db_path`. Seeded via `signals.py`.
+- [x] [IND.6] Scrape modal UI: "I.N.D.U.C.K.S. Search" section in both `comic_list.html` and `comic_detail.html` with search input, country dropdown (or locked), and result cards with direct links to inducks.org.
+- [x] [IND.7] Docker volume mount for `inducks.db` in both `docker-compose.yml` and `docker-compose.override.yml`.
+- [x] [IND.8] `scrape_comic` view handles both ComicVine and Inducks sources via `source` field in JSON payload.
+- [ ] [IND.9] Inducks-scraped comics (`scrape_source == "inducks"`) should skip CV-specific pipeline phases: issue count propagation (Phase 3), alt cover search, and count mismatch detection.
+- [ ] [IND.10] Inducks-scraped comics should skip the "Find Alt Covers" action and any CV API lookups on the detail page.
+- [ ] [IND.11] Review all batch tasks (scrape_all, populate_counts, format_all, etc.) to ensure they handle Inducks-sourced comics gracefully without errors or false flags.
+
 ## Code to Port
 
 **Goal:** Ensure all relevant ComicRack scripts and logic are properly integrated or reimplemented in ComicManager.

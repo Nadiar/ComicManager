@@ -99,6 +99,11 @@ def seed_default_settings(sender, **kwargs):
         dict(key="cv_api_key",            label="ComicVine API Key",          type="secret", group="Scraping",   help_text="Get yours at comicvine.gamespot.com/api/", value=""),
         dict(key="scrape_0day_hours",     label="0Day window (hours)",         type="int",    group="Scraping",   help_text="Comics added within this many hours go into the 0Day queue", value="24"),
         dict(key="scrape_hash_threshold", label="Hash match threshold",        type="int",    group="Scraping",   help_text="Max hamming distance for pHash match (lower = stricter)", value="8"),
+        dict(key="inducks_enabled",       label="Enable Inducks search",      type="bool",   group="Scraping",   help_text="Show Inducks search option in the scrape modal for Disney comics", value="false"),
+        dict(key="inducks_username",      label="Inducks username",           type="text",   group="Scraping",   help_text="Your inducks.org username (required for cover images)", value=""),
+        dict(key="inducks_password",      label="Inducks password",           type="secret", group="Scraping",   help_text="Your inducks.org password (required for cover images)", value=""),
+        dict(key="inducks_country_lock",  label="Inducks country lock",       type="text",   group="Scraping",   help_text="Force this country code for all Inducks searches (e.g. 'dk'). Leave blank to show the country dropdown.", value=""),
+        dict(key="inducks_country_codes", label="Inducks country codes",      type="text",   group="Scraping",   help_text="Comma-separated country codes shown in the Inducks search dropdown (e.g. 'dk,de,nl,se,no,fi,us,it,fr,br')", value="dk,de,nl,se,no,fi,us,it,fr,br"),
         # Import
         dict(key="min_page_count",        label="Minimum page count",          type="int",    group="Import",     help_text="Comics below this page count are flagged for review", value="5"),
         dict(key="cover_page_threshold",  label="Cover-only page threshold",   type="int",    group="Import",     help_text="Files at or below this count + 'cover' in name are flagged", value="3"),
@@ -108,6 +113,7 @@ def seed_default_settings(sender, **kwargs):
         dict(key="library_dir",           label="Organized library folder",    type="path",   group="Library",    help_text="Where the Library Organizer moves finished comics", value="/comics/library"),
         dict(key="cv_db_path",            label="ComicVine SQLite DB path",    type="path",   group="Library",    help_text="Path to your local ComicVine SQLite index", value="/cv_db/comicvine.db"),
         dict(key="cv_mcl_path",           label="ComicVine MCL file path",     type="path",   group="Library",    help_text="Path to latest.mcl (semicolon-delimited volume/issue index). Used for Series Audit when comicvine.db is unavailable.", value="/cv_db/latest.mcl"),
+        dict(key="inducks_db_path",       label="Inducks SQLite DB path",     type="path",   group="Library",    help_text="Path to inducks.db (built from ISV files via download_isv.sh)", value="/cv_db/inducks.db"),
         dict(key="dry_run_organizer",     label="Dry-run Library Organizer",   type="bool",   group="Library",    help_text="Preview moves without touching any files", value="true"),
         # Format Detection
         dict(key="one_shot_max_count",       label="One-Shot Max Count",       type="int", group="Format", help_text="Comics with count <= this value are One-Shot (default: 1)", value="1"),

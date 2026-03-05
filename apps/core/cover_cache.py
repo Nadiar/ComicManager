@@ -126,6 +126,56 @@ def has_cv_cover_cached(issue_id: int) -> bool:
     return (COVER_CACHE_DIR / f"cv_{issue_id}.jpg").exists()
 
 
+def get_inducks_cover(issuecode: str, cover_url: str) -> bytes | None:
+    """
+    Get cover image for an Inducks issue. Returns cached version if available,
+    otherwise downloads from the inducks.org cover viewer URL and caches it.
+
+    Uses HTTP Basic Auth with credentials from the inducks_username/password
+    settings (inducks.org requires login to serve images).
+    """
+    import base64
+    from apps.core.models import get_setting
+
+    safe_code = issuecode.replace("/", "_").replace(" ", "_")
+    cache_path = COVER_CACHE_DIR / f"inducks_{safe_code}.jpg"
+
+    if cache_path.exists():
+        return cache_path.read_bytes()
+
+    if not cover_url:
+        return None
+
+    username = get_setting("inducks_username", "")
+    password = get_setting("inducks_password", "")
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0",
+    }
+    if username and password:
+        credentials = base64.b64encode(f"{username}:{password}".encode()).decode()
+        headers["Authorization"] = f"Basic {credentials}"
+
+    try:
+        req = Request(cover_url, headers=headers)
+        with urlopen(req, timeout=15) as resp:
+            cover_data = resp.read()
+    except (URLError, OSError, TimeoutError) as e:
+        logger.warning("Failed to download Inducks cover %s: %s", issuecode, e)
+        return None
+
+    if not cover_data:
+        return None
+
+    try:
+        _ensure_cache_dir()
+        cache_path.write_bytes(cover_data)
+    except OSError as e:
+        logger.warning("Failed to cache Inducks cover %s: %s", issuecode, e)
+
+    return cover_data
+
+
 def invalidate_comic_cover(comic_pk) -> None:
     """Remove cached cover for a comic (e.g. after re-scrape or file change)."""
     cache_path = COVER_CACHE_DIR / f"{comic_pk}.jpg"

@@ -13,6 +13,7 @@ from .models import Comic, get_setting
 from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS
 from .cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
+from apps.scraper.inducks import InducksScraper, is_inducks_available
 from apps.scraper.hasher import extract_cover_hashes, extract_cover_image
 from apps.scraper.services import (
     try_hash_match as _try_hash_match,
@@ -260,6 +261,9 @@ def comic_list(request):
         "active_columns": active_columns,
         "all_columns": dict(sorted(COLUMNS_REGISTRY.items(), key=lambda x: x[1]["label"])),
         "inline_editable_cols": list(_INLINE_EDITABLE_FIELDS),
+        "inducks_enabled": get_setting("inducks_enabled", False),
+        "inducks_country_lock": get_setting("inducks_country_lock", ""),
+        "inducks_country_codes": [c.strip() for c in get_setting("inducks_country_codes", "dk,de,nl,se,no,fi,us,it,fr,br").split(",") if c.strip()],
     })
 
 
@@ -316,6 +320,12 @@ def comic_detail(request, pk):
     alt_cover_count = int(comic.custom_values.get("AltCoverCount", 0))
     alt_cover_range = range(1, alt_cover_count + 1) if alt_cover_count > 0 else []
 
+    # Inducks search settings
+    inducks_enabled = get_setting("inducks_enabled", False)
+    inducks_country_lock = get_setting("inducks_country_lock", "")
+    inducks_country_codes_str = get_setting("inducks_country_codes", "dk,de,nl,se,no,fi,us,it,fr,br")
+    inducks_country_codes = [c.strip() for c in inducks_country_codes_str.split(",") if c.strip()]
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
         "xml_data": xml_data,
@@ -324,6 +334,9 @@ def comic_detail(request, pk):
         "display_custom_values": display_custom_values,
         "show_series_completion": show_series_completion,
         "alt_cover_range": alt_cover_range,
+        "inducks_enabled": inducks_enabled,
+        "inducks_country_lock": inducks_country_lock,
+        "inducks_country_codes": inducks_country_codes,
     })
 
 
@@ -731,6 +744,123 @@ def scrape_api_search(request, pk):
     })
 
 
+def inducks_search(request, pk):
+    """
+    Search the local Inducks database for matches.
+
+    Query params:
+        q: Search query (publication title, optionally with issue number)
+        country: Country code filter (e.g. dk, us, de)
+    """
+    from .models import get_setting
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not get_setting("inducks_enabled", False):
+        return JsonResponse({
+            "success": False,
+            "error": "Inducks search is not enabled. Enable it in Settings.",
+        }, status=400)
+
+    if not is_inducks_available():
+        return JsonResponse({
+            "success": False,
+            "error": "Inducks database not found. Check the inducks_db_path setting.",
+        }, status=400)
+
+    query = request.GET.get("q", "").strip()
+    storycode = request.GET.get("storycode", "").strip()
+
+    if not query and not storycode:
+        parts = [comic.series or comic.proposed_series or "", comic.number or comic.proposed_number or ""]
+        query = " ".join(p for p in parts if p).strip()
+
+    if not query and not storycode:
+        return JsonResponse({
+            "success": False,
+            "error": "No search query provided.",
+        }, status=400)
+
+    # Country: use lock setting, or query param, or None
+    country_lock = get_setting("inducks_country_lock", "").strip()
+    country = country_lock or request.GET.get("country", "").strip() or None
+
+    scraper = InducksScraper()
+    try:
+        if storycode:
+            matches = scraper.search_by_storycode(storycode, country=country, limit=10)
+        else:
+            matches = scraper.search(query, country=country, limit=10)
+    except Exception as e:
+        logger.exception("Inducks search error")
+        return JsonResponse({
+            "success": False,
+            "error": f"Search error: {e}",
+        }, status=500)
+
+    all_matches = []
+    for match in matches:
+        all_matches.append({
+            "issuecode": match.issuecode,
+            "series": match.series,
+            "number": match.issue_number,
+            "title": match.title,
+            "publisher": match.publisher,
+            "year": match.start_year,
+            "cover_url": match.cover_url,
+            "cover_urls": [],
+            "match_type": "inducks",
+            "match_score": 0,
+            "alignment_score": 0,
+            "recommended": False,
+            "pages": match.pages,
+            "country": match.country,
+            "language": match.language,
+            "source": "inducks",
+            "stories": match.stories or [],
+        })
+
+    return JsonResponse({
+        "success": True,
+        "source": "inducks",
+        "comic": {
+            "id": str(comic.pk),
+            "series": comic.series,
+            "number": comic.number,
+            "year": comic.year,
+        },
+        "matches": all_matches,
+    })
+
+
+def inducks_cover(request):
+    """
+    Proxy endpoint for Inducks cover images.
+
+    Downloads the cover once and caches it locally, serving from cache on
+    subsequent requests.
+    """
+    from .cover_cache import get_inducks_cover
+
+    issuecode = request.GET.get("issuecode", "")
+    cover_url = request.GET.get("url", "")
+    if not issuecode or not cover_url:
+        return HttpResponse(status=400)
+
+    cover_data = get_inducks_cover(issuecode, cover_url)
+    if not cover_data:
+        return HttpResponse(status=404)
+
+    # Detect content type from URL
+    content_type = "image/jpeg"
+    if cover_url.lower().endswith(".png"):
+        content_type = "image/png"
+
+    response = HttpResponse(cover_data, content_type=content_type)
+    response["Cache-Control"] = "public, max-age=604800"
+    return response
+
+
 def cv_compare(request, pk):
     """
     4-way metadata comparison: DB vs ComicInfo.xml vs comicvine.db vs CV API.
@@ -742,6 +872,12 @@ def cv_compare(request, pk):
     from .models import get_setting
 
     comic = get_object_or_404(Comic, pk=pk)
+
+    if comic.custom_values.get("scrape_source") == "inducks":
+        return JsonResponse({
+            "success": False,
+            "error": "CV comparison not available for Inducks-scraped comics.",
+        })
 
     cv_issue_id = comic.custom_values.get("comicvine_issue")
     if not cv_issue_id:
@@ -1072,14 +1208,20 @@ def scrape_comic(request, pk):
 
     force = request.GET.get("force") == "1"
 
-    # Also check if issue_id is in JSON body (for manual selection from modal)
+    # Parse JSON body for manual match selection
     cv_issue_id = request.POST.get("cv_issue_id") or request.POST.get("issue_id")
+    inducks_issuecode = None
+    inducks_storycode = None
+    source = None
+
     if not cv_issue_id and request.content_type == "application/json":
         try:
             body = json.loads(request.body)
+            source = body.get("source")
             cv_issue_id = body.get("issue_id") or body.get("cv_issue_id")
-            # If we have an issue_id from JSON, this is a manual selection - allow force
-            if cv_issue_id:
+            inducks_issuecode = body.get("issuecode")
+            inducks_storycode = body.get("storycode")
+            if cv_issue_id or inducks_issuecode or inducks_storycode:
                 force = True
         except (json.JSONDecodeError, ValueError):
             pass
@@ -1090,14 +1232,47 @@ def scrape_comic(request, pk):
             "error": f"Comic is not in 'imported' state (current: {comic.state})"
         }, status=400)
 
+    # Handle Inducks match
+    if source == "inducks" and (inducks_issuecode or inducks_storycode):
+        from apps.scraper.services import apply_inducks_match
+
+        scraper = InducksScraper()
+        if inducks_storycode and inducks_issuecode:
+            match = scraper.get_story_details(inducks_issuecode, inducks_storycode)
+        elif inducks_storycode:
+            match = scraper.get_story_only(inducks_storycode)
+        else:
+            match = scraper.get_issue_details(inducks_issuecode)
+        if not match:
+            label = inducks_storycode or inducks_issuecode
+            return JsonResponse({
+                "success": False,
+                "error": f"Not found in Inducks: {label}"
+            }, status=404)
+
+        apply_inducks_match(comic, match)
+
+        msg = f"Matched story: {match.title}" if not match.issuecode else f"Matched: {match.series} #{match.issue_number}"
+        return JsonResponse({
+            "success": True,
+            "message": msg,
+            "match": {
+                "series": match.series,
+                "number": match.issue_number,
+                "publisher": match.publisher,
+                "year": match.start_year,
+                "match_type": "inducks",
+                "cover_url": match.cover_url,
+            }
+        })
+
+    # ComicVine match (existing flow)
     from apps.scraper.cv_sources import is_cv_db_available
 
     scraper = ComicVineScraper()
     match = None
 
-    # Check if a specific CV issue ID was provided
     if cv_issue_id:
-        # User selected a specific match — try local DB first, then API
         if is_cv_db_available():
             match = scraper.get_issue_details(int(cv_issue_id))
         if not match:
@@ -1105,7 +1280,6 @@ def scrape_comic(request, pk):
         if match:
             match.match_type = "manual"
     else:
-        # Auto-select best match using unified strategy (DB -> API fallback)
         match = _find_best_match(comic, scraper)
 
     if not match:
@@ -1114,7 +1288,6 @@ def scrape_comic(request, pk):
             "error": "No match found in ComicVine database"
         }, status=404)
 
-    # Apply match to comic (pass scraper to enrich with credits if needed)
     _apply_match(comic, match, scraper)
 
     return JsonResponse({
@@ -2672,6 +2845,9 @@ def search_alt_covers(request, pk):
 
     if not comic.is_digital or not comic.file_path:
         return JsonResponse({"success": False, "error": "Comic has no digital file"})
+
+    if comic.custom_values.get("scrape_source") == "inducks":
+        return JsonResponse({"success": False, "error": "Alt covers not available for Inducks-scraped comics"})
 
     if comic.custom_values.get("HasAltCovers") == "Yes":
         return JsonResponse({"success": False, "error": "Comic already has alt covers marked"})

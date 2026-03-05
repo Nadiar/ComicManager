@@ -537,6 +537,46 @@
       </div>
     </div>
 
+    {% if inducks_enabled %}
+    <!-- Inducks Search Section -->
+    <div id="inducks-search-section" class="hidden mt-4">
+      <div class="divider text-sm text-base-content/60">I.N.D.U.C.K.S. Search</div>
+      <div class="flex gap-2">
+        <input type="text" id="inducks-search-input" class="input input-bordered input-sm flex-1"
+               placeholder="Title search..." />
+        {% if not inducks_country_lock %}
+        <select id="inducks-country-select" class="select select-bordered select-sm w-20">
+          {% for code in inducks_country_codes %}
+          <option value="{{ code }}"{% if forloop.first %} selected{% endif %}>{{ code }}</option>
+          {% endfor %}
+        </select>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-info" onclick="searchInducks()">
+          Search
+        </button>
+      </div>
+      <div class="flex gap-2 mt-1">
+        <input type="text" id="inducks-storycode-input" class="input input-bordered input-sm flex-1"
+               placeholder="Story code (e.g. D 94066)" />
+        <button type="button" class="btn btn-sm btn-info btn-outline" onclick="searchInducks('storycode')">
+          Search
+        </button>
+        <button type="button" class="btn btn-sm btn-success btn-outline" onclick="matchStoryDirect()"
+                title="Match this story directly without selecting an issue">
+          Match Story
+        </button>
+      </div>
+      <div id="inducks-search-loading" class="flex justify-center py-4 hidden">
+        <span class="loading loading-spinner loading-md"></span>
+      </div>
+      <div id="inducks-search-error" class="alert alert-error mt-2 hidden">
+        <span id="inducks-search-error-text"></span>
+      </div>
+      <div id="inducks-matches" class="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-3 max-h-[40vh] overflow-y-auto pr-2">
+      </div>
+    </div>
+    {% endif %}
+
     <div id="modal-loading" class="flex justify-center py-8">
       <span class="loading loading-spinner loading-lg"></span>
     </div>
@@ -1025,6 +1065,14 @@ function openScrapeModal(pk, btn) {
   document.getElementById('api-search-loading').classList.add('hidden');
   document.getElementById('api-search-error').classList.add('hidden');
 
+  // Reset Inducks search section
+  const inducksMatches = document.getElementById('inducks-matches');
+  if (inducksMatches) {
+    inducksMatches.innerHTML = '';
+    document.getElementById('inducks-search-loading').classList.add('hidden');
+    document.getElementById('inducks-search-error').classList.add('hidden');
+  }
+
   // Load local comic cover
   localCoverImg.src = `/comics/${pk}/cover/`;
   localCoverImg.onerror = () => {
@@ -1059,6 +1107,16 @@ function openScrapeModal(pk, btn) {
       apiSection.classList.remove('hidden');
       const apiInput = document.getElementById('api-search-input');
       apiInput.value = `${data.comic.series || ''} ${data.comic.number || ''}`.trim();
+
+      // Show Inducks search section
+      const inducksSection = document.getElementById('inducks-search-section');
+      if (inducksSection) inducksSection.classList.remove('hidden');
+
+      // Pre-fill Inducks search input
+      const inducksInput = document.getElementById('inducks-search-input');
+      if (inducksInput) {
+        inducksInput.value = `${data.comic.series || ''} ${data.comic.number || ''}`.trim();
+      }
 
       if (data.matches.length === 0) {
         matchesDiv.innerHTML = '<div class="col-span-full text-center text-warning py-4">No local matches found</div>';
@@ -1257,6 +1315,119 @@ function searchApi() {
     });
 }
 
+{% if inducks_enabled %}
+// ── Inducks search ──────────────────────────────────────────────────────────
+const inducksCountryLock = '{{ inducks_country_lock }}';
+
+function searchInducks(mode) {
+  const modal = document.getElementById('scrape-modal');
+  const pk = modal.dataset.comicPk;
+  const query = document.getElementById('inducks-search-input').value.trim();
+  const storycode = document.getElementById('inducks-storycode-input').value.trim();
+  const matchesDiv = document.getElementById('inducks-matches');
+  const loading = document.getElementById('inducks-search-loading');
+  const errorDiv = document.getElementById('inducks-search-error');
+
+  if (mode === 'storycode' && !storycode) return;
+  if (mode !== 'storycode' && !query) return;
+
+  let country = inducksCountryLock;
+  if (!country) {
+    const sel = document.getElementById('inducks-country-select');
+    if (sel) country = sel.value;
+  }
+
+  matchesDiv.innerHTML = '';
+  loading.classList.remove('hidden');
+  errorDiv.classList.add('hidden');
+
+  let url = `/comics/${pk}/scrape/inducks-search/?`;
+  if (mode === 'storycode') {
+    url += `storycode=${encodeURIComponent(storycode)}`;
+  } else {
+    url += `q=${encodeURIComponent(query)}`;
+  }
+  if (country) url += `&country=${encodeURIComponent(country)}`;
+
+  fetch(url)
+    .then(response => response.json())
+    .then(data => {
+      loading.classList.add('hidden');
+
+      if (!data.success) {
+        errorDiv.classList.remove('hidden');
+        document.getElementById('inducks-search-error-text').textContent = data.error;
+        return;
+      }
+
+      if (data.matches.length === 0) {
+        matchesDiv.innerHTML = '<div class="col-span-full text-center text-base-content/50 py-4">No Inducks results found</div>';
+        return;
+      }
+
+      data.matches.forEach(match => {
+        const card = document.createElement('div');
+        card.className = 'card card-compact bg-base-300 cursor-pointer hover:ring-2 hover:ring-info transition-all border border-info/30';
+
+        const issueUrl = `https://inducks.org/issue.php?c=${encodeURIComponent(match.issuecode)}`;
+        const stories = match.stories || [];
+
+        const storyBadges = stories.map(s =>
+          `<span class="inline-flex items-center gap-0.5">
+            <a href="https://inducks.org/story.php?c=${encodeURIComponent(s.code)}" target="_blank"
+              class="badge badge-xs badge-ghost hover:badge-info cursor-pointer" onclick="event.stopPropagation()"
+              title="${s.title || s.code}">${s.code}</a>
+            <button class="btn btn-ghost btn-xs px-0.5 text-success" onclick="event.stopPropagation(); selectMatch('${pk}', null, 'inducks', '${match.issuecode}', '${s.code}')"
+              title="Match this story only">&#x2713;</button>
+          </span>`
+        ).join('');
+
+        const storyLinks = stories.slice(0, 3).map(s =>
+          `<a href="https://inducks.org/story.php?c=${encodeURIComponent(s.code)}" target="_blank"
+              class="link link-accent text-xs" onclick="event.stopPropagation()">${s.code}</a>`
+        ).join(' ');
+
+        const leadTitle = stories.length > 0 && stories[0].title
+          ? `<p class="text-xs text-base-content/70 line-clamp-1">${stories[0].title}</p>` : '';
+
+        card.innerHTML = `
+          <div class="card-body p-2 gap-1">
+            <h3 class="card-title text-sm font-bold leading-tight">${match.series} #${match.number}</h3>
+            <p class="text-xs text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
+            ${leadTitle}
+            ${match.pages ? `<p class="text-xs text-base-content/50">${match.pages} pages</p>` : ''}
+            ${storyBadges ? `<div class="flex flex-wrap gap-1 mt-1">${storyBadges}</div>` : ''}
+            <div class="flex flex-wrap gap-1 mt-1">
+              <span class="badge badge-xs badge-info">inducks</span>
+              ${match.country ? `<span class="badge badge-xs badge-outline">${match.country}</span>` : ''}
+            </div>
+            <div class="flex gap-2 mt-1">
+              <a href="${issueUrl}" target="_blank" class="link link-info text-xs" onclick="event.stopPropagation()">Issue</a>
+              ${storyLinks ? `<span class="text-xs text-base-content/30">|</span> ${storyLinks}` : ''}
+            </div>
+          </div>
+        `;
+
+        card.addEventListener('click', () => selectMatch(pk, null, 'inducks', match.issuecode));
+        matchesDiv.appendChild(card);
+      });
+    })
+    .catch(err => {
+      loading.classList.add('hidden');
+      errorDiv.classList.remove('hidden');
+      document.getElementById('inducks-search-error-text').textContent = err.toString();
+    });
+}
+
+function matchStoryDirect() {
+  const storycode = document.getElementById('inducks-storycode-input').value.trim();
+  if (!storycode) return;
+  const modal = document.getElementById('scrape-modal');
+  const pk = modal.dataset.comicPk;
+  selectMatch(pk, null, 'inducks', null, storycode);
+}
+{% endif %}
+
 // Track whether modal close was handled by selectMatch/skipCurrentComic
 window._scrapeModalHandled = false;
 
@@ -1271,6 +1442,27 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  {% if inducks_enabled %}
+  const inducksInput = document.getElementById('inducks-search-input');
+  if (inducksInput) {
+    inducksInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        searchInducks();
+      }
+    });
+  }
+  const inducksCodeInput = document.getElementById('inducks-storycode-input');
+  if (inducksCodeInput) {
+    inducksCodeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        searchInducks('storycode');
+      }
+    });
+  }
+  {% endif %}
 
   // Handle Cancel/backdrop close during confirm-each batch
   const scrapeModal = document.getElementById('scrape-modal');
@@ -1296,7 +1488,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-function selectMatch(comicPk, issueId) {
+function selectMatch(comicPk, issueId, source, issuecode, storycode) {
   const modal = document.getElementById('scrape-modal');
   const btn = window._currentScrapeBtn;
 
@@ -1308,17 +1500,30 @@ function selectMatch(comicPk, issueId) {
     btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
   }
 
-  // Send scrape request with selected issue ID
-  const formData = new FormData();
-  formData.append('cv_issue_id', issueId);
+  // Build request: JSON for Inducks, FormData for ComicVine
+  let fetchOpts;
+  if (source === 'inducks') {
+    fetchOpts = {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ source: 'inducks', ...(issuecode ? { issuecode } : {}), ...(storycode ? { storycode } : {}) }),
+    };
+  } else {
+    const formData = new FormData();
+    formData.append('cv_issue_id', issueId);
+    fetchOpts = {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': getCsrfToken(),
+      },
+      body: formData,
+    };
+  }
 
-  fetch(`/comics/${comicPk}/scrape/${isForceScrape ? '?force=1' : ''}`, {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    },
-    body: formData,
-  })
+  fetch(`/comics/${comicPk}/scrape/${isForceScrape ? '?force=1' : ''}`, fetchOpts)
   .then(response => response.json())
   .then(data => {
     if (data.success && btn) {

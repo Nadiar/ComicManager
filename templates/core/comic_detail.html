@@ -81,6 +81,7 @@
             </button>
           </li>
           {% endif %}
+          {% if comic.custom_values.scrape_source != "inducks" %}
           <li>
             <button onclick="runAction('refresh-credits')" id="action-refresh-credits">
               Refresh Credits from CV
@@ -96,6 +97,7 @@
               Compare All Sources
             </button>
           </li>
+          {% endif %}
           {% if comic.is_digital and comic.file_path %}
           <li>
             <button onclick="openPageManager()" id="action-manage-pages">
@@ -161,7 +163,7 @@
   </div>
   {% endif %}
 
-  {% if show_series_completion %}
+  {% if show_series_completion and comic.custom_values.scrape_source != "inducks" %}
   <!-- Series Completion (lazy-loaded via HTMX) -->
   <div hx-get="{% url 'core:series_completion' comic.pk %}" hx-trigger="load" hx-swap="outerHTML">
     <div class="flex justify-center py-4">
@@ -415,7 +417,7 @@
 
 <!-- Scrape Preview Modal -->
 <dialog id="scrape-modal" class="modal">
-  <div class="modal-box max-w-6xl">
+  <div class="modal-box max-w-6xl max-h-[90vh]">
     <form method="dialog">
       <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
     </form>
@@ -469,6 +471,46 @@
             <!-- API matches will be inserted here -->
           </div>
         </div>
+
+        {% if inducks_enabled %}
+        <!-- Inducks Search Section -->
+        <div id="inducks-search-section" class="hidden mt-4">
+          <div class="divider text-sm text-base-content/60">I.N.D.U.C.K.S. Search</div>
+          <div class="flex gap-2">
+            <input type="text" id="inducks-search-input" class="input input-bordered input-sm flex-1"
+                   placeholder="Title search..." />
+            {% if not inducks_country_lock %}
+            <select id="inducks-country-select" class="select select-bordered select-sm w-20">
+              {% for code in inducks_country_codes %}
+              <option value="{{ code }}"{% if forloop.first %} selected{% endif %}>{{ code }}</option>
+              {% endfor %}
+            </select>
+            {% endif %}
+            <button type="button" class="btn btn-sm btn-info" onclick="searchInducks()">
+              Search
+            </button>
+          </div>
+          <div class="flex gap-2 mt-1">
+            <input type="text" id="inducks-storycode-input" class="input input-bordered input-sm flex-1"
+                   placeholder="Story code (e.g. D 94066)" />
+            <button type="button" class="btn btn-sm btn-info btn-outline" onclick="searchInducks('storycode')">
+              Search
+            </button>
+            <button type="button" class="btn btn-sm btn-success btn-outline" onclick="matchStoryDirect()"
+                    title="Match this story directly without selecting an issue">
+              Match Story
+            </button>
+          </div>
+          <div id="inducks-search-loading" class="flex justify-center py-4 hidden">
+            <span class="loading loading-spinner loading-md"></span>
+          </div>
+          <div id="inducks-search-error" class="alert alert-error mt-2 hidden">
+            <span id="inducks-search-error-text"></span>
+          </div>
+          <div id="inducks-matches" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-3 max-h-[40vh] overflow-y-auto pr-2">
+          </div>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -826,6 +868,14 @@ function openScrapeModal() {
   document.getElementById('api-search-loading').classList.add('hidden');
   document.getElementById('api-search-error').classList.add('hidden');
 
+  // Reset Inducks search section
+  const inducksMatches = document.getElementById('inducks-matches');
+  if (inducksMatches) {
+    inducksMatches.innerHTML = '';
+    document.getElementById('inducks-search-loading').classList.add('hidden');
+    document.getElementById('inducks-search-error').classList.add('hidden');
+  }
+
   modal.showModal();
 
   // Fetch preview matches with force=1 to skip state check
@@ -844,6 +894,14 @@ function openScrapeModal() {
       apiSection.classList.remove('hidden');
       const apiInput = document.getElementById('api-search-input');
       apiInput.value = `${data.comic.series || ''} ${data.comic.number || ''}`.trim();
+
+      // Show Inducks search section and pre-fill
+      const inducksSection = document.getElementById('inducks-search-section');
+      if (inducksSection) inducksSection.classList.remove('hidden');
+      const inducksInput = document.getElementById('inducks-search-input');
+      if (inducksInput) {
+        inducksInput.value = `${data.comic.series || ''} ${data.comic.number || ''}`.trim();
+      }
 
       if (data.matches.length === 0) {
         matchesDiv.innerHTML = '<div class="col-span-full text-center text-warning py-4">No local matches found</div>';
@@ -887,17 +945,17 @@ function openScrapeModal() {
     });
 }
 
-async function selectMatch(issueId) {
+async function selectMatch(issueId, source, issuecode, storycode) {
   const modal = document.getElementById('scrape-modal');
-  const matchesDiv = document.getElementById('modal-matches');
 
-  // Show loading state on all cards (local + API)
-  matchesDiv.querySelectorAll('.card').forEach(card => {
+  // Show loading state on all match cards across all sections
+  document.querySelectorAll('#modal-matches .card, #api-matches .card, #inducks-matches .card').forEach(card => {
     card.classList.add('opacity-50', 'pointer-events-none');
   });
-  document.getElementById('api-matches').querySelectorAll('.card').forEach(card => {
-    card.classList.add('opacity-50', 'pointer-events-none');
-  });
+
+  const payload = source === 'inducks'
+    ? { source: 'inducks', ...(issuecode ? { issuecode } : {}), ...(storycode ? { storycode } : {}) }
+    : { issue_id: issueId };
 
   try {
     const response = await fetch(`/comics/${comicPk}/scrape/`, {
@@ -906,24 +964,23 @@ async function selectMatch(issueId) {
         'X-CSRFToken': csrfToken,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ issue_id: issueId }),
+      body: JSON.stringify(payload),
     });
 
     const data = await response.json();
 
     if (data.success) {
       modal.close();
-      // Reload page to show updated metadata
       location.reload();
     } else {
       showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
-      matchesDiv.querySelectorAll('.card').forEach(card => {
+      document.querySelectorAll('#modal-matches .card, #api-matches .card, #inducks-matches .card').forEach(card => {
         card.classList.remove('opacity-50', 'pointer-events-none');
       });
     }
   } catch (err) {
     showMsgToast('Network error: ' + err.message, 'error');
-    matchesDiv.querySelectorAll('.card').forEach(card => {
+    document.querySelectorAll('#modal-matches .card, #api-matches .card, #inducks-matches .card').forEach(card => {
       card.classList.remove('opacity-50', 'pointer-events-none');
     });
   }
@@ -1005,6 +1062,128 @@ document.getElementById('api-search-input')?.addEventListener('keydown', (e) => 
     searchApi();
   }
 });
+
+// ── Inducks search ──────────────────────────────────────────────────────────
+{% if inducks_enabled %}
+const inducksCountryLock = '{{ inducks_country_lock }}';
+
+function searchInducks(mode) {
+  const query = document.getElementById('inducks-search-input').value.trim();
+  const storycode = document.getElementById('inducks-storycode-input').value.trim();
+  const matchesDiv = document.getElementById('inducks-matches');
+  const loading = document.getElementById('inducks-search-loading');
+  const errorDiv = document.getElementById('inducks-search-error');
+
+  if (mode === 'storycode' && !storycode) return;
+  if (mode !== 'storycode' && !query) return;
+
+  let country = inducksCountryLock;
+  if (!country) {
+    const sel = document.getElementById('inducks-country-select');
+    if (sel) country = sel.value;
+  }
+
+  matchesDiv.innerHTML = '';
+  loading.classList.remove('hidden');
+  errorDiv.classList.add('hidden');
+
+  let url = `/comics/${comicPk}/scrape/inducks-search/?`;
+  if (mode === 'storycode') {
+    url += `storycode=${encodeURIComponent(storycode)}`;
+  } else {
+    url += `q=${encodeURIComponent(query)}`;
+  }
+  if (country) url += `&country=${encodeURIComponent(country)}`;
+
+  fetch(url)
+    .then(response => response.json())
+    .then(data => {
+      loading.classList.add('hidden');
+
+      if (!data.success) {
+        errorDiv.classList.remove('hidden');
+        document.getElementById('inducks-search-error-text').textContent = data.error;
+        return;
+      }
+
+      if (data.matches.length === 0) {
+        matchesDiv.innerHTML = '<div class="col-span-full text-center text-base-content/50 py-4">No Inducks results found</div>';
+        return;
+      }
+
+      data.matches.forEach(match => {
+        const card = document.createElement('div');
+        card.className = 'card bg-base-300 cursor-pointer hover:ring-2 hover:ring-info transition-all border border-info/30';
+
+        const issueUrl = `https://inducks.org/issue.php?c=${encodeURIComponent(match.issuecode)}`;
+        const stories = match.stories || [];
+
+        const storyBadges = stories.map(s =>
+          `<span class="inline-flex items-center gap-0.5">
+            <a href="https://inducks.org/story.php?c=${encodeURIComponent(s.code)}" target="_blank"
+              class="badge badge-sm badge-ghost hover:badge-info cursor-pointer" onclick="event.stopPropagation()"
+              title="${s.title || s.code}">${s.code}</a>
+            <button class="btn btn-ghost btn-xs px-0.5 text-success" onclick="event.stopPropagation(); selectMatch(null, 'inducks', '${match.issuecode}', '${s.code}')"
+              title="Match this story only">&#x2713;</button>
+          </span>`
+        ).join('');
+
+        const storyLinks = stories.slice(0, 3).map(s =>
+          `<a href="https://inducks.org/story.php?c=${encodeURIComponent(s.code)}" target="_blank"
+              class="link link-accent text-xs" onclick="event.stopPropagation()">${s.code}</a>`
+        ).join(' ');
+
+        const leadTitle = stories.length > 0 && stories[0].title
+          ? `<p class="text-sm text-base-content/70 line-clamp-2">${stories[0].title}</p>` : '';
+
+        card.innerHTML = `
+          <div class="card-body p-4 gap-2">
+            <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
+            <p class="text-sm text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
+            ${leadTitle}
+            ${match.pages ? `<p class="text-xs text-base-content/50">${match.pages} pages</p>` : ''}
+            ${storyBadges ? `<div class="flex flex-wrap gap-1 mt-1">${storyBadges}</div>` : ''}
+            <div class="flex flex-wrap gap-2 mt-2">
+              <span class="badge badge-info">inducks</span>
+              ${match.country ? `<span class="badge badge-outline badge-sm">${match.country}</span>` : ''}
+            </div>
+            <div class="flex gap-2 mt-1">
+              <a href="${issueUrl}" target="_blank" class="link link-info text-xs" onclick="event.stopPropagation()">Issue</a>
+              ${storyLinks ? `<span class="text-xs text-base-content/30">|</span> ${storyLinks}` : ''}
+            </div>
+          </div>
+        `;
+
+        card.addEventListener('click', () => selectMatch(null, 'inducks', match.issuecode));
+        matchesDiv.appendChild(card);
+      });
+    })
+    .catch(err => {
+      loading.classList.add('hidden');
+      errorDiv.classList.remove('hidden');
+      document.getElementById('inducks-search-error-text').textContent = err.toString();
+    });
+}
+
+function matchStoryDirect() {
+  const storycode = document.getElementById('inducks-storycode-input').value.trim();
+  if (!storycode) return;
+  selectMatch(null, 'inducks', null, storycode);
+}
+
+document.getElementById('inducks-search-input')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    searchInducks();
+  }
+});
+document.getElementById('inducks-storycode-input')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    searchInducks('storycode');
+  }
+});
+{% endif %}
 
 function openCvCompareModal() {
   const modal = document.getElementById('cv-compare-modal');

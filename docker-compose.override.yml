@@ -11,6 +11,7 @@ services:
       - ./untagged:/comics/untagged
       - ./Comics:/comics/library
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
+      - ./data/inducks.db:/cv_db/inducks.db:ro
       - .:/app                        # mount entire source — changes reload instantly
       - ./static:/app/static          # override base static mount for dev
       - ./data/covers:/app/cover_cache
@@ -31,6 +32,7 @@ services:
       - ./untagged:/comics/untagged
       - ./Comics:/comics/library
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
+      - ./data/inducks.db:/cv_db/inducks.db:ro
       - .:/app                        # same source mount — worker reloads too
       - ./data/logs:/app/logs
 

@@ -360,6 +360,102 @@ def apply_cv_match(comic, match, scraper=None):
         _update_volume_issue_count(str(match.volume_id), match.issue_count, exclude_pk=comic.pk)
 
 
+def apply_inducks_match(comic, match):
+    """
+    Apply Inducks match data to a comic and advance its workflow state.
+
+    Similar to apply_cv_match but uses Inducks-specific fields and does not
+    insert variant covers or propagate issue counts.
+    """
+    from apps.core.models import Comic
+
+    story_only = not match.issuecode
+
+    # Issue-level fields: only set when matching a full issue or issue+story
+    if not story_only:
+        comic.series = match.series
+        comic.number = match.issue_number
+        if match.publisher:
+            comic.publisher = match.publisher
+
+    if match.title:
+        comic.title = match.title
+
+    # Inducks doesn't track issue counts; remove the flag so it doesn't
+    # show up in the CV-specific count review queue
+    comic.remove_flag("missing_count")
+
+    if match.start_year:
+        try:
+            comic.volume = int(match.start_year)
+        except ValueError:
+            pass
+
+    if match.cover_date and match.cover_date[0].isdigit():
+        try:
+            parts = match.cover_date.split("-")
+            comic.year = int(parts[0])
+            if len(parts) > 1 and parts[1].isdigit():
+                comic.month = int(parts[1])
+            if len(parts) > 2 and parts[2].isdigit():
+                comic.day = int(parts[2])
+        except (ValueError, IndexError):
+            pass
+
+    if match.description:
+        comic.summary = match.description
+
+    # Build notes
+    storycode = match.stories[0]["code"] if match.stories and len(match.stories) == 1 else None
+    if story_only and storycode:
+        comic.notes = f"Scraped metadata from I.N.D.U.C.K.S. story {storycode}"
+    elif storycode:
+        comic.notes = f"Scraped metadata from I.N.D.U.C.K.S. [{match.issuecode}] story {storycode}"
+    else:
+        comic.notes = f"Scraped metadata from I.N.D.U.C.K.S. [{match.issuecode}]"
+
+    if match.characters:
+        comic.characters = match.characters
+    if match.writer:
+        comic.writer = match.writer
+    if match.penciller:
+        comic.penciller = match.penciller
+    if match.inker:
+        comic.inker = match.inker
+    if match.colorist:
+        comic.colorist = match.colorist
+    if match.letterer:
+        comic.letterer = match.letterer
+    if match.cover_artist:
+        comic.cover_artist = match.cover_artist
+
+    if match.web:
+        comic.web = match.web
+
+    comic.custom_values["scrape_source"] = "inducks"
+    if match.issuecode:
+        comic.custom_values["inducks_issuecode"] = match.issuecode
+        comic.custom_values["inducks_publicationcode"] = match.publicationcode
+    if storycode:
+        comic.custom_values["inducks_storycode"] = storycode
+
+    comic.remove_flag("scrape_no_match")
+    comic.remove_flag("scrape_error")
+    comic.remove_flag("scrape_error_detail")
+    comic.remove_flag("metadata_mismatch")
+
+    # Flag comics from publishers not covered by any tagging ruleset
+    if comic.publisher:
+        from apps.tagging.engine import is_publisher_known
+        if is_publisher_known(comic.publisher):
+            comic.remove_flag("unknown_publisher")
+        else:
+            comic.add_flag("unknown_publisher")
+
+    comic.state = Comic.STATE_COUNTED
+    comic.save()
+
+
 def _update_volume_issue_count(volume_id: str, new_count: int, exclude_pk=None):
     """
     Propagate an updated issue count to all other comics in the same CV volume.

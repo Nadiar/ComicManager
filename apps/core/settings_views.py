@@ -24,6 +24,9 @@ def settings_index(request):
 
 def settings_update(request):
     if request.method == "POST":
+        # Unchecked checkboxes are absent from POST data, so reset all
+        # bool settings to "false" first, then apply submitted values.
+        Setting.objects.filter(type="bool").update(value="false")
         for key, value in request.POST.items():
             if key.startswith("csrf"):
                 continue
