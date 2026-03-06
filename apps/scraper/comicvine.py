@@ -9,7 +9,9 @@ Matches comics against the local ComicVine SQLite database using:
 
 import json
 import logging
+import os
 import sqlite3
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -22,6 +24,74 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 CV_API_BASE = "https://comicvine.gamespot.com/api"
+
+# Module-level cache for comic_covers hash arrays.
+# Loaded once per process, invalidated when the DB file mtime changes.
+_hash_cache_lock = threading.Lock()
+_hash_cache: dict | None = None
+_hash_cache_db_path: str | None = None
+_hash_cache_mtime: float = 0.0
+
+
+def _load_hash_cache(db_path: str) -> dict:
+    """
+    Load comic_covers hashes into numpy arrays, cached by DB mtime.
+
+    Cache is shared across all ComicVineScraper instances in the process so
+    the expensive table scan only runs once (or when the DB file is replaced).
+    Returns a dict with keys: cvids, phashes, ahashes (numpy arrays).
+    """
+    import numpy as np
+
+    global _hash_cache, _hash_cache_db_path, _hash_cache_mtime
+
+    empty = {
+        "cvids": np.array([], dtype=np.int64),
+        "phashes": np.array([], dtype=np.uint64),
+        "ahashes": np.array([], dtype=np.uint64),
+    }
+
+    try:
+        current_mtime = os.path.getmtime(db_path)
+    except OSError:
+        return empty
+
+    with _hash_cache_lock:
+        if (
+            _hash_cache is not None
+            and _hash_cache_db_path == db_path
+            and _hash_cache_mtime == current_mtime
+        ):
+            return _hash_cache
+
+        try:
+            conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT cvid, ct_phash, ct_ahash FROM comic_covers"
+                    " WHERE ct_phash IS NOT NULL AND ct_ahash IS NOT NULL"
+                )
+                rows = cursor.fetchall()
+            finally:
+                conn.close()
+        except Exception:
+            logger.exception("Failed to load hash cache from %s", db_path)
+            return empty
+
+        if not rows:
+            cache = empty
+        else:
+            cvids   = np.array([r[0] for r in rows], dtype=np.int64)
+            phashes = np.array([int(r[1]) for r in rows], dtype=np.uint64)
+            ahashes = np.array([int(r[2]) for r in rows], dtype=np.uint64)
+            cache = {"cvids": cvids, "phashes": phashes, "ahashes": ahashes}
+            logger.info("Hash cache loaded: %d entries from %s", len(rows), db_path)
+
+        _hash_cache = cache
+        _hash_cache_db_path = db_path
+        _hash_cache_mtime = current_mtime
+        return cache
 
 
 class ComicVineRateLimitError(Exception):
@@ -214,88 +284,97 @@ class ComicVineScraper:
 
     def match_by_hash_fast(self, phash: int, ahash: int, max_distance: int = 10, limit: int = 10) -> list[CVMatch]:
         """
-        Fast hash matching using SQL-based hamming distance.
+        Fast hash matching using vectorized numpy hamming distance.
 
-        Uses a SQL user-defined function to compute hamming distance
-        directly in the database, filtering results efficiently.
+        Loads all comic_covers hashes into a module-level numpy cache (invalidated
+        by DB mtime) so the expensive table scan runs once per process, not once
+        per scrape. Candidate cvids are then fetched with a targeted JOIN query.
         """
+        import numpy as np
+
+        cache = _load_hash_cache(self.db_path)
+        if cache["cvids"].size == 0:
+            return []
+
+        query_phash = np.uint64(phash)
+        query_ahash = np.uint64(ahash)
+
+        # Vectorized XOR then popcount via unpackbits (8 bytes per uint64 -> 64 bits)
+        phash_dists = np.unpackbits(
+            (cache["phashes"] ^ query_phash).view(np.uint8)
+        ).reshape(-1, 64).sum(axis=1)
+        ahash_dists = np.unpackbits(
+            (cache["ahashes"] ^ query_ahash).view(np.uint8)
+        ).reshape(-1, 64).sum(axis=1)
+
+        mask = (phash_dists <= max_distance) & (ahash_dists <= max_distance)
+        candidate_indices = np.where(mask)[0]
+
+        if candidate_indices.size == 0:
+            return []
+
+        combined = phash_dists[candidate_indices] + ahash_dists[candidate_indices]
+        order = np.argsort(combined)[:limit]
+        top_indices = candidate_indices[order]
+
+        candidate_cvids = cache["cvids"][top_indices].tolist()
+        candidate_pd    = phash_dists[top_indices].tolist()
+        candidate_ad    = ahash_dists[top_indices].tolist()
+
+        # Targeted JOIN for the small candidate set only
+        placeholders = ",".join("?" * len(candidate_cvids))
         conn = self._get_connection()
-
-        # Register hamming distance function (takes two args, computes XOR + popcount)
-        def calc_hamming(a, b):
-            if a is None or b is None:
-                return 64  # Max distance if null
-            return bin(int(a) ^ int(b)).count("1")
-
-        conn.create_function("calc_hamming", 2, calc_hamming)
-
-        cursor = conn.cursor()
-
-        # Convert to strings for the database (hashes stored as text/integers)
-        phash_str = str(phash)
-        ahash_str = str(ahash)
-
-        # Query with hamming distance filter - very fast with the UDF
-        cursor.execute("""
-            SELECT
-                cc.cvid,
-                cc.ct_phash,
-                cc.ct_ahash,
-                i.volume_id,
-                i.name as issue_title,
-                i.issue_number,
-                i.cover_date,
-                i.description,
-                i.image_url,
-                v.name as series,
-                v.start_year,
-                v.count_of_issues,
-                p.name as publisher,
-                cc.cv_url,
-                calc_hamming(cc.ct_phash, ?) as phash_dist,
-                calc_hamming(cc.ct_ahash, ?) as ahash_dist
-            FROM comic_covers cc
-            JOIN cv_issue i ON cc.cvid = i.id
-            JOIN cv_volume v ON i.volume_id = v.id
-            LEFT JOIN cv_publisher p ON v.publisher_id = p.id
-            WHERE cc.ct_phash IS NOT NULL
-              AND cc.ct_ahash IS NOT NULL
-              AND calc_hamming(cc.ct_phash, ?) <= ?
-              AND calc_hamming(cc.ct_ahash, ?) <= ?
-            ORDER BY (calc_hamming(cc.ct_phash, ?) + calc_hamming(cc.ct_ahash, ?)) ASC
-            LIMIT ?
-        """, (phash_str, ahash_str, phash_str, max_distance, ahash_str, max_distance, phash_str, ahash_str, limit))
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT
+                    cc.cvid,
+                    i.volume_id,
+                    i.name AS issue_title,
+                    i.issue_number,
+                    i.cover_date,
+                    i.description,
+                    i.image_url,
+                    v.name AS series,
+                    v.start_year,
+                    v.count_of_issues,
+                    p.name AS publisher,
+                    cc.cv_url
+                FROM comic_covers cc
+                JOIN cv_issue i ON cc.cvid = i.id
+                JOIN cv_volume v ON i.volume_id = v.id
+                LEFT JOIN cv_publisher p ON v.publisher_id = p.id
+                WHERE cc.cvid IN ({placeholders})
+            """, candidate_cvids)
+            rows_by_cvid = {row[0]: row for row in cursor.fetchall()}
+        finally:
+            conn.close()
 
         matches = []
-        for row in cursor.fetchall():
-            phash_dist = row[14]
-            ahash_dist = row[15]
-            combined_score = phash_dist + ahash_dist
-            match_type = f"hash(p:{phash_dist},a:{ahash_dist})"
-
+        for i, cvid in enumerate(candidate_cvids):
+            row = rows_by_cvid.get(cvid)
+            if not row:
+                continue
+            pd = int(candidate_pd[i])
+            ad = int(candidate_ad[i])
             matches.append(CVMatch(
                 issue_id=row[0],
-                volume_id=row[3],
-                title=row[4],
-                issue_number=row[5],
-                cover_date=row[6],
-                description=row[7],
-                image_url=row[8],
-                series=row[9],
-                start_year=row[10],
-                issue_count=row[11],
-                publisher=row[12],
-                cover_url=row[13],
-                match_type=match_type,
-                match_score=combined_score,
+                volume_id=row[1],
+                title=row[2],
+                issue_number=row[3],
+                cover_date=row[4],
+                description=row[5],
+                image_url=row[6],
+                series=row[7],
+                start_year=row[8],
+                issue_count=row[9],
+                publisher=row[10],
+                cover_url=row[11],
+                match_type=f"hash(p:{pd},a:{ad})",
+                match_score=pd + ad,
             ))
 
-        conn.close()
-
-        # Enrich matches with all cover URLs (variants)
-        matches = self.enrich_matches_with_covers(matches)
-
-        return matches
+        return self.enrich_matches_with_covers(matches)
 
     def match_by_metadata(self, series: str, issue_number: str, year: int = None) -> list[CVMatch]:
         """
