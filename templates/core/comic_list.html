@@ -1078,12 +1078,11 @@ function openScrapeModal(pk, btn) {
   }
 
   // Load local comic cover
-  localCoverImg.src = `/comics/${pk}/cover/`;
   localCoverImg.onerror = () => {
-    localCoverImg.src = '';
-    localCoverImg.alt = 'Cover unavailable';
+    localCoverImg.onerror = null;
     localCoverImg.parentElement.innerHTML = '<div class="h-72 flex items-center justify-center text-base-content/50 text-sm">Cover unavailable</div>';
   };
+  localCoverImg.src = `/comics/${pk}/cover/`;
 
   modal.showModal();
 
