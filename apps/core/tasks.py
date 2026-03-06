@@ -423,7 +423,7 @@ def scrape_all_task(self):
             before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
 
             if match:
-                apply_cv_match(comic, match, scraper)
+                apply_cv_match(comic, match, scraper, insert_covers=False)
                 matched += 1
 
                 from .audit import log_batch_entry
@@ -471,6 +471,13 @@ def scrape_all_task(self):
                 "api_mode": not db_available,
             },
         )
+
+        # Release DB connections and clear query log every 50 comics to
+        # prevent memory accumulation in long-running Celery tasks.
+        if i % 50 == 0:
+            from django.db import reset_queries, close_old_connections
+            reset_queries()
+            close_old_connections()
 
     return {
         "matched": matched,

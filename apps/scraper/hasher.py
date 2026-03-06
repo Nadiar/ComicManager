@@ -52,10 +52,12 @@ def extract_cover_hashes(file_path: str | Path) -> Optional[CoverHashes]:
             # Extract first image (cover)
             with zf.open(images[0]) as img_file:
                 img = Image.open(io.BytesIO(img_file.read()))
-
-                # Compute hashes using imagehash library
-                phash = imagehash.phash(img)
-                ahash = imagehash.average_hash(img)
+                try:
+                    # Compute hashes using imagehash library
+                    phash = imagehash.phash(img)
+                    ahash = imagehash.average_hash(img)
+                finally:
+                    img.close()
 
                 # Convert to integers for comparison
                 phash_int = int(str(phash), 16)
@@ -105,15 +107,15 @@ def extract_comic_page(file_path: str | Path, page_index: int = 0) -> Optional[b
             with zf.open(images[page_index]) as img_file:
                 img_data = img_file.read()
 
-                # If already JPEG and not first page (cover), might just return as-is
-                # but to be safe we convert all to JPEG for consistent browser serving
                 img = Image.open(io.BytesIO(img_data))
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-
-                output = io.BytesIO()
-                img.save(output, format="JPEG", quality=85)
-                return output.getvalue()
+                try:
+                    if img.mode in ("RGBA", "P"):
+                        img = img.convert("RGB")
+                    output = io.BytesIO()
+                    img.save(output, format="JPEG", quality=85)
+                    return output.getvalue()
+                finally:
+                    img.close()
 
     except (zipfile.BadZipFile, IOError, OSError):
         return None
@@ -157,12 +159,14 @@ def extract_cover_image(file_path: str | Path) -> Optional[bytes]:
 
                 # Convert to JPEG for consistent output
                 img = Image.open(io.BytesIO(img_data))
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
-
-                output = io.BytesIO()
-                img.save(output, format="JPEG", quality=85)
-                return output.getvalue()
+                try:
+                    if img.mode in ("RGBA", "P"):
+                        img = img.convert("RGB")
+                    output = io.BytesIO()
+                    img.save(output, format="JPEG", quality=85)
+                    return output.getvalue()
+                finally:
+                    img.close()
 
     except (zipfile.BadZipFile, IOError, OSError):
         return None

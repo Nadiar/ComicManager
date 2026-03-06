@@ -974,11 +974,14 @@ def upload_cover(request, pk):
 
     try:
         img = Image.open(cover_file)
-        if img.mode in ("RGBA", "P"):
-            img = img.convert("RGB")
-        output = _io.BytesIO()
-        img.save(output, format="JPEG", quality=85)
-        cover_data = output.getvalue()
+        try:
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+            output = _io.BytesIO()
+            img.save(output, format="JPEG", quality=85)
+            cover_data = output.getvalue()
+        finally:
+            img.close()
     except Exception as e:
         return JsonResponse({"success": False, "error": f"Failed to process image: {e}"}, status=400)
 

@@ -240,13 +240,18 @@ def try_api_metadata_match(comic, scraper):
     return best
 
 
-def apply_cv_match(comic, match, scraper=None):
+def apply_cv_match(comic, match, scraper=None, insert_covers=True):
     """
     Apply ComicVine match data to a comic and advance its workflow state.
 
     Enriches the match with credits if needed, writes all metadata fields,
-    inserts variant covers into the CBZ, updates the state to STATE_COUNTED,
-    and propagates the issue count to other comics in the same volume.
+    optionally inserts variant covers into the CBZ, updates the state to
+    STATE_COUNTED, and propagates the issue count to other comics in the volume.
+
+    Args:
+        insert_covers: If False, skip variant cover insertion into the CBZ.
+                       Always pass False during batch scraping to avoid extracting
+                       and recompressing every CBZ file (major performance gain).
     """
     from apps.core.models import Comic
     from apps.core.utils import html_to_text
@@ -321,8 +326,9 @@ def apply_cv_match(comic, match, scraper=None):
     comic.custom_values["scrape_source"] = match.match_type
     comic.custom_values["scrape_score"] = str(match.match_score)
 
-    # Insert variant covers into the CBZ if available
-    if (comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz")
+    # Insert variant covers into the CBZ if available (skip during batch scraping)
+    if (insert_covers
+            and comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz")
             and match.cover_urls and comic.custom_values.get("HasAltCovers") != "Yes"):
         variants = []
         seen_urls = set()
