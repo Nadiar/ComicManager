@@ -333,6 +333,22 @@ def comic_detail(request, pk):
         or (COVER_CACHE_DIR / f"{comic.pk}.jpg").exists()
     )
 
+    # Physical alt covers: pre-compute proxy URLs so the template stays simple
+    physical_covers = []
+    if comic.is_physical:
+        from urllib.parse import quote
+        cv_issue_id = comic.custom_values.get("comicvine_issue", "0")
+        main_cover_url = comic.custom_values.get("physical_main_cover_url", "")
+        raw_urls = comic.custom_values.get("physical_cover_urls", [])
+        if isinstance(raw_urls, list):
+            for url in raw_urls:
+                if url:
+                    physical_covers.append({
+                        "proxy_url": f"/comics/cv-cover/{cv_issue_id}/?url={quote(url, safe='')}",
+                        "original_url": url,
+                        "is_main": url == main_cover_url,
+                    })
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
         "xml_data": xml_data,
@@ -345,6 +361,7 @@ def comic_detail(request, pk):
         "inducks_country_lock": inducks_country_lock,
         "inducks_country_codes": inducks_country_codes,
         "has_cover": has_cover,
+        "physical_covers": physical_covers,
     })
 
 
@@ -956,6 +973,29 @@ def comic_cover(request, pk):
 
 
 @require_POST
+def set_physical_cover(request, pk):
+    """Set a specific CV cover URL as the main cover for a physical comic."""
+    from urllib.parse import quote
+    from .cover_cache import cache_physical_cover, invalidate_comic_cover
+
+    comic = get_object_or_404(Comic, pk=pk)
+    if not comic.is_physical:
+        return JsonResponse({"success": False, "error": "Not a physical comic"}, status=400)
+
+    cover_url = request.POST.get("cover_url", "").strip()
+    if not cover_url:
+        return JsonResponse({"success": False, "error": "No cover_url provided"}, status=400)
+
+    invalidate_comic_cover(comic.pk)
+    ok = cache_physical_cover(comic.pk, cover_url)
+    if not ok:
+        return JsonResponse({"success": False, "error": "Failed to download cover"}, status=500)
+
+    comic.custom_values["physical_main_cover_url"] = cover_url
+    comic.save()
+    return JsonResponse({"success": True})
+
+
 def upload_cover(request, pk):
     """Upload a cover image for a physical comic, stored in the cover cache."""
     import io as _io

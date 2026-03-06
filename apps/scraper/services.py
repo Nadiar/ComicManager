@@ -359,6 +359,13 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
         else:
             comic.add_flag("unknown_publisher")
 
+    # For physical comics store all cover URLs so the detail page can show them
+    if comic.is_physical:
+        if match.cover_urls:
+            comic.custom_values["physical_cover_urls"] = [u for u in match.cover_urls if u][:20]
+        if match.cover_url:
+            comic.custom_values["physical_main_cover_url"] = match.cover_url
+
     comic.state = Comic.STATE_COUNTED
     comic.save()
 

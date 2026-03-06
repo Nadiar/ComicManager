@@ -39,6 +39,7 @@ urlpatterns = [
     path("<uuid:pk>/pages/save/", views.comic_pages_save, name="pages_save"),
     path("<uuid:pk>/cover/", views.comic_cover, name="cover"),
     path("<uuid:pk>/upload-cover/", views.upload_cover, name="upload_cover"),
+    path("<uuid:pk>/set-cover/", views.set_physical_cover, name="set_cover"),
     path("<uuid:pk>/convert/", views.convert_cbr, name="convert"),
     path("<uuid:pk>/rezip/", views.try_rezip, name="rezip"),
     path("<uuid:pk>/toggle-scrape-skip/", views.toggle_scrape_skip, name="toggle_scrape_skip"),
