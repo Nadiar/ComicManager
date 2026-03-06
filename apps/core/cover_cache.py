@@ -6,9 +6,10 @@ or fetching from ComicVine. Covers are stored as JPEG files in COVER_CACHE_DIR.
 
 Two types of cached covers:
 - Comic covers:    cover_cache/<uuid>.jpg   (extracted from CBZ)
-- ComicVine covers: cover_cache/cv_<issue_id>.jpg  (downloaded from CV)
+- ComicVine covers: cover_cache/cv_<issue_id>_<url_hash>.jpg  (downloaded from CV)
 """
 
+import hashlib
 import logging
 from pathlib import Path
 from urllib.request import urlopen, Request
@@ -90,8 +91,12 @@ def get_cv_cover(issue_id: int, cover_url: str) -> bytes | None:
     """
     Get cover image for a ComicVine issue. Returns cached version if available,
     otherwise downloads from the URL and caches it.
+
+    Cache key includes a short hash of the URL so different variant covers for
+    the same issue are stored as separate files.
     """
-    cache_path = COVER_CACHE_DIR / f"cv_{issue_id}.jpg"
+    url_hash = hashlib.md5(cover_url.encode()).hexdigest()[:8] if cover_url else "none"
+    cache_path = COVER_CACHE_DIR / f"cv_{issue_id}_{url_hash}.jpg"
 
     # Return from cache
     if cache_path.exists():
@@ -121,9 +126,10 @@ def get_cv_cover(issue_id: int, cover_url: str) -> bytes | None:
     return cover_data
 
 
-def has_cv_cover_cached(issue_id: int) -> bool:
+def has_cv_cover_cached(issue_id: int, cover_url: str = "") -> bool:
     """Check if a ComicVine cover is already cached locally."""
-    return (COVER_CACHE_DIR / f"cv_{issue_id}.jpg").exists()
+    url_hash = hashlib.md5(cover_url.encode()).hexdigest()[:8] if cover_url else "none"
+    return (COVER_CACHE_DIR / f"cv_{issue_id}_{url_hash}.jpg").exists()
 
 
 def get_inducks_cover(issuecode: str, cover_url: str) -> bytes | None:
