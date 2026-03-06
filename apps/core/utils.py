@@ -105,6 +105,7 @@ EDITABLE_FIELDS = [
     "publisher", "summary", "notes", "genre", "web", "format", "characters",
     "teams", "locations", "tags", "scan_information", "series_group", "main_character_or_team",
     "writer", "penciller", "inker", "colorist", "letterer", "cover_artist", "editor",
+    "storage_location",
 ]
 
 # Registry of all possible columns for comic tables

@@ -81,6 +81,9 @@ class Comic(models.Model):
 
     notes = models.TextField(null=True, blank=True)
 
+    # Physical comic storage location (e.g. "Box 3, Shelf A", "Longbox 7")
+    storage_location = models.CharField(max_length=255, blank=True, default="")
+
     # Format
     format          = models.CharField(max_length=64, null=True, blank=True)
     original_format = models.CharField(max_length=64, null=True, blank=True)

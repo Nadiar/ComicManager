@@ -28,6 +28,7 @@ def add_physical(request):
         format_ = request.POST.get("format", "").strip()
         title = request.POST.get("title", "").strip()
         notes = request.POST.get("notes", "").strip()
+        storage_location = request.POST.get("storage_location", "").strip()
 
         if not series:
             messages.error(request, "Series is required.")
@@ -47,6 +48,7 @@ def add_physical(request):
             format=format_ or None,
             title=title or None,
             notes=notes or None,
+            storage_location=storage_location,
         )
         comic.save()
         messages.success(request, f"Physical comic added: {comic}")
@@ -85,6 +87,7 @@ def import_csv(request):
                     format_ = (row.get("format") or row.get("Format") or "").strip()
                     title = (row.get("title") or row.get("Title") or "").strip()
                     notes = (row.get("notes") or row.get("Notes") or "").strip()
+                    storage_location = (row.get("storage_location") or row.get("Storage Location") or "").strip()
 
                     comic = Comic(
                         medium=Comic.MEDIUM_PHYSICAL,
@@ -97,6 +100,7 @@ def import_csv(request):
                         format=format_ or None,
                         title=title or None,
                         notes=notes or None,
+                        storage_location=storage_location,
                     )
                     comic.save()
                     created += 1
