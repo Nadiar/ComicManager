@@ -176,6 +176,29 @@ def get_inducks_cover(issuecode: str, cover_url: str) -> bytes | None:
     return cover_data
 
 
+def cache_physical_cover(comic_pk, cover_url: str) -> bool:
+    """Download and cache a cover image for a physical comic from a URL."""
+    if not cover_url:
+        return False
+    cache_path = COVER_CACHE_DIR / f"{comic_pk}.jpg"
+    try:
+        req = Request(cover_url, headers={"User-Agent": "ComicManager/1.0"})
+        with urlopen(req, timeout=10) as resp:
+            cover_data = resp.read()
+    except (URLError, OSError, TimeoutError) as e:
+        logger.warning("Failed to download cover for physical %s: %s", comic_pk, e)
+        return False
+    if not cover_data:
+        return False
+    try:
+        _ensure_cache_dir()
+        cache_path.write_bytes(cover_data)
+    except OSError as e:
+        logger.warning("Failed to cache cover for physical %s: %s", comic_pk, e)
+        return False
+    return True
+
+
 def invalidate_comic_cover(comic_pk) -> None:
     """Remove cached cover for a comic (e.g. after re-scrape or file change)."""
     cache_path = COVER_CACHE_DIR / f"{comic_pk}.jpg"

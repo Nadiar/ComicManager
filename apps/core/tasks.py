@@ -360,7 +360,6 @@ def scrape_all_task(self):
     comic_ids = list(
         Comic.objects.filter(
             state=Comic.STATE_IMPORTED,
-            medium=Comic.MEDIUM_DIGITAL,
         ).exclude(
             flags__scrape_skipped=True,
         ).values_list("pk", flat=True)

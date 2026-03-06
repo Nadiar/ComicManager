@@ -356,6 +356,11 @@ def apply_cv_match(comic, match, scraper=None):
     comic.state = Comic.STATE_COUNTED
     comic.save()
 
+    # For physical comics, cache the CV cover image (no CBZ to insert into)
+    if comic.is_physical and match.cover_url:
+        from apps.core.cover_cache import cache_physical_cover
+        cache_physical_cover(comic.pk, match.cover_url)
+
     if match.issue_count and match.volume_id:
         _update_volume_issue_count(str(match.volume_id), match.issue_count, exclude_pk=comic.pk)
 
@@ -454,6 +459,15 @@ def apply_inducks_match(comic, match):
 
     comic.state = Comic.STATE_COUNTED
     comic.save()
+
+    # For physical comics, cache the Inducks cover image (no CBZ to insert into)
+    if comic.is_physical and getattr(match, "cover_url", None):
+        from apps.core.cover_cache import get_inducks_cover, invalidate_comic_cover, COVER_CACHE_DIR, _ensure_cache_dir
+        cover_data = get_inducks_cover(match.issuecode or "unknown", match.cover_url)
+        if cover_data:
+            invalidate_comic_cover(comic.pk)
+            _ensure_cache_dir()
+            (COVER_CACHE_DIR / f"{comic.pk}.jpg").write_bytes(cover_data)
 
 
 def _update_volume_issue_count(volume_id: str, new_count: int, exclude_pk=None):

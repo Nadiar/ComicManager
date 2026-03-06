@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Import Physical Comics — ComicManager{% endblock %}
+{% block nav_physical %}active{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+  <div class="flex items-center gap-4">
+    <h1 class="text-2xl font-bold">Import Physical Comics from CSV</h1>
+    <a href="{% url 'physical:add' %}" class="btn btn-outline btn-sm">Add Single</a>
+    <a href="/comics/?medium=physical" class="btn btn-ghost btn-sm ml-auto">Back to Physical Comics</a>
+  </div>
+
+  <div class="alert alert-info">
+    <div>
+      <p class="font-semibold">CSV Format</p>
+      <p class="text-sm mt-1">Required column: <code>series</code>. Optional columns: <code>number, volume, year, publisher, format, title, notes</code></p>
+      <p class="text-sm mt-1">First row must be a header row. UTF-8 encoding (BOM optional).</p>
+    </div>
+  </div>
+
+  <div class="collapse collapse-arrow bg-base-200">
+    <input type="checkbox" />
+    <div class="collapse-title font-medium">Example CSV</div>
+    <div class="collapse-content">
+      <pre class="text-xs bg-base-300 p-3 rounded-lg overflow-x-auto mt-2">series,number,volume,year,publisher,format
+Amazing Spider-Man,300,1963,1988,Marvel Comics,Main Series
+Batman,497,1940,1993,DC Comics,Main Series
+Watchmen,1,1986,1986,DC Comics,Limited Series</pre>
+    </div>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="card bg-base-200 shadow">
+    {% csrf_token %}
+    <div class="card-body space-y-4">
+      <div class="form-control">
+        <label class="label"><span class="label-text">CSV File</span></label>
+        <input type="file" name="csv_file" accept=".csv,.txt" class="file-input file-input-bordered" required>
+      </div>
+      <div class="card-actions justify-end">
+        <a href="/comics/?medium=physical" class="btn btn-ghost">Cancel</a>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

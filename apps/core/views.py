@@ -326,6 +326,13 @@ def comic_detail(request, pk):
     inducks_country_codes_str = get_setting("inducks_country_codes", "dk,de,nl,se,no,fi,us,it,fr,br")
     inducks_country_codes = [c.strip() for c in inducks_country_codes_str.split(",") if c.strip()]
 
+    # Cover availability: digital with file, or any comic with a cached cover image
+    from .cover_cache import COVER_CACHE_DIR
+    has_cover = (
+        (comic.is_digital and bool(comic.file_path))
+        or (COVER_CACHE_DIR / f"{comic.pk}.jpg").exists()
+    )
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
         "xml_data": xml_data,
@@ -337,6 +344,7 @@ def comic_detail(request, pk):
         "inducks_enabled": inducks_enabled,
         "inducks_country_lock": inducks_country_lock,
         "inducks_country_codes": inducks_country_codes,
+        "has_cover": has_cover,
     })
 
 
@@ -931,14 +939,12 @@ def comic_cover(request, pk):
     """
     Serve the cover image of a comic file.
 
-    Returns JPEG image data from the cover cache (extracting from CBZ on first request).
+    For digital comics: extracts from CBZ on first request and caches.
+    For physical comics: serves from cache (populated after scraping or manual upload).
     """
     from .cover_cache import get_comic_cover
 
     comic = get_object_or_404(Comic, pk=pk)
-
-    if not comic.file_path:
-        return HttpResponse(status=404)
 
     cover_data = get_comic_cover(comic)
     if not cover_data:
@@ -947,6 +953,40 @@ def comic_cover(request, pk):
     response = HttpResponse(cover_data, content_type="image/jpeg")
     response["Cache-Control"] = "public, max-age=86400"
     return response
+
+
+@require_POST
+def upload_cover(request, pk):
+    """Upload a cover image for a physical comic, stored in the cover cache."""
+    import io as _io
+    from PIL import Image
+    from .cover_cache import COVER_CACHE_DIR, _ensure_cache_dir, invalidate_comic_cover
+
+    comic = get_object_or_404(Comic, pk=pk)
+
+    cover_file = request.FILES.get("cover")
+    if not cover_file:
+        return JsonResponse({"success": False, "error": "No file uploaded"}, status=400)
+
+    allowed_types = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp"}
+    if cover_file.content_type not in allowed_types:
+        return JsonResponse({"success": False, "error": "Invalid file type"}, status=400)
+
+    try:
+        img = Image.open(cover_file)
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        output = _io.BytesIO()
+        img.save(output, format="JPEG", quality=85)
+        cover_data = output.getvalue()
+    except Exception as e:
+        return JsonResponse({"success": False, "error": f"Failed to process image: {e}"}, status=400)
+
+    invalidate_comic_cover(comic.pk)
+    _ensure_cache_dir()
+    (COVER_CACHE_DIR / f"{comic.pk}.jpg").write_bytes(cover_data)
+
+    return JsonResponse({"success": True, "message": "Cover uploaded successfully"})
 
 
 def comic_page(request, pk, page_num):
@@ -1316,7 +1356,7 @@ def scrape_all_comics(request):
     if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
         return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
-    total = Comic.objects.filter(state=Comic.STATE_IMPORTED, medium=Comic.MEDIUM_DIGITAL).count()
+    total = Comic.objects.filter(state=Comic.STATE_IMPORTED).count()
     result = scrape_all_task.delay()
     request.session["active_task_id"] = result.id
     request.session["active_task_label"] = "Scraping comics"
@@ -2323,12 +2363,6 @@ def force_scrape(request, pk):
     Uses the stored comicvine_issue ID if available, otherwise tries matching.
     """
     comic = get_object_or_404(Comic, pk=pk)
-
-    if not comic.is_digital:
-        return JsonResponse({
-            "success": False,
-            "error": "Cannot scrape physical comics"
-        }, status=400)
 
     from apps.scraper.cv_sources import is_cv_db_available
 

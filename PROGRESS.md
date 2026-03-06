@@ -17,8 +17,8 @@
 - [x] [P1.8] Implement logic to identify files with `page_count <= 3` and "cover" in the filename (case-insensitive) and flag for deletion.
 - [x] [P1.9] Implement Celery batch action for `Convert CBR/CB7` and ensure it handles conversion to CBZ via `p7zip`.
 - [-] [P1.10] (Cancelled) Integrate file conversion into the import pipeline, triggering automatically for non-CBZ files.
-- [ ] [P1.11] Implement a manual entry form (Django admin or a custom UI) to add physical comic records (`medium=physical`, no file).
-- [ ] [P1.12] Research and implement bulk import functionality for physical comics from CSV/spreadsheet.
+- [x] [P1.11] Implement a manual entry form (Django admin or a custom UI) to add physical comic records (`medium=physical`, no file). Form at `/physical/add/` creates Comic with `medium=physical, state=imported`. Redirects to comic detail on success.
+- [x] [P1.12] Research and implement bulk import functionality for physical comics from CSV/spreadsheet. CSV upload at `/physical/import/` with columns: series (required), number, volume, year, publisher, format, title, notes. UTF-8 with BOM support.
 - [-] [P1.13] (Cancelled) Implement explicit "Commit Proposed Values" action/UI for parsed filename data.
 - [-] [P1.14] (Cancelled) Implement a "Remove and Rescan" workflow for comics with missing names, involving deleting the comic record and potentially re-triggering the scan on the original folder.
 - [-] [P1.15] (Cancelled) Implement specific cleanup actions: "Remove Leading Numbers" from titles.
@@ -42,11 +42,11 @@
 - [x] [P2.7] Implement mechanism to mark comics for later scraping (`skipped` flag or `CVDBSKIP`). `scrape_skipped` flag added — toggled via comic detail Actions menu. Batch scrape excludes flagged comics. Appears in dashboard Review Queue.
 - [x] [P2.8] Implement rescrape logic for comics with `CVDB` note (or error flags) but missing `comicvine_issue`.
     *   *Analysis:* Existing `scrape_all` task already clears error flags and retries comics in the `IMPORTED` state. Individual re-scrape is available via UI.
-- [ ] [P2.9] Implement metadata-only matching for physical comics, leveraging the same queue system but bypassing hash-based matching.
+- [x] [P2.9] Implement metadata-only matching for physical comics. Physical comics use the same scrape modal (hash matching skipped automatically when no file_path). After CV match, cover image is downloaded and cached at `cover_cache/{pk}.jpg`. Same for Inducks. Batch `scrape_all` now includes physical comics. `force_scrape` no longer blocks physical.
 - [x] [P2.10] Confirmed all ComicVine fields are stored correctly and `scrape_source` is recorded.
 - [x] [P2.11] Confirmed `Comic.state` is updated to `counted` (as `scraped` state was removed).
 - [-] [P2.12] (Cancelled) Scraping TPBs/Director's Cuts first is unnecessary — format detection (P5.12) handles mis-tagging prevention; pipeline order does not matter.
-- [ ] [P2.13] Implement metadata-only matching for physical comics.
+- [x] [P2.13] Implement metadata-only matching for physical comics. (See P2.9.)
 
 ### Phase 3: Issue Count (Comicrack_guide 04 - Add Count)
 

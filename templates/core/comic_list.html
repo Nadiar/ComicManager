@@ -174,6 +174,10 @@
     </div>
     <div class="flex items-center gap-2">
       <span class="badge badge-neutral">{{ total_count }} total</span>
+      {% if current_medium == 'physical' %}
+      <a href="{% url 'physical:import_csv' %}" class="btn btn-sm btn-outline">CSV Import</a>
+      <a href="{% url 'physical:add' %}" class="btn btn-sm btn-primary">+ Add Physical</a>
+      {% endif %}
       {% if current_state == 'new' and comics %}
       <button
         type="button"

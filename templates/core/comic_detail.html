@@ -7,9 +7,13 @@
   <!-- Header -->
   <div class="flex justify-between items-start">
     <div class="flex gap-5 items-start">
-      {% if comic.is_digital and comic.file_path %}
+      {% if has_cover %}
       <div class="flex-shrink-0 cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/cover/', 'Cover')">
         <img src="/comics/{{ comic.pk }}/cover/" alt="Cover" class="w-32 h-auto rounded-lg shadow-lg hover:ring-2 hover:ring-primary transition-all" />
+      </div>
+      {% elif comic.is_physical %}
+      <div class="flex-shrink-0 w-32 h-44 rounded-lg bg-base-300 flex items-center justify-center text-base-content/30 text-xs text-center cursor-pointer" onclick="document.getElementById('upload-cover-modal').showModal()">
+        <span>No Cover<br>Click to Upload</span>
       </div>
       {% endif %}
       <div>
@@ -39,7 +43,6 @@
         </div>
         <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-10 w-52 p-2 shadow-lg border border-base-300">
           <li class="menu-title"><span>Workflow Actions</span></li>
-          {% if comic.is_digital %}
           <li>
             <button onclick="openScrapeModal()">
               <span class="badge badge-xs badge-secondary">1</span> Re-scrape
@@ -50,7 +53,6 @@
               {% if comic.flags.scrape_skipped %}Un-skip Scraping{% else %}Skip Scraping{% endif %}
             </button>
           </li>
-          {% endif %}
           <li>
             <button onclick="runAction('tag')" id="action-tag">
               <span class="badge badge-xs badge-accent">2</span> Re-tag
@@ -81,7 +83,7 @@
             </button>
           </li>
           {% endif %}
-          {% if comic.custom_values.scrape_source != "inducks" %}
+          {% if comic.is_digital and comic.custom_values.scrape_source != "inducks" %}
           <li>
             <button onclick="runAction('refresh-credits')" id="action-refresh-credits">
               Refresh Credits from CV
@@ -95,6 +97,13 @@
           <li>
             <button onclick="openCvCompareModal()" id="action-cv-compare">
               Compare All Sources
+            </button>
+          </li>
+          {% endif %}
+          {% if comic.is_physical %}
+          <li>
+            <button onclick="document.getElementById('upload-cover-modal').showModal()">
+              Upload Cover
             </button>
           </li>
           {% endif %}
@@ -741,6 +750,30 @@
     <button>close</button>
   </form>
 </dialog>
+
+{% if comic.is_physical %}
+<!-- Upload Cover Modal -->
+<dialog id="upload-cover-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-sm">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&#x2715;</button>
+    </form>
+    <h3 class="font-bold text-lg mb-4">Upload Cover Image</h3>
+    <div id="upload-cover-error" class="alert alert-error hidden mb-3">
+      <span id="upload-cover-error-text"></span>
+    </div>
+    <div class="space-y-3">
+      <input type="file" id="upload-cover-file" accept="image/*" class="file-input file-input-bordered w-full" />
+      <p class="text-xs text-base-content/50">JPEG, PNG, GIF, or WebP. Will be converted to JPEG.</p>
+    </div>
+    <div class="modal-action">
+      <button type="button" class="btn btn-primary" onclick="uploadCover()">Upload</button>
+      <form method="dialog"><button class="btn btn-ghost">Cancel</button></form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endif %}
 
 <!-- Page Manager Modal -->
 <dialog id="page-manager-modal" class="modal">
@@ -1692,6 +1725,43 @@ function openImageModal(src, caption) {
   img.src = src;
   cap.textContent = caption;
   modal.showModal();
+}
+
+async function uploadCover() {
+  const fileInput = document.getElementById('upload-cover-file');
+  const errorDiv = document.getElementById('upload-cover-error');
+  const errorText = document.getElementById('upload-cover-error-text');
+
+  if (!fileInput.files.length) {
+    errorDiv.classList.remove('hidden');
+    errorText.textContent = 'Please select a file.';
+    return;
+  }
+
+  errorDiv.classList.add('hidden');
+
+  const formData = new FormData();
+  formData.append('cover', fileInput.files[0]);
+
+  try {
+    const response = await fetch(`/comics/${comicPk}/upload-cover/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+      body: formData,
+    });
+    const data = await response.json();
+    if (data.success) {
+      document.getElementById('upload-cover-modal').close();
+      if (window.showQuickToast) window.showQuickToast('Cover uploaded successfully.');
+      setTimeout(() => location.reload(), 800);
+    } else {
+      errorDiv.classList.remove('hidden');
+      errorText.textContent = data.error || 'Upload failed.';
+    }
+  } catch (e) {
+    errorDiv.classList.remove('hidden');
+    errorText.textContent = 'Network error: ' + e.message;
+  }
 }
 
 // ── Page Manager ──────────────────────────────────────────────────────────────
