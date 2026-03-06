@@ -3163,3 +3163,42 @@ def audit_metadata_mismatches(request):
     request.session["active_task_id"] = result.id
     request.session["active_task_label"] = "Auditing metadata"
     return JsonResponse({"success": True, "task_id": result.id, "message": "Auditing metadata mismatches in background"})
+
+
+def comic_download(request, pk):
+    """Serve the comic CBZ file as a download attachment."""
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return HttpResponse("No file available", status=404)
+
+    file_path = Path(comic.file_path)
+    if not file_path.exists():
+        return HttpResponse("File not found on disk", status=404)
+
+    import mimetypes
+    from django.http import FileResponse
+
+    mime_type, _ = mimetypes.guess_type(str(file_path))
+    if not mime_type:
+        mime_type = "application/octet-stream"
+
+    response = FileResponse(open(file_path, "rb"), content_type=mime_type)
+    response["Content-Disposition"] = f'attachment; filename="{file_path.name}"'
+    return response
+
+
+def comic_reader(request, pk):
+    """Full-page browser reader for a digital comic."""
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if not comic.is_digital or not comic.file_path:
+        return HttpResponse("No digital file available for this comic.", status=404)
+
+    page_count = comic.page_count or 0
+
+    return render(request, "core/comic_reader.html", {
+        "comic": comic,
+        "page_count": page_count,
+        "page_range": range(page_count),
+    })

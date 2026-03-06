@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}{{ comic.series }} #{{ comic.number }} — Reader{% endblock %}
+{% block nav_comics %}active{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-[calc(100vh-4rem)]">
+  <!-- Reader toolbar -->
+  <div class="flex items-center gap-3 px-4 py-2 bg-base-200 border-b border-base-300 flex-shrink-0">
+    <a href="{% url 'core:detail' comic.pk %}" class="btn btn-ghost btn-sm">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+      </svg>
+      Back
+    </a>
+    <span class="text-sm font-medium truncate flex-1">{{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}{% if comic.title %} — {{ comic.title }}{% endif %}</span>
+    <div class="flex items-center gap-2">
+      <button onclick="prevPage()" class="btn btn-ghost btn-sm" id="btn-prev" title="Previous page (←)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
+      <span class="text-sm tabular-nums">
+        <span id="page-num">1</span> / <span id="page-total">{{ page_count }}</span>
+      </span>
+      <button onclick="nextPage()" class="btn btn-ghost btn-sm" id="btn-next" title="Next page (→)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+    </div>
+    <div class="flex items-center gap-1">
+      <button onclick="zoomOut()" class="btn btn-ghost btn-sm" title="Zoom out (-)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+        </svg>
+      </button>
+      <span class="text-sm tabular-nums w-12 text-center" id="zoom-label">100%</span>
+      <button onclick="zoomIn()" class="btn btn-ghost btn-sm" title="Zoom in (+)">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+      </button>
+      <button onclick="resetZoom()" class="btn btn-ghost btn-sm text-xs" title="Reset zoom (0)">Fit</button>
+    </div>
+  </div>
+
+  <!-- Page viewer -->
+  <div class="flex-1 overflow-hidden bg-base-300 relative" id="viewer-container"
+       style="cursor: grab;">
+    <div id="pan-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
+      <div id="transform-layer" style="transform-origin: center center;">
+        <img id="page-img"
+             src="/comics/{{ comic.pk }}/page/0/"
+             alt="Page 1"
+             style="max-width: none; display: block; user-select: none;"
+             draggable="false"
+             onload="onImageLoad()" />
+      </div>
+    </div>
+    <div id="loading-indicator" class="absolute inset-0 flex items-center justify-center pointer-events-none" style="display:none!important">
+      <span class="loading loading-spinner loading-lg"></span>
+    </div>
+  </div>
+
+  <!-- Page strip (thumbnails) -->
+  <div class="flex-shrink-0 bg-base-200 border-t border-base-300 overflow-x-auto" style="height: 72px;">
+    <div class="flex gap-1 p-1 h-full items-center" id="thumb-strip">
+      {% for i in page_range %}
+      <button class="flex-shrink-0 thumb-btn {% if i == 0 %}ring-2 ring-primary{% endif %}"
+              data-page="{{ i }}"
+              onclick="goToPage({{ i }})"
+              title="Page {{ i|add:1 }}">
+        <img src="/comics/{{ comic.pk }}/page/{{ i }}/"
+             alt="Page {{ i|add:1 }}"
+             class="h-14 w-auto rounded object-contain bg-base-300"
+             loading="lazy" />
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<script>
+const PAGE_COUNT = {{ page_count }};
+const COMIC_PK = "{{ comic.pk }}";
+let currentPage = 0;
+let scale = 1.0;
+let fitScale = 1.0;
+
+// Pan state
+let isPanning = false;
+let panStartX = 0, panStartY = 0;
+let translateX = 0, translateY = 0;
+
+const img = document.getElementById("page-img");
+const transformLayer = document.getElementById("transform-layer");
+const panLayer = document.getElementById("pan-layer");
+const container = document.getElementById("viewer-container");
+const zoomLabel = document.getElementById("zoom-label");
+const pageNumEl = document.getElementById("page-num");
+
+function applyTransform() {
+  transformLayer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+  zoomLabel.textContent = Math.round(scale / fitScale * 100) + "%";
+}
+
+function onImageLoad() {
+  computeFitScale();
+  scale = fitScale;
+  translateX = 0;
+  translateY = 0;
+  applyTransform();
+  document.getElementById("loading-indicator").style.display = "none";
+}
+
+function computeFitScale() {
+  const containerW = container.clientWidth;
+  const containerH = container.clientHeight;
+  const imgW = img.naturalWidth || img.width || 800;
+  const imgH = img.naturalHeight || img.height || 1200;
+  fitScale = Math.min(containerW / imgW, containerH / imgH, 1.0);
+  img.style.width = imgW + "px";
+  img.style.height = imgH + "px";
+}
+
+function goToPage(n) {
+  if (n < 0 || n >= PAGE_COUNT) return;
+  currentPage = n;
+  pageNumEl.textContent = n + 1;
+
+  document.getElementById("loading-indicator").style.display = "";
+  img.src = `/comics/${COMIC_PK}/page/${n}/`;
+  img.alt = `Page ${n + 1}`;
+
+  // Reset pan, recalculate fit
+  translateX = 0;
+  translateY = 0;
+  scale = fitScale;
+  applyTransform();
+
+  // Update thumbnail highlights
+  document.querySelectorAll(".thumb-btn").forEach(btn => {
+    btn.classList.toggle("ring-2", parseInt(btn.dataset.page) === n);
+    btn.classList.toggle("ring-primary", parseInt(btn.dataset.page) === n);
+  });
+
+  // Scroll thumb into view
+  const thumb = document.querySelector(`.thumb-btn[data-page="${n}"]`);
+  if (thumb) thumb.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+}
+
+function prevPage() { goToPage(currentPage - 1); }
+function nextPage() { goToPage(currentPage + 1); }
+
+function zoomIn()  { scale = Math.min(scale * 1.25, fitScale * 8); applyTransform(); }
+function zoomOut() { scale = Math.max(scale / 1.25, fitScale * 0.25); applyTransform(); }
+function resetZoom() { scale = fitScale; translateX = 0; translateY = 0; applyTransform(); }
+
+// Keyboard navigation
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); nextPage(); }
+  else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prevPage(); }
+  else if (e.key === "+") zoomIn();
+  else if (e.key === "-") zoomOut();
+  else if (e.key === "0") resetZoom();
+});
+
+// Mouse wheel: scroll to pan, Ctrl+wheel to zoom
+container.addEventListener("wheel", e => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    if (e.deltaY < 0) zoomIn();
+    else zoomOut();
+  } else {
+    translateY -= e.deltaY;
+    translateX -= e.deltaX;
+    applyTransform();
+  }
+}, { passive: false });
+
+// Pan (click + drag)
+container.addEventListener("mousedown", e => {
+  if (e.button !== 0) return;
+  isPanning = true;
+  panStartX = e.clientX - translateX;
+  panStartY = e.clientY - translateY;
+  container.style.cursor = "grabbing";
+});
+document.addEventListener("mousemove", e => {
+  if (!isPanning) return;
+  translateX = e.clientX - panStartX;
+  translateY = e.clientY - panStartY;
+  applyTransform();
+});
+document.addEventListener("mouseup", () => {
+  isPanning = false;
+  container.style.cursor = "grab";
+});
+
+// Touch support (pinch-to-zoom + pan)
+let lastTouchDist = null;
+let lastTouchMid = null;
+
+container.addEventListener("touchstart", e => {
+  if (e.touches.length === 1) {
+    isPanning = true;
+    panStartX = e.touches[0].clientX - translateX;
+    panStartY = e.touches[0].clientY - translateY;
+  } else if (e.touches.length === 2) {
+    isPanning = false;
+    lastTouchDist = getTouchDist(e.touches);
+    lastTouchMid = getTouchMid(e.touches);
+  }
+}, { passive: true });
+
+container.addEventListener("touchmove", e => {
+  e.preventDefault();
+  if (e.touches.length === 1 && isPanning) {
+    translateX = e.touches[0].clientX - panStartX;
+    translateY = e.touches[0].clientY - panStartY;
+    applyTransform();
+  } else if (e.touches.length === 2 && lastTouchDist) {
+    const dist = getTouchDist(e.touches);
+    scale = Math.min(Math.max(scale * (dist / lastTouchDist), fitScale * 0.25), fitScale * 8);
+    lastTouchDist = dist;
+    applyTransform();
+  }
+}, { passive: false });
+
+container.addEventListener("touchend", e => {
+  if (e.touches.length === 0) { isPanning = false; lastTouchDist = null; }
+});
+
+function getTouchDist(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+function getTouchMid(touches) {
+  return {
+    x: (touches[0].clientX + touches[1].clientX) / 2,
+    y: (touches[0].clientY + touches[1].clientY) / 2,
+  };
+}
+
+// Initialize fit on page load
+window.addEventListener("resize", () => { computeFitScale(); scale = fitScale; translateX = 0; translateY = 0; applyTransform(); });
+
+// If image already cached and loaded before onload fires
+if (img.complete && img.naturalWidth) onImageLoad();
+</script>
+{% endblock %}
