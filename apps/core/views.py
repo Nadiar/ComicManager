@@ -3152,7 +3152,7 @@ def character_audit_search(request):
     """
     Search for series by main character/team and show completion status for each.
     """
-    from apps.dashboard.services import get_volume_completion
+    from apps.dashboard.services import get_volume_completion_bulk
     from apps.scraper.cv_sources import get_cv_source_status
 
     cv_status = get_cv_source_status()
@@ -3162,24 +3162,17 @@ def character_audit_search(request):
     volumes_data = []
 
     if query and audit_available:
-        # Get all unique volume IDs for comics matching this character/team
-        comics_matching = Comic.objects.filter(
-            main_character_or_team__iexact=query
-        ).exclude(
-            custom_values__comicvine_volume__isnull=True
-        ).exclude(
-            custom_values__comicvine_volume=""
+        volume_ids = list(
+            Comic.objects.filter(
+                main_character_or_team__iexact=query
+            ).exclude(
+                custom_values__comicvine_volume__isnull=True
+            ).exclude(
+                custom_values__comicvine_volume=""
+            ).values_list("custom_values__comicvine_volume", flat=True).distinct()
         )
-        
-        volume_ids = list(comics_matching.values_list("custom_values__comicvine_volume", flat=True).distinct())
-        
-        for vid in volume_ids:
-            if vid:
-                data = get_volume_completion(vid)
-                if data and not data.get("unavailable"):
-                    volumes_data.append(data)
 
-        # Sort by completion (asc) then name
+        volumes_data = get_volume_completion_bulk(volume_ids)
         volumes_data.sort(key=lambda x: (x["completion"], x["volume_info"]["name"]))
 
     return render(request, "core/character_audit_search.html", {

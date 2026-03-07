@@ -269,6 +269,150 @@ def get_volume_completion(cv_volume_id):
     }
 
 
+def get_volume_completion_bulk(volume_ids: list) -> list[dict]:
+    """
+    Batch variant of get_volume_completion for multiple volume IDs.
+
+    Opens a single SQLite connection and fetches all volumes, issues, and
+    covers in three queries instead of N*3. Does one PostgreSQL query for
+    all owned comics across all volumes.
+
+    Returns a list of completion dicts in the same shape as
+    get_volume_completion(), one per volume found in the DB.
+    Volumes not found in the DB are silently omitted.
+    """
+    from apps.scraper.cv_sources import is_cv_db_available, is_mcl_available, get_volume_completion_from_mcl
+
+    volume_ids = [v for v in volume_ids if v]
+    if not volume_ids:
+        return []
+
+    if not is_cv_db_available():
+        if is_mcl_available():
+            results = []
+            for vid in volume_ids:
+                data = get_volume_completion_from_mcl(vid)
+                if data and not data.get("unavailable"):
+                    results.append(data)
+            return results
+        return []
+
+    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
+    except Exception:
+        return []
+
+    try:
+        cursor = conn.cursor()
+        int_ids = [int(v) for v in volume_ids]
+        placeholders = ",".join("?" * len(int_ids))
+
+        # 1. All volume info in one query
+        cursor.execute(f"""
+            SELECT v.id, v.name, v.start_year, v.count_of_issues, p.name
+            FROM cv_volume v
+            LEFT JOIN cv_publisher p ON v.publisher_id = p.id
+            WHERE v.id IN ({placeholders})
+        """, int_ids)
+        volume_info_map = {
+            row[0]: {"name": row[1], "start_year": row[2], "count_of_issues": row[3], "publisher": row[4]}
+            for row in cursor.fetchall()
+        }
+
+        # 2. All issues for all volumes in one query
+        cursor.execute(f"""
+            SELECT id, volume_id, issue_number, name, cover_date, image_url, site_detail_url
+            FROM cv_issue
+            WHERE volume_id IN ({placeholders})
+            ORDER BY volume_id,
+                CASE WHEN issue_number GLOB '[0-9]*'
+                     THEN CAST(issue_number AS INTEGER)
+                     ELSE 999999 END,
+                issue_number
+        """, int_ids)
+        issues_by_volume = {}
+        all_issue_ids = []
+        for row in cursor.fetchall():
+            vol_id = row[1]
+            issues_by_volume.setdefault(vol_id, []).append({
+                "issue_id": row[0],
+                "issue_number": row[2],
+                "title": row[3],
+                "cover_date": row[4],
+                "image_url": row[5],
+                "site_detail_url": row[6],
+            })
+            all_issue_ids.append(row[0])
+
+        # 3. All covers in chunks of 500 (SQLite variable limit safety)
+        cover_by_issue = {}
+        for i in range(0, len(all_issue_ids), 500):
+            chunk = all_issue_ids[i:i + 500]
+            cp = ",".join("?" * len(chunk))
+            cursor.execute(f"""
+                SELECT cvid, cv_url FROM comic_covers
+                WHERE cvid IN ({cp}) AND cv_url IS NOT NULL
+                ORDER BY
+                    CASE WHEN cv_url LIKE '%/0/4/%' THEN 0 ELSE 1 END,
+                    id ASC
+            """, chunk)
+            for row in cursor.fetchall():
+                if row[0] not in cover_by_issue:
+                    cover_by_issue[row[0]] = row[1]
+    finally:
+        conn.close()
+
+    # 4. One PostgreSQL query for owned comics across all volumes
+    vol_id_strs = [str(v) for v in int_ids]
+    owned_comics = Comic.objects.filter(
+        custom_values__comicvine_volume__in=vol_id_strs
+    ).values("pk", "custom_values")
+
+    owned_by_volume = {}
+    for comic in owned_comics:
+        vol_id = comic["custom_values"].get("comicvine_volume")
+        issue_id = comic["custom_values"].get("comicvine_issue")
+        if vol_id and issue_id:
+            owned_by_volume.setdefault(vol_id, {})[int(issue_id)] = comic["pk"]
+
+    # 5. Build per-volume result dicts
+    results = []
+    for vol_id in int_ids:
+        if vol_id not in volume_info_map:
+            continue
+        issues = issues_by_volume.get(vol_id, [])
+        for issue in issues:
+            issue["cover_url"] = cover_by_issue.get(issue["issue_id"]) or issue.get("image_url")
+
+        owned_cv_issue_ids = owned_by_volume.get(str(vol_id), {})
+        owned_issues, missing_issues = [], []
+        for issue in issues:
+            comic_pk = owned_cv_issue_ids.get(issue["issue_id"])
+            if comic_pk:
+                issue["comic_pk"] = comic_pk
+                owned_issues.append(issue)
+            else:
+                missing_issues.append(issue)
+
+        total = len(issues)
+        owned_count = len(owned_issues)
+        results.append({
+            "volume_id": vol_id,
+            "volume_info": volume_info_map[vol_id],
+            "all_issues": issues,
+            "owned_issues": owned_issues,
+            "missing_issues": missing_issues,
+            "owned_cv_ids": owned_cv_issue_ids,
+            "total_count": total,
+            "owned_count": owned_count,
+            "missing_count": total - owned_count,
+            "completion": round((owned_count / total * 100), 1) if total > 0 else 0,
+        })
+
+    return results
+
+
 def get_missing_issues(smart_list):
     """
     Compare library holdings against a ComicVine volume to find missing issues.
