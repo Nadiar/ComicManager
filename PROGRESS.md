@@ -164,10 +164,10 @@
 - [-] [SL.P1.2] (Superseded) PDF Files — already surfaced via `is_pdf` flag in the dashboard Review Queue.
 - [-] [SL.P1.3] (Superseded) Unparseable Filename — already surfaced via `missing_series` flag in the dashboard Review Queue.
 - [-] [SL.P1.4] (Superseded) Standalone Covers — already surfaced via `standalone_cover` flag in the dashboard Review Queue.
-- [ ] [SL.P5.1] **Phase 5 Smart Lists:** Format Mismatches (same `comicvine_volume`, different `format`)
-- [ ] [SL.P5.2] **Phase 5 Smart Lists:** CV Volume Conflicts (same Series+Volume+Format, different `comicvine_volume`)
-- [ ] [SL.P5.3] **Phase 5 Smart Lists:** Missing Format (`format` is null)
-- [ ] [SL.P5.4] **Phase 5 Smart Lists:** Format Upgrades Needed (`count` increased, `format` should change)
+- [-] [SL.P5.1] (Superseded) Format Mismatches — surfaced via `format_mismatch_in_volume` flag in the dashboard Review Queue (P5.7).
+- [-] [SL.P5.2] (Superseded) CV Volume Conflicts — surfaced via `cv_volume_conflict` flag in the dashboard Review Queue (P5.8).
+- [-] [SL.P5.3] (Superseded) Missing Format — surfaced via `missing_format` flag in the dashboard Review Queue (P5.9).
+- [-] [SL.P5.4] (Superseded) Format Upgrades Needed — surfaced via `needs_reformat` field in the dashboard Review Queue (P5.10).
 - [ ] [SL.P6.1] **Phase 6 Smart Lists:** Duplicates by CV Issue (digital only)
 - [ ] [SL.P6.2] **Phase 6 Smart Lists:** Duplicates by Series+Number+Volume
 - [ ] [SL.P6.3] **Phase 6 Smart Lists:** Duplicates by pHash similarity
