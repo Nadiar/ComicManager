@@ -141,9 +141,33 @@ def index(request):
             "count": Comic.objects.filter(flags__unknown_publisher=True).count(),
             "action": "review",
         },
+        {
+            "flag": "format_mismatch_in_volume",
+            "label": "Format Mismatch in Volume",
+            "description": "Comics linked to the same CV volume have conflicting formats",
+            "count": Comic.objects.filter(flags__format_mismatch_in_volume=True).count(),
+            "action": "detect_format_conflicts",
+        },
+        {
+            "flag": "cv_volume_conflict",
+            "label": "CV Volume Conflict",
+            "description": "Comics with the same Series+Volume+Format are linked to different CV volumes",
+            "count": Comic.objects.filter(flags__cv_volume_conflict=True).count(),
+            "action": "detect_format_conflicts",
+        },
+        {
+            "flag": "needs_reformat",
+            "link": "/comics/format/",
+            "label": "Format Upgrade Needed",
+            "description": "Issue count changed — format should be upgraded (e.g. One-Shot to Limited Series)",
+            "count": Comic.objects.filter(needs_reformat=True).count(),
+            "action": "reformat",
+        },
     ]
 
     flagged_count = Comic.objects.exclude(flags={}).count()
+    needs_reformat_count = Comic.objects.filter(needs_reformat=True).count()
+    total_review_count = flagged_count + needs_reformat_count
 
     # Needs-reorganize queue
     needs_reorganize_count = Comic.objects.filter(needs_reorganize=True).count()
@@ -180,7 +204,7 @@ def index(request):
         "stats": stats,
         "pipeline": pipeline,
         "review_queue": review_queue,
-        "flagged_count": flagged_count,
+        "flagged_count": total_review_count,
         "needs_reorganize_count": needs_reorganize_count,
         "stale_count": stale_count,
         "dashboard_smartlists": dashboard_smartlists,

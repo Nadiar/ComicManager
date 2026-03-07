@@ -45,6 +45,8 @@ FLAG_LABELS = {
     "scrape_error": "Scrape: Error",
     "scrape_skipped": "Scrape: Skipped",
     "unknown_publisher": "Unknown Publisher",
+    "format_mismatch_in_volume": "Format Mismatch in Volume",
+    "cv_volume_conflict": "CV Volume Conflict",
 }
 
 # Workflow states in order (for navigation)
@@ -183,6 +185,10 @@ def comic_list(request):
     if flag:
         # JSONField lookup: flags__<flag_name>=True
         comics = comics.filter(**{f"flags__{flag}": True})
+
+    needs_reformat = request.GET.get("needs_reformat")
+    if needs_reformat:
+        comics = comics.filter(needs_reformat=True)
 
     # Annotate for natural number sorting (1, 2, 10 instead of 1, 10, 2)
     comics = comics.annotate(number_sort_key=natural_number_annotation())
@@ -1510,7 +1516,7 @@ def _detect_count_mismatches():
         if len(counts) > 1:
             mismatched_volumes += 1
             for comic in comics_in_vol:
-                if not comic.has_flag("count_mismatch"):
+                if not comic.has_flag("count_mismatch") and not comic.is_flag_accepted("count_mismatch"):
                     comic.add_flag("count_mismatch")
                     comic.save()
                     flagged += 1
@@ -1526,6 +1532,288 @@ def _detect_count_mismatches():
         "flagged": flagged,
         "cleared": cleared,
     }
+
+
+def _detect_format_conflicts():
+    """
+    Detect two types of format conflicts:
+
+    P5.7 — format_mismatch_in_volume:
+        Comics linked to the same CV volume but with different format values.
+
+    P5.8 — cv_volume_conflict:
+        Comics with the same (series, volume, format) but linked to different CV volumes.
+
+    Respects accepted_flags — skips setting a flag if the comic has already accepted it.
+    """
+    # P5.7: group by comicvine_volume, look for multiple distinct formats
+    comics_with_vol_and_fmt = list(
+        Comic.objects.exclude(
+            custom_values__comicvine_volume__isnull=True,
+        ).exclude(
+            custom_values__comicvine_volume="",
+        ).exclude(
+            format__isnull=True,
+        ).exclude(
+            format="",
+        )
+    )
+
+    volume_formats = {}
+    for comic in comics_with_vol_and_fmt:
+        vid = comic.custom_values.get("comicvine_volume")
+        if not vid:
+            continue
+        if vid not in volume_formats:
+            volume_formats[vid] = []
+        volume_formats[vid].append(comic)
+
+    flagged_57 = 0
+    cleared_57 = 0
+    conflicting_volumes = 0
+
+    for vid, vol_comics in volume_formats.items():
+        formats = set(c.format for c in vol_comics)
+        if len(formats) > 1:
+            conflicting_volumes += 1
+            for comic in vol_comics:
+                if not comic.has_flag("format_mismatch_in_volume") and not comic.is_flag_accepted("format_mismatch_in_volume"):
+                    comic.add_flag("format_mismatch_in_volume")
+                    comic.save(update_fields=["flags"])
+                    flagged_57 += 1
+        else:
+            for comic in vol_comics:
+                if comic.has_flag("format_mismatch_in_volume"):
+                    comic.remove_flag("format_mismatch_in_volume")
+                    comic.save(update_fields=["flags"])
+                    cleared_57 += 1
+
+    # P5.8: group by (series, volume, format), look for multiple distinct CV volumes
+    comics_with_all = list(
+        Comic.objects.exclude(
+            series__isnull=True,
+        ).exclude(
+            series="",
+        ).exclude(
+            format__isnull=True,
+        ).exclude(
+            format="",
+        ).exclude(
+            custom_values__comicvine_volume__isnull=True,
+        ).exclude(
+            custom_values__comicvine_volume="",
+        )
+    )
+
+    series_groups = {}
+    for comic in comics_with_all:
+        vid = comic.custom_values.get("comicvine_volume")
+        if not vid:
+            continue
+        key = (comic.series, comic.volume, comic.format)
+        if key not in series_groups:
+            series_groups[key] = []
+        series_groups[key].append(comic)
+
+    flagged_58 = 0
+    cleared_58 = 0
+    conflicting_groups = 0
+
+    for key, group_comics in series_groups.items():
+        cv_volumes = set(c.custom_values.get("comicvine_volume") for c in group_comics)
+        if len(cv_volumes) > 1:
+            conflicting_groups += 1
+            for comic in group_comics:
+                if not comic.has_flag("cv_volume_conflict") and not comic.is_flag_accepted("cv_volume_conflict"):
+                    comic.add_flag("cv_volume_conflict")
+                    comic.save(update_fields=["flags"])
+                    flagged_58 += 1
+        else:
+            for comic in group_comics:
+                if comic.has_flag("cv_volume_conflict"):
+                    comic.remove_flag("cv_volume_conflict")
+                    comic.save(update_fields=["flags"])
+                    cleared_58 += 1
+
+    return {
+        "conflicting_volumes": conflicting_volumes,
+        "flagged_format_mismatch": flagged_57,
+        "cleared_format_mismatch": cleared_57,
+        "conflicting_groups": conflicting_groups,
+        "flagged_cv_conflict": flagged_58,
+        "cleared_cv_conflict": cleared_58,
+    }
+
+
+@require_POST
+def fix_count_mismatches(request):
+    """
+    Force-repopulate counts from CV DB for all comics flagged count_mismatch.
+    Unlike populate_counts_task, this overwrites existing count values.
+    Then re-runs mismatch detection to clear resolved flags.
+    """
+    from apps.scraper.cv_sources import is_cv_db_available
+    import sqlite3
+
+    from django.conf import settings
+
+    if not is_cv_db_available():
+        return JsonResponse({"success": False, "error": "ComicVine database not available"}, status=400)
+
+    comics = list(Comic.objects.filter(flags__count_mismatch=True).exclude(
+        custom_values__comicvine_volume__isnull=True,
+    ).exclude(
+        custom_values__comicvine_volume="",
+    ))
+
+    if not comics:
+        return JsonResponse({"success": True, "updated": 0, "message": "No count_mismatch comics found"})
+
+    # Batch-fetch counts from CV DB
+    volume_ids = {int(c.custom_values["comicvine_volume"]) for c in comics if c.custom_values.get("comicvine_volume")}
+    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
+    volume_counts = {}
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
+        cursor = conn.cursor()
+        for i in range(0, len(volume_ids), 500):
+            chunk = list(volume_ids)[i:i + 500]
+            placeholders = ",".join("?" * len(chunk))
+            cursor.execute(f"SELECT id, count_of_issues FROM cv_volume WHERE id IN ({placeholders})", chunk)
+            for row in cursor.fetchall():
+                if row[1] is not None:
+                    volume_counts[row[0]] = row[1]
+        conn.close()
+    except Exception as e:
+        return JsonResponse({"success": False, "error": f"CV DB error: {e}"}, status=500)
+
+    updated = 0
+    for comic in comics:
+        vid = comic.custom_values.get("comicvine_volume")
+        if not vid:
+            continue
+        count = volume_counts.get(int(vid))
+        if count is not None and comic.count != count:
+            comic.count = count
+            comic.custom_values["comicvine_issue_count"] = str(count)
+            comic.save(update_fields=["count", "custom_values"])
+            updated += 1
+
+    # Re-run mismatch detection to clear resolved flags
+    _detect_count_mismatches()
+
+    return JsonResponse({
+        "success": True,
+        "updated": updated,
+        "message": f"Updated {updated} comic{'s' if updated != 1 else ''} from CV DB, re-ran mismatch detection",
+    })
+
+
+@require_POST
+def detect_format_conflicts(request):
+    """Detect and flag format mismatches within volumes and CV volume conflicts."""
+    result = _detect_format_conflicts()
+    return JsonResponse({
+        "success": True,
+        "message": (
+            f"Format mismatches: {result['conflicting_volumes']} volumes "
+            f"({result['flagged_format_mismatch']} flagged, {result['cleared_format_mismatch']} cleared). "
+            f"CV volume conflicts: {result['conflicting_groups']} groups "
+            f"({result['flagged_cv_conflict']} flagged, {result['cleared_cv_conflict']} cleared)."
+        ),
+        **result,
+    })
+
+
+@require_POST
+def reformat_flagged(request):
+    """
+    Re-run format detection only on comics with needs_reformat=True.
+    Does not touch comics in 'tagged' state — only fixes flagged upgrades.
+    """
+    from apps.core.services import detect_and_set_format
+
+    comics = list(Comic.objects.filter(needs_reformat=True))
+    processed = 0
+    for comic in comics:
+        detect_and_set_format(comic)
+        processed += 1
+
+    return JsonResponse({
+        "success": True,
+        "processed": processed,
+        "message": f"Re-formatted {processed} comic{'s' if processed != 1 else ''}",
+    })
+
+
+@require_POST
+def detect_format_upgrades(request):
+    """
+    Scan all comics with a count set and a count-based format (not format_ok).
+    Sets needs_reformat=True for any comic where the expected format differs from current.
+    Clears it for comics that are already on the right format.
+    """
+    from .models import get_setting
+
+    one_shot_max = get_setting("one_shot_max_count", 1)
+    limited_max = get_setting("limited_series_max_count", 15)
+
+    candidates = Comic.objects.filter(
+        count__isnull=False,
+        format__in=Comic.COUNT_BASED_FORMATS,
+        format_ok=False,
+    )
+
+    flagged = 0
+    cleared = 0
+
+    for comic in candidates:
+        expected = (
+            "One-Shot" if comic.count <= one_shot_max
+            else "Limited Series" if comic.count <= limited_max
+            else "Main Series"
+        )
+        if comic.format != expected:
+            if not comic.needs_reformat:
+                comic.needs_reformat = True
+                comic.save(update_fields=["needs_reformat"])
+                flagged += 1
+        else:
+            if comic.needs_reformat:
+                comic.needs_reformat = False
+                comic.save(update_fields=["needs_reformat"])
+                cleared += 1
+
+    return JsonResponse({
+        "success": True,
+        "flagged": flagged,
+        "cleared": cleared,
+        "message": f"Format upgrades: {flagged} flagged, {cleared} cleared",
+    })
+
+
+@require_POST
+def accept_flag_view(request, pk):
+    """Permanently suppress a flag for a specific comic."""
+    comic = get_object_or_404(Comic, pk=pk)
+    flag = request.POST.get("flag", "").strip()
+    if not flag:
+        return JsonResponse({"success": False, "error": "No flag specified"}, status=400)
+    comic.accept_flag(flag)
+    comic.save(update_fields=["flags", "accepted_flags"])
+    return JsonResponse({"success": True})
+
+
+@require_POST
+def unaccept_flag_view(request, pk):
+    """Remove the suppression for a flag on a specific comic."""
+    comic = get_object_or_404(Comic, pk=pk)
+    flag = request.POST.get("flag", "").strip()
+    if not flag:
+        return JsonResponse({"success": False, "error": "No flag specified"}, status=400)
+    comic.unaccept_flag(flag)
+    comic.save(update_fields=["accepted_flags"])
+    return JsonResponse({"success": True})
 
 
 @require_POST

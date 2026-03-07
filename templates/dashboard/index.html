@@ -265,23 +265,35 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
           </thead>
           <tbody>
             {% for item in review_queue %}
-            {% if item.count > 0 %}
-            <tr class="bg-base-300">
+            {% if item.count > 0 or item.action == 'detect_format_conflicts' or item.action == 'reformat' or item.flag == 'count_mismatch' or item.flag == 'missing_count' %}
+            <tr class="{% if item.count > 0 %}bg-base-300{% endif %}">
               <td class="font-medium">
                 {% if item.action == 'delete' %}
                 <span class="text-error">{{ item.label }}</span>
                 {% elif item.action == 'convert' %}
                 <span class="text-info">{{ item.label }}</span>
+                {% elif item.count == 0 %}
+                <span class="text-base-content/40">{{ item.label }}</span>
                 {% else %}
                 <span class="text-warning">{{ item.label }}</span>
                 {% endif %}
               </td>
               <td class="text-base-content/60">{{ item.description }}</td>
               <td class="text-right">
+                {% if item.count > 0 %}
                 <span class="badge badge-warning">{{ item.count }}</span>
+                {% else %}
+                <span class="text-base-content/30">0</span>
+                {% endif %}
               </td>
               <td class="flex gap-1">
-                <a href="/comics/?flag={{ item.flag }}" class="btn btn-xs btn-ghost">View</a>
+                {% if item.count > 0 %}
+                  {% if item.link %}
+                  <a href="{{ item.link }}" class="btn btn-xs btn-ghost">View</a>
+                  {% else %}
+                  <a href="/comics/?flag={{ item.flag }}" class="btn btn-xs btn-ghost">View</a>
+                  {% endif %}
+                {% endif %}
                 {% if item.action == 'populate' %}
                 <button onclick="runAction('/comics/populate-counts/', this)" class="btn btn-xs btn-success">Populate Counts</button>
                 {% endif %}
@@ -290,6 +302,15 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                 {% endif %}
                 {% if item.flag == 'count_updated' %}
                 <button onclick="runAction('/comics/rewrite-updated/', this, 'Rewriting comics')" class="btn btn-xs btn-success">Rewrite All</button>
+                {% endif %}
+                {% if item.action == 'detect_format_conflicts' %}
+                <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
+                {% endif %}
+                {% if item.action == 'reformat' %}
+                <button onclick="runAction('/comics/detect-format-upgrades/', this)" class="btn btn-xs btn-info">Detect Upgrades</button>
+                {% if item.count > 0 %}
+                <button onclick="runAction('/comics/reformat-flagged/', this, 'Re-formatting flagged')" class="btn btn-xs btn-success">Re-format Flagged</button>
+                {% endif %}
                 {% endif %}
               </td>
             </tr>

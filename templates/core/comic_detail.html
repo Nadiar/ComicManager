@@ -458,6 +458,28 @@
       </div>
       {% endif %}
 
+      {% if comic.accepted_flags %}
+      <div class="mt-3">
+        <h3 class="font-semibold text-base-content/50 mb-2 text-sm">Accepted (suppressed)</h3>
+        <div class="flex flex-wrap gap-2" id="accepted-flags-list">
+          {% for flag_name, _ in comic.accepted_flags.items %}
+          <div class="badge badge-ghost gap-1" id="accepted-flag-{{ flag_name }}">
+            {{ flag_name }}
+            <button
+              hx-post="{% url 'core:unaccept_flag' comic.pk %}"
+              hx-vals='{"flag": "{{ flag_name }}"}'
+              hx-target="#accepted-flag-{{ flag_name }}"
+              hx-swap="outerHTML"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              class="ml-1 opacity-60 hover:opacity-100 cursor-pointer"
+              title="Un-accept — allow detection to re-flag this"
+            >&#x2715;</button>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       {% if comic.web %}
       <div class="mt-4">
         <a href="{{ comic.web }}" target="_blank" class="btn btn-sm btn-outline">

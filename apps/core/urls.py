@@ -12,6 +12,10 @@ urlpatterns = [
     path("scrape-all/", views.scrape_all_comics, name="scrape_all"),
     path("populate-counts/", views.populate_counts, name="populate_counts"),
     path("detect-count-mismatches/", views.detect_count_mismatches, name="detect_count_mismatches"),
+    path("fix-count-mismatches/", views.fix_count_mismatches, name="fix_count_mismatches"),
+    path("detect-format-conflicts/", views.detect_format_conflicts, name="detect_format_conflicts"),
+    path("detect-format-upgrades/", views.detect_format_upgrades, name="detect_format_upgrades"),
+    path("reformat-flagged/", views.reformat_flagged, name="reformat_flagged"),
     path("populate-counts-all/", views.populate_counts_all, name="populate_counts_all"),
     path("tag-all/", views.tag_all_comics, name="tag_all"),
     path("retag-flagged/", views.retag_flagged, name="retag_flagged"),
@@ -74,4 +78,6 @@ urlpatterns = [
     path("<uuid:pk>/delete/", views.delete_comic, name="delete"),
     path("<uuid:pk>/inline-field/", views.comic_inline_field, name="comic_inline_field"),
     path("<uuid:pk>/rollback/", views.comic_rollback, name="comic_rollback"),
+    path("<uuid:pk>/accept-flag/", views.accept_flag_view, name="accept_flag"),
+    path("<uuid:pk>/unaccept-flag/", views.unaccept_flag_view, name="unaccept_flag"),
 ]

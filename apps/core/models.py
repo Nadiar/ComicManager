@@ -98,6 +98,10 @@ class Comic(models.Model):
     # e.g. {"corrupted_archive": true, "low_page_count": true, "is_pdf": true, "no_series": true}
     flags = models.JSONField(default=dict, blank=True)
 
+    # Accepted (suppressed) flags — detection will not re-set these
+    # e.g. {"format_mismatch_in_volume": true} means this comic's mismatch is acknowledged
+    accepted_flags = models.JSONField(default=dict, blank=True)
+
     # Duplicates
     is_duplicate = models.BooleanField(default=False, db_index=True)
     duplicate_of = models.ForeignKey(
@@ -183,6 +187,19 @@ class Comic(models.Model):
     def has_flag(self, flag_name: str) -> bool:
         """Check if comic has a specific flag."""
         return self.flags.get(flag_name, False)
+
+    def accept_flag(self, flag_name: str):
+        """Permanently suppress a flag for this comic. Clears the active flag too."""
+        self.accepted_flags[flag_name] = True
+        self.flags.pop(flag_name, None)
+
+    def unaccept_flag(self, flag_name: str):
+        """Remove the suppression for a flag so detection can re-set it."""
+        self.accepted_flags.pop(flag_name, None)
+
+    def is_flag_accepted(self, flag_name: str) -> bool:
+        """Check if a flag is permanently suppressed for this comic."""
+        return bool(self.accepted_flags.get(flag_name, False))
 
 
 class Setting(models.Model):

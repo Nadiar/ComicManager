@@ -222,6 +222,15 @@
         Tag All
       </button>
       {% endif %}
+      {% if current_flag == 'count_mismatch' and comics %}
+      <button
+        type="button"
+        class="btn btn-sm btn-info"
+        onclick="fixCountMismatches(this)"
+      >
+        Fix Counts from CV
+      </button>
+      {% endif %}
       {% if current_flag == 'unknown_publisher' and comics %}
       <button
         type="button"
@@ -365,6 +374,17 @@
           </td>
           <td class="flex gap-1">
             <a href="/comics/{{ comic.pk }}/" class="btn btn-xs btn-ghost btn-outline">Info</a>
+            {% if current_flag %}
+            <button
+              hx-post="{% url 'core:accept_flag' comic.pk %}"
+              hx-vals='{"flag": "{{ current_flag }}"}'
+              hx-target="closest tr"
+              hx-swap="outerHTML"
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              class="btn btn-xs btn-ghost text-success"
+              title="Accept — suppress this flag permanently for this comic"
+            >Accept</button>
+            {% endif %}
             {% if comic.state == 'new' %}
             <button
               type="button"
@@ -1817,6 +1837,37 @@ function retagFlagged(btn, flagName) {
     btn.title = err.toString();
     btn.disabled = false;
   });
+  });
+}
+
+function fixCountMismatches(btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Fixing...';
+
+  fetch('/comics/fix-count-mismatches/', {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCsrfToken()},
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-success');
+      btn.innerHTML = `Done (${data.updated} updated)`;
+      setTimeout(() => window.location.reload(), 1500);
+    } else {
+      btn.classList.remove('btn-info');
+      btn.classList.add('btn-error');
+      btn.innerHTML = data.error || 'Error';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-info');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
   });
 }
 

@@ -55,8 +55,8 @@
 **Current Status & Tasks:**
 - [x] [P3.1] Implemented `Issue count management` (detect, populate missing counts from local CV DB, auto-flag `missing_count`, detect `count_mismatch`).
 - [x] [P3.2] Celery task `populate_counts_task` wraps `_populate_missing_counts()` + `_detect_count_mismatches()` with progress reporting and cancellation. Dispatch via POST `/comics/populate-counts-all/`.
-- [ ] [P3.3] Implement a smart list for comics where `count` is null or `comicvine_issue_count` is missing.
-- [ ] [P3.4] Implement a smart list to detect comics sharing a `comicvine_volume` but having differing `count` values, with an action to re-run the CVIssueCount task.
+- [x] [P3.3] Covered by existing `missing_count` flag — set during `populate_counts_task` when count cannot be found in CV DB. Appears in dashboard Review Queue with "Populate Counts" button.
+- [x] [P3.4] Covered by existing `count_mismatch` flag — set during `populate_counts_task` when comics in the same CV volume disagree on count. Appears in dashboard Review Queue with "Detect Mismatches" button.
 
 ### Phase 4: Publisher Management / Data Manager (Comicrack_guide 05 - Data Manager)
 
@@ -83,11 +83,11 @@
 - [x] [P5.4] Implemented `Search, filter, and sort for comic list`.
 - [x] [P5.5] Implemented `Auto-scan page count on comic detail`.
 - [x] [P5.6] Implement a `format_ok` boolean field on the `Comic` model to suppress false positives in smart lists.
-- [ ] [P5.7] Implement smart list/logic to detect mismatched formats within the same `comicvine_volume`.
-- [ ] [P5.8] Implement smart list/logic to detect scraping conflicts (same Series + Volume + Format, different `comicvine_volume`).
+- [x] [P5.7] `format_mismatch_in_volume` flag: set by `_detect_format_conflicts()` when comics in the same CV volume have different formats. Appears in Review Queue with "Detect Conflicts" button. Respects `accepted_flags` for permanent per-comic suppression.
+- [x] [P5.8] `cv_volume_conflict` flag: set by `_detect_format_conflicts()` when comics with the same Series+Volume+Format are linked to different CV volumes. Appears in Review Queue with "Detect Conflicts" button. Respects `accepted_flags`.
 - [x] [P5.9] Implement smart list/logic to surface comics with no format set. Implemented as a `missing_format` flag (set during format detection when no format can be determined, cleared when a format is assigned). Appears in the dashboard Review Queue.
-- [ ] [P5.10] Implement smart list/logic to detect format upgrades for ongoing series (One-Shot → Limited → Main Series).
-- [ ] [P5.11] Implement smart list/logic to flag comics whose format changed and need re-organizing.
+- [x] [P5.10] `needs_reformat` field now set in `populate_counts_task` when a count-based format comic's count changes and the current format no longer matches. Appears in Review Queue with "Re-format All" button. View at `/comics/?needs_reformat=1`.
+- [x] [P5.11] Covered by `needs_reorganize` signal in `apps/core/signals.py` — watches `format` field. When an organized/written comic's format changes, `needs_reorganize=True` is set automatically. Surfaced by the Library Re-organize Queue widget on the dashboard.
 - [x] [P5.12] Refine existing rules for TPB, Omnibus, Director's Cut, etc. to avoid mis-tagging.
 - [x] [P5.13] Fixed search/filter bar on `/comics/?state=new` — see P1.19.
 - [x] [P5.14] We need to show page count, so we can see if we talk about TPB or limited series on low issue count.
@@ -120,7 +120,7 @@
 - [x] [P7.5] Implemented tracking `last_organized_path`.
 - [x] [P7.6] Implemented `Path audit page` for batch-scanning and reporting path mismatches.
 - [x] [P7.7] Implemented Celery notifications for `Organize All` and confirmed `force_organize` advances state.
-- [ ] [P7.8] Implement logic to detect Alternate Universe comics that gained a `Main Character or Team` and trigger their re-organization.
+- [x] [P7.8] Covered by `needs_reorganize` signal in `apps/core/signals.py` — `main_character_or_team` is in `_PATH_RELEVANT_FIELDS`. When this field changes on an organized/written comic, `needs_reorganize=True` is set. Surfaced by the Library Re-organize Queue widget on the dashboard.
 - [ ] [P7.9] Ensure physical comics participate in path calculation (catalogue display) but *without* performing any file moves.
 - [ ] [P7.10] Implement robust logging for file processing errors (e.g., "Invalid or corrupted CBZ file", "No ComicInfo.xml") to a dedicated log file or application error reporting.
 - [x] [P7.11] Externalize Docker paths for `library` and `untagged` directories, and the `PORT` variable, into a `.env` file. `UNTAGGED_DIR` and `LIBRARY_DIR` added to both compose files with defaults so existing setups are unaffected. `.env.example` created documenting all required variables.

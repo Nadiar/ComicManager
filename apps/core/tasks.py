@@ -975,10 +975,22 @@ def populate_counts_task(self):
             comic.count = count
             comic.custom_values["comicvine_issue_count"] = str(count)
             comic.remove_flag("missing_count")
+            # Check if count-based format should be upgraded
+            if comic.format in Comic.COUNT_BASED_FORMATS and not comic.format_ok:
+                one_shot_max = 1
+                limited_max = 15
+                expected = (
+                    "One-Shot" if count <= one_shot_max
+                    else "Limited Series" if count <= limited_max
+                    else "Main Series"
+                )
+                if comic.format != expected:
+                    comic.needs_reformat = True
             comic.save()
             populated += 1
         else:
-            comic.add_flag("missing_count")
+            if not comic.is_flag_accepted("missing_count"):
+                comic.add_flag("missing_count")
             comic.save()
             failed += 1
 
@@ -1035,7 +1047,7 @@ def populate_counts_task(self):
         if len(counts) > 1:
             mismatched_volumes += 1
             for comic in comics_in_vol:
-                if not comic.has_flag("count_mismatch"):
+                if not comic.has_flag("count_mismatch") and not comic.is_flag_accepted("count_mismatch"):
                     comic.add_flag("count_mismatch")
                     comic.save()
                     flagged += 1
