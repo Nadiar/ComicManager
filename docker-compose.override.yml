@@ -8,8 +8,8 @@ services:
     environment:
       - DEBUG=True
     volumes:
-      - ./untagged:/comics/untagged
-      - ./Comics:/comics/library
+      - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
+      - ${LIBRARY_DIR:-./Comics}:/comics/library
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
       - ./data/inducks.db:/cv_db/inducks.db:ro
       - .:/app                        # mount entire source — changes reload instantly
@@ -29,8 +29,8 @@ services:
     environment:
       - DEBUG=True
     volumes:
-      - ./untagged:/comics/untagged
-      - ./Comics:/comics/library
+      - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
+      - ${LIBRARY_DIR:-./Comics}:/comics/library
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
       - ./data/inducks.db:/cv_db/inducks.db:ro
       - .:/app                        # same source mount — worker reloads too

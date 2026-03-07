@@ -123,7 +123,7 @@
 - [ ] [P7.8] Implement logic to detect Alternate Universe comics that gained a `Main Character or Team` and trigger their re-organization.
 - [ ] [P7.9] Ensure physical comics participate in path calculation (catalogue display) but *without* performing any file moves.
 - [ ] [P7.10] Implement robust logging for file processing errors (e.g., "Invalid or corrupted CBZ file", "No ComicInfo.xml") to a dedicated log file or application error reporting.
-- [ ] [P7.11] Externalize Docker paths for `library` and `untagged` directories, and the `PORT` variable, into a `.env` file.
+- [x] [P7.11] Externalize Docker paths for `library` and `untagged` directories, and the `PORT` variable, into a `.env` file. `UNTAGGED_DIR` and `LIBRARY_DIR` added to both compose files with defaults so existing setups are unaffected. `.env.example` created documenting all required variables.
 
 ### Phase 8: Write to File (Comicrack_guide 09 - Write to File)
 

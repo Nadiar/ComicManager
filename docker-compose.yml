@@ -32,8 +32,8 @@ services:
       - "${PORT:-8000}:8000"
     env_file: .env
     volumes:
-      - ./untagged:/comics/untagged
-      - ./Comics:/comics/library
+      - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
+      - ${LIBRARY_DIR:-./Comics}:/comics/library
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
       - ./data/latest.mcl:/cv_db/latest.mcl:ro
       - ./data/inducks.db:/cv_db/inducks.db:ro
@@ -57,8 +57,8 @@ services:
         --concurrency=4
     env_file: .env
     volumes:
-      - ./untagged:/comics/untagged
-      - ./Comics:/comics/library
+      - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
+      - ${LIBRARY_DIR:-./Comics}:/comics/library
       - ./data/comicvine.db:/cv_db/comicvine.db:ro
       - ./data/latest.mcl:/cv_db/latest.mcl:ro
       - ./data/inducks.db:/cv_db/inducks.db:ro
