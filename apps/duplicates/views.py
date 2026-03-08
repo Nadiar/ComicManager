@@ -27,24 +27,37 @@ def duplicate_review(request):
     """
     Main duplicate review page.
 
-    Shows pending duplicate groups organized by detection method.
+    Shows pending duplicate groups, filterable by detection method.
     """
     stats = get_duplicate_stats()
-    groups = get_pending_groups()
+    all_groups = get_pending_groups()
+    method_filter = request.GET.get("method", "all")
 
-    # Group by detection method for display
-    cv_groups = [g for g in groups if g["detection_method"] == "cv_id"]
-    meta_groups = [g for g in groups if g["detection_method"] == "metadata"]
-    phash_groups = [g for g in groups if g["detection_method"] == "phash"]
-    filename_groups = [g for g in groups if g["detection_method"] == "filename"]
+    groups = all_groups if method_filter == "all" else [
+        g for g in all_groups if g["detection_method"] == method_filter
+    ]
+
+    method_counts = {
+        "all": len(all_groups),
+        "cv_id": sum(1 for g in all_groups if g["detection_method"] == "cv_id"),
+        "metadata": sum(1 for g in all_groups if g["detection_method"] == "metadata"),
+        "phash": sum(1 for g in all_groups if g["detection_method"] == "phash"),
+        "filename": sum(1 for g in all_groups if g["detection_method"] == "filename"),
+    }
 
     return render(request, "duplicates/review.html", {
         "stats": stats,
-        "cv_groups": cv_groups,
-        "meta_groups": meta_groups,
-        "phash_groups": phash_groups,
-        "filename_groups": filename_groups,
-        "total_pending": len(groups),
+        "groups": groups,
+        "method_filter": method_filter,
+        "method_counts": method_counts,
+        "method_tabs": [
+            ("All", "all"),
+            ("CV ID", "cv_id"),
+            ("Series/Number", "metadata"),
+            ("Cover Hash", "phash"),
+            ("Filename", "filename"),
+        ],
+        "total_pending": len(all_groups),
     })
 
 

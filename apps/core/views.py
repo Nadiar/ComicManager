@@ -2628,6 +2628,50 @@ def write_stale_comics(request):
     })
 
 
+@require_POST
+def write_missing_comics(request):
+    """
+    Dispatch a Celery task to write ComicInfo.xml for digital comics in 'written'
+    state that have never had ComicInfo.xml written (last_written is null).
+    """
+    from celery.result import AsyncResult
+
+    active_task_id = request.session.get("write_task_id")
+    if active_task_id:
+        result = AsyncResult(active_task_id)
+        if result.state in ("PENDING", "STARTED", "PROGRESS"):
+            return JsonResponse({
+                "success": False,
+                "error": "A write task is already running",
+                "task_id": active_task_id,
+            }, status=409)
+
+    count = Comic.objects.filter(
+        state=Comic.STATE_WRITTEN,
+        medium=Comic.MEDIUM_DIGITAL,
+        last_written__isnull=True,
+    ).count()
+
+    if count == 0:
+        return JsonResponse({
+            "success": True,
+            "written": 0,
+            "total": 0,
+            "message": "No missing ComicInfo.xml to write",
+        })
+
+    from .tasks import write_missing_comics_task
+    result = write_missing_comics_task.delay()
+    request.session["write_task_id"] = result.id
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": count,
+        "message": f"Started writing {count} comic(s) missing ComicInfo.xml in background",
+    })
+
+
 @require_GET
 def task_progress(request, task_id):
     """

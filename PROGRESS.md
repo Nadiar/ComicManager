@@ -168,11 +168,11 @@
 - [-] [SL.P5.2] (Superseded) CV Volume Conflicts — surfaced via `cv_volume_conflict` flag in the dashboard Review Queue (P5.8).
 - [-] [SL.P5.3] (Superseded) Missing Format — surfaced via `missing_format` flag in the dashboard Review Queue (P5.9).
 - [-] [SL.P5.4] (Superseded) Format Upgrades Needed — surfaced via `needs_reformat` field in the dashboard Review Queue (P5.10).
-- [ ] [SL.P6.1] **Phase 6 Smart Lists:** Duplicates by CV Issue (digital only)
-- [ ] [SL.P6.2] **Phase 6 Smart Lists:** Duplicates by Series+Number+Volume
-- [ ] [SL.P6.3] **Phase 6 Smart Lists:** Duplicates by pHash similarity
-- [ ] [SL.P8.1] **Phase 8 Smart Lists:** Missing ComicInfo.xml
-- [ ] [SL.P8.2] **Phase 8 Smart Lists:** Stale Metadata (DB newer than `last_written`)
+- [-] [SL.P6.1] (Superseded) Duplicates by CV Issue — surfaced in the Maintenance tab of the Review & Maintenance dashboard card with breakdown by method; filterable via `/duplicates/?method=cv_id`.
+- [-] [SL.P6.2] (Superseded) Duplicates by Series/Number — surfaced in the Maintenance tab; filterable via `/duplicates/?method=metadata`.
+- [-] [SL.P6.3] (Superseded) Duplicates by pHash — surfaced in the Maintenance tab; filterable via `/duplicates/?method=phash`.
+- [-] [SL.P8.1] (Superseded) Missing ComicInfo.xml — surfaced as a Maintenance tab row with count and "Write Missing" action.
+- [-] [SL.P8.2] (Superseded) Stale Metadata — surfaced as a Maintenance tab row with count and "Write Stale" action.
     *   *Implementation Note:* All these smart lists will be created using the existing `Smart Lists` and `Dynamic column customization` framework.
 
 ## Dashboard & UI Enhancements
@@ -202,6 +202,9 @@
 - [x] [UI.20] `/comics` table column selector now sorts columns alphabetically by label. Fixed by sorting `COLUMNS_REGISTRY` by `label` in the view before passing `all_columns` to the template.
 - [x] [UI.21] `/comics` table search, filter, and sort overhauled: (1) search expanded to writer, penciller, inker, colorist, letterer, cover_artist, editor, characters, teams, genre, notes; (2) smart search tokens: `#N` filters by issue number, `(YYYY)` by year, `VYYY` by volume, combinable freely; (3) column header sort fixed (sort key mismatch between COLUMNS_REGISTRY and view's sort_fields dict was silently falling back to series sort for every non-trivial column); (4) pages sort uses `NULLS LAST` in both directions. Documented in `docs/guide/searching.md`.
 - [x] [UI.22] `/settings/log/` batch log — the UUID column is now an "Info" button that opens the comic detail page in a new tab.
+- [ ] [UI.25] Review whether zero-count rows in the Review & Maintenance card (both Active and Maintenance tabs) should be hidden entirely, or kept visible as permanent status indicators.
+- [x] [UI.23] Dashboard Review Queue and re-organize/stale widgets consolidated into a single "Review & Maintenance" card with Active and Maintenance tabs. Active tab shows existing review queue; Maintenance tab shows Duplicates, Needs Re-organize, Stale Metadata, and Missing ComicInfo.xml rows with counts and action buttons. Tab auto-selects based on which count is non-zero.
+- [x] [UI.24] Duplicate review page gains method filter tabs (All / CV ID / Series-Number / Cover Hash / Filename). Clicking a tab filters the groups list and shows the count per method on each tab button.
 
 ## Major Issues / Bugs
 

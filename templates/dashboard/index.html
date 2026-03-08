@@ -244,128 +244,204 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
 }
 </script>
 
-  <!-- Review Queue -->
-  {% if flagged_count > 0 %}
-  <div class="card bg-base-200 border border-warning">
+  <!-- Review & Maintenance -->
+  <div class="card bg-base-200 {% if flagged_count > 0 or maintenance_count > 0 %}border border-warning{% endif %}">
     <div class="card-body">
-      <div class="flex justify-between items-center">
-        <h2 class="card-title text-warning">Review Queue</h2>
-        <span class="badge badge-warning">{{ flagged_count }} comics need attention</span>
+      <div class="flex justify-between items-center mb-2">
+        <h2 class="card-title {% if flagged_count > 0 %}text-warning{% endif %}">Review &amp; Maintenance</h2>
+        <div class="flex gap-2">
+          {% if flagged_count > 0 %}<span class="badge badge-warning">{{ flagged_count }} active</span>{% endif %}
+          {% if maintenance_count > 0 %}<span class="badge badge-info">{{ maintenance_count }} maintenance</span>{% endif %}
+        </div>
       </div>
 
-      <div class="overflow-x-auto mt-2">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Issue</th>
-              <th>Description</th>
-              <th class="text-right">Count</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in review_queue %}
-            {% if item.count > 0 or item.action == 'detect_format_conflicts' or item.action == 'reformat' or item.flag == 'count_mismatch' or item.flag == 'missing_count' %}
-            <tr class="{% if item.count > 0 %}bg-base-300{% endif %}">
-              <td class="font-medium">
-                {% if item.action == 'delete' %}
-                <span class="text-error">{{ item.label }}</span>
-                {% elif item.action == 'convert' %}
-                <span class="text-info">{{ item.label }}</span>
-                {% elif item.count == 0 %}
-                <span class="text-base-content/40">{{ item.label }}</span>
-                {% else %}
-                <span class="text-warning">{{ item.label }}</span>
+      <div role="tablist" class="tabs tabs-bordered">
+        <input type="radio" name="dash_tabs" role="tab" class="tab"
+               aria-label="Active{% if flagged_count > 0 %} ({{ flagged_count }}){% endif %}"
+               {% if flagged_count > 0 or maintenance_count == 0 %}checked{% endif %} />
+        <div role="tabpanel" class="tab-content pt-4">
+          <div class="overflow-x-auto">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Issue</th>
+                  <th>Description</th>
+                  <th class="text-right">Count</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in review_queue %}
+                {% if item.flag != 'count_mismatch' and item.flag != 'format_mismatch_in_volume' and item.flag != 'cv_volume_conflict' and item.action != 'reformat' %}
+                {% if item.count > 0 or item.flag == 'missing_count' %}
+                <tr class="{% if item.count > 0 %}bg-base-300{% endif %}">
+                  <td class="font-medium">
+                    {% if item.action == 'delete' %}
+                    <span class="text-error">{{ item.label }}</span>
+                    {% elif item.action == 'convert' %}
+                    <span class="text-info">{{ item.label }}</span>
+                    {% elif item.count == 0 %}
+                    <span class="text-base-content/40">{{ item.label }}</span>
+                    {% else %}
+                    <span class="text-warning">{{ item.label }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-base-content/60">{{ item.description }}</td>
+                  <td class="text-right">
+                    {% if item.count > 0 %}
+                    <span class="badge badge-warning">{{ item.count }}</span>
+                    {% else %}
+                    <span class="text-base-content/30">0</span>
+                    {% endif %}
+                  </td>
+                  <td class="flex gap-1">
+                    {% if item.count > 0 %}
+                      {% if item.link %}
+                      <a href="{{ item.link }}" class="btn btn-xs btn-ghost">View</a>
+                      {% else %}
+                      <a href="/comics/?flag={{ item.flag }}" class="btn btn-xs btn-ghost">View</a>
+                      {% endif %}
+                    {% endif %}
+                    {% if item.action == 'populate' and item.count > 0 %}
+                    <button onclick="runAction('/comics/populate-counts/', this)" class="btn btn-xs btn-success">Populate Counts</button>
+                    {% endif %}
+                    {% if item.flag == 'count_updated' %}
+                    <button onclick="runAction('/comics/rewrite-updated/', this, 'Rewriting comics')" class="btn btn-xs btn-success">Rewrite All</button>
+                    {% endif %}
+                  </td>
+                </tr>
                 {% endif %}
-              </td>
-              <td class="text-base-content/60">{{ item.description }}</td>
-              <td class="text-right">
-                {% if item.count > 0 %}
-                <span class="badge badge-warning">{{ item.count }}</span>
-                {% else %}
-                <span class="text-base-content/30">0</span>
                 {% endif %}
-              </td>
-              <td class="flex gap-1">
-                {% if item.count > 0 %}
-                  {% if item.link %}
-                  <a href="{{ item.link }}" class="btn btn-xs btn-ghost">View</a>
-                  {% else %}
-                  <a href="/comics/?flag={{ item.flag }}" class="btn btn-xs btn-ghost">View</a>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <input type="radio" name="dash_tabs" role="tab" class="tab"
+               aria-label="Maintenance{% if maintenance_count > 0 %} ({{ maintenance_count }}){% endif %}"
+               {% if flagged_count == 0 and maintenance_count > 0 %}checked{% endif %} />
+        <div role="tabpanel" class="tab-content pt-4">
+          <table class="table table-sm">
+            <thead><tr><th>Issue</th><th>Detail</th><th class="text-right">Count</th><th></th></tr></thead>
+            <tbody>
+              <!-- Count Mismatch -->
+              <tr class="{% if count_mismatch_count > 0 %}bg-base-300{% endif %}">
+                <td class="font-medium {% if count_mismatch_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Count Mismatch</td>
+                <td class="text-base-content/60">Comics in the same CV volume disagree on issue count</td>
+                <td class="text-right">
+                  {% if count_mismatch_count > 0 %}<span class="badge badge-warning">{{ count_mismatch_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
+                </td>
+                <td class="flex gap-1">
+                  {% if count_mismatch_count > 0 %}<a href="/comics/?flag=count_mismatch" class="btn btn-xs btn-ghost">View</a>{% endif %}
+                  <button onclick="runAction('/comics/detect-count-mismatches/', this)" class="btn btn-xs btn-info">Detect Mismatches</button>
+                </td>
+              </tr>
+              <!-- Format Mismatch in Volume -->
+              <tr class="{% if format_mismatch_count > 0 %}bg-base-300{% endif %}">
+                <td class="font-medium {% if format_mismatch_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Format Mismatch in Volume</td>
+                <td class="text-base-content/60">Comics linked to the same CV volume have conflicting formats</td>
+                <td class="text-right">
+                  {% if format_mismatch_count > 0 %}<span class="badge badge-warning">{{ format_mismatch_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
+                </td>
+                <td class="flex gap-1">
+                  {% if format_mismatch_count > 0 %}<a href="/comics/?flag=format_mismatch_in_volume" class="btn btn-xs btn-ghost">View</a>{% endif %}
+                  <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
+                </td>
+              </tr>
+              <!-- CV Volume Conflict -->
+              <tr class="{% if cv_volume_conflict_count > 0 %}bg-base-300{% endif %}">
+                <td class="font-medium {% if cv_volume_conflict_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">CV Volume Conflict</td>
+                <td class="text-base-content/60">Comics with the same Series+Volume+Format are linked to different CV volumes</td>
+                <td class="text-right">
+                  {% if cv_volume_conflict_count > 0 %}<span class="badge badge-warning">{{ cv_volume_conflict_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
+                </td>
+                <td class="flex gap-1">
+                  {% if cv_volume_conflict_count > 0 %}<a href="/comics/?flag=cv_volume_conflict" class="btn btn-xs btn-ghost">View</a>{% endif %}
+                  <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
+                </td>
+              </tr>
+              <!-- Format Upgrade Needed -->
+              <tr class="{% if needs_reformat_count > 0 %}bg-base-300{% endif %}">
+                <td class="font-medium {% if needs_reformat_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Format Upgrade Needed</td>
+                <td class="text-base-content/60">Issue count changed — format should be upgraded (e.g. One-Shot to Limited Series)</td>
+                <td class="text-right">
+                  {% if needs_reformat_count > 0 %}<span class="badge badge-warning">{{ needs_reformat_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
+                </td>
+                <td class="flex gap-1">
+                  {% if needs_reformat_count > 0 %}<a href="/comics/format/" class="btn btn-xs btn-ghost">View</a>{% endif %}
+                  <button onclick="runAction('/comics/detect-format-upgrades/', this)" class="btn btn-xs btn-info">Detect Upgrades</button>
+                  {% if needs_reformat_count > 0 %}
+                  <button onclick="runAction('/comics/reformat-flagged/', this, 'Re-formatting flagged')" class="btn btn-xs btn-success">Re-format Flagged</button>
                   {% endif %}
-                {% endif %}
-                {% if item.action == 'populate' %}
-                <button onclick="runAction('/comics/populate-counts/', this)" class="btn btn-xs btn-success">Populate Counts</button>
-                {% endif %}
-                {% if item.flag == 'count_mismatch' %}
-                <button onclick="runAction('/comics/detect-count-mismatches/', this)" class="btn btn-xs btn-info">Detect Mismatches</button>
-                {% endif %}
-                {% if item.flag == 'count_updated' %}
-                <button onclick="runAction('/comics/rewrite-updated/', this, 'Rewriting comics')" class="btn btn-xs btn-success">Rewrite All</button>
-                {% endif %}
-                {% if item.action == 'detect_format_conflicts' %}
-                <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
-                {% endif %}
-                {% if item.action == 'reformat' %}
-                <button onclick="runAction('/comics/detect-format-upgrades/', this)" class="btn btn-xs btn-info">Detect Upgrades</button>
-                {% if item.count > 0 %}
-                <button onclick="runAction('/comics/reformat-flagged/', this, 'Re-formatting flagged')" class="btn btn-xs btn-success">Re-format Flagged</button>
-                {% endif %}
-                {% endif %}
-              </td>
-            </tr>
-            {% endif %}
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Needs Re-organize Widget -->
-  {% if needs_reorganize_count > 0 %}
-  <div class="card bg-base-200 border border-info">
-    <div class="card-body">
-      <div class="flex flex-wrap justify-between items-center gap-2">
-        <div>
-          <h2 class="card-title text-info">Library Re-organize Queue</h2>
-          <p class="text-sm text-base-content/60 mt-1">
-            {{ needs_reorganize_count }} comic{{ needs_reorganize_count|pluralize }} flagged — metadata changed after last organize, or organizer profile template was updated.
-          </p>
-        </div>
-        <div class="flex gap-2">
-          <a href="{% url 'organizer:path_audit' %}" class="btn btn-sm btn-ghost">Path Audit</a>
-          <button onclick="runAction('{% url 'organizer:start_reorganize_all' %}', this, 'Re-organizing comics')" class="btn btn-sm btn-info">
-            Re-organize All ({{ needs_reorganize_count }})
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Stale Metadata Widget -->
-  {% if stale_count > 0 %}
-  <div class="card bg-base-200 border border-warning">
-    <div class="card-body">
-      <div class="flex flex-wrap justify-between items-center gap-2">
-        <div>
-          <h2 class="card-title text-warning">Stale Metadata Queue</h2>
-          <p class="text-sm text-base-content/60 mt-1">
-            {{ stale_count }} comic{{ stale_count|pluralize }} — database updated after last ComicInfo.xml write.
-          </p>
-        </div>
-        <div class="flex gap-2">
-          <a href="{% url 'core:list' %}?state=written" class="btn btn-sm btn-ghost">View Written</a>
-          <button onclick="runAction('{% url 'core:write_stale' %}', this, 'Writing stale comics')" class="btn btn-sm btn-warning">
-            Write All Stale ({{ stale_count }})
-          </button>
+                </td>
+              </tr>
+              <!-- Duplicates -->
+              <tr class="{% if dup_total > 0 %}bg-base-300{% endif %}">
+                <td class="font-medium {% if dup_total > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Duplicates</td>
+                <td class="text-base-content/60 text-xs">
+                  {% if dup_total > 0 %}
+                    {% if dup_by_method.cv_id %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.cv_id }} by CV ID</span>{% endif %}
+                    {% if dup_by_method.metadata %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.metadata }} by Series/Number</span>{% endif %}
+                    {% if dup_by_method.phash %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.phash }} by pHash</span>{% endif %}
+                    {% if dup_by_method.filename %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.filename }} by Filename</span>{% endif %}
+                  {% else %}No duplicate groups pending{% endif %}
+                </td>
+                <td class="text-right">
+                  {% if dup_total > 0 %}<span class="badge badge-warning">{{ dup_total }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
+                </td>
+                <td>
+                  {% if dup_total > 0 %}<a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-ghost">Review</a>{% endif %}
+                </td>
+              </tr>
+              <!-- Needs Re-organize -->
+              <tr class="{% if needs_reorganize_count > 0 %}bg-base-300{% endif %}">
+                <td class="font-medium {% if needs_reorganize_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Needs Re-organize</td>
+                <td class="text-base-content/60">Metadata changed after last organize, or organizer profile template was updated</td>
+                <td class="text-right">
+                  {% if needs_reorganize_count > 0 %}<span class="badge badge-warning">{{ needs_reorganize_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
+                </td>
+                <td class="flex gap-1">
+                  <a href="{% url 'organizer:path_audit' %}" class="btn btn-xs btn-ghost">Path Audit</a>
+                  {% if needs_reorganize_count > 0 %}
+                  <button onclick="runAction('{% url 'organizer:start_reorganize_all' %}', this, 'Re-organizing')" class="btn btn-xs btn-info">Re-organize All</button>
+                  {% endif %}
+                </td>
+              </tr>
+              <!-- Stale Metadata -->
+              <tr class="{% if stale_count > 0 %}bg-base-300{% endif %}">
+                <td class="font-medium {% if stale_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Stale Metadata</td>
+                <td class="text-base-content/60">Database updated after last ComicInfo.xml write</td>
+                <td class="text-right">
+                  {% if stale_count > 0 %}<span class="badge badge-warning">{{ stale_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
+                </td>
+                <td class="flex gap-1">
+                  {% if stale_count > 0 %}
+                  <a href="{% url 'core:list' %}?state=written" class="btn btn-xs btn-ghost">View</a>
+                  <button onclick="runAction('{% url 'core:write_stale' %}', this, 'Writing stale')" class="btn btn-xs btn-warning">Write Stale</button>
+                  {% endif %}
+                </td>
+              </tr>
+              <!-- Missing ComicInfo.xml -->
+              <tr class="{% if missing_comicinfo_count > 0 %}bg-base-300{% endif %}">
+                <td class="font-medium {% if missing_comicinfo_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Missing ComicInfo.xml</td>
+                <td class="text-base-content/60">Written digital comics that have never had ComicInfo.xml written</td>
+                <td class="text-right">
+                  {% if missing_comicinfo_count > 0 %}<span class="badge badge-warning">{{ missing_comicinfo_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
+                </td>
+                <td class="flex gap-1">
+                  {% if missing_comicinfo_count > 0 %}
+                  <a href="{% url 'core:list' %}?state=written" class="btn btn-xs btn-ghost">View</a>
+                  <button onclick="runAction('{% url 'core:write_missing' %}', this, 'Writing missing')" class="btn btn-xs btn-success">Write Missing</button>
+                  {% endif %}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   </div>
-  {% endif %}
 
   <!-- Smart Lists -->
   {% if dashboard_smartlists %}

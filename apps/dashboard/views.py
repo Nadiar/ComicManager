@@ -165,9 +165,32 @@ def index(request):
         },
     ]
 
-    flagged_count = Comic.objects.exclude(flags={}).count()
+    # Active flags only — excludes maintenance flags (count_mismatch, format_mismatch_in_volume,
+    # cv_volume_conflict, needs_reformat) which live in the Maintenance tab
+    from django.db.models import Q
+    _active_flags_q = (
+        Q(flags__corrupted_archive=True) |
+        Q(flags__low_page_count=True) |
+        Q(flags__is_pdf=True) |
+        Q(flags__no_series=True) |
+        Q(flags__cover_only=True) |
+        Q(flags__needs_conversion=True) |
+        Q(flags__missing_count=True) |
+        Q(flags__count_updated=True) |
+        Q(flags__metadata_mismatch=True) |
+        Q(flags__scrape_no_match=True) |
+        Q(flags__scrape_error=True) |
+        Q(flags__missing_format=True) |
+        Q(flags__scrape_skipped=True) |
+        Q(flags__unknown_publisher=True)
+    )
+    flagged_count = Comic.objects.filter(_active_flags_q).count()
+
+    # Maintenance: moved from Active tab
+    count_mismatch_count = Comic.objects.filter(flags__count_mismatch=True).count()
+    format_mismatch_count = Comic.objects.filter(flags__format_mismatch_in_volume=True).count()
+    cv_volume_conflict_count = Comic.objects.filter(flags__cv_volume_conflict=True).count()
     needs_reformat_count = Comic.objects.filter(needs_reformat=True).count()
-    total_review_count = flagged_count + needs_reformat_count
 
     # Needs-reorganize queue
     needs_reorganize_count = Comic.objects.filter(needs_reorganize=True).count()
@@ -181,6 +204,28 @@ def index(request):
             output_field=BooleanField(),
         )
     ).filter(is_stale=True).count()
+
+    # Maintenance: duplicates
+    from apps.duplicates.models import DuplicateGroup
+    dup_total = DuplicateGroup.objects.filter(status=DuplicateGroup.STATUS_PENDING).count()
+    dup_by_method = dict(
+        DuplicateGroup.objects.filter(status=DuplicateGroup.STATUS_PENDING)
+        .values("detection_method")
+        .annotate(c=Count("id"))
+        .values_list("detection_method", "c")
+    )
+
+    # Maintenance: written digital comics that have never had ComicInfo.xml written
+    missing_comicinfo_count = Comic.objects.filter(
+        state=Comic.STATE_WRITTEN,
+        medium=Comic.MEDIUM_DIGITAL,
+        last_written__isnull=True,
+    ).count()
+
+    maintenance_count = (
+        dup_total + needs_reorganize_count + stale_count + missing_comicinfo_count +
+        count_mismatch_count + format_mismatch_count + cv_volume_conflict_count + needs_reformat_count
+    )
 
     # Smart lists for dashboard
     dashboard_smartlists = []
@@ -204,9 +249,17 @@ def index(request):
         "stats": stats,
         "pipeline": pipeline,
         "review_queue": review_queue,
-        "flagged_count": total_review_count,
+        "flagged_count": flagged_count,
         "needs_reorganize_count": needs_reorganize_count,
         "stale_count": stale_count,
+        "dup_total": dup_total,
+        "dup_by_method": dup_by_method,
+        "missing_comicinfo_count": missing_comicinfo_count,
+        "count_mismatch_count": count_mismatch_count,
+        "format_mismatch_count": format_mismatch_count,
+        "cv_volume_conflict_count": cv_volume_conflict_count,
+        "needs_reformat_count": needs_reformat_count,
+        "maintenance_count": maintenance_count,
         "dashboard_smartlists": dashboard_smartlists,
         "cv_status": cv_status,
         "api_calls_used": get_api_calls_used(),

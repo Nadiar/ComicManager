@@ -71,109 +71,51 @@
   </div>
   {% endif %}
 
-  <!-- CV ID Duplicates -->
-  {% if cv_groups %}
-  <div class="card bg-base-200">
-    <div class="card-body p-4">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h3 class="font-bold text-lg flex items-center gap-2">
-            <span class="badge badge-error">{{ cv_groups|length }}</span>
-            ComicVine ID Matches
-          </h3>
-          <p class="text-sm text-base-content/70">Same ComicVine issue ID, multiple digital copies</p>
-        </div>
-      </div>
-
-      <div class="space-y-4">
-        {% for group in cv_groups %}
-        {% include "duplicates/partials/group_card.html" with group=group %}
-        {% endfor %}
-      </div>
-    </div>
+  <!-- Method filter tabs -->
+  <div class="flex gap-1 flex-wrap">
+    {% for label, key in method_tabs %}
+    <a href="?method={{ key }}"
+       class="btn btn-sm {% if method_filter == key %}btn-primary{% else %}btn-ghost btn-outline{% endif %}">
+      {{ label }}
+      {% with count=method_counts|default_if_none:0 %}
+      {% if key == "all" and method_counts.all %}
+      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.all }}</span>
+      {% elif key == "cv_id" and method_counts.cv_id %}
+      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.cv_id }}</span>
+      {% elif key == "metadata" and method_counts.metadata %}
+      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.metadata }}</span>
+      {% elif key == "phash" and method_counts.phash %}
+      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.phash }}</span>
+      {% elif key == "filename" and method_counts.filename %}
+      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.filename }}</span>
+      {% endif %}
+      {% endwith %}
+    </a>
+    {% endfor %}
   </div>
-  {% endif %}
 
-  <!-- Metadata Duplicates -->
-  {% if meta_groups %}
-  <div class="card bg-base-200">
-    <div class="card-body p-4">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h3 class="font-bold text-lg flex items-center gap-2">
-            <span class="badge badge-warning">{{ meta_groups|length }}</span>
-            Metadata Matches
-          </h3>
-          <p class="text-sm text-base-content/70">Same series/number/volume (possible mis-tags)</p>
-        </div>
-      </div>
-
-      <div class="space-y-4">
-        {% for group in meta_groups %}
-        {% include "duplicates/partials/group_card.html" with group=group %}
-        {% endfor %}
-      </div>
-    </div>
+  <!-- Duplicate groups -->
+  {% if groups %}
+  <div class="space-y-4">
+    {% for group in groups %}
+    {% include "duplicates/partials/group_card.html" with group=group %}
+    {% endfor %}
   </div>
-  {% endif %}
-
-  <!-- pHash Duplicates -->
-  {% if phash_groups %}
-  <div class="card bg-base-200">
-    <div class="card-body p-4">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h3 class="font-bold text-lg flex items-center gap-2">
-            <span class="badge badge-info">{{ phash_groups|length }}</span>
-            Cover Hash Matches
-          </h3>
-          <p class="text-sm text-base-content/70">Similar cover images (pHash similarity)</p>
-        </div>
-      </div>
-
-      <div class="space-y-4">
-        {% for group in phash_groups %}
-        {% include "duplicates/partials/group_card.html" with group=group %}
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Filename Duplicates -->
-  {% if filename_groups %}
-  <div class="card bg-base-200">
-    <div class="card-body p-4">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h3 class="font-bold text-lg flex items-center gap-2">
-            <span class="badge badge-secondary">{{ filename_groups|length }}</span>
-            Filename Pattern Matches
-          </h3>
-          <p class="text-sm text-base-content/70">OS-generated duplicate filenames (_1.cbz, (1).cbz patterns)</p>
-        </div>
-      </div>
-
-      <div class="space-y-4">
-        {% for group in filename_groups %}
-        {% include "duplicates/partials/group_card.html" with group=group %}
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if not cv_groups and not meta_groups and not phash_groups and not filename_groups %}
+  {% else %}
   <div class="alert alert-info">
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
     </svg>
     <span>
+      {% if method_filter == "all" %}
       No pending duplicate groups.
       {% if stats.formatted_comics > 0 %}
       Click "Run Detection" to scan {{ stats.formatted_comics }} formatted comic{{ stats.formatted_comics|pluralize }} for duplicates.
       {% else %}
       No comics in 'formatted' state to scan.
+      {% endif %}
+      {% else %}
+      No pending groups for this detection method.
       {% endif %}
     </span>
   </div>
