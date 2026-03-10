@@ -74,6 +74,9 @@ def write_all_comics_task(self):
             success = write_comicinfo_xml(comic.file_path, comic)
             if not success:
                 errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
+                from .audit import log_batch_entry
+                log_batch_entry("write_error", comic, Comic.STATE_ORGANIZED, Comic.STATE_ORGANIZED,
+                                {"error": [None, "Failed to write ComicInfo.xml"]})
                 self.update_state(
                     state="PROGRESS",
                     meta={"current": i + 1, "total": total, "written": written, "errors": errors},
@@ -141,6 +144,9 @@ def write_stale_comics_task(self):
             success = write_comicinfo_xml(comic.file_path, comic)
             if not success:
                 errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
+                from .audit import log_batch_entry
+                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
+                                {"error": [None, "Failed to write ComicInfo.xml"]})
                 self.update_state(
                     state="PROGRESS",
                     meta={"current": i + 1, "total": total, "written": written, "errors": errors},
@@ -201,6 +207,9 @@ def write_missing_comics_task(self):
             success = write_comicinfo_xml(comic.file_path, comic)
             if not success:
                 errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
+                from .audit import log_batch_entry
+                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
+                                {"error": [None, "Failed to write ComicInfo.xml"]})
                 self.update_state(
                     state="PROGRESS",
                     meta={"current": i + 1, "total": total, "written": written, "errors": errors},
@@ -747,6 +756,9 @@ def organize_all_task(self):
             processed += 1
         except Exception as e:
             errors.append(f"{comic.series} #{comic.number}: {str(e)}")
+            from .audit import log_batch_entry
+            log_batch_entry("organize_error", comic, comic.state, comic.state,
+                            {"error": [None, str(e)]})
 
         self.update_state(
             state="PROGRESS",

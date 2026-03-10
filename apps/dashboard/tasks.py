@@ -75,6 +75,10 @@ def run_smartlist_action_task(self, smart_list_id, action):
                 success_count += 1
         except Exception as e:
             errors.append(f"{comic.series} #{comic.number}: {str(e)}")
+            if action in ("organize", "write"):
+                from apps.core.audit import log_batch_entry
+                log_batch_entry(f"{action}_error", comic, comic.state, comic.state,
+                                {"error": [None, str(e)]})
 
         processed += 1
         self.update_state(

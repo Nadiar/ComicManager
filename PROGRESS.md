@@ -121,8 +121,8 @@
 - [x] [P7.6] Implemented `Path audit page` for batch-scanning and reporting path mismatches.
 - [x] [P7.7] Implemented Celery notifications for `Organize All` and confirmed `force_organize` advances state.
 - [x] [P7.8] Covered by `needs_reorganize` signal in `apps/core/signals.py` — `main_character_or_team` is in `_PATH_RELEVANT_FIELDS`. When this field changes on an organized/written comic, `needs_reorganize=True` is set. Surfaced by the Library Re-organize Queue widget on the dashboard.
-- [ ] [P7.9] Ensure physical comics participate in path calculation (catalogue display) but *without* performing any file moves.
-- [ ] [P7.10] Implement robust logging for file processing errors (e.g., "Invalid or corrupted CBZ file", "No ComicInfo.xml") to a dedicated log file or application error reporting.
+- [-] [P7.9] (Cancelled) Physical comics are stored on shelves with a storage_location field — path calculation is irrelevant.
+- [x] [P7.10] Organize and write failures are now logged to the batch audit log as `organize_error` / `write_error` entries. Errors appear in the log viewer at `/settings/log/` with a red badge and dedicated filter tabs. Covers: file-not-found during organize, failed file move, failed ComicInfo.xml write — logged from both standalone batch tasks and smart list actions.
 - [x] [P7.11] Externalize Docker paths for `library` and `untagged` directories, and the `PORT` variable, into a `.env` file. `UNTAGGED_DIR` and `LIBRARY_DIR` added to both compose files with defaults so existing setups are unaffected. `.env.example` created documenting all required variables.
 
 ### Phase 8: Write to File (Comicrack_guide 09 - Write to File)

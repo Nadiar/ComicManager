@@ -23,6 +23,8 @@
       {% elif action == 'tag_all' %}Tag
       {% elif action == 'format_all' %}Format
       {% elif action == 'audit_metadata' %}Audit
+      {% elif action == 'organize_error' %}Organize Errors
+      {% elif action == 'write_error' %}Write Errors
       {% else %}{{ action }}{% endif %}
     </a>
     {% endfor %}
@@ -55,6 +57,7 @@
               {% elif entry.action == 'tag_all' %}badge-accent
               {% elif entry.action == 'format_all' %}badge-info
               {% elif entry.action == 'audit_metadata' %}badge-warning
+              {% elif entry.action == 'organize_error' or entry.action == 'write_error' %}badge-error
               {% else %}badge-neutral{% endif %}">
               {{ entry.action }}
             </span>
