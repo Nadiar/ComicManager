@@ -97,9 +97,11 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Paths — defaults match Docker volume mounts
-UNTAGGED_DIR = os.environ.get("UNTAGGED_DIR", "/comics/untagged")
-LIBRARY_DIR = os.environ.get("LIBRARY_DIR", "/comics/library")
+# Container-side paths — these are fixed by the Docker volume mounts.
+# UNTAGGED_DIR / LIBRARY_DIR in .env are HOST paths used only by docker-compose
+# for the volume mapping; they must not be used here.
+UNTAGGED_DIR = "/comics/untagged"
+LIBRARY_DIR = "/comics/library"
 CV_DB_PATH = os.environ.get("CV_DB_PATH", "/cv_db/comicvine.db")
 CV_MCL_PATH = os.environ.get("CV_MCL_PATH", "/cv_db/latest.mcl")
 INDUCKS_DB_PATH = os.environ.get("INDUCKS_DB_PATH", "/cv_db/inducks.db")
