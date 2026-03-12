@@ -137,7 +137,7 @@
 - [x] [P8.5] Implemented Celery notifications for `Write to File` and confirmed `force_write` advances state.
 - [x] [P8.6] Implemented `ComicInfo.xml output parity` (XML matches ComicRack format, includes `DataManager_Processed`, standard fields).
 - [-] [P8.7] (Cancelled) Embed UUID as a custom field in `ComicInfo.xml` — not needed.
-- [ ] [P8.8] Implement validation before allowing `ComicInfo.xml` to be written, ensuring all required metadata fields are populated.
+- [x] [P8.8] Validation before writing ComicInfo.xml. Blocks write if `series`, `number` (unless format is TPB/Omnibus/etc.), or `publisher` is missing. `write_comic` view returns HTTP 400 with a clear error message. All 4 batch write tasks skip and log invalid comics as `write_error` in the audit log. `force_write` bypasses validation as the explicit escape hatch.
 
 ## Re-organize Efficiency
 

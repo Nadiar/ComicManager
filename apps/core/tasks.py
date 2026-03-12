@@ -46,7 +46,7 @@ def write_all_comics_task(self):
     Reports progress via self.update_state().
     """
     from .models import Comic
-    from .utils import write_comicinfo_xml
+    from .utils import write_comicinfo_xml, validate_comic_for_write
 
     comic_ids = list(
         Comic.objects.filter(state=Comic.STATE_ORGANIZED)
@@ -71,6 +71,19 @@ def write_all_comics_task(self):
             continue
 
         if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
+            validation_errors = validate_comic_for_write(comic)
+            if validation_errors:
+                err_msg = f"Missing required fields: {', '.join(validation_errors)}"
+                errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {err_msg}")
+                from .audit import log_batch_entry
+                log_batch_entry("write_error", comic, Comic.STATE_ORGANIZED, Comic.STATE_ORGANIZED,
+                                {"error": [None, err_msg]})
+                self.update_state(
+                    state="PROGRESS",
+                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
+                )
+                continue
+
             success = write_comicinfo_xml(comic.file_path, comic)
             if not success:
                 errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
@@ -111,7 +124,7 @@ def write_stale_comics_task(self):
     Reports progress via self.update_state().
     """
     from .models import Comic
-    from .utils import write_comicinfo_xml
+    from .utils import write_comicinfo_xml, validate_comic_for_write
     from django.db.models import F
 
     comic_ids = list(
@@ -141,6 +154,19 @@ def write_stale_comics_task(self):
             continue
 
         if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
+            validation_errors = validate_comic_for_write(comic)
+            if validation_errors:
+                err_msg = f"Missing required fields: {', '.join(validation_errors)}"
+                errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {err_msg}")
+                from .audit import log_batch_entry
+                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
+                                {"error": [None, err_msg]})
+                self.update_state(
+                    state="PROGRESS",
+                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
+                )
+                continue
+
             success = write_comicinfo_xml(comic.file_path, comic)
             if not success:
                 errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
@@ -175,7 +201,7 @@ def write_missing_comics_task(self):
     had ComicInfo.xml written (last_written is null).
     """
     from .models import Comic
-    from .utils import write_comicinfo_xml
+    from .utils import write_comicinfo_xml, validate_comic_for_write
     from django.db.models import F
 
     comic_ids = list(
@@ -204,6 +230,19 @@ def write_missing_comics_task(self):
             continue
 
         if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
+            validation_errors = validate_comic_for_write(comic)
+            if validation_errors:
+                err_msg = f"Missing required fields: {', '.join(validation_errors)}"
+                errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {err_msg}")
+                from .audit import log_batch_entry
+                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
+                                {"error": [None, err_msg]})
+                self.update_state(
+                    state="PROGRESS",
+                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
+                )
+                continue
+
             success = write_comicinfo_xml(comic.file_path, comic)
             if not success:
                 errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
@@ -238,7 +277,7 @@ def rewrite_updated_comics_task(self):
     Reports progress via self.update_state().
     """
     from .models import Comic
-    from .utils import write_comicinfo_xml
+    from .utils import write_comicinfo_xml, validate_comic_for_write
 
     comic_ids = list(
         Comic.objects.filter(
@@ -265,6 +304,19 @@ def rewrite_updated_comics_task(self):
             continue
 
         if comic.file_path and comic.file_path.lower().endswith(".cbz"):
+            validation_errors = validate_comic_for_write(comic)
+            if validation_errors:
+                err_msg = f"Missing required fields: {', '.join(validation_errors)}"
+                errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {err_msg}")
+                from .audit import log_batch_entry
+                log_batch_entry("write_error", comic, comic.state, comic.state,
+                                {"error": [None, err_msg]})
+                self.update_state(
+                    state="PROGRESS",
+                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
+                )
+                continue
+
             success = write_comicinfo_xml(comic.file_path, comic)
             if not success:
                 errors.append(f"{comic.series} #{comic.number}: Failed to write XML")

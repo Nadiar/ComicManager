@@ -2505,7 +2505,7 @@ def write_comic(request, pk):
     This updates the ComicInfo.xml inside the CBZ file with the
     current database values, then advances to 'written' state.
     """
-    from .utils import write_comicinfo_xml
+    from .utils import write_comicinfo_xml, validate_comic_for_write
     from django.utils import timezone
 
     comic = get_object_or_404(Comic, pk=pk)
@@ -2514,6 +2514,13 @@ def write_comic(request, pk):
         return JsonResponse({
             "success": False,
             "error": f"Comic must be in 'organized' state (current: {comic.state})"
+        }, status=400)
+
+    validation_errors = validate_comic_for_write(comic)
+    if validation_errors:
+        return JsonResponse({
+            "success": False,
+            "error": f"Missing required fields: {', '.join(validation_errors)}",
         }, status=400)
 
     # For digital comics with CBZ files, write the XML

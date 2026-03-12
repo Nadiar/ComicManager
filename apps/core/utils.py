@@ -566,6 +566,27 @@ def generate_comicinfo_xml(comic: Comic, cbz_path: str = None) -> str:
     return '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding="unicode")
 
 
+_NUMBERLESS_FORMATS = frozenset({
+    "TPB", "Omnibus", "Graphic Novel", "Hard Cover", "Absolute Edition",
+})
+
+
+def validate_comic_for_write(comic) -> list[str]:
+    """
+    Return a list of missing required field names. Empty list means the comic is valid.
+    Not enforced by force_write (the escape hatch path).
+    """
+    errors = []
+    if not (comic.series or "").strip():
+        errors.append("series")
+    if not (comic.number or "").strip():
+        if (comic.format or "").strip() not in _NUMBERLESS_FORMATS:
+            errors.append("number")
+    if not (comic.publisher or "").strip():
+        errors.append("publisher")
+    return errors
+
+
 def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
     """
     Write/update ComicInfo.xml inside a CBZ file.
