@@ -478,11 +478,12 @@ def scrape_all_task(self):
     from apps.scraper.cv_sources import is_cv_db_available, check_api_budget, get_api_calls_remaining
     from apps.scraper.services import find_best_match, apply_cv_match
 
+    from django.db.models import Q
     comic_ids = list(
         Comic.objects.filter(
             state=Comic.STATE_IMPORTED,
-        ).exclude(
-            flags__scrape_skipped=True,
+        ).filter(
+            Q(flags__scrape_skipped__isnull=True) | Q(flags__scrape_skipped=False),
         ).values_list("pk", flat=True)
     )
     total = len(comic_ids)
