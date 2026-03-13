@@ -30,8 +30,13 @@ def organize_comic(comic: Comic, dry_run: bool = False) -> dict:
     Returns:
         Dict with organization results
     """
-    # Physical comics have no file to move
+    # Physical comics have no file to move — just advance state.
+    # They skip deduplication as a required step: advance from formatted or
+    # deduplicated directly to organized.
     if comic.medium == Comic.MEDIUM_PHYSICAL:
+        if not dry_run and comic.state in (Comic.STATE_FORMATTED, Comic.STATE_DEDUPLICATED):
+            comic.state = Comic.STATE_ORGANIZED
+            comic.save(update_fields=["state"])
         return {
             "success": True,
             "message": "Physical comic - no file to organize",
@@ -302,24 +307,31 @@ def sanitize_segment(text: str) -> str:
 
 def organize_all_comics(dry_run: bool = False) -> dict:
     """
-    Batch organize all comics in 'deduplicated' state.
+    Batch organize all ready comics.
+
+    Digital comics must be in 'deduplicated' state.
+    Physical comics advance from 'formatted' or 'deduplicated' — they skip deduplication.
 
     Args:
-        dry_run: If True, don't actually move files
+        dry_run: If True, don't actually move files or update state
 
     Returns:
         Dict with batch results
     """
+    from django.db.models import Q
+
+    # Digital comics need to be in deduplicated state.
+    # Physical comics can advance from formatted or deduplicated — they skip deduplication.
     comics = Comic.objects.filter(
-        state=Comic.STATE_DEDUPLICATED,
-        medium=Comic.MEDIUM_DIGITAL,
+        Q(state=Comic.STATE_DEDUPLICATED) |
+        Q(state=Comic.STATE_FORMATTED, medium=Comic.MEDIUM_PHYSICAL)
     )
     total_count = comics.count()
 
     if total_count == 0:
         return {
             "success": True,
-            "message": "No comics in 'deduplicated' state to organize",
+            "message": "No comics ready to organize",
             "total_processed": 0,
             "total_moved": 0,
             "total_errors": 0,

@@ -485,7 +485,10 @@ def detect_and_set_format(comic) -> dict:
 
     if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
                        Comic.STATE_COUNTED, Comic.STATE_TAGGED):
-        comic.state = Comic.STATE_FORMATTED
+        if comic.medium == Comic.MEDIUM_PHYSICAL:
+            comic.state = Comic.STATE_WRITTEN
+        else:
+            comic.state = Comic.STATE_FORMATTED
 
     comic.needs_reformat = False
     comic.save()

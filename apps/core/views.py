@@ -2026,7 +2026,10 @@ def _apply_format_detection(comic):
     elif not comic.format:
         comic.flags["missing_format"] = True
 
-    comic.state = Comic.STATE_FORMATTED
+    if comic.medium == Comic.MEDIUM_PHYSICAL:
+        comic.state = Comic.STATE_WRITTEN
+    else:
+        comic.state = Comic.STATE_FORMATTED
     comic.save()
 
 
@@ -2054,7 +2057,10 @@ def format_comic(request, pk):
     elif not comic.format:
         comic.flags["missing_format"] = True
 
-    comic.state = Comic.STATE_FORMATTED
+    if comic.medium == Comic.MEDIUM_PHYSICAL:
+        comic.state = Comic.STATE_WRITTEN
+    else:
+        comic.state = Comic.STATE_FORMATTED
     comic.save()
 
     _text = f"{comic.series or ''} {comic.title or ''}"
@@ -2242,7 +2248,10 @@ def accept_format_group(request, format_type):
         if detected == format_name:
             if format_name:
                 comic.format = format_name
-            comic.state = Comic.STATE_FORMATTED
+            if comic.medium == Comic.MEDIUM_PHYSICAL:
+                comic.state = Comic.STATE_WRITTEN
+            else:
+                comic.state = Comic.STATE_FORMATTED
             comic.save()
             processed += 1
 

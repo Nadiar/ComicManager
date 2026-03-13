@@ -416,12 +416,19 @@ def run_duplicate_detection() -> dict:
                 candidates_with_groups.add(membership.comic_id)
 
     # Only advance candidates (formatted comics) without duplicates
+    from apps.core.audit import log_batch_entry
+
     advanced = 0
     for comic in candidates:
         if comic.pk not in candidates_with_groups:
+            state_before = comic.state
             comic.state = Comic.STATE_DEDUPLICATED
             comic.save(update_fields=["state"])
             advanced += 1
+            log_batch_entry(
+                "deduplicate_all", comic, state_before, Comic.STATE_DEDUPLICATED,
+                {"state": [state_before, Comic.STATE_DEDUPLICATED]},
+            )
 
     logger.info(f"run_duplicate_detection: advanced {advanced} candidates to deduplicated")
 
