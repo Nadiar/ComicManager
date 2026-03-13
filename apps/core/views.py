@@ -707,9 +707,12 @@ def scrape_api_search(request, pk):
     Search the ComicVine API for matches.
 
     Query params:
-        q: Search query (defaults to comic's series + number)
+        q: Search query (defaults to comic's series + number).
+           If the query matches the pattern "4000-<issue_id>" it is treated as a
+           direct ComicVine issue ID lookup — no search is performed.
     """
     from .models import get_setting
+    from apps.scraper.cv_sources import is_cv_db_available
 
     comic = get_object_or_404(Comic, pk=pk)
 
@@ -732,6 +735,54 @@ def scrape_api_search(request, pk):
         }, status=400)
 
     scraper = ComicVineScraper()
+
+    # Direct issue ID lookup: "4000-<issue_id>"
+    direct_id_match = re.fullmatch(r"4000-(\d+)", query, re.IGNORECASE)
+    if direct_id_match:
+        issue_id = int(direct_id_match.group(1))
+        match = None
+
+        # Try local DB first (free, fast)
+        if is_cv_db_available():
+            match = scraper.get_issue_details(issue_id)
+            if match:
+                match = scraper.enrich_matches_with_covers([match])[0]
+
+        # Fall back to API
+        if match is None:
+            try:
+                match = scraper.get_issue_from_api(issue_id)
+            except ComicVineRateLimitError as e:
+                return JsonResponse({"success": False, "error": str(e), "rate_limited": True}, status=429)
+
+        if match is None:
+            return JsonResponse({
+                "success": False,
+                "error": f"No issue found for ID 4000-{issue_id}.",
+            }, status=404)
+
+        score = _metadata_alignment_score(comic, match)
+        return JsonResponse({
+            "success": True,
+            "source": "direct",
+            "comic": {"id": str(comic.pk), "series": comic.series, "number": comic.number, "year": comic.year},
+            "matches": [{
+                "issue_id": match.issue_id,
+                "volume_id": match.volume_id,
+                "series": match.series,
+                "number": match.issue_number,
+                "title": match.title,
+                "publisher": match.publisher,
+                "year": match.start_year,
+                "cover_url": match.cover_url,
+                "cover_urls": match.cover_urls or [],
+                "match_type": "direct",
+                "match_score": 0,
+                "alignment_score": score,
+                "recommended": True,
+            }],
+        })
+
     try:
         api_matches = scraper.search_api(query)
     except ComicVineRateLimitError as e:
