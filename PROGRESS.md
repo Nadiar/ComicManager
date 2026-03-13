@@ -47,6 +47,7 @@
 - [x] [P2.11] Confirmed `Comic.state` is updated to `counted` (as `scraped` state was removed).
 - [-] [P2.12] (Cancelled) Scraping TPBs/Director's Cuts first is unnecessary — format detection (P5.12) handles mis-tagging prevention; pipeline order does not matter.
 - [x] [P2.13] Implement metadata-only matching for physical comics. (See P2.9.)
+- [ ] [P2.14] If flag=scrape_skipped but manually scraping is done and confirmed, the flag should be cleared. 
 
 ### Phase 3: Issue Count (Comicrack_guide 04 - Add Count)
 
@@ -236,6 +237,10 @@
 - [x] [BUG.24] Batch task queuing implemented client-side. A second batch action triggered while one is running is queued and dispatched automatically once the first completes. The toast label updates to show "Starting next task..." between tasks.
 - [x] [BUG.22] Library Re-organize Queue (Re-organize All) now calls `log_batch_entry("organize_all", ...)` for every file that was actually moved, recording `old_path` → `new_path` in the batch log at `/settings/log/`.
 - [x] [BUG.23] Library Re-organize Queue toast completion message now shows "X moved, Y already ok (of Z)" instead of "0 processed". Fixed by handling `r.moved` in `successText()` and `progressText()` in `base.html`.
+- [x] [BUG.27] `?flag=is_pdf` showed two "Accept" buttons with completely different behaviours. Renamed: flag-suppress button is now "Suppress Flag" (ghost/success, with tooltip explaining it doesn't change state); state-advance button is now "Add to Workflow" when a flag is active (stays "Accept" on plain `?state=new`).
+- [x] [BUG.28] Added a "Delete" button (error outline style) to all flag list rows. Uses `showConfirm` modal with a danger confirmation before calling the existing `delete_comic` endpoint. On success the row fades out and is removed from the DOM.
+- [ ] [BUG.25] Physical comics have no path forward after reaching `deduplicated` state. The pipeline assumes "Organize All" as the next step, but physical comics live on a shelf (no file to move). A physical comic stuck at state 6 (deduplicated) cannot progress. Needs a dedicated "advance" action or state bypass for physical comics so they can reach `organized` (and optionally `written`) without triggering file operations. Full physical workflow needs end-to-end vetting.
+- [ ] [BUG.26] Deduplicate shows in toast eg. 15 of 16 processed, but pressing the auditlog link doesn't show anything logged. 
 
 ## I.N.D.U.C.K.S. Integration
 
@@ -253,6 +258,23 @@
 - [ ] [IND.9] Inducks-scraped comics (`scrape_source == "inducks"`) should skip CV-specific pipeline phases: issue count propagation (Phase 3), alt cover search, and count mismatch detection.
 - [ ] [IND.10] Inducks-scraped comics should skip the "Find Alt Covers" action and any CV API lookups on the detail page.
 - [ ] [IND.11] Review all batch tasks (scrape_all, populate_counts, format_all, etc.) to ensure they handle Inducks-sourced comics gracefully without errors or false flags.
+
+## Flag List Action Button Audit
+
+**Goal:** Ensure every `?flag=X` list view has consistent, correct action buttons matching the style and behaviour of `?state=new`.
+
+**Current Status & Tasks:**
+- [ ] [FL.1] `?flag=count_updated` — pressing Accept removes the row and shows `{"success": true}` in the first column instead of a proper inline response. Needs the same dismiss/inline behaviour as other flags.
+- [ ] [FL.2] `?flag=count_updated` — Accept button style and format does not match `?state=new`. Button styling must be made consistent across all flag views.
+- [ ] [FL.3] `?flag=no_series` — shows two Accept buttons. One must be removed.
+- [ ] [FL.4] Audit every `?flag=X` option end-to-end: verify action buttons are correct (right actions, right labels, right styles, no duplicates, no missing buttons).
+
+## Future Improvements
+
+**Goal:** Track nice-to-have features and enhancements that are not yet prioritised.
+
+**Current Status & Tasks:**
+- [ ] [FI.1] PDF to CBZ conversion. Currently `convert_cbr` only handles CBR/CB7 (archive re-pack). PDF conversion requires rendering each page to an image (e.g. via `pdf2image` / Ghostscript), which is a separate, non-trivial operation. Would allow PDFs flagged `is_pdf` to be converted in-place rather than only deleted or suppressed.
 
 ## Code to Port
 

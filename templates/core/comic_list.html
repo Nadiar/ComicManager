@@ -382,8 +382,14 @@
               hx-swap="outerHTML"
               hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
               class="btn btn-xs btn-ghost text-success"
-              title="Accept — suppress this flag permanently for this comic"
-            >Accept</button>
+              title="Suppress this flag permanently for this comic (does not change workflow state)"
+            >Suppress Flag</button>
+            <button
+              type="button"
+              class="btn btn-xs btn-error btn-outline"
+              onclick="deleteComic('{{ comic.pk }}', this)"
+              title="Delete this comic and its file from disk"
+            >Delete</button>
             {% endif %}
             {% if comic.state == 'new' %}
             <button
@@ -391,7 +397,7 @@
               class="btn btn-xs btn-success"
               onclick="acceptComic('{{ comic.pk }}', this)"
             >
-              Accept
+              {% if current_flag %}Add to Workflow{% else %}Accept{% endif %}
             </button>
             {% endif %}
             {% if comic.state == 'imported' or current_flag == 'metadata_mismatch' %}
@@ -1710,6 +1716,44 @@ function convertComic(pk, btn) {
     btn.title = err.toString();
     btn.disabled = false;
   });
+}
+
+function deleteComic(pk, btn) {
+  const row = btn.closest('tr');
+  const series = row.querySelector('td')?.textContent?.trim() || 'this comic';
+  showConfirm(
+    `Delete "${series}" and remove the file from disk? This cannot be undone.`,
+    () => {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+      fetch(`/comics/${pk}/delete/`, {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken() },
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          row.style.transition = 'opacity 0.3s';
+          row.style.opacity = '0';
+          setTimeout(() => row.remove(), 300);
+        } else {
+          btn.classList.add('btn-error');
+          btn.innerHTML = 'Error';
+          btn.title = data.error || 'Delete failed';
+          btn.disabled = false;
+        }
+      })
+      .catch(err => {
+        btn.classList.add('btn-error');
+        btn.innerHTML = 'Error';
+        btn.title = err.toString();
+        btn.disabled = false;
+      });
+    },
+    'Delete',
+    true
+  );
 }
 
 function tagComic(pk, btn) {
