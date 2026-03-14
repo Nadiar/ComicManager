@@ -151,7 +151,7 @@
     <div class="flex items-center gap-3">
       <h1 class="text-3xl font-bold">Comics</h1>
       {% if current_state %}
-      <span class="badge badge-lg badge-primary">{{ current_state }}</span>
+      <span class="badge badge-lg badge-primary">{{ current_state_label }}</span>
       {% endif %}
       {% if current_flag %}
       <span class="badge badge-lg badge-warning">{{ flag_label }}</span>
@@ -188,10 +188,10 @@
         Accept All
       </button>
       {% endif %}
-      {% if current_state == 'imported' and comics or current_flag == 'metadata_mismatch' and comics %}
+      {% if current_state == 'scrape' and comics or current_flag == 'metadata_mismatch' and comics %}
       <label class="label cursor-pointer gap-2 mr-2">
         <span class="label-text text-sm">Confirm each</span>
-        <input type="checkbox" id="confirm-scrape-checkbox" class="checkbox checkbox-sm" {% if current_state == 'imported' %}checked{% endif %} />
+        <input type="checkbox" id="confirm-scrape-checkbox" class="checkbox checkbox-sm" {% if current_state == 'scrape' %}checked{% endif %} />
       </label>
       <button
         type="button"
@@ -212,7 +212,7 @@
         Convert All CBR ({{ needs_conversion_count }})
       </button>
       {% endif %}
-      {% if current_state == 'counted' and comics %}
+      {% if current_state == 'count' and comics %}
       <button
         type="button"
         id="tag-all-btn"
@@ -241,7 +241,7 @@
         Re-tag All
       </button>
       {% endif %}
-      {% if current_state == 'tagged' and comics %}
+      {% if current_state == 'tagging' and comics %}
       <button
         type="button"
         id="format-all-btn"
@@ -251,7 +251,7 @@
         Format All
       </button>
       {% endif %}
-      {% if current_state == 'formatted' and comics %}
+      {% if current_state == 'formats' and comics %}
       <button
         type="button"
         id="deduplicate-all-btn"
@@ -261,7 +261,7 @@
         Deduplicate All
       </button>
       {% endif %}
-      {% if current_state == 'deduplicated' and comics %}
+      {% if current_state == 'deduplicate' and comics %}
       <button
         type="button"
         id="organize-all-btn"
@@ -271,7 +271,7 @@
         Organize All
       </button>
       {% endif %}
-      {% if current_state == 'organized' and comics %}
+      {% if current_state == 'move' and comics %}
       <button
         type="button"
         id="write-all-btn"
@@ -352,10 +352,10 @@
               <span class="text-warning">{{ comic.proposed_number|default:"-" }}</span>
             {% elif col_id == 'state' %}
               <span class="badge badge-sm
-                {% if comic.state == 'written' %}badge-success
+                {% if comic.state == 'write' %}badge-success
                 {% elif comic.state == 'new' %}badge-warning
                 {% else %}badge-info{% endif %}">
-                {{ comic.state }}
+                {{ comic.get_state_display }}
               </span>
             {% else %}
               {{ comic|get_col_value:col_id|default:"-" }}
@@ -400,7 +400,7 @@
               {% if current_flag %}Add to Workflow{% else %}Accept{% endif %}
             </button>
             {% endif %}
-            {% if comic.state == 'imported' or current_flag == 'metadata_mismatch' %}
+            {% if comic.state == 'scrape' or current_flag == 'metadata_mismatch' %}
             <button
               type="button"
               class="btn btn-xs btn-secondary"
@@ -410,7 +410,7 @@
               Scrape
             </button>
             {% endif %}
-            {% if comic.state == 'imported' %}
+            {% if comic.state == 'scrape' %}
             <button
               type="button"
               id="skip-btn-{{ comic.pk }}"
@@ -430,7 +430,7 @@
               Convert
             </button>
             {% endif %}
-            {% if comic.state == 'counted' %}
+            {% if comic.state == 'count' %}
             <button
               type="button"
               class="btn btn-xs btn-accent"
@@ -439,7 +439,7 @@
               Tag
             </button>
             {% endif %}
-            {% if comic.state == 'tagged' %}
+            {% if comic.state == 'tagging' %}
             <button
               type="button"
               class="btn btn-xs btn-info"
@@ -448,7 +448,7 @@
               Format
             </button>
             {% endif %}
-            {% if comic.state == 'deduplicated' %}
+            {% if comic.state == 'deduplicate' %}
             <button
               type="button"
               class="btn btn-xs btn-secondary"
@@ -457,7 +457,7 @@
               Organize
             </button>
             {% endif %}
-            {% if comic.state == 'organized' %}
+            {% if comic.state == 'move' %}
             <button
               type="button"
               class="btn btn-xs btn-success"
@@ -867,7 +867,7 @@ function acceptComic(pk, btn) {
       if (stateBadge) {
         stateBadge.classList.remove('badge-warning');
         stateBadge.classList.add('badge-info');
-        stateBadge.textContent = 'imported';
+        stateBadge.textContent = 'Scrape';
       }
 
       // Update the proposed values styling (remove warning color)
@@ -1617,7 +1617,7 @@ function updateRowAfterScrape(btn, data) {
   // Update state badge (now goes directly to 'counted')
   const stateBadge = row.querySelector('td:nth-child(9) .badge');
   if (stateBadge) {
-    stateBadge.textContent = 'counted';
+    stateBadge.textContent = 'Add Count';
   }
 
   // Update publisher if available
@@ -1782,7 +1782,7 @@ function tagComic(pk, btn) {
       // Update state badge
       const stateBadge = row.querySelector('td .badge-info, td .badge-warning');
       if (stateBadge) {
-        stateBadge.textContent = 'tagged';
+        stateBadge.textContent = 'Tagging';
       }
 
       // Show results modal
@@ -1941,7 +1941,7 @@ function formatComic(pk, btn) {
       // Update state badge
       const stateBadge = row.querySelector('td .badge-info');
       if (stateBadge) {
-        stateBadge.textContent = 'formatted';
+        stateBadge.textContent = 'Add Formats';
       }
 
       // Show results modal
@@ -2254,7 +2254,7 @@ function organizeComic(pk, btn) {
       // Update state badge
       const stateBadge = row.querySelector('td .badge-info');
       if (stateBadge) {
-        stateBadge.textContent = 'organized';
+        stateBadge.textContent = 'Move Files';
       }
 
       // Show results modal
@@ -2331,7 +2331,7 @@ function writeComic(pk, btn) {
       if (stateBadge) {
         stateBadge.classList.remove('badge-info');
         stateBadge.classList.add('badge-success');
-        stateBadge.textContent = 'written';
+        stateBadge.textContent = 'Write to CBZ';
       }
     } else {
       btn.classList.remove('btn-success');

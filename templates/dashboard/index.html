@@ -120,33 +120,33 @@
                 {% endif %}
                 {% endif %}
 
-                {% if stage.state == 'imported' and stage.count > 0 %}
+                {% if stage.state == 'scrape' and stage.count > 0 %}
                 <button onclick="runAction('/comics/scrape-all/', this, 'Scraping comics')" class="btn btn-xs btn-success">Scrape All</button>
                 {% endif %}
 
-                {% if stage.state == 'counted' and stage.count > 0 %}
+                {% if stage.state == 'count' and stage.count > 0 %}
                 <button onclick="runAction('/comics/tag-all/', this, 'Tagging comics')" class="btn btn-xs btn-success">Tag All</button>
                 {% endif %}
 
-                {% if stage.state == 'tagged' and stage.count > 0 %}
+                {% if stage.state == 'tagging' and stage.count > 0 %}
                 <button onclick="runAction('/comics/format-all/', this, 'Formatting comics')" class="btn btn-xs btn-success">Format All</button>
                 <a href="{% url 'core:format_review' %}" class="btn btn-xs btn-info">Review Formats</a>
                 {% endif %}
 
-                {% if stage.state == 'formatted' and stage.count > 0 %}
+                {% if stage.state == 'formats' and stage.count > 0 %}
                 <a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-info">Review Dupes</a>
                 <button onclick="runAction('/comics/deduplicate-all/', this, 'Deduplicating')" class="btn btn-xs btn-success">Detect Dupes</button>
                 {% endif %}
 
-                {% if stage.state == 'deduplicated' and stage.count > 0 %}
+                {% if stage.state == 'deduplicate' and stage.count > 0 %}
                 <button onclick="runAction('/comics/organize-all/', this, 'Organizing comics')" class="btn btn-xs btn-success">Organize All</button>
                 {% endif %}
 
-                {% if stage.state == 'organized' and stage.count > 0 %}
+                {% if stage.state == 'move' and stage.count > 0 %}
                 <button onclick="runAction('/comics/write-all/', this, 'Writing comics')" class="btn btn-xs btn-success" id="btn-write-all">Write All</button>
                 {% endif %}
 
-                {% if stage.state == 'written' %}
+                {% if stage.state == 'write' %}
                 <button onclick="runAction('/comics/sync-library-paths/', this)" class="btn btn-xs btn-info">Sync Paths</button>
                 {% endif %}
                 </div>
@@ -417,7 +417,7 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                 </td>
                 <td class="flex gap-1">
                   {% if stale_count > 0 %}
-                  <a href="{% url 'core:list' %}?state=written" class="btn btn-xs btn-ghost">View</a>
+                  <a href="{% url 'core:list' %}?state=write" class="btn btn-xs btn-ghost">View</a>
                   <button onclick="runAction('{% url 'core:write_stale' %}', this, 'Writing stale')" class="btn btn-xs btn-warning">Write Stale</button>
                   {% endif %}
                 </td>
@@ -431,7 +431,7 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                 </td>
                 <td class="flex gap-1">
                   {% if missing_comicinfo_count > 0 %}
-                  <a href="{% url 'core:list' %}?state=written" class="btn btn-xs btn-ghost">View</a>
+                  <a href="{% url 'core:list' %}?state=write" class="btn btn-xs btn-ghost">View</a>
                   <button onclick="runAction('{% url 'core:write_missing' %}', this, 'Writing missing')" class="btn btn-xs btn-success">Write Missing</button>
                   {% endif %}
                 </td>

@@ -22,8 +22,8 @@
         <p class="text-lg text-base-content/70 mt-1">{{ comic.title }}</p>
         {% endif %}
         <div class="flex gap-2 mt-2">
-          <span class="badge badge-lg {% if comic.state == 'written' %}badge-success{% elif comic.state == 'new' %}badge-warning{% else %}badge-info{% endif %}">
-            {{ comic.state }}
+          <span class="badge badge-lg {% if comic.state == 'write' %}badge-success{% elif comic.state == 'new' %}badge-warning{% else %}badge-info{% endif %}">
+            {{ comic.get_state_display }}
           </span>
           <span class="badge badge-lg badge-outline">{{ comic.medium }}</span>
           {% if comic.publisher %}
@@ -223,7 +223,7 @@
   </div>
   {% endif %}
 
-  {% if comic.state == 'organized' or comic.state == 'written' %}
+  {% if comic.state == 'move' or comic.state == 'write' %}
   {% if reorganize_preview %}
   <!-- Re-organize Preview -->
   <div class="alert {% if reorganize_preview.would_move %}alert-info{% else %}alert-success{% endif %}">

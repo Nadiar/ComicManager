@@ -12,24 +12,23 @@ class Comic(models.Model):
     ]
 
     STATE_NEW           = "new"
-    STATE_IMPORTED      = "imported"
-    STATE_SCRAPED       = "scraped"
-    STATE_COUNTED       = "counted"
-    STATE_TAGGED        = "tagged"        # Phase 4: DataManager rules applied
-    STATE_FORMATTED     = "formatted"
-    STATE_DEDUPLICATED  = "deduplicated"
-    STATE_ORGANIZED     = "organized"
-    STATE_WRITTEN       = "written"
+    STATE_IMPORTED      = "scrape"
+    STATE_SCRAPED       = "scraped"       # unused legacy value
+    STATE_COUNTED       = "count"
+    STATE_TAGGED        = "tagging"
+    STATE_FORMATTED     = "formats"
+    STATE_DEDUPLICATED  = "deduplicate"
+    STATE_ORGANIZED     = "move"
+    STATE_WRITTEN       = "write"
     STATE_CHOICES = [
         (STATE_NEW,          "New"),
-        (STATE_IMPORTED,     "Imported"),
-        (STATE_SCRAPED,      "Scraped"),
-        (STATE_COUNTED,      "Counted"),
-        (STATE_TAGGED,       "Tagged"),       # Phase 4: DataManager
-        (STATE_FORMATTED,    "Formatted"),
-        (STATE_DEDUPLICATED, "Deduplicated"),
-        (STATE_ORGANIZED,    "Organized"),
-        (STATE_WRITTEN,      "Written"),
+        (STATE_IMPORTED,     "Scrape"),
+        (STATE_COUNTED,      "Add Count"),
+        (STATE_TAGGED,       "Tagging"),
+        (STATE_FORMATTED,    "Add Formats"),
+        (STATE_DEDUPLICATED, "Deduplicate"),
+        (STATE_ORGANIZED,    "Move Files"),
+        (STATE_WRITTEN,      "Write to CBZ"),
     ]
 
     # Identity

@@ -51,14 +51,14 @@ FLAG_LABELS = {
 
 # Workflow states in order (for navigation)
 WORKFLOW_STATES = [
-    ("new", "New"),
-    ("imported", "Imported"),
-    ("counted", "Counted"),
-    ("tagged", "Tagged"),
-    ("formatted", "Formatted"),
-    ("deduplicated", "Deduplicated"),
-    ("organized", "Organized"),
-    ("written", "Written"),
+    ("new",         "New"),
+    ("scrape",      "Scrape"),
+    ("count",       "Add Count"),
+    ("tagging",     "Tagging"),
+    ("formats",     "Add Formats"),
+    ("deduplicate", "Deduplicate"),
+    ("move",        "Move Files"),
+    ("write",       "Write to CBZ"),
 ]
 
 
@@ -252,6 +252,7 @@ def comic_list(request):
         "query_string": query_string,
         "per_page": per_page,
         "current_state": state,
+        "current_state_label": dict(WORKFLOW_STATES).get(state, state),
         "current_flag": flag,
         "current_search": search,
         "current_publisher": publisher,
@@ -3476,7 +3477,7 @@ def comic_inline_field(request, pk):
 # Rollback
 # =============================================================================
 
-_VALID_ROLLBACK_STATES = {"new", "imported", "counted", "tagged"}
+_VALID_ROLLBACK_STATES = {"new", "scrape", "count", "tagging"}
 
 
 @require_POST
@@ -3490,7 +3491,7 @@ def comic_rollback(request, pk):
 
     cv = comic.custom_values or {}
 
-    if to_state in ("new", "imported"):
+    if to_state in ("new", "scrape"):
         for key in ("comicvine_issue", "comicvine_volume", "scrape_score", "scrape_source"):
             cv.pop(key, None)
         for flag in ("scrape_no_match", "scrape_error", "scrape_error_detail", "metadata_mismatch"):
@@ -3498,24 +3499,24 @@ def comic_rollback(request, pk):
         comic.custom_values = cv
         comic.state = Comic.STATE_NEW if to_state == "new" else Comic.STATE_IMPORTED
 
-    elif to_state == "counted":
+    elif to_state == "count":
         comic.series_group = None
         comic.main_character_or_team = None
         cv.pop("DataManager_Processed", None)
         comic.custom_values = cv
         comic.state = Comic.STATE_COUNTED
 
-    elif to_state == "tagged":
+    elif to_state == "tagging":
         comic.format = None
         comic.state = Comic.STATE_TAGGED
 
     comic.save()
 
     label_map = {
-        "new": "new (phase 1)",
-        "imported": "imported (phase 2)",
-        "counted": "counted (phase 3)",
-        "tagged": "tagged (phase 4)",
+        "new":     "New (phase 1)",
+        "scrape":  "Scrape (phase 2)",
+        "count":   "Add Count (phase 3)",
+        "tagging": "Tagging (phase 4)",
     }
     return HttpResponse(
         f'<tr class="opacity-50">'

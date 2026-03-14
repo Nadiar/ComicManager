@@ -152,10 +152,10 @@
           <td {% if col_id == 'series' or col_id == 'title' %}class="max-w-xs truncate"{% endif %}>
             {% if col_id == 'state' %}
               <span class="badge badge-sm
-                {% if comic.state == 'written' %}badge-success
+                {% if comic.state == 'write' %}badge-success
                 {% elif comic.state == 'new' %}badge-warning
                 {% else %}badge-info{% endif %}">
-                {{ comic.state }}
+                {{ comic.get_state_display }}
               </span>
             {% else %}
               {{ comic|get_col_value:col_id|default:"-" }}

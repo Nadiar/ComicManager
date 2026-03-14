@@ -96,42 +96,42 @@
               To new
             </button>
             {% else %}
-            {# Successful scrape — undo by sending back to imported #}
+            {# Successful scrape — undo by sending back to scrape #}
             <button class="btn btn-xs btn-warning"
                     hx-post="{% url 'core:comic_rollback' entry.uuid %}"
-                    hx-vals='{"to_state": "imported"}'
+                    hx-vals='{"to_state": "scrape"}'
                     hx-target="#log-row-{{ forloop.counter }}"
                     hx-swap="outerHTML"
-                    hx-confirm="Undo this scrape? Clears CV match data and resets to imported.">
-              To imported
+                    hx-confirm="Undo this scrape? Clears CV match data and resets to Scrape.">
+              To Scrape
             </button>
             {% endif %}
             {% elif entry.action == 'tag_all' %}
             <button class="btn btn-xs btn-warning"
                     hx-post="{% url 'core:comic_rollback' entry.uuid %}"
-                    hx-vals='{"to_state": "counted"}'
+                    hx-vals='{"to_state": "count"}'
                     hx-target="#log-row-{{ forloop.counter }}"
                     hx-swap="outerHTML"
-                    hx-confirm="Reset this comic to 'counted' and clear tagging data?">
-              To counted
+                    hx-confirm="Reset this comic to 'count' and clear tagging data?">
+              To Count
             </button>
             {% elif entry.action == 'format_all' %}
             <button class="btn btn-xs btn-warning"
                     hx-post="{% url 'core:comic_rollback' entry.uuid %}"
-                    hx-vals='{"to_state": "tagged"}'
+                    hx-vals='{"to_state": "tagging"}'
                     hx-target="#log-row-{{ forloop.counter }}"
                     hx-swap="outerHTML"
-                    hx-confirm="Reset this comic to 'tagged' and clear format?">
-              To tagged
+                    hx-confirm="Reset this comic to 'tagging' and clear format?">
+              To Tagging
             </button>
             {% elif entry.action == 'audit_metadata' %}
             {# Mismatched metadata — send back to scraping phase #}
             <button class="btn btn-xs btn-warning"
                     hx-post="{% url 'core:comic_rollback' entry.uuid %}"
-                    hx-vals='{"to_state": "imported"}'
+                    hx-vals='{"to_state": "scrape"}'
                     hx-target="#log-row-{{ forloop.counter }}"
                     hx-swap="outerHTML"
-                    hx-confirm="Reset this comic to 'imported' phase? Clears mismatch flag and match data.">
+                    hx-confirm="Reset this comic to 'Scrape' phase? Clears mismatch flag and match data.">
               To Scrape
             </button>
             {% endif %}
