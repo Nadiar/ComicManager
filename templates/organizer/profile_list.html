@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Organizer Profiles — ComicManager{% endblock %}
+{% block title %}File Organizer — ComicManager{% endblock %}
 {% block nav_organizer %}active{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
 
   <div class="flex justify-between items-center">
-    <h1 class="text-3xl font-bold">Library Organizer Profiles</h1>
+    <h1 class="text-3xl font-bold">File Organizer Profiles</h1>
     <div class="flex gap-2">
       <a href="{% url 'organizer:import' %}" class="btn btn-outline">Import .lop</a>
       <a href="{% url 'organizer:profile_create' %}" class="btn btn-primary">New Profile</a>

@@ -7,7 +7,10 @@
 
   <div class="flex items-center justify-between">
     <h1 class="text-3xl font-bold">Settings</h1>
-    <a href="{% url 'settings:log' %}" class="btn btn-outline btn-sm">Batch Log</a>
+    <div class="flex gap-2">
+      <a href="/scraper/" class="btn btn-outline btn-sm">Scraper</a>
+      <a href="{% url 'settings:log' %}" class="btn btn-outline btn-sm">Batch Log</a>
+    </div>
   </div>
 
   <!-- ComicVine Data Sources Status -->
