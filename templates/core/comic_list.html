@@ -391,7 +391,7 @@
               title="Delete this comic and its file from disk"
             >Delete</button>
             {% endif %}
-            {% if comic.state == 'new' %}
+            {% if comic.state == 'new' and current_flag != 'no_series' %}
             <button
               type="button"
               class="btn btn-xs btn-success"

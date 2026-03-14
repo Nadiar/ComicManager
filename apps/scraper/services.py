@@ -350,6 +350,7 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
     comic.remove_flag("scrape_error")
     comic.remove_flag("scrape_error_detail")
     comic.remove_flag("metadata_mismatch")
+    comic.remove_flag("scrape_skipped")
 
     # Flag comics from publishers not covered by any tagging ruleset
     if comic.publisher:
@@ -461,6 +462,7 @@ def apply_inducks_match(comic, match):
     comic.remove_flag("scrape_error")
     comic.remove_flag("scrape_error_detail")
     comic.remove_flag("metadata_mismatch")
+    comic.remove_flag("scrape_skipped")
 
     # Flag comics from publishers not covered by any tagging ruleset
     if comic.publisher:

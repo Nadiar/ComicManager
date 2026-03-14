@@ -1852,7 +1852,9 @@ def accept_flag_view(request, pk):
         return JsonResponse({"success": False, "error": "No flag specified"}, status=400)
     comic.accept_flag(flag)
     comic.save(update_fields=["flags", "accepted_flags"])
-    return JsonResponse({"success": True})
+    # Return empty HTML so HTMX outerHTML swap removes the row cleanly
+    from django.http import HttpResponse
+    return HttpResponse("")
 
 
 @require_POST
