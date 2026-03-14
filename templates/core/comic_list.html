@@ -244,6 +244,16 @@
       {% if current_state == 'tagging' and comics %}
       <button
         type="button"
+        id="tag-all-btn"
+        class="btn btn-sm btn-accent"
+        onclick="tagAllComics(this)"
+      >
+        Tag All
+      </button>
+      {% endif %}
+      {% if current_state == 'formats' and comics %}
+      <button
+        type="button"
         id="format-all-btn"
         class="btn btn-sm btn-info"
         onclick="formatAllComics(this)"
@@ -251,7 +261,7 @@
         Format All
       </button>
       {% endif %}
-      {% if current_state == 'formats' and comics %}
+      {% if current_state == 'deduplicate' and comics %}
       <button
         type="button"
         id="deduplicate-all-btn"
@@ -261,7 +271,7 @@
         Deduplicate All
       </button>
       {% endif %}
-      {% if current_state == 'deduplicate' and comics %}
+      {% if current_state == 'move' and comics %}
       <button
         type="button"
         id="organize-all-btn"
@@ -271,7 +281,7 @@
         Organize All
       </button>
       {% endif %}
-      {% if current_state == 'move' and comics %}
+      {% if current_state == 'write' and comics %}
       <button
         type="button"
         id="write-all-btn"
@@ -442,13 +452,22 @@
             {% if comic.state == 'tagging' %}
             <button
               type="button"
+              class="btn btn-xs btn-accent"
+              onclick="tagComic('{{ comic.pk }}', this)"
+            >
+              Tag
+            </button>
+            {% endif %}
+            {% if comic.state == 'formats' %}
+            <button
+              type="button"
               class="btn btn-xs btn-info"
               onclick="formatComic('{{ comic.pk }}', this)"
             >
               Format
             </button>
             {% endif %}
-            {% if comic.state == 'deduplicate' %}
+            {% if comic.state == 'move' %}
             <button
               type="button"
               class="btn btn-xs btn-secondary"
@@ -457,7 +476,7 @@
               Organize
             </button>
             {% endif %}
-            {% if comic.state == 'move' %}
+            {% if comic.state == 'write' %}
             <button
               type="button"
               class="btn btn-xs btn-success"
