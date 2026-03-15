@@ -265,9 +265,9 @@
 
 **Current Status & Tasks:**
 - [x] [FL.1] `?flag=count_updated` — pressing Accept removes the row and shows `{"success": true}` in the first column instead of a proper inline response. Fixed in commit 4467157.
-- [ ] [FL.2] `?flag=count_updated` — Accept button style and format does not match `?state=new`. Button styling must be made consistent across all flag views.
+- [x] [FL.2] `?flag=count_updated` — no per-row action button. Added "Rewrite" button calling `force_write` endpoint; row fades out on success.
 - [x] [FL.3] `?flag=no_series` — shows two Accept buttons. One must be removed. Fixed in commit 4467157.
-- [ ] [FL.4] Audit every `?flag=X` option end-to-end: verify action buttons are correct (right actions, right labels, right styles, no duplicates, no missing buttons).
+- [x] [FL.4] Audited all `?flag=X` views. Two issues found and fixed: (1) `count_updated` missing Rewrite button (FL.2); (2) `corrupted_archive` incorrectly showed "Add to Workflow" — excluded from that condition and given a "Try Rezip" button instead. All other flags verified correct.
 
 ## Future Improvements
 

@@ -401,7 +401,23 @@
               title="Delete this comic and its file from disk"
             >Delete</button>
             {% endif %}
-            {% if comic.state == 'new' and current_flag != 'no_series' %}
+            {% if current_flag == 'count_updated' %}
+            <button
+              type="button"
+              class="btn btn-xs btn-success"
+              onclick="forceWriteComic('{{ comic.pk }}', this)"
+              title="Rewrite ComicInfo.xml with updated count"
+            >Rewrite</button>
+            {% endif %}
+            {% if current_flag == 'corrupted_archive' %}
+            <button
+              type="button"
+              class="btn btn-xs btn-warning"
+              onclick="tryRezipComic('{{ comic.pk }}', this)"
+              title="Attempt to recover the corrupted archive"
+            >Try Rezip</button>
+            {% endif %}
+            {% if comic.state == 'new' and current_flag != 'no_series' and current_flag != 'corrupted_archive' %}
             <button
               type="button"
               class="btn btn-xs btn-success"
@@ -2362,6 +2378,70 @@ function writeComic(pk, btn) {
   })
   .catch(err => {
     btn.classList.remove('btn-success');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function forceWriteComic(pk, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+  fetch(`/comics/${pk}/force-write/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken() }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      const row = btn.closest('tr');
+      row.style.transition = 'opacity 0.3s';
+      row.style.opacity = '0';
+      setTimeout(() => row.remove(), 300);
+    } else {
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Error';
+      btn.title = data.error || 'Failed to write';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-success');
+    btn.classList.add('btn-error');
+    btn.innerHTML = 'Error';
+    btn.title = err.toString();
+    btn.disabled = false;
+  });
+}
+
+function tryRezipComic(pk, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+  fetch(`/comics/${pk}/rezip/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken() }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      const row = btn.closest('tr');
+      row.style.transition = 'opacity 0.3s';
+      row.style.opacity = '0';
+      setTimeout(() => row.remove(), 300);
+    } else {
+      btn.classList.remove('btn-warning');
+      btn.classList.add('btn-error');
+      btn.innerHTML = 'Failed';
+      btn.title = data.error || 'Rezip failed';
+      btn.disabled = false;
+    }
+  })
+  .catch(err => {
+    btn.classList.remove('btn-warning');
     btn.classList.add('btn-error');
     btn.innerHTML = 'Error';
     btn.title = err.toString();
