@@ -188,7 +188,7 @@
 - [x] [UI.5] Confirmed `Dynamic column customization`, `Server-side pagination`, and sortable column headers are implemented.
 - [x] [UI.6] Confirmed `Celery notifications for all batch actions` covers various bulk actions.
 - [x] [UI.7] Visual pipeline funnel and smart list counts on the dashboard — both already implemented. Pipeline shows 8-stage `steps` component with per-stage counts and action buttons. Smart lists with `show_on_dashboard=True` render as count cards with optional CV completion progress bars.
-- [ ] [UI.8] Consolidate and enhance existing settings into a single, comprehensive settings UI for templates, publisher rules, and API keys.
+- [x] [UI.8] Consolidate and enhance existing settings into a single, comprehensive settings UI for templates, publisher rules, and API keys. Help text moved below inputs to fix line wrapping.
 - [x] [UI.9] Batch audit log at `/settings/log/` — filterable by action (Scrape/Tag/Format/Organize/Write/Audit), per-comic changes diff, copyable UUID, rollback buttons. Log written to `./data/logs/batch_actions.jsonl`. Audit entries include a "To Scrape" rollback button to reset bad matches. Log entries are only written when a flag is newly added or cleared (not on repeated re-runs). All pipeline stages now log: `scrape_all`, `tag_all`, `format_all`, `organize_all` (records old/new path), `write_all` (records comicinfo write), `audit_metadata`.
 - [ ] [UI.10] Implement functionality to export comic metadata as JSON for individual comics and potentially in bulk.
 - [ ] [UI.11] Enhance global search to return both digital and physical comics, clearly indicating the medium with a "medium badge".
@@ -203,7 +203,7 @@
 - [x] [UI.20] `/comics` table column selector now sorts columns alphabetically by label. Fixed by sorting `COLUMNS_REGISTRY` by `label` in the view before passing `all_columns` to the template.
 - [x] [UI.21] `/comics` table search, filter, and sort overhauled: (1) search expanded to writer, penciller, inker, colorist, letterer, cover_artist, editor, characters, teams, genre, notes; (2) smart search tokens: `#N` filters by issue number, `(YYYY)` by year, `VYYY` by volume, combinable freely; (3) column header sort fixed (sort key mismatch between COLUMNS_REGISTRY and view's sort_fields dict was silently falling back to series sort for every non-trivial column); (4) pages sort uses `NULLS LAST` in both directions. Documented in `docs/guide/searching.md`.
 - [x] [UI.22] `/settings/log/` batch log — the UUID column is now an "Info" button that opens the comic detail page in a new tab.
-- [ ] [UI.25] Review whether zero-count rows in the Review & Maintenance card (both Active and Maintenance tabs) should be hidden entirely, or kept visible as permanent status indicators.
+- [x] [UI.25] Review whether zero-count rows in the Review & Maintenance card (both Active and Maintenance tabs) should be hidden entirely, or kept visible as permanent status indicators. Resolved via Appearance setting: "Hide zero-count maintenance rows".
 - [x] [UI.23] Dashboard Review Queue and re-organize/stale widgets consolidated into a single "Review & Maintenance" card with Active and Maintenance tabs. Active tab shows existing review queue; Maintenance tab shows Duplicates, Needs Re-organize, Stale Metadata, and Missing ComicInfo.xml rows with counts and action buttons. Tab auto-selects based on which count is non-zero.
 - [x] [UI.24] Duplicate review page gains method filter tabs (All / CV ID / Series-Number / Cover Hash / Filename). Clicking a tab filters the groups list and shows the count per method on each tab button.
 
@@ -239,8 +239,8 @@
 - [x] [BUG.23] Library Re-organize Queue toast completion message now shows "X moved, Y already ok (of Z)" instead of "0 processed". Fixed by handling `r.moved` in `successText()` and `progressText()` in `base.html`.
 - [x] [BUG.27] `?flag=is_pdf` showed two "Accept" buttons with completely different behaviours. Renamed: flag-suppress button is now "Suppress Flag" (ghost/success, with tooltip explaining it doesn't change state); state-advance button is now "Add to Workflow" when a flag is active (stays "Accept" on plain `?state=new`).
 - [x] [BUG.28] Added a "Delete" button (error outline style) to all flag list rows. Uses `showConfirm` modal with a danger confirmation before calling the existing `delete_comic` endpoint. On success the row fades out and is removed from the DOM.
-- [ ] [BUG.25] Physical comics have no path forward after reaching `deduplicated` state. The pipeline assumes "Organize All" as the next step, but physical comics live on a shelf (no file to move). A physical comic stuck at state 6 (deduplicated) cannot progress. Needs a dedicated "advance" action or state bypass for physical comics so they can reach `organized` (and optionally `written`) without triggering file operations. Full physical workflow needs end-to-end vetting.
-- [ ] [BUG.26] Deduplicate shows in toast eg. 15 of 16 processed, but pressing the auditlog link doesn't show anything logged. 
+- [x] [BUG.25] Physical comics have no path forward after reaching `deduplicated` state. Fixed: physical comics now skip directly to `written` when format is detected; deduplicate batch logs correctly.
+- [x] [BUG.26] Deduplicate shows in toast eg. 15 of 16 processed, but pressing the auditlog link doesn't show anything logged. Fixed in same commit as BUG.25.
 
 ## I.N.D.U.C.K.S. Integration
 

@@ -273,7 +273,7 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
               <tbody>
                 {% for item in review_queue %}
                 {% if item.flag != 'count_mismatch' and item.flag != 'format_mismatch_in_volume' and item.flag != 'cv_volume_conflict' and item.action != 'reformat' %}
-                {% if item.count > 0 or item.flag == 'missing_count' %}
+                {% if item.count > 0 or item.flag == 'missing_count' or not hide_zero_maintenance_rows %}
                 <tr class="{% if item.count > 0 %}bg-base-300{% endif %}">
                   <td class="font-medium">
                     {% if item.action == 'delete' %}
@@ -326,6 +326,7 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
             <thead><tr><th>Issue</th><th>Detail</th><th class="text-right">Count</th><th></th></tr></thead>
             <tbody>
               <!-- Count Mismatch -->
+              {% if not hide_zero_maintenance_rows or count_mismatch_count > 0 %}
               <tr class="{% if count_mismatch_count > 0 %}bg-base-300{% endif %}">
                 <td class="font-medium {% if count_mismatch_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Count Mismatch</td>
                 <td class="text-base-content/60">Comics in the same CV volume disagree on issue count</td>
@@ -337,7 +338,9 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                   <button onclick="runAction('/comics/detect-count-mismatches/', this)" class="btn btn-xs btn-info">Detect Mismatches</button>
                 </td>
               </tr>
+              {% endif %}
               <!-- Format Mismatch in Volume -->
+              {% if not hide_zero_maintenance_rows or format_mismatch_count > 0 %}
               <tr class="{% if format_mismatch_count > 0 %}bg-base-300{% endif %}">
                 <td class="font-medium {% if format_mismatch_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Format Mismatch in Volume</td>
                 <td class="text-base-content/60">Comics linked to the same CV volume have conflicting formats</td>
@@ -349,7 +352,9 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                   <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
                 </td>
               </tr>
+              {% endif %}
               <!-- CV Volume Conflict -->
+              {% if not hide_zero_maintenance_rows or cv_volume_conflict_count > 0 %}
               <tr class="{% if cv_volume_conflict_count > 0 %}bg-base-300{% endif %}">
                 <td class="font-medium {% if cv_volume_conflict_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">CV Volume Conflict</td>
                 <td class="text-base-content/60">Comics with the same Series+Volume+Format are linked to different CV volumes</td>
@@ -361,7 +366,9 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                   <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
                 </td>
               </tr>
+              {% endif %}
               <!-- Format Upgrade Needed -->
+              {% if not hide_zero_maintenance_rows or needs_reformat_count > 0 %}
               <tr class="{% if needs_reformat_count > 0 %}bg-base-300{% endif %}">
                 <td class="font-medium {% if needs_reformat_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Format Upgrade Needed</td>
                 <td class="text-base-content/60">Issue count changed — format should be upgraded (e.g. One-Shot to Limited Series)</td>
@@ -376,7 +383,9 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                   {% endif %}
                 </td>
               </tr>
+              {% endif %}
               <!-- Duplicates -->
+              {% if not hide_zero_maintenance_rows or dup_total > 0 %}
               <tr class="{% if dup_total > 0 %}bg-base-300{% endif %}">
                 <td class="font-medium {% if dup_total > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Duplicates</td>
                 <td class="text-base-content/60 text-xs">
@@ -394,7 +403,9 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                   {% if dup_total > 0 %}<a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-ghost">Review</a>{% endif %}
                 </td>
               </tr>
+              {% endif %}
               <!-- Needs Re-organize -->
+              {% if not hide_zero_maintenance_rows or needs_reorganize_count > 0 %}
               <tr class="{% if needs_reorganize_count > 0 %}bg-base-300{% endif %}">
                 <td class="font-medium {% if needs_reorganize_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Needs Re-organize</td>
                 <td class="text-base-content/60">Metadata changed after last organize, or organizer profile template was updated</td>
@@ -408,7 +419,9 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                   {% endif %}
                 </td>
               </tr>
+              {% endif %}
               <!-- Stale Metadata -->
+              {% if not hide_zero_maintenance_rows or stale_count > 0 %}
               <tr class="{% if stale_count > 0 %}bg-base-300{% endif %}">
                 <td class="font-medium {% if stale_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Stale Metadata</td>
                 <td class="text-base-content/60">Database updated after last ComicInfo.xml write</td>
@@ -422,7 +435,9 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                   {% endif %}
                 </td>
               </tr>
+              {% endif %}
               <!-- Missing ComicInfo.xml -->
+              {% if not hide_zero_maintenance_rows or missing_comicinfo_count > 0 %}
               <tr class="{% if missing_comicinfo_count > 0 %}bg-base-300{% endif %}">
                 <td class="font-medium {% if missing_comicinfo_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Missing ComicInfo.xml</td>
                 <td class="text-base-content/60">Written digital comics that have never had ComicInfo.xml written</td>
@@ -436,6 +451,7 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
                   {% endif %}
                 </td>
               </tr>
+              {% endif %}
             </tbody>
           </table>
         </div>
