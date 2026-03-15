@@ -91,9 +91,6 @@
           <div class="form-control">
             <label class="label">
               <span class="label-text font-medium">{{ setting.label }}</span>
-              {% if setting.help_text %}
-              <span class="label-text-alt text-base-content/50">{{ setting.help_text }}</span>
-              {% endif %}
             </label>
             {% if setting.type == "bool" %}
               <input type="checkbox" name="{{ setting.key }}"
@@ -108,6 +105,9 @@
               <input type="text" name="{{ setting.key }}"
                 value="{{ setting.value }}"
                 class="input input-bordered w-full {% if setting.type == 'path' %}font-mono{% endif %}">
+            {% endif %}
+            {% if setting.help_text %}
+            <p class="text-xs text-base-content/50 mt-1">{{ setting.help_text }}</p>
             {% endif %}
           </div>
           {% endfor %}
