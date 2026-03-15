@@ -264,9 +264,9 @@
 **Goal:** Ensure every `?flag=X` list view has consistent, correct action buttons matching the style and behaviour of `?state=new`.
 
 **Current Status & Tasks:**
-- [ ] [FL.1] `?flag=count_updated` — pressing Accept removes the row and shows `{"success": true}` in the first column instead of a proper inline response. Needs the same dismiss/inline behaviour as other flags.
+- [x] [FL.1] `?flag=count_updated` — pressing Accept removes the row and shows `{"success": true}` in the first column instead of a proper inline response. Fixed in commit 4467157.
 - [ ] [FL.2] `?flag=count_updated` — Accept button style and format does not match `?state=new`. Button styling must be made consistent across all flag views.
-- [ ] [FL.3] `?flag=no_series` — shows two Accept buttons. One must be removed.
+- [x] [FL.3] `?flag=no_series` — shows two Accept buttons. One must be removed. Fixed in commit 4467157.
 - [ ] [FL.4] Audit every `?flag=X` option end-to-end: verify action buttons are correct (right actions, right labels, right styles, no duplicates, no missing buttons).
 
 ## Future Improvements
