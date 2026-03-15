@@ -144,7 +144,18 @@ def reorganize_all_flagged_task(self):
         except Comic.DoesNotExist:
             continue
 
-        result = reorganize_comic(comic)
+        try:
+            result = reorganize_comic(comic)
+        except (PermissionError, OSError) as e:
+            err_msg = str(e)
+            errors.append(f"{comic.series} #{comic.number}: {err_msg}")
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i + 1, "total": total, "moved": moved, "errors": errors},
+            )
+            return {"moved": moved, "already_ok": already_ok, "total": total,
+                    "errors": errors, "cancelled": False, "stopped_early": True}
+
         if result["success"]:
             if result.get("moved"):
                 from apps.core.audit import log_batch_entry

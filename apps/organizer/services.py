@@ -240,6 +240,13 @@ def reorganize_comic(comic: Comic) -> dict:
             "profile": preview["selected_profile"],
         }
 
+    except PermissionError:
+        raise
+    except OSError as e:
+        import errno as _errno
+        if e.errno == _errno.ENOSPC:
+            raise
+        return {"success": False, "moved": False, "error": str(e)}
     except Exception as e:
         return {"success": False, "moved": False, "error": str(e)}
 

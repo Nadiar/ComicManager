@@ -73,6 +73,29 @@ def run_smartlist_action_task(self, smart_list_id, action):
             elif action == "write":
                 _run_write(comic)
                 success_count += 1
+        except (PermissionError, OSError) as e:
+            import errno as _errno
+            is_destructive = action in ("organize", "write")
+            fatal = is_destructive and (
+                isinstance(e, PermissionError) or getattr(e, "errno", None) == _errno.ENOSPC
+            )
+            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
+            if is_destructive:
+                from apps.core.audit import log_batch_entry
+                log_batch_entry(f"{action}_error", comic, comic.state, comic.state,
+                                {"error": [None, str(e)]})
+            processed += 1
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i + 1, "total": total, "action": action,
+                      "success_count": success_count, "errors": errors},
+            )
+            if fatal:
+                return {
+                    "success": True, "action": action, "processed": processed,
+                    "success_count": success_count, "total": total, "errors": errors,
+                    "cancelled": False, "stopped_early": True,
+                }
         except Exception as e:
             errors.append(f"{comic.series} #{comic.number}: {str(e)}")
             if action in ("organize", "write"):

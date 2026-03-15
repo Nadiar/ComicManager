@@ -379,6 +379,11 @@
     }
 
     function successText(r) {
+      if (r.stopped_early) {
+        var done = r.processed || r.written || r.success_count || r.moved || 0;
+        var errCount = r.errors && r.errors.length > 0 ? r.errors.length : 1;
+        return 'Stopped after ' + done + ' processed — ' + errCount + ' error' + (errCount !== 1 ? 's' : '');
+      }
       if (r.cancelled) {
         var done = r.processed || r.written || r.success_count || 0;
         return 'Cancelled after ' + done + ' processed';
@@ -456,6 +461,10 @@
             hideCancel();
             if (r.cancelled) {
               labelEl.textContent = taskLabel + ' cancelled';
+              bar.classList.remove('progress-primary');
+              bar.classList.add('progress-error');
+            } else if (r.stopped_early) {
+              labelEl.textContent = taskLabel + ' stopped early';
               bar.classList.remove('progress-primary');
               bar.classList.add('progress-error');
             } else {

@@ -47,7 +47,7 @@
 - [x] [P2.11] Confirmed `Comic.state` is updated to `counted` (as `scraped` state was removed).
 - [-] [P2.12] (Cancelled) Scraping TPBs/Director's Cuts first is unnecessary — format detection (P5.12) handles mis-tagging prevention; pipeline order does not matter.
 - [x] [P2.13] Implement metadata-only matching for physical comics. (See P2.9.)
-- [ ] [P2.14] If flag=scrape_skipped but manually scraping is done and confirmed, the flag should be cleared. 
+- [x] [P2.14] If flag=scrape_skipped but manually scraping is done and confirmed, the flag should be cleared. `apply_cv_match` and `apply_inducks_match` both call `comic.remove_flag("scrape_skipped")` on successful match confirmation.
 
 ### Phase 3: Issue Count (Comicrack_guide 04 - Add Count)
 
@@ -224,7 +224,7 @@
 - [x] [BUG.9] Ensure `Summary` and `Notes` fields are multi-line in UI, especially in "Compare All Sources" and "Metadata Comparison" tables.
 - [x] [BUG.10] Implement validation to prevent saving tagging rulesets without a modifier and show an error.
 - [x] [BUG.11] Add a button/action to refresh all file & system info (hashes, page count, filesize).
-- [ ] [BUG.12] Verify and implement specific handling of warnings for data-destructive operations in Celery tasks (tell user, finish current comic, stop next).
+- [x] [BUG.12] Verify and implement specific handling of warnings for data-destructive operations in Celery tasks (tell user, finish current comic, stop next). `PermissionError` and disk-full `OSError` in `organize_all_task`, `reorganize_all_flagged_task`, `convert_all_cbr_task`, and `run_smartlist_action_task` (organize/write) now return `stopped_early: True` after the current comic, stopping the batch. The toast label changes to "stopped early" with a red bar; `successText()` shows how many were processed and the error count.
 - [x] [BUG.13] When a comic has flag scrape_no_match and is re-scraped, the flag is not removed, even though the comic moves on to the next stage.
 - [x] [BUG.14] Fixed corrupted/truncated CBZ files causing blank detail pages and missing page counts. Comics with unreadable archives are now flagged `corrupted_archive` at import and on first detail-page visit. A "Try Rezip" action on the detail page recovers readable entries and repacks the archive in place; if too damaged, the user is prompted to delete and reimport.
 - [x] [BUG.16] Stale Metadata dashboard widget "View Comics" link relabelled to "View Written" (honest label since filtering by is_stale at URL level is not possible without a dedicated endpoint).

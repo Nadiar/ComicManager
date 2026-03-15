@@ -447,6 +447,20 @@ def convert_all_cbr_task(self):
             original_path.unlink()
             converted += 1
 
+        except (PermissionError, OSError) as e:
+            import errno as _errno
+            fatal = isinstance(e, PermissionError) or getattr(e, "errno", None) == _errno.ENOSPC
+            if new_path.exists():
+                new_path.unlink()
+            err_msg = str(e)
+            errors.append(f"{comic.proposed_series} #{comic.proposed_number}: {err_msg}")
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i + 1, "total": total, "processed": converted, "errors": errors},
+            )
+            if fatal:
+                return {"converted": converted, "processed": converted, "total": total,
+                        "errors": errors, "cancelled": False, "stopped_early": True}
         except Exception as e:
             if new_path.exists():
                 new_path.unlink()
@@ -807,6 +821,21 @@ def organize_all_task(self):
         try:
             _run_organize(comic)
             processed += 1
+        except (PermissionError, OSError) as e:
+            import errno as _errno
+            fatal = isinstance(e, PermissionError) or getattr(e, "errno", None) == _errno.ENOSPC
+            err_msg = str(e)
+            errors.append(f"{comic.series} #{comic.number}: {err_msg}")
+            from .audit import log_batch_entry
+            log_batch_entry("organize_error", comic, comic.state, comic.state,
+                            {"error": [None, err_msg]})
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i + 1, "total": total, "processed": processed, "errors": errors},
+            )
+            if fatal:
+                return {"processed": processed, "total": total, "errors": errors,
+                        "cancelled": False, "stopped_early": True}
         except Exception as e:
             errors.append(f"{comic.series} #{comic.number}: {str(e)}")
             from .audit import log_batch_entry
