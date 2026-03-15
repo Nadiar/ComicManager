@@ -232,6 +232,49 @@ def _run_organize(comic):
     log_batch_entry("organize_all", comic, state_before, comic.state, changes)
 
 
+def _run_scrape(comic, scraper=None):
+    """Scrape a comic against ComicVine or Inducks. Creates a scraper if not provided."""
+    from apps.scraper.services import find_best_match, apply_cv_match
+    from apps.scraper.comicvine import ComicVineScraper
+
+    if scraper is None:
+        scraper = ComicVineScraper()
+
+    for key in ("scrape_no_match", "scrape_error", "scrape_error_detail"):
+        comic.flags.pop(key, None)
+
+    match = find_best_match(comic, scraper)
+    if match:
+        apply_cv_match(comic, match, scraper, insert_covers=False)
+    else:
+        comic.add_flag("scrape_no_match")
+        comic.save(update_fields=["flags"])
+        raise Exception(f"No match found for {comic.series} #{comic.number}")
+
+
+def _run_force_write(comic):
+    """Force-write ComicInfo.xml regardless of current state."""
+    from apps.core.models import Comic
+    from apps.core.utils import write_comicinfo_xml
+    from django.db.models import F
+
+    if not comic.is_digital or not comic.file_path:
+        return
+    if not comic.file_path.lower().endswith(".cbz"):
+        return
+
+    success = write_comicinfo_xml(comic.file_path, comic)
+    if not success:
+        raise Exception("Failed to write ComicInfo.xml")
+
+    if comic.state != Comic.STATE_WRITTEN:
+        comic.state = Comic.STATE_WRITTEN
+    if comic.flags.get("count_updated"):
+        comic.flags.pop("count_updated", None)
+    comic.save()
+    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+
+
 def _run_write(comic):
     """Write ComicInfo.xml to a comic's CBZ file."""
     from apps.core.models import Comic

@@ -73,6 +73,7 @@ urlpatterns = [
     path("<uuid:pk>/series-audit/", views.series_audit, name="series_audit"),
     path("series-audit/volume/<int:cv_volume_id>/", views.series_audit_volume, name="series_audit_volume"),
     path("series-audit/search/", views.character_audit_search, name="character_audit_search"),
+    path("bulk-action/", views.bulk_action_from_filter, name="bulk_action_from_filter"),
     path("audit-metadata-mismatches/", views.audit_metadata_mismatches, name="audit_metadata_mismatches"),
     path("<uuid:pk>/download/", views.comic_download, name="download"),
     path("<uuid:pk>/read/", views.comic_reader, name="reader"),

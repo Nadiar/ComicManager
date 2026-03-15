@@ -94,37 +94,25 @@ def _parse_smart_search(query):
     return {"text": text, "number": number, "year": year, "volume": volume}
 
 
-def comic_list(request):
+def _build_comic_list_queryset(params):
+    """
+    Build an unordered Comic queryset from filter params.
+
+    Accepts any dict-like object (QueryDict from GET or POST).
+    Used by comic_list and bulk_action_from_filter.
+    """
     from django.db.models import Q
-    from django.core.paginator import Paginator
 
-    # Filter by state if provided
-    state = request.GET.get("state")
-    # Filter by flag if provided
-    flag = request.GET.get("flag")
-
-    # Column customization
-    active_columns = request.GET.getlist("col")
-    if not active_columns:
-        # Try to load from settings based on context
-        layout_key = "layout_default"
-        if state:
-            layout_key = f"layout_state_{state}"
-        elif flag:
-            layout_key = f"layout_flag_{flag}"
-        
-        saved_layout = get_setting(layout_key)
-        if saved_layout:
-            active_columns = saved_layout.split(",")
-        elif state == Comic.STATE_NEW:
-            active_columns = STATE_NEW_DEFAULT_COLUMNS
-        else:
-            active_columns = DEFAULT_COLUMNS
+    state = params.get("state", "") or ""
+    flag = params.get("flag", "") or ""
+    search = (params.get("q", "") or "").strip()
+    publisher = params.get("publisher", "") or ""
+    format_filter = params.get("format", "") or ""
+    medium = params.get("medium", "") or ""
+    needs_reformat = params.get("needs_reformat", "") or ""
 
     comics = Comic.objects.all()
 
-    # Search filter
-    search = request.GET.get("q", "").strip()
     if search:
         parsed = _parse_smart_search(search)
         base_text = parsed["text"]
@@ -166,29 +154,54 @@ def comic_list(request):
 
     if state:
         comics = comics.filter(state=state)
-    
-    # Filter by publisher if provided
-    publisher = request.GET.get("publisher")
     if publisher:
         comics = comics.filter(publisher=publisher)
-
-    # Filter by format if provided
-    format_filter = request.GET.get("format")
     if format_filter:
         comics = comics.filter(format=format_filter)
-
-    # Filter by medium if provided
-    medium = request.GET.get("medium")
     if medium:
         comics = comics.filter(medium=medium)
-
     if flag:
-        # JSONField lookup: flags__<flag_name>=True
         comics = comics.filter(**{f"flags__{flag}": True})
-
-    needs_reformat = request.GET.get("needs_reformat")
     if needs_reformat:
         comics = comics.filter(needs_reformat=True)
+
+    return comics
+
+
+def comic_list(request):
+    from django.db.models import Q
+    from django.core.paginator import Paginator
+
+    # Filter by state if provided
+    state = request.GET.get("state")
+    # Filter by flag if provided
+    flag = request.GET.get("flag")
+
+    # Column customization
+    active_columns = request.GET.getlist("col")
+    if not active_columns:
+        # Try to load from settings based on context
+        layout_key = "layout_default"
+        if state:
+            layout_key = f"layout_state_{state}"
+        elif flag:
+            layout_key = f"layout_flag_{flag}"
+        
+        saved_layout = get_setting(layout_key)
+        if saved_layout:
+            active_columns = saved_layout.split(",")
+        elif state == Comic.STATE_NEW:
+            active_columns = STATE_NEW_DEFAULT_COLUMNS
+        else:
+            active_columns = DEFAULT_COLUMNS
+
+    search = request.GET.get("q", "").strip()
+    publisher = request.GET.get("publisher", "")
+    format_filter = request.GET.get("format", "")
+    medium = request.GET.get("medium", "")
+    needs_reformat = request.GET.get("needs_reformat", "")
+
+    comics = _build_comic_list_queryset(request.GET)
 
     # Annotate for natural number sorting (1, 2, 10 instead of 1, 10, 2)
     comics = comics.annotate(number_sort_key=natural_number_annotation())
@@ -3624,6 +3637,62 @@ def comic_download(request, pk):
     response = FileResponse(open(file_path, "rb"), content_type=mime_type)
     response["Content-Disposition"] = f'attachment; filename="{file_path.name}"'
     return response
+
+
+@require_POST
+def bulk_action_from_filter(request):
+    """
+    Run a bulk action on all comics matching the current filter params.
+
+    Accepts the same filter params as the comic list (state, flag, q, publisher,
+    format, medium, needs_reformat) plus an action name. Dispatches a Celery task
+    and returns a task_id for progress polling.
+    """
+    from celery.result import AsyncResult
+    from .tasks import bulk_action_task
+
+    VALID_ACTIONS = ("scrape", "tag", "format", "organize", "write", "force_write", "accept_flag")
+    action = request.POST.get("action", "").strip()
+    if action not in VALID_ACTIONS:
+        return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
+
+    flag_name = request.POST.get("flag_name", "").strip()
+    if action == "accept_flag" and not flag_name:
+        return JsonResponse({"success": False, "error": "No flag specified for accept_flag action"}, status=400)
+
+    comics = _build_comic_list_queryset(request.POST)
+    comic_ids = list(comics.values_list("pk", flat=True))
+
+    if not comic_ids:
+        return JsonResponse({"success": True, "processed": 0, "total": 0,
+                             "message": "No comics match the current filters"})
+
+    active = request.session.get("active_task_id")
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse({"success": False, "error": "A task is already running",
+                             "task_id": active}, status=409)
+
+    result = bulk_action_task.delay([str(pk) for pk in comic_ids], action, flag_name or None)
+    request.session["active_task_id"] = result.id
+
+    action_labels = {
+        "scrape": "Scraping",
+        "tag": "Tagging",
+        "format": "Formatting",
+        "organize": "Organizing",
+        "write": "Writing",
+        "force_write": "Force writing",
+        "accept_flag": f"Suppressing '{flag_name}' on",
+    }
+    label = action_labels.get(action, action.title())
+    request.session["active_task_label"] = f"{label} {len(comic_ids)} comics"
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": len(comic_ids),
+        "message": f"{label} {len(comic_ids)} comics in background",
+    })
 
 
 def comic_reader(request, pk):

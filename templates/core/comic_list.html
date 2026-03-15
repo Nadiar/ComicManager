@@ -291,6 +291,26 @@
         Write All
       </button>
       {% endif %}
+      {% if comics %}
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-sm btn-outline gap-1">
+          Bulk Action
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
+        <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 border border-base-300 rounded-box w-52 z-[10]">
+          <li class="menu-title text-xs opacity-60">Run on {{ total_count }} comics</li>
+          <li><a onclick="runBulkAction('scrape', null, 'Scraping')">Scrape</a></li>
+          <li><a onclick="runBulkAction('tag', null, 'Tagging')">Tag / Re-tag</a></li>
+          <li><a onclick="runBulkAction('format', null, 'Formatting')">Detect Format</a></li>
+          <li><a onclick="runBulkAction('organize', null, 'Organizing')">Organize</a></li>
+          <li><a onclick="runBulkAction('force_write', null, 'Force writing')">Force Write</a></li>
+          {% if current_flag %}
+          <li class="divider my-1"></li>
+          <li><a onclick="runBulkAction('accept_flag', '{{ current_flag }}', 'Suppressing flag on')">Suppress "{{ flag_label }}" on all</a></li>
+          {% endif %}
+        </ul>
+      </div>
+      {% endif %}
     </div>
   </div>
 
@@ -2446,6 +2466,38 @@ function tryRezipComic(pk, btn) {
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
+  });
+}
+
+function runBulkAction(action, flagName, label) {
+  const totalCount = {{ total_count }};
+  const confirmMsg = `Run "${label}" on all ${totalCount} comics in the current view?`;
+
+  showConfirm(confirmMsg, () => {
+    const params = new URLSearchParams(window.location.search);
+    const formData = new FormData();
+    formData.append('action', action);
+    if (flagName) formData.append('flag_name', flagName);
+    ['state', 'flag', 'q', 'publisher', 'format', 'medium', 'needs_reformat'].forEach(key => {
+      if (params.has(key)) formData.append(key, params.get(key));
+    });
+
+    fetch('{% url "core:bulk_action_from_filter" %}', {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCsrfToken()},
+      body: formData,
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && data.task_id) {
+        window.startPolling(data.task_id, label + ' ' + data.total + ' comics');
+      } else if (data.success && data.total === 0) {
+        showMsgToast('No comics match the current filters', 'info');
+      } else {
+        showMsgToast(data.error || 'Failed to start bulk action', 'error');
+      }
+    })
+    .catch(err => showMsgToast(err.toString(), 'error'));
   });
 }
 

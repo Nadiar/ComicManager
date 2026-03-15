@@ -873,6 +873,111 @@ def deduplicate_all_task(self):
 
 
 # =============================================================================
+# Bulk action task (run any action on a filtered set of comics)
+# =============================================================================
+
+@shared_task(bind=True, name="core.bulk_action", queue="write")
+def bulk_action_task(self, comic_ids, action, flag_name=None):
+    """
+    Run a workflow action on an explicit list of comic IDs.
+
+    Used by the bulk-action endpoint to run any action on the current
+    filtered comic list without requiring a saved SmartList.
+
+    Supported actions: scrape, tag, format, organize, write, force_write, accept_flag
+    """
+    from .models import Comic
+    from apps.dashboard.tasks import (
+        _run_tag, _run_format, _run_organize, _run_write,
+        _run_scrape, _run_force_write,
+    )
+
+    total = len(comic_ids)
+    if total == 0:
+        return {"success": True, "action": action, "processed": 0, "success_count": 0,
+                "total": 0, "errors": [], "cancelled": False}
+
+    processed = 0
+    success_count = 0
+    errors = []
+
+    self.update_state(
+        state="PROGRESS",
+        meta={"current": 0, "total": total, "action": action, "success_count": 0, "errors": []},
+    )
+
+    # Pre-initialize scraper once for scrape action (avoids per-comic overhead)
+    scraper = None
+    if action == "scrape":
+        from apps.scraper.comicvine import ComicVineScraper
+        scraper = ComicVineScraper()
+
+    for i, comic_id in enumerate(comic_ids):
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {"success": True, "action": action, "processed": processed,
+                    "success_count": success_count, "total": total, "errors": errors,
+                    "cancelled": True}
+
+        try:
+            comic = Comic.objects.get(pk=comic_id)
+        except Comic.DoesNotExist:
+            continue
+
+        try:
+            if action == "scrape":
+                _run_scrape(comic, scraper)
+            elif action == "tag":
+                _run_tag(comic)
+            elif action == "format":
+                _run_format(comic)
+            elif action == "organize":
+                _run_organize(comic)
+            elif action == "write":
+                _run_write(comic)
+            elif action == "force_write":
+                _run_force_write(comic)
+            elif action == "accept_flag" and flag_name:
+                comic.accept_flag(flag_name)
+                comic.save(update_fields=["flags", "accepted_flags"])
+            success_count += 1
+        except (PermissionError, OSError) as e:
+            import errno as _errno
+            fatal = action in ("organize", "write", "force_write") and (
+                isinstance(e, PermissionError) or getattr(e, "errno", None) == _errno.ENOSPC
+            )
+            err_msg = str(e)
+            errors.append(f"{comic.series} #{comic.number}: {err_msg}")
+            if action in ("organize", "write", "force_write"):
+                from .audit import log_batch_entry
+                log_batch_entry(f"{action}_error", comic, comic.state, comic.state,
+                                {"error": [None, err_msg]})
+            processed += 1
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i + 1, "total": total, "action": action,
+                      "success_count": success_count, "errors": errors},
+            )
+            if fatal:
+                return {"success": True, "action": action, "processed": processed,
+                        "success_count": success_count, "total": total, "errors": errors,
+                        "cancelled": False, "stopped_early": True}
+        except Exception as e:
+            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
+
+        processed += 1
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": i + 1, "total": total, "action": action,
+                  "success_count": success_count, "errors": errors},
+        )
+
+    return {"success": True, "action": action, "processed": processed,
+            "success_count": success_count, "total": total, "errors": errors,
+            "cancelled": False}
+
+
+# =============================================================================
 # Search alt covers task
 # =============================================================================
 
