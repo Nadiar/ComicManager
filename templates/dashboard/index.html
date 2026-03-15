@@ -273,7 +273,7 @@ if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
               <tbody>
                 {% for item in review_queue %}
                 {% if item.flag != 'count_mismatch' and item.flag != 'format_mismatch_in_volume' and item.flag != 'cv_volume_conflict' and item.action != 'reformat' %}
-                {% if item.count > 0 or item.flag == 'missing_count' or not hide_zero_maintenance_rows %}
+                {% if item.count > 0 or not hide_zero_maintenance_rows %}
                 <tr class="{% if item.count > 0 %}bg-base-300{% endif %}">
                   <td class="font-medium">
                     {% if item.action == 'delete' %}
