@@ -100,9 +100,27 @@
   </div>
   {% endif %}
 
-  <!-- Results count -->
-  <div class="flex items-center gap-2">
+  <!-- Results count + column toggle -->
+  <div class="flex items-center justify-between gap-2">
     <span class="badge badge-neutral">{{ comic_count }} comics</span>
+    <div class="dropdown dropdown-end">
+      <div tabindex="0" role="button" class="btn btn-sm btn-outline">Columns</div>
+      <div tabindex="0" class="dropdown-content z-[1] p-4 shadow bg-base-200 rounded-box w-64 mt-2">
+        <h3 class="font-bold mb-2">Visible Columns</h3>
+        <div class="grid grid-cols-1 gap-1 max-h-96 overflow-y-auto">
+          {% for col_id, cfg in all_columns.items %}
+          <label class="label cursor-pointer py-1 justify-start gap-3">
+            <input type="checkbox" value="{{ col_id }}"
+                   class="checkbox checkbox-sm checkbox-primary sl-col-toggle"
+                   {% if col_id in active_columns %}checked{% endif %}>
+            <span class="label-text">{{ cfg.label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="divider my-2"></div>
+        <button type="button" class="btn btn-xs btn-primary w-full" onclick="applyColumnToggle()">Update View</button>
+      </div>
+    </div>
   </div>
 
   <!-- Comics table -->
@@ -115,21 +133,21 @@
     </div>
     <div class="join">
       {% if page_obj.has_previous %}
-      <a href="?page=1" class="join-item btn btn-sm">First</a>
-      <a href="?page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
+      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="join-item btn btn-sm">First</a>
+      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
       {% endif %}
       {% for num in page_obj.paginator.page_range %}
         {% if num == page_obj.number %}
         <button class="join-item btn btn-sm btn-active">{{ num }}</button>
         {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-        <a href="?page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
+        <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
         {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
         <span class="join-item btn btn-sm btn-disabled">...</span>
         {% endif %}
       {% endfor %}
       {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
-      <a href="?page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
+      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
+      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
       {% endif %}
     </div>
   </div>
@@ -140,7 +158,14 @@
       <thead>
         <tr>
           {% for col_id in active_columns %}
-          <th>{{ col_id|get_col_label }}</th>
+          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('{{ col_id|get_col_sort }}')">
+            {{ col_id|get_col_label }}
+            {% with sort_field=col_id|get_col_sort %}
+              {% if current_sort == sort_field %}
+                {% if current_dir == 'asc' %}↑{% else %}↓{% endif %}
+              {% endif %}
+            {% endwith %}
+          </th>
           {% endfor %}
           <th></th>
         </tr>
@@ -179,21 +204,21 @@
     </div>
     <div class="join">
       {% if page_obj.has_previous %}
-      <a href="?page=1" class="join-item btn btn-sm">First</a>
-      <a href="?page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
+      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="join-item btn btn-sm">First</a>
+      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
       {% endif %}
       {% for num in page_obj.paginator.page_range %}
         {% if num == page_obj.number %}
         <button class="join-item btn btn-sm btn-active">{{ num }}</button>
         {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-        <a href="?page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
+        <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
         {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
         <span class="join-item btn btn-sm btn-disabled">...</span>
         {% endif %}
       {% endfor %}
       {% if page_obj.has_next %}
-      <a href="?page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
-      <a href="?page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
+      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
+      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
       {% endif %}
     </div>
   </div>
@@ -351,5 +376,32 @@ function startPolling(taskId, label) {
     // Global toast auto-starts from base.html via active_smartlist_action_task_id
   }
 })();
+
+function sortBy(field) {
+  const url = new URL(window.location.href);
+  const currentSort = url.searchParams.get('sort') || '{{ smart_list.sort_field|default:"series" }}';
+  const currentDir = url.searchParams.get('dir') || '{{ smart_list.sort_direction|default:"asc" }}';
+  if (currentSort === field) {
+    url.searchParams.set('dir', currentDir === 'asc' ? 'desc' : 'asc');
+  } else {
+    url.searchParams.set('sort', field);
+    url.searchParams.set('dir', 'asc');
+  }
+  url.searchParams.delete('page');
+  window.location.href = url.toString();
+}
+
+function applyColumnToggle() {
+  const checked = [...document.querySelectorAll('.sl-col-toggle:checked')].map(cb => cb.value);
+  if (checked.length === 0) {
+    showMsgToast('Select at least one column', 'info');
+    return;
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.delete('col');
+  checked.forEach(c => url.searchParams.append('col', c));
+  url.searchParams.delete('page');
+  window.location.href = url.toString();
+}
 </script>
 {% endblock %}

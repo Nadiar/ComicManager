@@ -469,13 +469,31 @@ def smartlist_delete(request, pk):
 def smartlist_detail(request, pk):
     """View the comics matching a smart list's filters."""
     from django.core.paginator import Paginator
+    from apps.dashboard.services import SORT_FIELDS
+    from django.db.models import F
 
     sl = get_object_or_404(SmartList, pk=pk)
-    
-    # Use SmartList columns if set, otherwise default
-    active_columns = sl.columns if sl.columns else DEFAULT_COLUMNS
+
+    # Use GET col params if provided, else smart list saved columns, else default
+    get_cols = request.GET.getlist("col")
+    active_columns = get_cols if get_cols else (sl.columns if sl.columns else DEFAULT_COLUMNS)
+
+    # Allow runtime sort override via GET params
+    sort = request.GET.get("sort", sl.sort_field or "series")
+    sort_dir = request.GET.get("dir", sl.sort_direction or "asc")
 
     comics = build_queryset(sl)
+
+    # Override ordering with runtime sort
+    if sort == "page_count":
+        page_order = F("page_count").desc(nulls_last=True) if sort_dir == "desc" else F("page_count").asc(nulls_last=True)
+        comics = comics.order_by(page_order, "series", "volume", "number_sort_key", "number")
+    else:
+        order_fields = SORT_FIELDS.get(sort, [sort, "series", "volume", "number_sort_key", "number"])
+        if sort_dir == "desc":
+            order_fields = [f"-{f}" for f in order_fields]
+        comics = comics.order_by(*order_fields)
+
     total_count = comics.count()
 
     # Paginate
@@ -497,6 +515,10 @@ def smartlist_detail(request, pk):
                 "total": missing_data["total_count"],
             }
 
+    query_params = request.GET.copy()
+    query_params.pop("page", None)
+    query_string = query_params.urlencode()
+
     return render(request, "dashboard/smartlist_detail.html", {
         "smart_list": sl,
         "comics": page_obj,
@@ -504,7 +526,10 @@ def smartlist_detail(request, pk):
         "comic_count": total_count,
         "completion_data": completion_data,
         "active_columns": active_columns,
-        "all_columns": COLUMNS_REGISTRY,
+        "all_columns": dict(sorted(COLUMNS_REGISTRY.items(), key=lambda x: x[1]["label"])),
+        "current_sort": sort,
+        "current_dir": sort_dir,
+        "query_string": query_string,
     })
 
 
