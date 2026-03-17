@@ -3616,6 +3616,41 @@ def audit_metadata_mismatches(request):
     return JsonResponse({"success": True, "task_id": result.id, "message": "Auditing metadata mismatches in background"})
 
 
+def export_comic_json(request, pk):
+    """Export comic metadata as a downloadable JSON file."""
+    comic = get_object_or_404(Comic, pk=pk)
+
+    fields = [
+        "proposed_series", "proposed_number", "proposed_volume", "proposed_year",
+        "series", "title", "number", "count", "volume", "year", "month", "day",
+        "publisher", "format", "summary", "notes", "genre", "web",
+        "page_count", "characters", "teams", "locations", "tags",
+        "scan_information", "series_group", "main_character_or_team",
+        "writer", "penciller", "inker", "colorist", "letterer", "cover_artist", "editor",
+        "medium", "state", "file_path", "file_format", "file_size",
+        "phash", "ahash",
+        "imported_at", "last_written",
+    ]
+
+    data = {"uuid": str(comic.pk)}
+    for field in fields:
+        val = getattr(comic, field, None)
+        if hasattr(val, "isoformat"):
+            val = val.isoformat()
+        data[field] = val
+
+    data["custom_values"] = comic.custom_values or {}
+    data["flags"] = comic.flags or {}
+
+    series_slug = (comic.series or comic.proposed_series or "comic").replace(" ", "_")[:40]
+    number_slug = (comic.number or "").replace(" ", "_")
+    filename = f"{series_slug}_{number_slug}.json".strip("_")
+
+    response = JsonResponse(data, json_dumps_params={"indent": 2, "ensure_ascii": False})
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
 def comic_download(request, pk):
     """Serve the comic CBZ file as a download attachment."""
     comic = get_object_or_404(Comic, pk=pk)

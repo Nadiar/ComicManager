@@ -76,6 +76,7 @@ urlpatterns = [
     path("bulk-action/", views.bulk_action_from_filter, name="bulk_action_from_filter"),
     path("audit-metadata-mismatches/", views.audit_metadata_mismatches, name="audit_metadata_mismatches"),
     path("<uuid:pk>/download/", views.comic_download, name="download"),
+    path("<uuid:pk>/export-json/", views.export_comic_json, name="export_json"),
     path("<uuid:pk>/read/", views.comic_reader, name="reader"),
     path("<uuid:pk>/delete/", views.delete_comic, name="delete"),
     path("<uuid:pk>/inline-field/", views.comic_inline_field, name="comic_inline_field"),
