@@ -395,6 +395,10 @@
           <td {% if col_id == 'series' or col_id == 'title' %}class="max-w-xs truncate"{% endif %}>
             {% if col_id == 'series' and comic.state == 'new' %}
               <span class="text-warning font-medium">{{ comic.proposed_series|default:"-" }}</span>
+              {% if comic.is_physical %}<span class="badge badge-xs badge-neutral ml-1">physical</span>{% endif %}
+            {% elif col_id == 'series' %}
+              {{ comic|get_col_value:col_id|default:"-" }}
+              {% if comic.is_physical and not current_medium %}<span class="badge badge-xs badge-neutral ml-1">physical</span>{% endif %}
             {% elif col_id == 'number' and comic.state == 'new' %}
               <span class="text-warning">{{ comic.proposed_number|default:"-" }}</span>
             {% elif col_id == 'state' %}
