@@ -38,6 +38,23 @@
       </div>
 
       {% if current_state != 'new' %}
+      <!-- Character Search -->
+      <div class="form-control w-44">
+        <label class="label py-1">
+          <span class="label-text text-xs">Character</span>
+          <label class="label cursor-pointer gap-1 py-0">
+            <span class="label-text text-xs text-base-content/60">Main only</span>
+            <input type="hidden" name="char_main_only" value="0">
+            <input type="checkbox" name="char_main_only" value="1"
+                   class="checkbox checkbox-xs"
+                   {% if current_char_main_only != "0" %}checked{% endif %}>
+          </label>
+        </label>
+        <input type="text" name="char_q" value="{{ current_char_q|default:'' }}"
+               placeholder="Search characters..."
+               class="input input-sm input-bordered w-full" />
+      </div>
+
       <!-- Publisher Filter -->
       <div class="form-control w-40">
         <label class="label py-1">

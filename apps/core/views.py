@@ -106,6 +106,8 @@ def _build_comic_list_queryset(params):
     state = params.get("state", "") or ""
     flag = params.get("flag", "") or ""
     search = (params.get("q", "") or "").strip()
+    char_q = (params.get("char_q", "") or "").strip()
+    char_main_only = params.get("char_main_only", "1")
     publisher = params.get("publisher", "") or ""
     format_filter = params.get("format", "") or ""
     medium = params.get("medium", "") or ""
@@ -152,6 +154,15 @@ def _build_comic_list_queryset(params):
             if parsed["volume"]:
                 comics = comics.filter(volume=parsed["volume"])
 
+    if char_q:
+        if char_main_only == "1":
+            comics = comics.filter(main_character_or_team__icontains=char_q)
+        else:
+            comics = comics.filter(
+                Q(main_character_or_team__icontains=char_q) |
+                Q(characters__icontains=char_q)
+            )
+
     if state:
         comics = comics.filter(state=state)
     if publisher:
@@ -196,6 +207,8 @@ def comic_list(request):
             active_columns = DEFAULT_COLUMNS
 
     search = request.GET.get("q", "").strip()
+    char_q = request.GET.get("char_q", "").strip()
+    char_main_only = request.GET.get("char_main_only", "1")
     publisher = request.GET.get("publisher", "")
     format_filter = request.GET.get("format", "")
     medium = request.GET.get("medium", "")
@@ -268,6 +281,8 @@ def comic_list(request):
         "current_state_label": dict(WORKFLOW_STATES).get(state, state),
         "current_flag": flag,
         "current_search": search,
+        "current_char_q": char_q,
+        "current_char_main_only": char_main_only,
         "current_publisher": publisher,
         "current_format": format_filter,
         "current_medium": medium,
