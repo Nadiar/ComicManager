@@ -498,6 +498,8 @@ def scrape_all_task(self):
             state=Comic.STATE_IMPORTED,
         ).filter(
             Q(flags__scrape_skipped__isnull=True) | Q(flags__scrape_skipped=False),
+        ).exclude(
+            custom_values__scrape_source="inducks",
         ).values_list("pk", flat=True)
     )
     total = len(comic_ids)
@@ -1168,6 +1170,8 @@ def populate_counts_task(self):
             custom_values__comicvine_volume__isnull=True,
         ).exclude(
             custom_values__comicvine_volume="",
+        ).exclude(
+            custom_values__scrape_source="inducks",
         )
     )
 
@@ -1277,6 +1281,8 @@ def populate_counts_task(self):
         custom_values__comicvine_volume__isnull=True,
     ).exclude(
         custom_values__comicvine_volume="",
+    ).exclude(
+        custom_values__scrape_source="inducks",
     )
 
     volume_comics = {}
