@@ -232,12 +232,13 @@ class InducksScraper:
     def search_by_storycode(self, storycode, country=None, limit=10):
         """Search for issues containing a specific story code."""
         conn = self._get_conn()
-        storycode = storycode.strip()
+        storycode = storycode.strip().replace(" ", "")
         if not storycode:
             return []
 
+        # Normalize spaces in both the search term and DB values so "D92380" matches "D 92380"
         params = [f"%{storycode}%"]
-        where = ["s.storycode LIKE ?"]
+        where = ["REPLACE(s.storycode, ' ', '') LIKE ?"]
 
         if country:
             where.append("pub.countrycode = ?")

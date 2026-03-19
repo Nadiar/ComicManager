@@ -242,7 +242,8 @@
 - [x] [BUG.28] Added a "Delete" button (error outline style) to all flag list rows. Uses `showConfirm` modal with a danger confirmation before calling the existing `delete_comic` endpoint. On success the row fades out and is removed from the DOM.
 - [x] [BUG.25] Physical comics have no path forward after reaching `deduplicated` state. Fixed: physical comics now skip directly to `written` when format is detected; deduplicate batch logs correctly.
 - [x] [BUG.26] Deduplicate shows in toast eg. 15 of 16 processed, but pressing the auditlog link doesn't show anything logged. Fixed in same commit as BUG.25.
-- [x] [BUG.29] `/comics/?state=tagging` gives `error` everytime 'Tag' is pressed. Fixed by allowing re-tagging of STATE_TAGGED comics in `tagging/services.py` — state check now accepts both `counted` and `tagged`; state only advances if currently in `counted`.
+- [x] [BUG.29] `/comics/?state=tagging` gives `error` everytime 'Tag' is pressed. Fixed: per-row button for STATE_TAGGED comics now calls `formatComic()` (next pipeline step) instead of `tagComic()`.
+- [ ] [BUG.30] Phase 4 (state=tagging) and Phase 5 (state=formats) both show a "Format" row button — need distinct labels to differentiate the two actions.
 
 
 

@@ -509,10 +509,10 @@
             {% if comic.state == 'tagging' %}
             <button
               type="button"
-              class="btn btn-xs btn-accent"
-              onclick="tagComic('{{ comic.pk }}', this)"
+              class="btn btn-xs btn-info"
+              onclick="formatComic('{{ comic.pk }}', this)"
             >
-              Tag
+              Format
             </button>
             {% endif %}
             {% if comic.state == 'formats' %}
