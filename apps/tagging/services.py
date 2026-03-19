@@ -13,6 +13,7 @@ from .models import DataManagerRuleset
 def tag_comic(comic: Comic) -> dict:
     """
     Apply DataManager rules to a comic and transition state from 'counted' to 'tagged'.
+    Also supports re-tagging comics already in 'tagged' state without changing state.
 
     Args:
         comic: The Comic model instance
@@ -24,13 +25,15 @@ def tag_comic(comic: Comic) -> dict:
         - "matched_rulesets": List of ruleset names that matched
         - "changes": List of field changes made
     """
-    if comic.state != Comic.STATE_COUNTED:
+    if comic.state not in (Comic.STATE_COUNTED, Comic.STATE_TAGGED):
         return {
             "success": False,
-            "message": f"Comic must be in 'counted' state, but is '{comic.state}'",
+            "message": f"Comic must be in 'counted' or 'tagged' state, but is '{comic.state}'",
             "matched_rulesets": [],
             "changes": [],
         }
+
+    is_retag = comic.state == Comic.STATE_TAGGED
 
     with transaction.atomic():
         result = apply_datamanager_rules(comic, save=False)
@@ -44,8 +47,9 @@ def tag_comic(comic: Comic) -> dict:
             if is_publisher_known(comic.publisher):
                 comic.remove_flag("unknown_publisher")
 
-        # Transition state
-        comic.state = Comic.STATE_TAGGED
+        # Advance state only if not already tagged
+        if not is_retag:
+            comic.state = Comic.STATE_TAGGED
         comic.save()
 
     matched_count = result["matched_count"]
@@ -53,6 +57,8 @@ def tag_comic(comic: Comic) -> dict:
 
     if matched_count > 0:
         message = f"Applied {matched_count} ruleset(s), made {changes_count} change(s)"
+    elif is_retag:
+        message = "No matching rulesets found, no changes made"
     else:
         message = "No matching rulesets found, state advanced to tagged"
 

@@ -26,6 +26,7 @@
 - [-] [P1.17] (Cancelled) Distinguish removal of *unwanted* covers from management of *variant* covers, providing specific tools for removing unwanted cover files.
 - [x] [P1.18] Inline editing for `proposed_series`, `proposed_number`, `proposed_volume`, `publisher`, and `format` on the `STATE_NEW` list — click any cell to edit in place without navigating to the detail page. The `new` state now uses a `proposed_*`-focused default column layout.
 - [x] [P1.19] Fix search and filter functionality for comics in the `STATE_NEW` state. Search now queries `proposed_series`, `proposed_number`, and `file_path`. Publisher/Format/Medium dropdowns are hidden for `state=new`. Sort options replaced with `Proposed Series`, `Proposed #`, `Year`, `Pages`, `Updated`.
+- [ ] [P1.20] Implement logic to identify `.zip` and rezip them to `.cbz` if user wants. Use Review Queue like [P1.5].
 
 ### Phase 2: ComicVine Scraping (Comicrack_guide 02 & 03)
 
@@ -241,6 +242,9 @@
 - [x] [BUG.28] Added a "Delete" button (error outline style) to all flag list rows. Uses `showConfirm` modal with a danger confirmation before calling the existing `delete_comic` endpoint. On success the row fades out and is removed from the DOM.
 - [x] [BUG.25] Physical comics have no path forward after reaching `deduplicated` state. Fixed: physical comics now skip directly to `written` when format is detected; deduplicate batch logs correctly.
 - [x] [BUG.26] Deduplicate shows in toast eg. 15 of 16 processed, but pressing the auditlog link doesn't show anything logged. Fixed in same commit as BUG.25.
+- [x] [BUG.29] `/comics/?state=tagging` gives `error` everytime 'Tag' is pressed. Fixed by allowing re-tagging of STATE_TAGGED comics in `tagging/services.py` — state check now accepts both `counted` and `tagged`; state only advances if currently in `counted`.
+
+
 
 ## I.N.D.U.C.K.S. Integration
 
@@ -255,9 +259,13 @@
 - [x] [IND.6] Scrape modal UI: "I.N.D.U.C.K.S. Search" section in both `comic_list.html` and `comic_detail.html` with search input, country dropdown (or locked), and result cards with direct links to inducks.org.
 - [x] [IND.7] Docker volume mount for `inducks.db` in both `docker-compose.yml` and `docker-compose.override.yml`.
 - [x] [IND.8] `scrape_comic` view handles both ComicVine and Inducks sources via `source` field in JSON payload.
-- [ ] [IND.9] Inducks-scraped comics (`scrape_source == "inducks"`) should skip CV-specific pipeline phases: issue count propagation (Phase 3), alt cover search, and count mismatch detection.
-- [ ] [IND.10] Inducks-scraped comics should skip the "Find Alt Covers" action and any CV API lookups on the detail page.
-- [ ] [IND.11] Review all batch tasks (scrape_all, populate_counts, format_all, etc.) to ensure they handle Inducks-sourced comics gracefully without errors or false flags.
+- [x] [IND.9] Inducks-scraped comics (`scrape_source == "inducks"`) should skip CV-specific pipeline phases: issue count propagation (Phase 3), alt cover search, and count mi smatch detection. `populate_counts_task` Phase 1 and Phase 2 both exclude `custom_values__scrape_source="inducks"`.                                                           
+- [x] [IND.10] Inducks-scraped comics should skip the "Find Alt Covers" action and any CV API lookups on the detail page. `search_alt_covers` view returns an error response when `scrape_source == "inducks"`.                                                                                                                                             
+- [x] [IND.11] Review all batch tasks (scrape_all, populate_counts, format_all, etc.) to ensure they handle Inducks-sourced comics gracefully without errors or false flags. `scrape_all_task` now excludes `custom_values__scrape_source="inducks"` so CV scraping cannot override Inducks matches. `tag_all` and `format_all` are source-agnostic and work correctly on all comics.
+- [ ] [IND.12] Story-code search should accept `D92380` as well as `D 92380`.
+- [ ] [IND.13] Inducks comics should skip `/comics/?state=count` and go directly from `/comics/?state=scrape` to `/comics/?state=tagging`.
+- [ ] [IND.14] Inducks comics should skip `/comics/format/` and
+
 
 ## Flag List Action Button Audit
 
