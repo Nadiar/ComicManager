@@ -263,7 +263,7 @@
 - [x] [IND.9] Inducks-scraped comics (`scrape_source == "inducks"`) should skip CV-specific pipeline phases: issue count propagation (Phase 3), alt cover search, and count mi smatch detection. `populate_counts_task` Phase 1 and Phase 2 both exclude `custom_values__scrape_source="inducks"`.                                                           
 - [x] [IND.10] Inducks-scraped comics should skip the "Find Alt Covers" action and any CV API lookups on the detail page. `search_alt_covers` view returns an error response when `scrape_source == "inducks"`.                                                                                                                                             
 - [x] [IND.11] Review all batch tasks (scrape_all, populate_counts, format_all, etc.) to ensure they handle Inducks-sourced comics gracefully without errors or false flags. `scrape_all_task` and both phases of `populate_counts_task` now exclude `custom_values__scrape_source="inducks"`. `tag_all` and `format_all` are source-agnostic and work correctly on all comics.
-- [ ] [IND.12] Story-code search should accept `D92380` as well as `D 92380`.
+- [x] [IND.12] Story-code search should accept `D92380` as well as `D 92380`. Fixed by normalizing spaces in `search_by_storycode`: strips spaces from input and uses `REPLACE(s.storycode, ' ', '') LIKE ?` in the SQL query.
 - [ ] [IND.13] Inducks comics should skip `/comics/?state=count` and go directly from `/comics/?state=scrape` to `/comics/?state=tagging`.
 - [ ] [IND.14] Inducks comics should skip `/comics/format/` and
 
