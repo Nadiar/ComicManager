@@ -472,7 +472,8 @@ def apply_inducks_match(comic, match):
         else:
             comic.add_flag("unknown_publisher")
 
-    comic.state = Comic.STATE_COUNTED
+    # Inducks comics skip the count stage and go directly to tagging
+    comic.state = Comic.STATE_TAGGED
     comic.save()
 
     # For physical comics, cache the Inducks cover image (no CBZ to insert into)
