@@ -155,6 +155,8 @@ def _run_tag(comic):
         changes["series_group"] = [before_series_group, comic.series_group]
     if comic.main_character_or_team != before_main_char:
         changes["main_character_or_team"] = [before_main_char, comic.main_character_or_team]
+    if comic.state != state_before:
+        changes["state"] = [state_before, comic.state]
 
     log_batch_entry("tag_all", comic, state_before, comic.state, changes)
 
@@ -167,13 +169,13 @@ def _run_format(comic):
     state_before = comic.state
     result = detect_and_set_format(comic)
 
-    log_batch_entry(
-        "format_all",
-        comic,
-        state_before,
-        comic.state,
-        {"format": [result["old_format"], result["new_format"]]} if result["format_changed"] else {},
-    )
+    changes = {}
+    if result["format_changed"]:
+        changes["format"] = [result["old_format"], result["new_format"]]
+    if comic.state != state_before:
+        changes["state"] = [state_before, comic.state]
+
+    log_batch_entry("format_all", comic, state_before, comic.state, changes)
 
 
 def _run_organize(comic):

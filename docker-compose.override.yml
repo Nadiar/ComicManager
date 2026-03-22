@@ -10,8 +10,9 @@ services:
     volumes:
       - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
       - ${LIBRARY_DIR:-./Comics}:/comics/library
-      - ./data/comicvine.db:/cv_db/comicvine.db:ro
-      - ./data/inducks.db:/cv_db/inducks.db:ro
+      - ${CV_DB_PATH:-./data/comicvine.db}:/cv_db/comicvine.db:ro
+      - ${CV_MCL_PATH:-./data/latest.mcl}:/cv_db/latest.mcl:ro
+      - ${INDUCKS_DB_PATH:-./data/inducks.db}:/cv_db/inducks.db:ro
       - .:/app                        # mount entire source — changes reload instantly
       - ./static:/app/static          # override base static mount for dev
       - ./data/covers:/app/cover_cache
@@ -31,8 +32,9 @@ services:
     volumes:
       - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
       - ${LIBRARY_DIR:-./Comics}:/comics/library
-      - ./data/comicvine.db:/cv_db/comicvine.db:ro
-      - ./data/inducks.db:/cv_db/inducks.db:ro
+      - ${CV_DB_PATH:-./data/comicvine.db}:/cv_db/comicvine.db:ro
+      - ${CV_MCL_PATH:-./data/latest.mcl}:/cv_db/latest.mcl:ro
+      - ${INDUCKS_DB_PATH:-./data/inducks.db}:/cv_db/inducks.db:ro
       - .:/app                        # same source mount — worker reloads too
       - ./data/logs:/app/logs
 

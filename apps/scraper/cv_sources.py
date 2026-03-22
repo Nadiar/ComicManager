@@ -30,8 +30,12 @@ CV_MCL_CACHE_TTL = 3600  # 1 hour
 # ---------------------------------------------------------------------------
 
 def _get_cv_db_path():
-    from django.conf import settings
-    return getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
+    from apps.core.models import get_setting
+    from django.conf import settings as django_settings
+    return get_setting(
+        "cv_db_path",
+        getattr(django_settings, "CV_DB_PATH", "/cv_db/comicvine.db"),
+    )
 
 
 def _get_mcl_path():
