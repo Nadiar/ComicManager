@@ -24,7 +24,6 @@ class Comic(models.Model):
     STATE_CHOICES = [
         (STATE_NEW,          "New"),
         (STATE_IMPORTED,     "Scrape"),
-        (STATE_COUNTED,      "Add Count"),
         (STATE_TAGGED,       "Tagging"),
         (STATE_FORMATTED,    "Add Formats"),
         (STATE_DEDUPLICATED, "Deduplicate"),
