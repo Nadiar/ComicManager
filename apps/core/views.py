@@ -980,6 +980,7 @@ def cv_compare(request, pk):
     """
     from .utils import read_comicinfo_xml, compare_all_sources
     from .models import get_setting
+    from apps.scraper.cv_sources import is_cv_db_available
 
     comic = get_object_or_404(Comic, pk=pk)
 
@@ -1003,8 +1004,8 @@ def cv_compare(request, pk):
     if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
         xml_data = read_comicinfo_xml(comic.file_path)
 
-    # Source 3: CV Local DB
-    cv_local = scraper.get_issue_details(int(cv_issue_id))
+    # Source 3: CV Local DB (only if DB is available)
+    cv_local = scraper.get_issue_details(int(cv_issue_id)) if is_cv_db_available() else None
 
     # Source 4: CV API (only if API key configured)
     cv_api = None

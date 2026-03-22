@@ -247,7 +247,7 @@
 - [x] [BUG.31] Toast for Format All on dashboard, doesn't log all instances but only some of them.
 - [x] [BUG.32] MCL/.db are hardcoded in docker-compose and settings page. If changed on /settings it doesn't change the file location
 - [x] [BUG.33] On `?state=scrape`, after scraping via the API the Year column displays the Publisher name instead of the year value. Likely a column index mismatch in `updateRowAfterScrape()` in `comic_list.html`.
-- [ ] [BUG.34] "Compare All Sources" scrape option fails with `JSON.parse: unexpected character at line 1 column 1` when `comicvine.db` is not available. The endpoint likely returns a non-JSON error response (500 or HTML) instead of a proper JSON error when the local CV DB is missing.
+- [x] [BUG.34] "Compare All Sources" scrape option fails with `JSON.parse: unexpected character at line 1 column 1` when `comicvine.db` is not available. The endpoint likely returns a non-JSON error response (500 or HTML) instead of a proper JSON error when the local CV DB is missing.
 - [ ] [BUG.35] The "State" dropdown in the comic edit page still lists removed/legacy states (e.g. `count`) and does not reflect the current 7-stage pipeline. Update the dropdown to only show valid pipeline states and keep the warning "Changing state manually can break the pipeline workflow. Use with caution."
 
 
