@@ -244,7 +244,11 @@
 - [x] [BUG.26] Deduplicate shows in toast eg. 15 of 16 processed, but pressing the auditlog link doesn't show anything logged. Fixed in same commit as BUG.25.
 - [x] [BUG.29] `/comics/?state=tagging` gives `error` everytime 'Tag' is pressed. Fixed: per-row button for STATE_TAGGED comics now calls `formatComic()` (next pipeline step) instead of `tagComic()`.
 - [ ] [BUG.30] Phase 4 (state=tagging) and Phase 5 (state=formats) both show a "Format" row button — need distinct labels to differentiate the two actions.
-
+- [ ] [BUG.31] Toast for Format All on dashboard, doesn't log all instances but only some of them. 
+- [ ] [BUG.32] MCL/.db are hardcoded in docker-compose and settings page. If changed on /settings it doesn't change the file location
+- [ ] [BUG.33] On `?state=scrape`, after scraping via the API the Year column displays the Publisher name instead of the year value. Likely a column index mismatch in `updateRowAfterScrape()` in `comic_list.html`.
+- [ ] [BUG.34] "Compare All Sources" scrape option fails with `JSON.parse: unexpected character at line 1 column 1` when `comicvine.db` is not available. The endpoint likely returns a non-JSON error response (500 or HTML) instead of a proper JSON error when the local CV DB is missing.
+- [ ] [BUG.35] The "State" dropdown in the comic edit page still lists removed/legacy states (e.g. `count`) and does not reflect the current 7-stage pipeline. Update the dropdown to only show valid pipeline states and keep the warning "Changing state manually can break the pipeline workflow. Use with caution."
 
 
 ## I.N.D.U.C.K.S. Integration
@@ -278,12 +282,20 @@
 - [x] [FL.3] `?flag=no_series` — shows two Accept buttons. One must be removed. Fixed in commit 4467157.
 - [x] [FL.4] Audited all `?flag=X` views. Two issues found and fixed: (1) `count_updated` missing Rewrite button (FL.2); (2) `corrupted_archive` incorrectly showed "Add to Workflow" — excluded from that condition and given a "Try Rezip" button instead. All other flags verified correct.
 
+## Documentation Needed
+
+**Goal:** Write docs that explain internal behaviour for future reference or contributors.
+
+**Current Status & Tasks:**
+- [ ] [DOC.1] Write a section in `./docs` explaining what fields are populated by each scrape source: comicvine.db (local hash/metadata match), ComicVine API (live search), and Inducks. Cover which fields each source fills, whether issue count is included, and why the Count pipeline stage was removed (CV scraping already populates the count field, making a separate step unnecessary).
+
 ## Future Improvements
 
 **Goal:** Track nice-to-have features and enhancements that are not yet prioritised.
 
 **Current Status & Tasks:**
 - [ ] [FI.1] PDF to CBZ conversion. Currently `convert_cbr` only handles CBR/CB7 (archive re-pack). PDF conversion requires rendering each page to an image (e.g. via `pdf2image` / Ghostscript), which is a separate, non-trivial operation. Would allow PDFs flagged `is_pdf` to be converted in-place rather than only deleted or suppressed.
+- [ ] [FI.2] ComicVine API call budget management. Better track, save, and display remaining API calls. Currently the count may be inaccurate or not conserved across sessions. Consider caching responses, batching requests, and showing a live remaining-calls indicator in the UI. 
 
 ## Code to Port
 
