@@ -38,6 +38,7 @@ FLAG_LABELS = {
     "no_series": "No Series Parsed",
     "cover_only": "Cover Only",
     "needs_conversion": "Needs Conversion",
+    "is_zip": "ZIP File (rename to CBZ)",
     "missing_count": "Missing Issue Count",
     "count_mismatch": "Count Mismatch",
     "metadata_mismatch": "Metadata Mismatch",
@@ -264,6 +265,7 @@ def comic_list(request):
 
     # Count comics needing conversion (for "Convert All" button)
     needs_conversion_count = Comic.objects.filter(flags__needs_conversion=True).count()
+    is_zip_count = Comic.objects.filter(flags__is_zip=True).count()
 
     # Build query string without page param (for pagination links)
     query_params = request.GET.copy()
@@ -289,6 +291,7 @@ def comic_list(request):
         "current_dir": sort_dir,
         "flag_label": FLAG_LABELS.get(flag, flag),
         "needs_conversion_count": needs_conversion_count,
+        "is_zip_count": is_zip_count,
         "workflow_states": WORKFLOW_STATES,
         "publishers": publishers,
         "formats": formats,
@@ -634,6 +637,55 @@ def convert_all_cbr(request):
     request.session["active_task_id"] = result.id
     request.session["active_task_label"] = "Converting files"
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Converting {total} files in background"})
+
+
+@require_POST
+def convert_zip(request, pk):
+    """
+    Rename a .zip file to .cbz in place — ZIP and CBZ are the same format.
+    """
+    comic = get_object_or_404(Comic, pk=pk)
+
+    if comic.file_format != "zip":
+        return JsonResponse({"success": False, "error": f"Not a ZIP file ({comic.file_format})"}, status=400)
+
+    if not comic.file_path or not os.path.exists(comic.file_path):
+        return JsonResponse({"success": False, "error": "Source file not found"}, status=404)
+
+    original_path = Path(comic.file_path)
+    new_path = original_path.with_suffix(".cbz")
+
+    if new_path.exists():
+        return JsonResponse({"success": False, "error": f"Target already exists: {new_path.name}"}, status=400)
+
+    try:
+        original_path.rename(new_path)
+        comic.file_path = str(new_path)
+        comic.file_format = "cbz"
+        comic.flags.pop("is_zip", None)
+        comic.save()
+        return JsonResponse({"success": True, "message": f"Renamed to {new_path.name}"})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+
+@require_POST
+def convert_all_zip(request):
+    """
+    Dispatch a Celery task to rename all ZIP files flagged with is_zip to CBZ.
+    """
+    from celery.result import AsyncResult
+    from .tasks import convert_all_zip_task
+
+    active = request.session.get("active_task_id")
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+
+    total = Comic.objects.filter(flags__is_zip=True).count()
+    result = convert_all_zip_task.delay()
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Renaming ZIP files"
+    return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Renaming {total} ZIP files in background"})
 
 
 def scrape_preview(request, pk):

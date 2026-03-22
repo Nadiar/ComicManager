@@ -79,6 +79,13 @@ def index(request):
             "action": "convert",
         },
         {
+            "flag": "is_zip",
+            "label": "ZIP Files",
+            "description": "ZIP files that can be renamed to CBZ (same format)",
+            "count": Comic.objects.filter(flags__is_zip=True).count(),
+            "action": "convert",
+        },
+        {
             "flag": "missing_count",
             "label": "Missing Issue Count",
             "description": "Scraped but missing issue count from ComicVine",
@@ -175,6 +182,7 @@ def index(request):
         Q(flags__no_series=True) |
         Q(flags__cover_only=True) |
         Q(flags__needs_conversion=True) |
+        Q(flags__is_zip=True) |
         Q(flags__missing_count=True) |
         Q(flags__count_updated=True) |
         Q(flags__metadata_mismatch=True) |
@@ -316,6 +324,7 @@ FILTER_FIELD_OPTIONS = [
     ("flags__no_series", "Flag: No Series"),
     ("flags__cover_only", "Flag: Cover Only"),
     ("flags__needs_conversion", "Flag: Needs Conversion"),
+    ("flags__is_zip", "Flag: ZIP File"),
     ("flags__missing_count", "Flag: Missing Count"),
     ("flags__count_mismatch", "Flag: Count Mismatch"),
     ("flags__scrape_no_match", "Flag: No Scrape Match"),

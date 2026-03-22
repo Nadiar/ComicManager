@@ -474,6 +474,85 @@ def convert_all_cbr_task(self):
     return {"converted": converted, "processed": converted, "total": total, "errors": errors, "cancelled": False}
 
 
+@shared_task(bind=True, name="core.convert_all_zip", queue="import")
+def convert_all_zip_task(self):
+    """
+    Rename all .zip files flagged with is_zip to .cbz in place.
+    ZIP and CBZ are the same format — no extraction needed.
+    """
+    import os
+    from pathlib import Path
+    from .models import Comic
+
+    comic_ids = list(
+        Comic.objects.filter(flags__is_zip=True).values_list("pk", flat=True)
+    )
+    total = len(comic_ids)
+
+    if total == 0:
+        return {"converted": 0, "total": 0, "errors": [], "cancelled": False}
+
+    converted = 0
+    errors = []
+
+    self.update_state(
+        state="PROGRESS",
+        meta={"current": 0, "total": total, "processed": converted, "errors": errors},
+    )
+
+    for i, comic_id in enumerate(comic_ids):
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {"converted": converted, "processed": converted, "total": total, "errors": errors, "cancelled": True}
+
+        try:
+            comic = Comic.objects.get(pk=comic_id)
+        except Comic.DoesNotExist:
+            continue
+
+        if comic.file_format != "zip":
+            continue
+
+        if not comic.file_path or not os.path.exists(comic.file_path):
+            errors.append(f"{comic.proposed_series} #{comic.proposed_number}: file not found")
+            continue
+
+        original_path = Path(comic.file_path)
+        new_path = original_path.with_suffix(".cbz")
+
+        if new_path.exists():
+            errors.append(f"{comic.proposed_series} #{comic.proposed_number}: target already exists")
+            continue
+
+        try:
+            original_path.rename(new_path)
+            comic.file_path = str(new_path)
+            comic.file_format = "cbz"
+            comic.flags.pop("is_zip", None)
+            comic.save()
+            converted += 1
+        except (PermissionError, OSError) as e:
+            import errno as _errno
+            fatal = isinstance(e, PermissionError) or getattr(e, "errno", None) == _errno.ENOSPC
+            errors.append(f"{comic.proposed_series} #{comic.proposed_number}: {str(e)}")
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i + 1, "total": total, "processed": converted, "errors": errors},
+            )
+            if fatal:
+                return {"converted": converted, "processed": converted, "total": total,
+                        "errors": errors, "cancelled": False, "stopped_early": True}
+        except Exception as e:
+            errors.append(f"{comic.proposed_series} #{comic.proposed_number}: {str(e)}")
+
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": i + 1, "total": total, "processed": converted, "errors": errors},
+        )
+
+    return {"converted": converted, "processed": converted, "total": total, "errors": errors, "cancelled": False}
+
+
 # =============================================================================
 # Scrape task
 # =============================================================================

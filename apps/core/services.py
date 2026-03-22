@@ -52,7 +52,7 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
         result["cleaned"] = _cleanup_missing_files(untagged_path)
 
     # Find all comic files
-    extensions = (".cbz", ".cbr", ".cb7", ".pdf")
+    extensions = (".cbz", ".cbr", ".cb7", ".pdf", ".zip")
     comic_files = []
     for ext in extensions:
         comic_files.extend(Path(untagged_path).rglob(f"*{ext}"))
@@ -389,6 +389,10 @@ def _detect_flags(
     # Needs conversion (CBR, CB7)
     if file_format in ("cbr", "cb7"):
         flags["needs_conversion"] = True
+
+    # ZIP files should be renamed to CBZ
+    if file_format == "zip":
+        flags["is_zip"] = True
 
     return flags
 
