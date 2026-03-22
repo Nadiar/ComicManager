@@ -20,6 +20,7 @@ class Comic(models.Model):
     STATE_DEDUPLICATED  = "deduplicate"
     STATE_ORGANIZED     = "move"
     STATE_WRITTEN       = "write"
+    STATE_DONE          = "done"
     STATE_CHOICES = [
         (STATE_NEW,          "New"),
         (STATE_IMPORTED,     "Scrape"),
@@ -29,6 +30,7 @@ class Comic(models.Model):
         (STATE_DEDUPLICATED, "Deduplicate"),
         (STATE_ORGANIZED,    "Move Files"),
         (STATE_WRITTEN,      "Write to CBZ"),
+        (STATE_DONE,         "All Comics"),
     ]
 
     # Identity
