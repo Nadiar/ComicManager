@@ -124,29 +124,29 @@
                 <button onclick="runAction('/comics/scrape-all/', this, 'Scraping comics')" class="btn btn-xs btn-success">Scrape All</button>
                 {% endif %}
 
-                {% if stage.state == 'count' and stage.count > 0 %}
+                {% if stage.state == 'tagging' and stage.count > 0 %}
                 <button onclick="runAction('/comics/tag-all/', this, 'Tagging comics')" class="btn btn-xs btn-success">Tag All</button>
                 {% endif %}
 
-                {% if stage.state == 'tagging' and stage.count > 0 %}
+                {% if stage.state == 'formats' and stage.count > 0 %}
                 <button onclick="runAction('/comics/format-all/', this, 'Formatting comics')" class="btn btn-xs btn-success">Format All</button>
                 <a href="{% url 'core:format_review' %}" class="btn btn-xs btn-info">Review Formats</a>
                 {% endif %}
 
-                {% if stage.state == 'formats' and stage.count > 0 %}
+                {% if stage.state == 'deduplicate' and stage.count > 0 %}
                 <a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-info">Review Dupes</a>
                 <button onclick="runAction('/comics/deduplicate-all/', this, 'Deduplicating')" class="btn btn-xs btn-success">Detect Dupes</button>
                 {% endif %}
 
-                {% if stage.state == 'deduplicate' and stage.count > 0 %}
+                {% if stage.state == 'move' and stage.count > 0 %}
                 <button onclick="runAction('/comics/organize-all/', this, 'Organizing comics')" class="btn btn-xs btn-success">Organize All</button>
                 {% endif %}
 
-                {% if stage.state == 'move' and stage.count > 0 %}
+                {% if stage.state == 'write' and stage.count > 0 %}
                 <button onclick="runAction('/comics/write-all/', this, 'Writing comics')" class="btn btn-xs btn-success" id="btn-write-all">Write All</button>
                 {% endif %}
 
-                {% if stage.state == 'write' %}
+                {% if stage.state == 'done' %}
                 <button onclick="runAction('/comics/sync-library-paths/', this)" class="btn btn-xs btn-info">Sync Paths</button>
                 {% endif %}
                 </div>

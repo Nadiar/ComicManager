@@ -42,14 +42,14 @@ def clear_cancel(task_id):
 @shared_task(bind=True, name="core.write_all_comics", queue="write")
 def write_all_comics_task(self):
     """
-    Write ComicInfo.xml for all comics in 'organized' state.
+    Write ComicInfo.xml for all comics in 'written' state.
     Reports progress via self.update_state().
     """
     from .models import Comic
     from .utils import write_comicinfo_xml, validate_comic_for_write
 
     comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_ORGANIZED)
+        Comic.objects.filter(state=Comic.STATE_WRITTEN)
         .values_list("pk", flat=True)
     )
     total = len(comic_ids)
@@ -76,7 +76,7 @@ def write_all_comics_task(self):
                 err_msg = f"Missing required fields: {', '.join(validation_errors)}"
                 errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {err_msg}")
                 from .audit import log_batch_entry
-                log_batch_entry("write_error", comic, Comic.STATE_ORGANIZED, Comic.STATE_ORGANIZED,
+                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
                                 {"error": [None, err_msg]})
                 self.update_state(
                     state="PROGRESS",
@@ -88,7 +88,7 @@ def write_all_comics_task(self):
             if not success:
                 errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
                 from .audit import log_batch_entry
-                log_batch_entry("write_error", comic, Comic.STATE_ORGANIZED, Comic.STATE_ORGANIZED,
+                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
                                 {"error": [None, "Failed to write ComicInfo.xml"]})
                 self.update_state(
                     state="PROGRESS",
@@ -97,7 +97,7 @@ def write_all_comics_task(self):
                 continue
 
         from django.db.models import F
-        comic.state = Comic.STATE_WRITTEN
+        comic.state = Comic.STATE_DONE
         if comic.flags.get("count_updated"):
             comic.flags.pop("count_updated", None)
         comic.save()
@@ -106,7 +106,7 @@ def write_all_comics_task(self):
         written += 1
 
         from .audit import log_batch_entry
-        log_batch_entry("write_all", comic, Comic.STATE_ORGANIZED, comic.state, {"comicinfo": ["pending", "written"]})
+        log_batch_entry("write_all", comic, Comic.STATE_WRITTEN, comic.state, {"comicinfo": ["pending", "written"]})
 
         self.update_state(
             state="PROGRESS",
@@ -636,13 +636,13 @@ def scrape_all_task(self):
 @shared_task(bind=True, name="core.tag_all", queue="write")
 def tag_all_task(self):
     """
-    Apply DataManager rules to all comics in 'counted' state.
+    Apply DataManager rules to all comics in 'tagged' state.
     """
     from .models import Comic
     from apps.dashboard.tasks import _run_tag
 
     comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_COUNTED)
+        Comic.objects.filter(state=Comic.STATE_TAGGED)
         .values_list("pk", flat=True)
     )
     total = len(comic_ids)
@@ -670,6 +670,13 @@ def tag_all_task(self):
 
         try:
             _run_tag(comic)
+            # _run_tag only advances up to STATE_TAGGED; advance to STATE_FORMATTED and log it.
+            comic.refresh_from_db(fields=["state"])
+            if comic.state == Comic.STATE_TAGGED:
+                from .audit import log_batch_entry
+                comic.state = Comic.STATE_FORMATTED
+                comic.save(update_fields=["state", "updated_at"])
+                log_batch_entry("tag_all", comic, Comic.STATE_TAGGED, Comic.STATE_FORMATTED, {})
             processed += 1
         except Exception as e:
             errors.append(f"{comic.series} #{comic.number}: {str(e)}")
@@ -735,13 +742,13 @@ def retag_flagged_task(self, flag_name):
 @shared_task(bind=True, name="core.format_all", queue="write")
 def format_all_task(self):
     """
-    Apply format detection to all comics in 'tagged' state.
+    Apply format detection to all comics in 'formatted' state.
     """
     from .models import Comic
     from apps.dashboard.tasks import _run_format
 
     comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_TAGGED)
+        Comic.objects.filter(state=Comic.STATE_FORMATTED)
         .values_list("pk", flat=True)
     )
     total = len(comic_ids)
@@ -788,13 +795,13 @@ def format_all_task(self):
 @shared_task(bind=True, name="core.organize_all", queue="organize")
 def organize_all_task(self):
     """
-    Organize all comics in 'deduplicated' state into the library.
+    Organize all comics in 'organized' state into the library.
     """
     from .models import Comic
     from apps.dashboard.tasks import _run_organize
 
     comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_DEDUPLICATED)
+        Comic.objects.filter(state=Comic.STATE_ORGANIZED)
         .values_list("pk", flat=True)
     )
     total = len(comic_ids)

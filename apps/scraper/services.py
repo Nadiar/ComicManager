@@ -367,7 +367,7 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
         if match.cover_url:
             comic.custom_values["physical_main_cover_url"] = match.cover_url
 
-    comic.state = Comic.STATE_COUNTED
+    comic.state = Comic.STATE_TAGGED
     comic.save()
 
     # For physical comics, cache the CV cover image (no CBZ to insert into)

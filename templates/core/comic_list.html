@@ -229,17 +229,7 @@
         Convert All CBR ({{ needs_conversion_count }})
       </button>
       {% endif %}
-      {% if current_state == 'count' and comics %}
-      <button
-        type="button"
-        id="tag-all-btn"
-        class="btn btn-sm btn-accent"
-        onclick="tagAllComics(this)"
-      >
-        Tag All
-      </button>
-      {% endif %}
-      {% if current_flag == 'count_mismatch' and comics %}
+{% if current_flag == 'count_mismatch' and comics %}
       <button
         type="button"
         class="btn btn-sm btn-info"
@@ -497,22 +487,13 @@
               Convert
             </button>
             {% endif %}
-            {% if comic.state == 'count' %}
+            {% if comic.state == 'tagging' %}
             <button
               type="button"
               class="btn btn-xs btn-accent"
               onclick="tagComic('{{ comic.pk }}', this)"
             >
               Tag
-            </button>
-            {% endif %}
-            {% if comic.state == 'tagging' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-info"
-              onclick="formatComic('{{ comic.pk }}', this)"
-            >
-              Format
             </button>
             {% endif %}
             {% if comic.state == 'formats' %}
@@ -1858,7 +1839,7 @@ function tagComic(pk, btn) {
       // Update state badge
       const stateBadge = row.querySelector('td .badge-info, td .badge-warning');
       if (stateBadge) {
-        stateBadge.textContent = 'Tagging';
+        stateBadge.textContent = data.state === 'formats' ? 'Add Formats' : 'Tagging';
       }
 
       // Show results modal

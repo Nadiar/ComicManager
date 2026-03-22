@@ -24,14 +24,14 @@ def index(request):
 
     # Workflow pipeline stages
     pipeline = [
-        {"state": "new",         "label": "1. New",          "description": "Awaiting import",                       "action": "Accept All",     "count": state_counts.get("new",         0)},
-        {"state": "scrape",      "label": "2. Scrape",        "description": "Match & scrape ComicVine metadata",     "action": "Scrape All",     "count": state_counts.get("scrape",      0)},
-        {"state": "count",       "label": "3. Add Count",     "description": "Populate issue count from CV",          "action": "Tag All",        "count": state_counts.get("count",       0)},
-        {"state": "tagging",     "label": "4. Tagging",       "description": "Apply publisher tagging rules",         "action": "Format All",     "count": state_counts.get("tagging",     0)},
-        {"state": "formats",     "label": "5. Add Formats",   "description": "Detect format (TPB, One-Shot, etc.)",   "action": "Deduplicate All","count": state_counts.get("formats",     0)},
-        {"state": "deduplicate", "label": "6. Deduplicate",   "description": "Identify and resolve duplicates",       "action": "Organize All",   "count": state_counts.get("deduplicate", 0)},
-        {"state": "move",        "label": "7. Move Files",    "description": "Move files to library folder",          "action": "Write All",      "count": state_counts.get("move",        0)},
-        {"state": "write",       "label": "8. Write to CBZ",  "description": "Write ComicInfo.xml into CBZ",          "action": None,             "count": state_counts.get("write",       0)},
+        {"state": "new",         "label": "1. New",          "description": "Awaiting import",                        "action": "Accept All",     "count": state_counts.get("new",         0)},
+        {"state": "scrape",      "label": "2. Scrape",        "description": "Match & scrape ComicVine metadata",      "action": "Scrape All",     "count": state_counts.get("scrape",      0)},
+        {"state": "tagging",     "label": "3. Tagging",       "description": "Apply publisher tagging rules",          "action": "Tag All",        "count": state_counts.get("tagging",     0)},
+        {"state": "formats",     "label": "4. Add Formats",   "description": "Detect format (TPB, One-Shot, etc.)",    "action": "Format All",     "count": state_counts.get("formats",     0)},
+        {"state": "deduplicate", "label": "5. Deduplicate",   "description": "Identify and resolve duplicates",        "action": "Detect Dupes",   "count": state_counts.get("deduplicate", 0)},
+        {"state": "move",        "label": "6. Move Files",    "description": "Move files to library folder",           "action": "Organize All",   "count": state_counts.get("move",        0)},
+        {"state": "write",       "label": "7. Write to CBZ",  "description": "Write ComicInfo.xml into CBZ",           "action": "Write All",      "count": state_counts.get("write",       0)},
+        {"state": "done",        "label": "8. All Comics",    "description": "Written — sync library paths if needed", "action": "Sync Paths",     "count": state_counts.get("done",        0)},
     ]
 
     # Review queue

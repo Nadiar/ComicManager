@@ -53,7 +53,6 @@ FLAG_LABELS = {
 WORKFLOW_STATES = [
     ("new",         "New"),
     ("scrape",      "Scrape"),
-    ("count",       "Add Count"),
     ("tagging",     "Tagging"),
     ("formats",     "Add Formats"),
     ("deduplicate", "Deduplicate"),
@@ -336,7 +335,7 @@ def comic_detail(request, pk):
                 comparison = compare_db_vs_xml(comic, xml_data)
 
     # For organized/written comics, show reorganize preview
-    if comic.state in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
+    if comic.state in (Comic.STATE_WRITTEN, Comic.STATE_DONE):
         from apps.organizer.services import preview_organization
         reorganize_preview = preview_organization(comic)
 
@@ -1990,7 +1989,7 @@ def tag_all_comics(request):
     if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
         return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
-    total = Comic.objects.filter(state=Comic.STATE_COUNTED).count()
+    total = Comic.objects.filter(state=Comic.STATE_TAGGED).count()
     result = tag_all_task.delay()
     request.session["active_task_id"] = result.id
     request.session["active_task_label"] = "Tagging comics"
@@ -2073,10 +2072,10 @@ def format_comic(request, pk):
     """
     comic = get_object_or_404(Comic, pk=pk)
 
-    if comic.state != Comic.STATE_TAGGED:
+    if comic.state not in (Comic.STATE_TAGGED, Comic.STATE_FORMATTED):
         return JsonResponse({
             "success": False,
-            "error": f"Comic is not in 'tagged' state (current: {comic.state})"
+            "error": f"Comic is not in 'tagged' or 'formatted' state (current: {comic.state})"
         }, status=400)
 
     old_format = comic.format
@@ -2090,6 +2089,8 @@ def format_comic(request, pk):
 
     if comic.medium == Comic.MEDIUM_PHYSICAL:
         comic.state = Comic.STATE_WRITTEN
+    elif comic.state == Comic.STATE_FORMATTED:
+        comic.state = Comic.STATE_DEDUPLICATED
     else:
         comic.state = Comic.STATE_FORMATTED
     comic.save()
@@ -2137,7 +2138,7 @@ def format_all_comics(request):
     if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
         return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
-    total = Comic.objects.filter(state=Comic.STATE_TAGGED).count()
+    total = Comic.objects.filter(state=Comic.STATE_FORMATTED).count()
     result = format_all_task.delay()
     request.session["active_task_id"] = result.id
     request.session["active_task_label"] = "Formatting comics"
@@ -2165,13 +2166,13 @@ def format_review(request):
     """
     Display grouped format review page.
 
-    Shows all comics in 'tagged' state grouped by their detected format,
+    Shows all comics in 'formatted' state grouped by their detected format,
     plus any comics needing re-format (from any state).
     """
     from collections import defaultdict
 
-    # Get comics in 'tagged' state
-    tagged_comics = Comic.objects.filter(state=Comic.STATE_TAGGED).annotate(
+    # Get comics in 'formatted' state
+    tagged_comics = Comic.objects.filter(state=Comic.STATE_FORMATTED).annotate(
         number_sort_key=natural_number_annotation()
     ).order_by("series", "volume", "number_sort_key", "number")
 
@@ -2230,8 +2231,8 @@ def format_group_comics(request, format_type):
             number_sort_key=natural_number_annotation()
         ).order_by("series", "number_sort_key", "number")
     else:
-        # Get tagged comics and filter by detected format
-        tagged_comics = Comic.objects.filter(state=Comic.STATE_TAGGED)
+        # Get formatted comics and filter by detected format
+        tagged_comics = Comic.objects.filter(state=Comic.STATE_FORMATTED)
         comics = [c for c in tagged_comics if _detect_format(c) == format_name]
         comics.sort(key=natural_sort_key)
 
@@ -2270,10 +2271,10 @@ def accept_format_group(request, format_type):
         })
 
     # Regular format acceptance
-    tagged_comics = Comic.objects.filter(state=Comic.STATE_TAGGED)
+    formatted_comics = Comic.objects.filter(state=Comic.STATE_FORMATTED)
 
     processed = 0
-    for comic in tagged_comics:
+    for comic in formatted_comics:
         detected = _detect_format(comic)
         # Only process comics matching this format type
         if detected == format_name:
@@ -2282,7 +2283,7 @@ def accept_format_group(request, format_type):
             if comic.medium == Comic.MEDIUM_PHYSICAL:
                 comic.state = Comic.STATE_WRITTEN
             else:
-                comic.state = Comic.STATE_FORMATTED
+                comic.state = Comic.STATE_DEDUPLICATED
             comic.save()
             processed += 1
 
@@ -2429,7 +2430,7 @@ def deduplicate_all_comics(request):
     if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
         return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
-    total = Comic.objects.filter(state=Comic.STATE_FORMATTED).count()
+    total = Comic.objects.filter(state=Comic.STATE_DEDUPLICATED).count()
     result = deduplicate_all_task.delay()
     request.session["active_task_id"] = result.id
     request.session["active_task_label"] = "Deduplicating"
@@ -2478,7 +2479,7 @@ def organize_all_comics(request):
     if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
         return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
-    total = Comic.objects.filter(state=Comic.STATE_DEDUPLICATED).count()
+    total = Comic.objects.filter(state=Comic.STATE_ORGANIZED).count()
     result = organize_all_task.delay()
     request.session["active_task_id"] = result.id
     request.session["active_task_label"] = "Organizing comics"
@@ -2497,10 +2498,10 @@ def reorganize_comic(request, pk):
 
     comic = get_object_or_404(Comic, pk=pk)
 
-    if comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
+    if comic.state not in (Comic.STATE_WRITTEN, Comic.STATE_DONE):
         return JsonResponse({
             "success": False,
-            "error": f"Comic must be in 'organized' or 'written' state (current: {comic.state})"
+            "error": f"Comic must be in 'write' or 'done' state (current: {comic.state})"
         }, status=400)
 
     result = service_reorganize(comic)
@@ -2601,10 +2602,10 @@ def write_comic(request, pk):
 
     comic = get_object_or_404(Comic, pk=pk)
 
-    if comic.state != Comic.STATE_ORGANIZED:
+    if comic.state != Comic.STATE_WRITTEN:
         return JsonResponse({
             "success": False,
-            "error": f"Comic must be in 'organized' state (current: {comic.state})"
+            "error": f"Comic must be in 'write' state (current: {comic.state})"
         }, status=400)
 
     validation_errors = validate_comic_for_write(comic)
@@ -2625,7 +2626,7 @@ def write_comic(request, pk):
 
     # Advance state and record write time
     from django.db.models import F
-    comic.state = Comic.STATE_WRITTEN
+    comic.state = Comic.STATE_DONE
 
     # Clear the count_updated flag if set
     if comic.flags.get("count_updated"):
@@ -2661,13 +2662,13 @@ def write_all_comics(request):
                 "task_id": active_task_id,
             }, status=409)
 
-    count = Comic.objects.filter(state=Comic.STATE_ORGANIZED).count()
+    count = Comic.objects.filter(state=Comic.STATE_WRITTEN).count()
     if count == 0:
         return JsonResponse({
             "success": True,
             "written": 0,
             "total": 0,
-            "message": "No comics in organized state",
+            "message": "No comics in written state",
         })
 
     from .tasks import write_all_comics_task
@@ -3002,8 +3003,8 @@ def force_organize(request, pk):
         # Still advance state even if no move needed
         if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
                            Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
-                           Comic.STATE_DEDUPLICATED):
-            comic.state = Comic.STATE_ORGANIZED
+                           Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
+            comic.state = Comic.STATE_WRITTEN
             comic.save()
         return JsonResponse({
             "success": True,
@@ -3050,8 +3051,8 @@ def force_organize(request, pk):
         # Advance state if needed (to at least organized)
         if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
                            Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
-                           Comic.STATE_DEDUPLICATED):
-            comic.state = Comic.STATE_ORGANIZED
+                           Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
+            comic.state = Comic.STATE_WRITTEN
         comic.save()
 
         return JsonResponse({
