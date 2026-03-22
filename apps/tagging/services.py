@@ -33,8 +33,6 @@ def tag_comic(comic: Comic) -> dict:
             "changes": [],
         }
 
-    is_retag = comic.state == Comic.STATE_TAGGED
-
     with transaction.atomic():
         result = apply_datamanager_rules(comic, save=False)
 
@@ -47,9 +45,11 @@ def tag_comic(comic: Comic) -> dict:
             if is_publisher_known(comic.publisher):
                 comic.remove_flag("unknown_publisher")
 
-        # Advance state only if not already tagged
-        if not is_retag:
+        # Advance state: counted -> tagged (legacy), tagged -> formatted (new pipeline)
+        if comic.state == Comic.STATE_COUNTED:
             comic.state = Comic.STATE_TAGGED
+        else:
+            comic.state = Comic.STATE_FORMATTED
         comic.save()
 
     matched_count = result["matched_count"]
@@ -57,10 +57,8 @@ def tag_comic(comic: Comic) -> dict:
 
     if matched_count > 0:
         message = f"Applied {matched_count} ruleset(s), made {changes_count} change(s)"
-    elif is_retag:
-        message = "No matching rulesets found, no changes made"
     else:
-        message = "No matching rulesets found, state advanced to tagged"
+        message = "No matching rulesets found, state advanced"
 
     return {
         "success": True,

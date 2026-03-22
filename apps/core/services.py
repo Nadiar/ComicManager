@@ -488,8 +488,13 @@ def detect_and_set_format(comic) -> dict:
         if not is_inducks:
             comic.flags["missing_format"] = True
 
-    if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
-                       Comic.STATE_COUNTED, Comic.STATE_TAGGED):
+    if comic.state == Comic.STATE_FORMATTED:
+        if comic.medium == Comic.MEDIUM_PHYSICAL:
+            comic.state = Comic.STATE_WRITTEN
+        else:
+            comic.state = Comic.STATE_DEDUPLICATED
+    elif comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
+                         Comic.STATE_COUNTED, Comic.STATE_TAGGED):
         if comic.medium == Comic.MEDIUM_PHYSICAL:
             comic.state = Comic.STATE_WRITTEN
         else:

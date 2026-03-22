@@ -216,11 +216,11 @@ def _run_organize(comic):
         comic.file_path = new_path
         comic.last_organized_path = new_path
 
-    # Advance state to organized from any earlier state
+    # Advance state to written from any earlier state
     if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
                        Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
-                       Comic.STATE_DEDUPLICATED):
-        comic.state = Comic.STATE_ORGANIZED
+                       Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
+        comic.state = Comic.STATE_WRITTEN
 
     comic.needs_reorganize = False
     comic.expected_path = None

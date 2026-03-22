@@ -34,8 +34,8 @@ def organize_comic(comic: Comic, dry_run: bool = False) -> dict:
     # They skip deduplication as a required step: advance from formatted or
     # deduplicated directly to organized.
     if comic.medium == Comic.MEDIUM_PHYSICAL:
-        if not dry_run and comic.state in (Comic.STATE_FORMATTED, Comic.STATE_DEDUPLICATED):
-            comic.state = Comic.STATE_ORGANIZED
+        if not dry_run and comic.state in (Comic.STATE_FORMATTED, Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
+            comic.state = Comic.STATE_WRITTEN
             comic.save(update_fields=["state"])
         return {
             "success": True,
@@ -48,10 +48,10 @@ def organize_comic(comic: Comic, dry_run: bool = False) -> dict:
         }
 
     # Check state
-    if comic.state != Comic.STATE_DEDUPLICATED:
+    if comic.state != Comic.STATE_ORGANIZED:
         return {
             "success": False,
-            "message": f"Comic must be in 'deduplicated' state, but is '{comic.state}'",
+            "message": f"Comic must be in 'move' state, but is '{comic.state}'",
             "profile": None,
             "old_path": comic.file_path,
             "new_path": None,
@@ -141,7 +141,7 @@ def organize_comic(comic: Comic, dry_run: bool = False) -> dict:
             with transaction.atomic():
                 comic.file_path = new_path
                 comic.last_organized_path = new_path
-                comic.state = Comic.STATE_ORGANIZED
+                comic.state = Comic.STATE_WRITTEN
                 comic.save()
 
         except Exception as e:

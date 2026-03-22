@@ -365,13 +365,13 @@ def run_duplicate_detection() -> dict:
 
     Returns dict with detection statistics.
     """
-    # Get candidates: formatted comics without existing group
+    # Get candidates: deduplicated comics without existing group
     candidates = list(Comic.objects.filter(
-        state=Comic.STATE_FORMATTED,
+        state=Comic.STATE_DEDUPLICATED,
         duplicate_group__isnull=True,
     ))
 
-    logger.info(f"run_duplicate_detection: found {len(candidates)} formatted candidates")
+    logger.info(f"run_duplicate_detection: found {len(candidates)} deduplicated candidates")
 
     if not candidates:
         return {
@@ -390,7 +390,7 @@ def run_duplicate_detection() -> dict:
     library_comics = list(Comic.objects.filter(
         duplicate_group__isnull=True,
     ).exclude(
-        state=Comic.STATE_FORMATTED,
+        state=Comic.STATE_DEDUPLICATED,
     ))
 
     comparison_pool = candidates + library_comics
@@ -422,15 +422,15 @@ def run_duplicate_detection() -> dict:
     for comic in candidates:
         if comic.pk not in candidates_with_groups:
             state_before = comic.state
-            comic.state = Comic.STATE_DEDUPLICATED
+            comic.state = Comic.STATE_ORGANIZED
             comic.save(update_fields=["state"])
             advanced += 1
             log_batch_entry(
-                "deduplicate_all", comic, state_before, Comic.STATE_DEDUPLICATED,
-                {"state": [state_before, Comic.STATE_DEDUPLICATED]},
+                "deduplicate_all", comic, state_before, Comic.STATE_ORGANIZED,
+                {"state": [state_before, Comic.STATE_ORGANIZED]},
             )
 
-    logger.info(f"run_duplicate_detection: advanced {advanced} candidates to deduplicated")
+    logger.info(f"run_duplicate_detection: advanced {advanced} candidates to organized")
 
     return {
         "success": True,
@@ -518,13 +518,13 @@ def resolve_keep(
         membership.resolution = DuplicateGroupMembership.RESOLUTION_KEPT
         membership.save()
 
-        # Update the comic — only advance if still in formatted state
+        # Update the comic — only advance if still in deduplicated state
         # (don't downgrade already-processed comics)
         winner.is_duplicate = False
         winner.duplicate_of = None
         winner.format_ok = True
-        if winner.state == Comic.STATE_FORMATTED:
-            winner.state = Comic.STATE_DEDUPLICATED
+        if winner.state == Comic.STATE_DEDUPLICATED:
+            winner.state = Comic.STATE_ORGANIZED
         winner.save()
 
         # Update group
@@ -725,10 +725,10 @@ def resolve_keep_all(
 
                 comic.is_duplicate = False
                 comic.duplicate_of = None
-                # Only advance if still in formatted state
+                # Only advance if still in deduplicated state
                 # (don't downgrade already-processed comics)
-                if comic.state == Comic.STATE_FORMATTED:
-                    comic.state = Comic.STATE_DEDUPLICATED
+                if comic.state == Comic.STATE_DEDUPLICATED:
+                    comic.state = Comic.STATE_ORGANIZED
                 comic.save()
                 count += 1
 
@@ -782,10 +782,10 @@ def _check_group_resolved(group: DuplicateGroup):
 
         comic.is_duplicate = False
         comic.duplicate_of = None
-        # Only advance if still in formatted state
+        # Only advance if still in deduplicated state
         # (don't downgrade already-processed comics)
-        if comic.state == Comic.STATE_FORMATTED:
-            comic.state = Comic.STATE_DEDUPLICATED
+        if comic.state == Comic.STATE_DEDUPLICATED:
+            comic.state = Comic.STATE_ORGANIZED
         comic.save()
 
         group.kept_comic = comic
@@ -870,8 +870,8 @@ def get_duplicate_stats() -> dict:
     resolved = DuplicateGroup.objects.filter(status=DuplicateGroup.STATUS_RESOLVED)
     intentional = DuplicateGroup.objects.filter(status=DuplicateGroup.STATUS_INTENTIONAL)
 
-    formatted_count = Comic.objects.filter(state=Comic.STATE_FORMATTED).count()
     deduplicated_count = Comic.objects.filter(state=Comic.STATE_DEDUPLICATED).count()
+    organized_count = Comic.objects.filter(state=Comic.STATE_ORGANIZED).count()
     marked_duplicate = Comic.objects.filter(is_duplicate=True).count()
 
     return {
@@ -884,8 +884,8 @@ def get_duplicate_stats() -> dict:
             "phash": pending.filter(detection_method=DuplicateGroup.DETECTION_PHASH).count(),
             "filename": pending.filter(detection_method=DuplicateGroup.DETECTION_FILENAME).count(),
         },
-        "formatted_comics": formatted_count,
         "deduplicated_comics": deduplicated_count,
+        "organized_comics": organized_count,
         "marked_duplicate": marked_duplicate,
     }
 
