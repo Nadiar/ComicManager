@@ -243,10 +243,10 @@
 - [x] [BUG.25] Physical comics have no path forward after reaching `deduplicated` state. Fixed: physical comics now skip directly to `written` when format is detected; deduplicate batch logs correctly.
 - [x] [BUG.26] Deduplicate shows in toast eg. 15 of 16 processed, but pressing the auditlog link doesn't show anything logged. Fixed in same commit as BUG.25.
 - [x] [BUG.29] `/comics/?state=tagging` gives `error` everytime 'Tag' is pressed. Fixed: per-row button for STATE_TAGGED comics now calls `formatComic()` (next pipeline step) instead of `tagComic()`.
-- [ ] [BUG.30] Phase 4 (state=tagging) and Phase 5 (state=formats) both show a "Format" row button — need distinct labels to differentiate the two actions.
-- [ ] [BUG.31] Toast for Format All on dashboard, doesn't log all instances but only some of them. 
-- [ ] [BUG.32] MCL/.db are hardcoded in docker-compose and settings page. If changed on /settings it doesn't change the file location
-- [ ] [BUG.33] On `?state=scrape`, after scraping via the API the Year column displays the Publisher name instead of the year value. Likely a column index mismatch in `updateRowAfterScrape()` in `comic_list.html`.
+- [x] [BUG.30] Phase 4 (state=tagging) and Phase 5 (state=formats) both show a "Format" row button — need distinct labels to differentiate the two actions.
+- [x] [BUG.31] Toast for Format All on dashboard, doesn't log all instances but only some of them.
+- [x] [BUG.32] MCL/.db are hardcoded in docker-compose and settings page. If changed on /settings it doesn't change the file location
+- [x] [BUG.33] On `?state=scrape`, after scraping via the API the Year column displays the Publisher name instead of the year value. Likely a column index mismatch in `updateRowAfterScrape()` in `comic_list.html`.
 - [ ] [BUG.34] "Compare All Sources" scrape option fails with `JSON.parse: unexpected character at line 1 column 1` when `comicvine.db` is not available. The endpoint likely returns a non-JSON error response (500 or HTML) instead of a proper JSON error when the local CV DB is missing.
 - [ ] [BUG.35] The "State" dropdown in the comic edit page still lists removed/legacy states (e.g. `count`) and does not reflect the current 7-stage pipeline. Update the dropdown to only show valid pipeline states and keep the warning "Changing state manually can break the pipeline workflow. Use with caution."
 
@@ -270,6 +270,7 @@
 - [x] [IND.12] Story-code search should accept `D92380` as well as `D 92380`. Fixed by normalizing spaces in `search_by_storycode`: strips spaces from input and uses `REPLACE(s.storycode, ' ', '') LIKE ?` in the SQL query.
 - [x] [IND.13] Inducks comics should skip `/comics/?state=count` and go directly from `/comics/?state=scrape` to `/comics/?state=tagging`. Fixed: `apply_inducks_match` now sets `comic.state = Comic.STATE_TAGGED` instead of `STATE_COUNTED`.
 - [x] [IND.14] Inducks comics should skip the `missing_format` review queue. Fixed in `detect_and_set_format`: Inducks-sourced comics do not receive the `missing_format` flag when no format is auto-detected, since they have no CV issue count for count-based format rules.
+- [ ] [IND.15] When matching a comic directly via story code, the `series` field (and potentially `number`, `publisher`) are not populated from the story/publication metadata. Comics scraped this way end up with missing core fields, blocking later pipeline stages. Improve `apply_inducks_match` (or the story-code search result handling) to populate `series` from the publication title or story title, and set `number` / `publisher` where available.
 
 
 ## Flag List Action Button Audit

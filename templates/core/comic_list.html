@@ -378,11 +378,12 @@
               hx-target="this"
               hx-swap="innerHTML"
               class="cursor-pointer hover:bg-base-300 transition-colors"
+              data-col="{{ col_id }}"
               title="Click to edit">
             <span class="text-warning font-medium">{{ comic|get_col_value:col_id|default:"—" }}</span>
           </td>
           {% else %}
-          <td {% if col_id == 'series' or col_id == 'title' %}class="max-w-xs truncate"{% endif %}>
+          <td data-col="{{ col_id }}" {% if col_id == 'series' or col_id == 'title' %}class="max-w-xs truncate"{% endif %}>
             {% if col_id == 'series' and comic.state == 'new' %}
               <span class="text-warning font-medium">{{ comic.proposed_series|default:"-" }}</span>
               {% if comic.is_physical %}<span class="badge badge-xs badge-neutral ml-1">physical</span>{% endif %}
@@ -1671,17 +1672,33 @@ function updateRowAfterScrape(btn, data) {
   btn.classList.add('btn-success');
   btn.innerHTML = 'Done';
 
-  // Update state badge (now goes directly to 'counted')
-  const stateBadge = row.querySelector('td:nth-child(9) .badge');
+  // Update state badge
+  const stateBadge = row.querySelector('td[data-col="state"] .badge');
   if (stateBadge) {
-    stateBadge.textContent = 'Add Count';
+    stateBadge.textContent = 'Tag';
   }
 
-  // Update publisher if available
-  if (data.match && data.match.publisher) {
-    const publisherCell = row.querySelector('td:nth-child(6)');
-    if (publisherCell) {
-      publisherCell.textContent = data.match.publisher;
+  if (data.match) {
+    // Update publisher cell
+    if (data.match.publisher) {
+      const publisherCell = row.querySelector('td[data-col="publisher"]');
+      if (publisherCell) {
+        publisherCell.textContent = data.match.publisher;
+      }
+    }
+    // Update year cell
+    if (data.match.year) {
+      const yearCell = row.querySelector('td[data-col="year"]');
+      if (yearCell) {
+        yearCell.textContent = data.match.year;
+      }
+    }
+    // Update series cell
+    if (data.match.series) {
+      const seriesCell = row.querySelector('td[data-col="series"]');
+      if (seriesCell) {
+        seriesCell.textContent = data.match.series;
+      }
     }
   }
 }
