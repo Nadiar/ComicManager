@@ -530,6 +530,9 @@ def convert_all_zip_task(self):
             comic.file_format = "cbz"
             comic.flags.pop("is_zip", None)
             comic.save()
+            from .audit import log_batch_entry
+            log_batch_entry("convert_zip", comic, comic.state, comic.state,
+                            {"file": [str(original_path), str(new_path)]})
             converted += 1
         except (PermissionError, OSError) as e:
             import errno as _errno

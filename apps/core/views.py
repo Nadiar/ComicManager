@@ -664,6 +664,9 @@ def convert_zip(request, pk):
         comic.file_format = "cbz"
         comic.flags.pop("is_zip", None)
         comic.save()
+        from .audit import log_batch_entry
+        log_batch_entry("convert_zip", comic, comic.state, comic.state,
+                        {"file": [str(original_path), str(new_path)]})
         return JsonResponse({"success": True, "message": f"Renamed to {new_path.name}"})
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)

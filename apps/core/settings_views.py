@@ -72,5 +72,5 @@ def settings_log(request):
         "page_obj": page_obj,
         "total_count": paginator.count,
         "action_filter": action_filter,
-        "actions": ["scrape_all", "tag_all", "format_all", "deduplicate_all", "organize_all", "write_all", "audit_metadata", "organize_error", "write_error"],
+        "actions": ["scrape_all", "tag_all", "format_all", "deduplicate_all", "organize_all", "write_all", "audit_metadata", "convert_zip", "organize_error", "write_error"],
     })
