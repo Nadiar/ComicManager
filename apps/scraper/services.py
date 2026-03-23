@@ -396,6 +396,10 @@ def apply_inducks_match(comic, match):
         comic.number = match.issue_number
         if match.publisher:
             comic.publisher = match.publisher
+    else:
+        # Story-only: treat as a one-shot — use story title as series name
+        if match.title:
+            comic.series = match.title
 
     if match.title:
         comic.title = match.title

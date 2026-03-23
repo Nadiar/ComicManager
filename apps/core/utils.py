@@ -577,13 +577,21 @@ def validate_comic_for_write(comic) -> list[str]:
     Not enforced by force_write (the escape hatch path).
     """
     errors = []
+    custom = comic.custom_values or {}
+    inducks_story_only = (
+        custom.get("scrape_source") == "inducks"
+        and not custom.get("inducks_issuecode")
+        and custom.get("inducks_storycode")
+    )
+
     if not (comic.series or "").strip():
         errors.append("series")
-    if not (comic.number or "").strip():
-        if (comic.format or "").strip() not in _NUMBERLESS_FORMATS:
-            errors.append("number")
-    if not (comic.publisher or "").strip():
-        errors.append("publisher")
+    if not inducks_story_only:
+        if not (comic.number or "").strip():
+            if (comic.format or "").strip() not in _NUMBERLESS_FORMATS:
+                errors.append("number")
+        if not (comic.publisher or "").strip():
+            errors.append("publisher")
     return errors
 
 
