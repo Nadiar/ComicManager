@@ -147,6 +147,9 @@ def process_conditional_segments(template: str, comic: Comic, profile: Organizer
 
         if value:
             # Field has value - render this segment
+            illegal = profile.illegal_characters or OrganizerProfile.get_default_illegal_characters()
+            slash_repl = illegal.get('/', '-')
+            value = value.replace('/', slash_repl)
             replacement = f"{prefix}{value}{suffix}"
         else:
             # Field is empty - remove entire segment
@@ -174,6 +177,9 @@ def process_simple_placeholders(template: str, comic: Comic, profile: OrganizerP
         value = get_placeholder_value(comic, field_spec, profile)
 
         if value:
+            illegal = profile.illegal_characters or OrganizerProfile.get_default_illegal_characters()
+            slash_repl = illegal.get('/', '-')
+            value = value.replace('/', slash_repl)
             return f"{prefix}{value}"
         else:
             # Empty value - return empty (removes prefix too)

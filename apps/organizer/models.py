@@ -66,7 +66,7 @@ class OrganizerProfile(models.Model):
         """Return default illegal character mapping."""
         return {
             '"': "'",
-            '/': '',
+            '/': '-',
             '*': '',
             '<': '[',
             '?': '',
