@@ -581,6 +581,7 @@ def scrape_all_task(self):
         ).filter(
             Q(flags__scrape_skipped__isnull=True) | Q(flags__scrape_skipped=False),
         ).exclude(
+            custom_values__has_key="scrape_source",
             custom_values__scrape_source="inducks",
         ).values_list("pk", flat=True)
     )
