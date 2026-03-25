@@ -679,18 +679,21 @@ class InducksScraper:
 
     def _get_cover_url(self, conn, issuecode):
         """Build the inducks.org cover viewer URL for an issue."""
-        cover = conn.execute("""
-            SELECT s.urlbase || eu.url AS cover_url
-            FROM inducks_entry e
-            JOIN inducks_entryurl eu ON eu.entrycode = e.entrycode
-            JOIN inducks_site s ON s.sitecode = eu.sitecode
-            WHERE e.issuecode = ?
-              AND e.position = 'a'
-              AND eu.pagenumber = 1
-              AND s.images = 'Y'
-              AND s.sitecode NOT LIKE 'thumbnails%'
-            LIMIT 1
-        """, [issuecode]).fetchone()
+        try:
+            cover = conn.execute("""
+                SELECT s.urlbase || eu.url AS cover_url
+                FROM inducks_entry e
+                JOIN inducks_entryurl eu ON eu.entrycode = e.entrycode
+                JOIN inducks_site s ON s.sitecode = eu.sitecode
+                WHERE e.issuecode = ?
+                  AND e.position = 'a'
+                  AND eu.pagenumber = 1
+                  AND s.images = 'Y'
+                  AND s.sitecode NOT LIKE 'thumbnails%'
+                LIMIT 1
+            """, [issuecode]).fetchone()
+        except Exception:
+            return None
 
         if cover:
             raw_url = cover["cover_url"]

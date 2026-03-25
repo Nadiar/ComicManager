@@ -1,8 +1,11 @@
+import logging
 import os
 import re
 import tempfile
 import zipfile
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from django.shortcuts import render, get_object_or_404
 from django.utils.html import strip_tags
