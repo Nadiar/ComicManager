@@ -178,6 +178,8 @@ cython_debug/
 # local 
 data/*
 node_*
+docs/.vitepress/dist/
+docs/.vitepress/cache/
 untagged/*
 Comics/*
 *.zip
@@ -192,11 +194,13 @@ ComicInfo.xml
 ComicDb.xml
 static/css/main.css
 *.md
-!CHANGELOG.md 
+!CHANGELOG.md
+!docs/**/*.md
+!docs/*.md
 .vexp/*
 cover_cache/*
 Comicrack_guide/*
-docs/*
 *.mcl
 PROGRESS.md
-download*.sh
+download*.sh*
+*.db

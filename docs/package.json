@@ -1,0 +1,16 @@
+{
+  "name": "comicmanager-docs",
+  "version": "1.0.0",
+  "description": "ComicManager Documentation",
+  "main": "index.js",
+  "scripts": {
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.0.0",
+    "vitepress-plugin-lightbox": "^1.0.3",
+    "medium-zoom": "^1.1.0"
+  }
+}
