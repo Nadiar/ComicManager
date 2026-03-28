@@ -2261,14 +2261,15 @@ def format_review(request):
                 "is_count_based": is_count_based,
             })
 
-    # Build re-format group if any
+    # Build re-format group if any, enriched with detected format per comic
     reformat_group = None
     if reformat_comics:
+        reformat_rows = [{"comic": c, "detected": _detect_format(c)} for c in reformat_comics]
         reformat_group = {
             "name": "Needs Re-format",
             "slug": "needs-reformat",
             "count": len(reformat_comics),
-            "comics": reformat_comics,
+            "rows": reformat_rows,
         }
 
     return render(request, "core/format_review.html", {

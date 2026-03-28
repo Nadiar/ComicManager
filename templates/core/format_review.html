@@ -51,32 +51,40 @@
               <th>Title</th>
               <th>Publisher</th>
               <th>Current Format</th>
+              <th>Detected Format</th>
               <th>State</th>
             </tr>
           </thead>
           <tbody>
-            {% for comic in reformat_group.comics %}
+            {% for row in reformat_group.rows %}
             <tr class="hover">
               <td class="font-medium">
-                <a href="{% url 'core:detail' comic.pk %}" class="link link-primary">
-                  {{ comic.series|default:"-" }}
+                <a href="{% url 'core:detail' row.comic.pk %}" class="link link-primary">
+                  {{ row.comic.series|default:"-" }}
                 </a>
               </td>
-              <td>{{ comic.volume|default:"-" }}</td>
-              <td>{{ comic.number|default:"-" }}</td>
-              <td>{{ comic.count|default:"-" }}</td>
-              <td>{{ comic.page_count|default:"-" }}</td>
-              <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
-              <td>{{ comic.publisher|default:"-" }}</td>
+              <td>{{ row.comic.volume|default:"-" }}</td>
+              <td>{{ row.comic.number|default:"-" }}</td>
+              <td>{{ row.comic.count|default:"-" }}</td>
+              <td>{{ row.comic.page_count|default:"-" }}</td>
+              <td class="max-w-xs truncate">{{ row.comic.title|default:"-" }}</td>
+              <td>{{ row.comic.publisher|default:"-" }}</td>
               <td>
-                {% if comic.format %}
-                <span class="badge badge-sm badge-outline">{{ comic.format }}</span>
+                {% if row.comic.format %}
+                <span class="badge badge-sm badge-outline">{{ row.comic.format }}</span>
                 {% else %}
                 <span class="text-base-content/40">-</span>
                 {% endif %}
               </td>
               <td>
-                <span class="badge badge-sm badge-info">{{ comic.state }}</span>
+                {% if row.detected %}
+                <span class="badge badge-sm {% if row.detected != row.comic.format %}badge-warning{% else %}badge-success{% endif %}">{{ row.detected }}</span>
+                {% else %}
+                <span class="text-base-content/40">-</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge badge-sm badge-info">{{ row.comic.state }}</span>
               </td>
             </tr>
             {% endfor %}
@@ -129,6 +137,7 @@
               <th>Title</th>
               <th>Publisher</th>
               <th>Current Format</th>
+              <th>Detected Format</th>
             </tr>
           </thead>
           <tbody>
@@ -151,6 +160,9 @@
                 {% else %}
                 <span class="text-base-content/40">-</span>
                 {% endif %}
+              </td>
+              <td>
+                <span class="badge badge-sm {% if group.name != comic.format %}badge-warning{% else %}badge-success{% endif %}">{{ group.name }}</span>
               </td>
             </tr>
             {% endfor %}
