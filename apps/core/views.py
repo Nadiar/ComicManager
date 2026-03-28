@@ -1887,17 +1887,11 @@ def reformat_flagged(request):
 @require_POST
 def detect_format_upgrades(request):
     """
-    Scan all comics with a count set and a count-based format (not format_ok).
-    Sets needs_reformat=True for any comic where the expected format differs from current.
+    Scan all comics with a count-based format (not format_ok).
+    Sets needs_reformat=True for any comic where the detected format differs from current.
     Clears it for comics that are already on the right format.
     """
-    from .models import get_setting
-
-    one_shot_max = get_setting("one_shot_max_count", 1)
-    limited_max = get_setting("limited_series_max_count", 15)
-
     candidates = Comic.objects.filter(
-        count__isnull=False,
         format__in=Comic.COUNT_BASED_FORMATS,
         format_ok=False,
     )
@@ -1906,12 +1900,8 @@ def detect_format_upgrades(request):
     cleared = 0
 
     for comic in candidates:
-        expected = (
-            "One-Shot" if comic.count <= one_shot_max
-            else "Limited Series" if comic.count <= limited_max
-            else "Main Series"
-        )
-        if comic.format != expected:
+        expected = _detect_format(comic)
+        if expected and comic.format != expected:
             if not comic.needs_reformat:
                 comic.needs_reformat = True
                 comic.save(update_fields=["needs_reformat"])
