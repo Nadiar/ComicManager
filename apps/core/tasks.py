@@ -1423,3 +1423,58 @@ def populate_counts_task(self):
         "total": total,
         "cancelled": False,
     }
+
+
+@shared_task(bind=True, name="core.detect_format_upgrades", queue="write")
+def detect_format_upgrades_task(self):
+    """
+    Scan all comics with a count-based format and flag those where the detected
+    format differs from the current format. Reports progress via self.update_state().
+    """
+    from .models import Comic
+    from .services import detect_format
+
+    comic_ids = list(
+        Comic.objects.filter(
+            format__in=Comic.COUNT_BASED_FORMATS,
+            format_ok=False,
+        ).values_list("pk", flat=True)
+    )
+    total = len(comic_ids)
+
+    self.update_state(
+        state="PROGRESS",
+        meta={"current": 0, "total": total, "flagged": 0, "cleared": 0},
+    )
+
+    flagged = 0
+    cleared = 0
+
+    for i, comic_id in enumerate(comic_ids):
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {"flagged": flagged, "cleared": cleared, "total": total, "cancelled": True}
+
+        try:
+            comic = Comic.objects.get(pk=comic_id)
+        except Comic.DoesNotExist:
+            continue
+
+        expected = detect_format(comic)
+        if expected and comic.format != expected:
+            if not comic.needs_reformat:
+                comic.needs_reformat = True
+                comic.save(update_fields=["needs_reformat"])
+                flagged += 1
+        else:
+            if comic.needs_reformat:
+                comic.needs_reformat = False
+                comic.save(update_fields=["needs_reformat"])
+                cleared += 1
+
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": i + 1, "total": total, "flagged": flagged, "cleared": cleared},
+        )
+
+    return {"flagged": flagged, "cleared": cleared, "total": total, "cancelled": False}

@@ -1886,38 +1886,19 @@ def reformat_flagged(request):
 
 @require_POST
 def detect_format_upgrades(request):
-    """
-    Scan all comics with a count-based format (not format_ok).
-    Sets needs_reformat=True for any comic where the detected format differs from current.
-    Clears it for comics that are already on the right format.
-    """
-    candidates = Comic.objects.filter(
-        format__in=Comic.COUNT_BASED_FORMATS,
-        format_ok=False,
-    )
+    """Dispatch Celery task to detect format upgrades."""
+    from celery.result import AsyncResult
+    from .tasks import detect_format_upgrades_task
 
-    flagged = 0
-    cleared = 0
+    active = request.session.get("active_task_id")
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
-    for comic in candidates:
-        expected = _detect_format(comic)
-        if expected and comic.format != expected:
-            if not comic.needs_reformat:
-                comic.needs_reformat = True
-                comic.save(update_fields=["needs_reformat"])
-                flagged += 1
-        else:
-            if comic.needs_reformat:
-                comic.needs_reformat = False
-                comic.save(update_fields=["needs_reformat"])
-                cleared += 1
-
-    return JsonResponse({
-        "success": True,
-        "flagged": flagged,
-        "cleared": cleared,
-        "message": f"Format upgrades: {flagged} flagged, {cleared} cleared",
-    })
+    total = Comic.objects.filter(format__in=Comic.COUNT_BASED_FORMATS, format_ok=False).count()
+    result = detect_format_upgrades_task.delay()
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Detecting format upgrades"
+    return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Scanning {total} comics for format upgrades"})
 
 
 @require_POST
