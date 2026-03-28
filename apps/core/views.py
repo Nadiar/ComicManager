@@ -3225,8 +3225,8 @@ def force_write(request, pk):
 
     # Advance state to written
     from django.db.models import F
-    if comic.state != Comic.STATE_WRITTEN:
-        comic.state = Comic.STATE_WRITTEN
+    if comic.state != Comic.STATE_DONE:
+        comic.state = Comic.STATE_DONE
 
     # Clear the count_updated flag if set
     if comic.flags.get("count_updated"):
