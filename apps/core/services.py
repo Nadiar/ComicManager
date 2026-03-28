@@ -409,6 +409,14 @@ TPB_ISSUE_RANGE_RE = re.compile(
 )
 
 
+def _parse_issue_number(number_str) -> int | None:
+    """Extract the leading integer from an issue number string (e.g. '695' -> 695, '12.1' -> 12)."""
+    if not number_str:
+        return None
+    m = re.match(r'^\d+', str(number_str))
+    return int(m.group()) if m else None
+
+
 def detect_format(comic) -> str | None:
     """
     Auto-detect comic format using the 3-step classification from Comic_Book_Format_Definitions.md.
@@ -462,6 +470,10 @@ def detect_format(comic) -> str | None:
         if comic.count <= one_shot_max:
             return "One-Shot"
         elif comic.count <= limited_max:
+            # High issue number signals a continuation/renumbered series
+            issue_num = _parse_issue_number(comic.number)
+            if issue_num is not None and issue_num > limited_max:
+                return "Main Series"
             return "Limited Series"
         else:
             return "Main Series"

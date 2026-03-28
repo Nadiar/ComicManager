@@ -16,8 +16,8 @@ ComicManager can automatically assign any of these eight formats:
 - **TPB**: "TPB" or "Trade Paperback" in the series or title. Also applied when page count is 80 or more and the summary describes a collected issue range (e.g. "Collects #1-5", "#2-#8").
 - **Annual**: Series or title contains "Annual".
 - **One-Shot**: A standalone single-issue series (`count = 1`).
-- **Limited Series**: A series with a known, finite run (`count 2–15`).
-- **Main Series**: An ongoing publication with 16 or more issues (`count > 15`).
+- **Limited Series**: A series with a known, finite run (`count 2–15`), where issue numbers are also in a low range.
+- **Main Series**: An ongoing publication with 16 or more issues (`count > 15`), or a continuation/renumbered series where `count ≤ 15` but issue numbers are higher than 15.
 
 The count thresholds for One-Shot, Limited Series, and Main Series are configurable under **Settings**.
 
@@ -55,11 +55,16 @@ Rules are evaluated in priority order. The first match wins.
 ├────────────────────────────────────────────────────────────────────────────┤
 │ count ≤ 1? ─────────────────────────────────── YES ──▶  One-Shot          │
 ├────────────────────────────────────────────────────────────────────────────┤
-│ count ≤ 15? ────────────────────────────────── YES ──▶  Limited Series    │
+│ count ≤ 15 AND issue number ≤ 15? ──────────── YES ──▶  Limited Series    │
+├────────────────────────────────────────────────────────────────────────────┤
+│ count ≤ 15 AND issue number > 15? ──────────── YES ──▶  Main Series       │
+│   (continuation / renumbered series)                                       │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ count > 15 ──────────────────────────────────────────▶  Main Series       │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
+
+"Continuation / renumbered series" means the volume has 15 or fewer issues but the issue numbers are in a high range (above 15), indicating the series continues legacy numbering from a prior volume. For example, a volume with count=11 and issues #695–705 is an ongoing series, not a limited run. Use `format_ok` on the detail page to permanently lock the format if the auto-detection is wrong for a specific comic.
 
 "Issue range in summary" means the summary text contains a pattern like `#1-5`, `#2-#8`, or the word `Collects` (e.g. "Collects Batman #10-15"). This is the signal that the book bundles multiple individual issues rather than being a single-issue story.
 
