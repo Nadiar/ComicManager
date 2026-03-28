@@ -1431,16 +1431,15 @@ def detect_format_upgrades_task(self):
     Scan all comics with a count-based format and flag those where the detected
     format differs from the current format. Reports progress via self.update_state().
     """
-    from .models import Comic
+    from .models import Comic, get_setting
     from .services import detect_format
 
-    comic_ids = list(
-        Comic.objects.filter(
-            format__in=Comic.COUNT_BASED_FORMATS,
-            format_ok=False,
-        ).values_list("pk", flat=True)
-    )
-    total = len(comic_ids)
+    # Pre-fetch settings once to avoid N*2 DB queries inside detect_format()
+    one_shot_max = get_setting("one_shot_max_count", 1)
+    limited_max = get_setting("limited_series_max_count", 15)
+
+    qs = Comic.objects.filter(format__in=Comic.COUNT_BASED_FORMATS, format_ok=False)
+    total = qs.count()
 
     self.update_state(
         state="PROGRESS",
@@ -1449,32 +1448,43 @@ def detect_format_upgrades_task(self):
 
     flagged = 0
     cleared = 0
+    to_update = []
+    CHUNK = 500
 
-    for i, comic_id in enumerate(comic_ids):
+    for i, comic in enumerate(qs.iterator(chunk_size=CHUNK)):
         if is_cancelled(self.request.id):
+            if to_update:
+                Comic.objects.bulk_update(to_update, ["needs_reformat"])
             clear_cancel(self.request.id)
             return {"flagged": flagged, "cleared": cleared, "total": total, "cancelled": True}
 
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        expected = detect_format(comic)
+        expected = detect_format(comic, _one_shot_max=one_shot_max, _limited_max=limited_max)
+        changed = False
         if expected and comic.format != expected:
             if not comic.needs_reformat:
                 comic.needs_reformat = True
-                comic.save(update_fields=["needs_reformat"])
                 flagged += 1
+                changed = True
         else:
             if comic.needs_reformat:
                 comic.needs_reformat = False
-                comic.save(update_fields=["needs_reformat"])
                 cleared += 1
+                changed = True
 
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "flagged": flagged, "cleared": cleared},
-        )
+        if changed:
+            to_update.append(comic)
+
+        if len(to_update) >= CHUNK:
+            Comic.objects.bulk_update(to_update, ["needs_reformat"])
+            to_update = []
+
+        if i % 100 == 0:
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i + 1, "total": total, "flagged": flagged, "cleared": cleared},
+            )
+
+    if to_update:
+        Comic.objects.bulk_update(to_update, ["needs_reformat"])
 
     return {"flagged": flagged, "cleared": cleared, "total": total, "cancelled": False}

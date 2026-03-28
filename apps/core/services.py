@@ -417,7 +417,7 @@ def _parse_issue_number(number_str) -> int | None:
     return int(m.group()) if m else None
 
 
-def detect_format(comic) -> str | None:
+def detect_format(comic, _one_shot_max=None, _limited_max=None) -> str | None:
     """
     Auto-detect comic format using the 3-step classification from Comic_Book_Format_Definitions.md.
 
@@ -464,8 +464,8 @@ def detect_format(comic) -> str | None:
         return "Annual"
 
     if comic.count is not None:
-        one_shot_max = get_setting("one_shot_max_count", 1)
-        limited_max = get_setting("limited_series_max_count", 15)
+        one_shot_max = _one_shot_max if _one_shot_max is not None else get_setting("one_shot_max_count", 1)
+        limited_max = _limited_max if _limited_max is not None else get_setting("limited_series_max_count", 15)
 
         if comic.count <= one_shot_max:
             return "One-Shot"
