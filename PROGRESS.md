@@ -27,6 +27,7 @@
 - [x] [P1.18] Inline editing for `proposed_series`, `proposed_number`, `proposed_volume`, `publisher`, and `format` on the `STATE_NEW` list — click any cell to edit in place without navigating to the detail page. The `new` state now uses a `proposed_*`-focused default column layout.
 - [x] [P1.19] Fix search and filter functionality for comics in the `STATE_NEW` state. Search now queries `proposed_series`, `proposed_number`, and `file_path`. Publisher/Format/Medium dropdowns are hidden for `state=new`. Sort options replaced with `Proposed Series`, `Proposed #`, `Year`, `Pages`, `Updated`.
 - [x] [P1.20] Implement logic to identify `.zip` and rezip them to `.cbz` if user wants. Use Review Queue like [P1.5].
+- [ ] [P1.21] Verify: does the `is_zip` flag block batch scraping? The skip list in batch scrape explicitly names `is_pdf`, `low_page_count`, `needs_conversion`, `scrape_skipped` — but not `is_zip`. Test by dropping a `.zip` file, scanning, and running Scrape All. If it gets skipped, add `is_zip` to the skip list and update the docs in `file-formats.md`.
 
 ### Phase 2: ComicVine Scraping (Comicrack_guide 02 & 03)
 
@@ -73,6 +74,8 @@
 - [x] [P4.6] Publishers page at `/tagging/publishers/` shows covered publishers (from rulesets) vs uncovered publishers with comic counts. "Create Ruleset" button pre-fills publisher rule.
 - [-] [P4.7] (Cancelled) Built-in rulesets for Marvel and DC — rulesets are user-managed via the rule editor.
 - [-] [P4.8] (Cancelled) Star Wars ruleset — user-managed via the rule editor.
+- [ ] [P4.9] Ruleset export generates a proper `.dat` file from the current database state (all rulesets, including custom ones created or edited in the UI), not a re-export of the originally imported file.
+- [ ] [P4.10] When clicking "Create Ruleset" from an uncovered publisher on `/tagging/publishers/`, pre-fill the group path as "Publishers to keep" and add a default action: `SetValue` on `Publisher` with the publisher name as the value. This makes new publisher rulesets usable without any manual setup.
 
 ### Phase 5: Format Tagging (Comicrack_guide 06 - Format)
 
@@ -93,6 +96,8 @@
 - [x] [P5.12] Refine existing rules for TPB, Omnibus, Director's Cut, etc. to avoid mis-tagging.
 - [x] [P5.13] Fixed search/filter bar on `/comics/?state=new` — see P1.19.
 - [x] [P5.14] We need to show page count, so we can see if we talk about TPB or limited series on low issue count.
+- [x] [P5.15] Add a button in the workflow nav bar (pipeline steps) for the Format Review page (`/comics/format/`), so users can navigate directly to it from any stage without hunting in menus.
+- [x] [P5.16] Format Review page (`/comics/format/`) needs a "Detected Format" column alongside the existing "Current Format" column, so users can see what the system would assign before accepting. Column is labelled "Suggested Format".
 
 ### Phase 6: Duplicate Detection (Comicrack_guide 07 - Duplicated)
 
@@ -125,7 +130,7 @@
 - [x] [P7.8] Covered by `needs_reorganize` signal in `apps/core/signals.py` — `main_character_or_team` is in `_PATH_RELEVANT_FIELDS`. When this field changes on an organized/written comic, `needs_reorganize=True` is set. Surfaced by the Library Re-organize Queue widget on the dashboard.
 - [-] [P7.9] (Cancelled) Physical comics are stored on shelves with a storage_location field — path calculation is irrelevant.
 - [x] [P7.10] Organize and write failures are now logged to the batch audit log as `organize_error` / `write_error` entries. Errors appear in the log viewer at `/settings/log/` with a red badge and dedicated filter tabs. Covers: file-not-found during organize, failed file move, failed ComicInfo.xml write — logged from both standalone batch tasks and smart list actions.
-- [x] [P7.11] Externalize Docker paths for `library` and `untagged` directories, and the `PORT` variable, into a `.env` file. `UNTAGGED_DIR` and `LIBRARY_DIR` added to both compose files with defaults so existing setups are unaffected. `.env.example` created documenting all required variables.
+- [x] [P7.11] Externalize Docker paths for `library` and `untagged` directories, and the `PORT` variable, into a `.env` file. `UNTAGGED_DIR` and `LIBRARY_DIR` added to both compose files with defaults so existing setups are unaffected. `.env.sample` created documenting all required variables.
 
 ### Phase 8: Write to File (Comicrack_guide 09 - Write to File)
 
@@ -249,6 +254,8 @@
 - [x] [BUG.33] On `?state=scrape`, after scraping via the API the Year column displays the Publisher name instead of the year value. Likely a column index mismatch in `updateRowAfterScrape()` in `comic_list.html`.
 - [x] [BUG.34] "Compare All Sources" scrape option fails with `JSON.parse: unexpected character at line 1 column 1` when `comicvine.db` is not available. The endpoint likely returns a non-JSON error response (500 or HTML) instead of a proper JSON error when the local CV DB is missing.
 - [x] [BUG.35] The "State" dropdown in the comic edit page still lists removed/legacy states (e.g. `count`) and does not reflect the current 7-stage pipeline. Update the dropdown to only show valid pipeline states and keep the warning "Changing state manually can break the pipeline workflow. Use with caution."
+- [x] [BUG.36] `scrape_all` excludes comics with empty `custom_values` due to JSONField NULL behaviour in PostgreSQL `exclude`. Fixed by using `filter` with negated Q objects instead of `exclude` on JSONField lookups.
+- [x] [BUG.37] On the comic detail page, the "Write to file" action under Actions does not advance the comic state after writing. The comic remains in the "Write to CBZ" state instead of moving to the written state.
 
 
 ## I.N.D.U.C.K.S. Integration
@@ -270,7 +277,7 @@
 - [x] [IND.12] Story-code search should accept `D92380` as well as `D 92380`. Fixed by normalizing spaces in `search_by_storycode`: strips spaces from input and uses `REPLACE(s.storycode, ' ', '') LIKE ?` in the SQL query.
 - [x] [IND.13] Inducks comics should skip `/comics/?state=count` and go directly from `/comics/?state=scrape` to `/comics/?state=tagging`. Fixed: `apply_inducks_match` now sets `comic.state = Comic.STATE_TAGGED` instead of `STATE_COUNTED`.
 - [x] [IND.14] Inducks comics should skip the `missing_format` review queue. Fixed in `detect_and_set_format`: Inducks-sourced comics do not receive the `missing_format` flag when no format is auto-detected, since they have no CV issue count for count-based format rules.
-- [ ] [IND.15] When matching a comic directly via story code, the `series` field (and potentially `number`, `publisher`) are not populated from the story/publication metadata. Comics scraped this way end up with missing core fields, blocking later pipeline stages. Improve `apply_inducks_match` (or the story-code search result handling) to populate `series` from the publication title or story title, and set `number` / `publisher` where available.
+- [x] [IND.15] When matching a comic directly via story code, the `series` field (and potentially `number`, `publisher`) are not populated from the story/publication metadata. Comics scraped this way end up with missing core fields, blocking later pipeline stages. Improve `apply_inducks_match` (or the story-code search result handling) to populate `series` from the publication title or story title, and set `number` / `publisher` where available.
 
 
 ## Flag List Action Button Audit
@@ -288,7 +295,8 @@
 **Goal:** Write docs that explain internal behaviour for future reference or contributors.
 
 **Current Status & Tasks:**
-- [ ] [DOC.1] Write a section in `./docs` explaining what fields are populated by each scrape source: comicvine.db (local hash/metadata match), ComicVine API (live search), and Inducks. Cover which fields each source fills, whether issue count is included, and why the Count pipeline stage was removed (CV scraping already populates the count field, making a separate step unnecessary).
+- [x] [DOC.1] Write a section in `./docs` explaining what fields are populated by each scrape source: comicvine.db (local hash/metadata match), ComicVine API (live search), and Inducks. Cover which fields each source fills, whether issue count is included, and why the Count pipeline stage was removed (CV scraping already populates the count field, making a separate step unnecessary).
+- [x] [DOC.2] In scraping.md under ## Single Comic Scraping we need to specify that a 4000-xxxx comicvine ID can be used for direct match.
 
 ## Future Improvements
 
@@ -296,7 +304,8 @@
 
 **Current Status & Tasks:**
 - [ ] [FI.1] PDF to CBZ conversion. Currently `convert_cbr` only handles CBR/CB7 (archive re-pack). PDF conversion requires rendering each page to an image (e.g. via `pdf2image` / Ghostscript), which is a separate, non-trivial operation. Would allow PDFs flagged `is_pdf` to be converted in-place rather than only deleted or suppressed.
-- [ ] [FI.2] ComicVine API call budget management. Better track, save, and display remaining API calls. Currently the count may be inaccurate or not conserved across sessions. Consider caching responses, batching requests, and showing a live remaining-calls indicator in the UI. 
+- [ ] [FI.2] ComicVine API call budget management. Better track, save, and display remaining API calls. Currently the count may be inaccurate or not conserved across sessions. Consider caching responses, batching requests, and showing a live remaining-calls indicator in the UI.
+- [ ] [FI.3] In `try_api_metadata_match`, the credits fetch at the end of a successful API match is budget-gated separately from the initial search. If the budget runs out between the search and the credits call, basic metadata is applied without full credits (writer, penciller, etc.). This is undesirable. The fix should check upfront whether there is enough budget for both the search and the credits fetch combined, and if not, skip the comic entirely rather than applying incomplete metadata.
 
 ## Code to Port
 
@@ -308,3 +317,4 @@
 - [x] [CP.3] Confirmed Library Organizer config equivalent implemented (`Organizer profile rule editor`).
 - [x] [CP.4] Confirmed DataManager file equivalent implemented (`ComicDb.xml import support`).
 - [ ] [CP.5] Thoroughly verify that existing implementations fully replicate the functionality of ComicRack script counterparts, ensuring all nuances are handled.
+- [ ] [CP.6] Import ComicRack CBL files as Smart Lists. A CBL (Comic Book List) is a ComicRack smart list export format. Importing a CBL should create a corresponding Smart List in ComicManager, mapping the stored filters and column layout to the ComicManager equivalents where possible.

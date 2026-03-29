@@ -178,6 +178,10 @@ You can scrape a single comic from the comic's detail page, or directly from the
 
 Re-scraping a comic that already has a match will overwrite the existing metadata after you accept.
 
+::: tip Direct match by ComicVine ID
+If you know the exact ComicVine issue ID, you can paste it directly into the manual search field in the scrape modal. Use the format `4000-XXXXXX` (e.g. `4000-123456`). ComicManager will look up that issue directly, bypassing the search and scoring layers entirely. This is the fastest way to match a comic when auto-detection fails.
+:::
+
 ---
 
 ## Dry Run
