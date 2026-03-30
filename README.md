@@ -21,17 +21,17 @@ A web application for managing large comic collections, both digital and physica
 
 ## Preferred setup: pre-built Docker image
 
-See [Quick Start](docs/guide/quickstart.md) to get up and running right away.
+See [Quick Start](https://comicmanager.baerentsen.space/guide/quickstart) to get up and running right away.
 
-See [Getting Started](docs/guide/getting-started.md) for a more detailed guide.
+See [Getting Started](https://comicmanager.baerentsen.space/guide/getting-started) for a more detailed guide.
 
 ## Documentation
 
-- [Quick Start](docs/guide/quickstart.md)
-- [Getting Started](docs/guide/getting-started.md)
-- [Philosophy and Scope](docs/guide/philosophy.md)
-- [Workflow Pipeline](docs/guide/workflow.md)
-- [Scraping](docs/guide/scraping.md)
-- [Tagging](docs/guide/tagging.md)
-- [Organizing](docs/guide/organizing.md)
-- [Settings Reference](docs/reference/settings.md)
+- [Quick Start](https://comicmanager.baerentsen.space/guide/quickstart)
+- [Getting Started](https://comicmanager.baerentsen.space/guide/getting-started)
+- [Philosophy and Scope](https://comicmanager.baerentsen.space/guide/philosophy)
+- [Workflow Pipeline](https://comicmanager.baerentsen.space/guide/workflow)
+- [Scraping](https://comicmanager.baerentsen.space/guide/scraping)
+- [Tagging](https://comicmanager.baerentsen.space/guide/tagging)
+- [Organizing](https://comicmanager.baerentsen.space/guide/organizing)
+- [Settings Reference](https://comicmanager.baerentsen.space/reference/settings)
