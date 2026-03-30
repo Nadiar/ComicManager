@@ -27,7 +27,7 @@
 - [x] [P1.18] Inline editing for `proposed_series`, `proposed_number`, `proposed_volume`, `publisher`, and `format` on the `STATE_NEW` list — click any cell to edit in place without navigating to the detail page. The `new` state now uses a `proposed_*`-focused default column layout.
 - [x] [P1.19] Fix search and filter functionality for comics in the `STATE_NEW` state. Search now queries `proposed_series`, `proposed_number`, and `file_path`. Publisher/Format/Medium dropdowns are hidden for `state=new`. Sort options replaced with `Proposed Series`, `Proposed #`, `Year`, `Pages`, `Updated`.
 - [x] [P1.20] Implement logic to identify `.zip` and rezip them to `.cbz` if user wants. Use Review Queue like [P1.5].
-- [ ] [P1.21] Verify: does the `is_zip` flag block batch scraping? The skip list in batch scrape explicitly names `is_pdf`, `low_page_count`, `needs_conversion`, `scrape_skipped` — but not `is_zip`. Test by dropping a `.zip` file, scanning, and running Scrape All. If it gets skipped, add `is_zip` to the skip list and update the docs in `file-formats.md`.
+- [x] [P1.21] Verified: `is_zip` does not block batch scraping. `scrape_all_task` only excludes `scrape_skipped` and inducks-sourced comics — `is_pdf`, `low_page_count`, and `needs_conversion` are not excluded either. ZIP files are valid comic archives and can be scraped for metadata normally; the rename to `.cbz` is a separate step. No change needed.
 
 ### Phase 2: ComicVine Scraping (Comicrack_guide 02 & 03)
 
@@ -74,8 +74,8 @@
 - [x] [P4.6] Publishers page at `/tagging/publishers/` shows covered publishers (from rulesets) vs uncovered publishers with comic counts. "Create Ruleset" button pre-fills publisher rule.
 - [-] [P4.7] (Cancelled) Built-in rulesets for Marvel and DC — rulesets are user-managed via the rule editor.
 - [-] [P4.8] (Cancelled) Star Wars ruleset — user-managed via the rule editor.
-- [ ] [P4.9] Ruleset export generates a proper `.dat` file from the current database state (all rulesets, including custom ones created or edited in the UI), not a re-export of the originally imported file.
-- [ ] [P4.10] When clicking "Create Ruleset" from an uncovered publisher on `/tagging/publishers/`, pre-fill the group path as "Publishers to keep" and add a default action: `SetValue` on `Publisher` with the publisher name as the value. This makes new publisher rulesets usable without any manual setup.
+- [-] [P4.9] (Moved to FI.4) Ruleset export from DB state.
+- [x] [P4.10] When clicking "Create Ruleset" from an uncovered publisher on `/tagging/publishers/`, pre-fill the group path as "Publishers to keep" and add a default action: `SetValue` on `Publisher` with the publisher name as the value. This makes new publisher rulesets usable without any manual setup.
 
 ### Phase 5: Format Tagging (Comicrack_guide 06 - Format)
 
@@ -303,6 +303,8 @@
 **Goal:** Track nice-to-have features and enhancements that are not yet prioritised.
 
 **Current Status & Tasks:**
+- [ ] [FI.4] Export tagging rulesets as a `.dat` file generated from the current database state (all rulesets, including ones created or edited in the UI), not a re-export of the originally imported file. Export button removed from `/tagging/` until this is properly implemented.
+- [ ] [FI.5] Export organizer profiles as a `.lop` file generated from the current database state. Would complete the import/export round-trip for both `.dat` (tagging rules) and `.lop` (organizer profiles).
 - [ ] [FI.1] PDF to CBZ conversion. Currently `convert_cbr` only handles CBR/CB7 (archive re-pack). PDF conversion requires rendering each page to an image (e.g. via `pdf2image` / Ghostscript), which is a separate, non-trivial operation. Would allow PDFs flagged `is_pdf` to be converted in-place rather than only deleted or suppressed.
 - [ ] [FI.2] ComicVine API call budget management. Better track, save, and display remaining API calls. Currently the count may be inaccurate or not conserved across sessions. Consider caching responses, batching requests, and showing a live remaining-calls indicator in the UI.
 - [ ] [FI.3] In `try_api_metadata_match`, the credits fetch at the end of a successful API match is budget-gated separately from the initial search. If the budget runs out between the search and the credits call, basic metadata is applied without full credits (writer, penciller, etc.). This is undesirable. The fix should check upfront whether there is enough budget for both the search and the credits fetch combined, and if not, skip the comic entirely rather than applying incomplete metadata.
