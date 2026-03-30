@@ -34,12 +34,13 @@ services:
     volumes:
       - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
       - ${LIBRARY_DIR:-./Comics}:/comics/library
-      - ${CV_DB_PATH:-./data/comicvine.db}:/cv_db/comicvine.db:ro
-      - ${CV_MCL_PATH:-./data/latest.mcl}:/cv_db/latest.mcl:ro
-      - ${INDUCKS_DB_PATH:-./data/inducks.db}:/cv_db/inducks.db:ro
       - ./data/static:/app/static
       - ./data/covers:/app/cover_cache
       - ./data/logs:/app/logs
+      # Optional: mount local database files for faster scraping (see docs/guide/scraping.md)
+      # - ./data/comicvine.db:/cv_db/comicvine.db:ro
+      # - ./data/latest.mcl:/cv_db/latest.mcl:ro
+      # - ./data/inducks.db:/cv_db/inducks.db:ro
     depends_on:
       db:
         condition: service_healthy
@@ -59,10 +60,11 @@ services:
     volumes:
       - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
       - ${LIBRARY_DIR:-./Comics}:/comics/library
-      - ${CV_DB_PATH:-./data/comicvine.db}:/cv_db/comicvine.db:ro
-      - ${CV_MCL_PATH:-./data/latest.mcl}:/cv_db/latest.mcl:ro
-      - ${INDUCKS_DB_PATH:-./data/inducks.db}:/cv_db/inducks.db:ro
       - ./data/logs:/app/logs
+      # Optional: mount local database files for faster scraping (see docs/guide/scraping.md)
+      # - ./data/comicvine.db:/cv_db/comicvine.db:ro
+      # - ./data/latest.mcl:/cv_db/latest.mcl:ro
+      # - ./data/inducks.db:/cv_db/inducks.db:ro
     depends_on:
       db:
         condition: service_healthy
