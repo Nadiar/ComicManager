@@ -66,7 +66,7 @@ ComicManager helps you track which publishers are covered by your enabled rulese
 - **Known publishers**: publishers explicitly matched by `Is` or `IsAnyOf` conditions in your enabled rulesets.
 - **Uncovered publishers**: publishers present in your library that are not handled by any enabled ruleset.
 - **`unknown_publisher` flag**: after scraping, comics whose publisher is not covered by any ruleset get flagged and appear in the Review Queue.
-- **Create from Publisher**: click an uncovered publisher to instantly generate a new ruleset pre-filled with a matching condition for that publisher.
+- **Create from Publisher**: click an uncovered publisher to instantly generate a new ruleset pre-filled with the publisher name, group path set to "Publishers to keep", a matching `Publisher Is` condition, and a `SetValue` action that writes the publisher name back. You can click Save immediately and the ruleset is ready to use.
 
 ## Batch Operations and Audit Log
 

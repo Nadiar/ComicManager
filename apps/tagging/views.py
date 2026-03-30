@@ -164,8 +164,9 @@ def ruleset_create(request):
     if prefill_publisher:
         prefill = DataManagerRuleset(
             name=prefill_publisher,
+            group_path="Publishers to keep",
             rules=[{"field": "Publisher", "modifier": "Is", "value": prefill_publisher}],
-            actions=[],
+            actions=[{"field": "Publisher", "modifier": "SetValue", "value": prefill_publisher}],
         )
         context["ruleset"] = prefill
 
