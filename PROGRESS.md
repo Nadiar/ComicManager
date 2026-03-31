@@ -28,6 +28,7 @@
 - [x] [P1.19] Fix search and filter functionality for comics in the `STATE_NEW` state. Search now queries `proposed_series`, `proposed_number`, and `file_path`. Publisher/Format/Medium dropdowns are hidden for `state=new`. Sort options replaced with `Proposed Series`, `Proposed #`, `Year`, `Pages`, `Updated`.
 - [x] [P1.20] Implement logic to identify `.zip` and rezip them to `.cbz` if user wants. Use Review Queue like [P1.5].
 - [x] [P1.21] Verified: `is_zip` does not block batch scraping. `scrape_all_task` only excludes `scrape_skipped` and inducks-sourced comics — `is_pdf`, `low_page_count`, and `needs_conversion` are not excluded either. ZIP files are valid comic archives and can be scraped for metadata normally; the rename to `.cbz` is a separate step. No change needed.
+- [ ] [P1.22] Workflow pipeline step 1 (New) should show an action button for "Convert to CBZ" when any comics in the new state are in CBR or CB7 format — similar to the "Needs Conversion" row in the Review & Maintenance card.
 
 ### Phase 2: ComicVine Scraping (Comicrack_guide 02 & 03)
 
@@ -50,6 +51,7 @@
 - [-] [P2.12] (Cancelled) Scraping TPBs/Director's Cuts first is unnecessary — format detection (P5.12) handles mis-tagging prevention; pipeline order does not matter.
 - [x] [P2.13] Implement metadata-only matching for physical comics. (See P2.9.)
 - [x] [P2.14] If flag=scrape_skipped but manually scraping is done and confirmed, the flag should be cleared. `apply_cv_match` and `apply_inducks_match` both call `comic.remove_flag("scrape_skipped")` on successful match confirmation.
+- [ ] [P2.15] Workflow pipeline step 2 (Scrape) should show two separate counts: all scrapeable comics (excluding scrape_skipped) and skipped comics. The "Scrape All" action button should be disabled (or hidden) when all remaining comics in that state have `scrape_skipped=True`.
 
 ### Phase 3: Issue Count (Comicrack_guide 04 - Add Count)
 
@@ -98,6 +100,8 @@
 - [x] [P5.14] We need to show page count, so we can see if we talk about TPB or limited series on low issue count.
 - [x] [P5.15] Add a button in the workflow nav bar (pipeline steps) for the Format Review page (`/comics/format/`), so users can navigate directly to it from any stage without hunting in menus.
 - [x] [P5.16] Format Review page (`/comics/format/`) needs a "Detected Format" column alongside the existing "Current Format" column, so users can see what the system would assign before accepting. Column is labelled "Suggested Format".
+- [ ] [P5.17] Under `/comics/format/`, the "### Needs Re-format" section should be collapsible (fold in/out), so users can hide it when not needed.
+- [ ] [P5.18] Format detection should recognise "Preview" and "Previews" in the issue title as a distinct format (or flag), so comics like "Spider-Man Preview" are not mis-tagged as a regular series issue.
 
 ### Phase 6: Duplicate Detection (Comicrack_guide 07 - Duplicated)
 
@@ -131,6 +135,8 @@
 - [-] [P7.9] (Cancelled) Physical comics are stored on shelves with a storage_location field — path calculation is irrelevant.
 - [x] [P7.10] Organize and write failures are now logged to the batch audit log as `organize_error` / `write_error` entries. Errors appear in the log viewer at `/settings/log/` with a red badge and dedicated filter tabs. Covers: file-not-found during organize, failed file move, failed ComicInfo.xml write — logged from both standalone batch tasks and smart list actions.
 - [x] [P7.11] Externalize Docker paths for `library` and `untagged` directories, and the `PORT` variable, into a `.env` file. `UNTAGGED_DIR` and `LIBRARY_DIR` added to both compose files with defaults so existing setups are unaffected. `.env.sample` created documenting all required variables.
+- [x] [P7.12] TPB folder path improvements: numeric rule operators (`greater than`, `less than`, etc.) added to profile matching engine, along with `Count` and `Page Count` fields. Indexed credit field access added to template engine (`{<writer[1]>}`, `{<writer[1][l]>}`, etc.). Two-profile pattern documented in `docs/guide/organizing.md`: Profile 1 matches `Format is TPB AND Count greater than 1` and groups into `{<series>} ({<volume>})` subfolder; Profile 2 catches remaining TPBs and uses `{ by <writer[1][l]>}` in the filename.
+- [x] [P7.13] Drag-and-drop priority reordering on the organizer profiles list. Drag handle column added to the table; native HTML5 drag-and-drop reorders rows live and persists via `POST /organizer/profiles/reorder/`.
 
 ### Phase 8: Write to File (Comicrack_guide 09 - Write to File)
 
@@ -256,6 +262,8 @@
 - [x] [BUG.35] The "State" dropdown in the comic edit page still lists removed/legacy states (e.g. `count`) and does not reflect the current 7-stage pipeline. Update the dropdown to only show valid pipeline states and keep the warning "Changing state manually can break the pipeline workflow. Use with caution."
 - [x] [BUG.36] `scrape_all` excludes comics with empty `custom_values` due to JSONField NULL behaviour in PostgreSQL `exclude`. Fixed by using `filter` with negated Q objects instead of `exclude` on JSONField lookups.
 - [x] [BUG.37] On the comic detail page, the "Write to file" action under Actions does not advance the comic state after writing. The comic remains in the "Write to CBZ" state instead of moving to the written state.
+- [ ] [BUG.38] Run Path Audit progress bar does not stretch to fill the full width of its container box.
+
 
 
 ## I.N.D.U.C.K.S. Integration

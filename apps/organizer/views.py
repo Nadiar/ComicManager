@@ -13,7 +13,7 @@ from apps.core.models import Comic
 
 from .models import OrganizerProfile
 from .parser import import_profiles
-from .engine import FIELD_MAP
+from .engine import FIELD_MAP, NUMERIC_FIELDS
 from .services import (
     organize_comic,
     organize_all_comics,
@@ -26,6 +26,7 @@ RULE_FIELDS = sorted(set(FIELD_MAP.keys()) - {"SeriesGroup", "MainCharacterOrTea
 
 # Available operators for rule editor
 RULE_OPERATORS = ["is", "is not", "contains", "does not contain", "starts with", "ends with"]
+NUMERIC_OPERATORS = ["greater than", "less than", "greater than or equal to", "less than or equal to"]
 
 
 def _get_custom_value_keys():
@@ -99,6 +100,8 @@ def profile_create(request):
         'is_create': True,
         'rule_fields': json.dumps(RULE_FIELDS),
         'rule_operators': json.dumps(RULE_OPERATORS),
+        'numeric_operators': json.dumps(NUMERIC_OPERATORS),
+        'numeric_fields': json.dumps(sorted(NUMERIC_FIELDS)),
         'exclude_rules_json': '{}',
         'custom_value_keys': json.dumps(_get_custom_value_keys()),
     })
@@ -125,6 +128,8 @@ def profile_edit(request, pk):
         'is_create': False,
         'rule_fields': json.dumps(RULE_FIELDS),
         'rule_operators': json.dumps(RULE_OPERATORS),
+        'numeric_operators': json.dumps(NUMERIC_OPERATORS),
+        'numeric_fields': json.dumps(sorted(NUMERIC_FIELDS)),
         'exclude_rules_json': json.dumps(profile.exclude_rules or {}),
         'custom_value_keys': json.dumps(_get_custom_value_keys()),
     })
@@ -177,6 +182,30 @@ def profile_toggle(request, pk):
         'message': f'Profile "{profile.name}" {status}.',
         'is_enabled': profile.is_enabled,
     })
+
+
+@require_POST
+def profile_reorder(request):
+    """Accept an ordered list of profile PKs and reassign priorities."""
+    try:
+        body = json.loads(request.body)
+        ordered_ids = body.get("order", [])
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({"error": "Invalid JSON"}, status=400)
+
+    if not isinstance(ordered_ids, list):
+        return JsonResponse({"error": "order must be a list"}, status=400)
+
+    profiles = {p.pk: p for p in OrganizerProfile.objects.filter(pk__in=ordered_ids)}
+    to_update = []
+    for new_priority, pk in enumerate(ordered_ids):
+        profile = profiles.get(pk)
+        if profile and profile.priority != new_priority:
+            profile.priority = new_priority
+            to_update.append(profile)
+
+    OrganizerProfile.objects.bulk_update(to_update, ["priority"])
+    return JsonResponse({"success": True})
 
 
 # ============================================================================

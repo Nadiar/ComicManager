@@ -46,6 +46,7 @@
         <table class="table table-sm">
           <thead>
             <tr>
+              <th class="w-8"></th>
               <th class="w-16">Priority</th>
               <th>Name</th>
               <th>Folder Template</th>
@@ -54,10 +55,11 @@
               <th class="w-32">Actions</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="profiles-tbody">
             {% for profile in profiles %}
-            <tr class="{% if not profile.is_enabled %}opacity-50{% endif %}">
-              <td class="font-mono text-sm">{{ profile.priority }}</td>
+            <tr class="{% if not profile.is_enabled %}opacity-50{% endif %}" data-pk="{{ profile.pk }}" draggable="true">
+              <td class="drag-handle cursor-grab text-base-content/30 hover:text-base-content/70 select-none text-lg px-2">⠿</td>
+              <td class="font-mono text-sm priority-cell">{{ profile.priority }}</td>
               <td>
                 <a href="{% url 'organizer:profile_detail' profile.pk %}" class="link link-hover font-medium">
                   {{ profile.name }}
@@ -124,14 +126,11 @@ function toggleProfile(pk, btn) {
 
   fetch(`/organizer/profiles/${pk}/toggle/`, {
     method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
+    headers: { 'X-CSRFToken': getCsrfToken() }
   })
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      // Reload to show updated state
       location.reload();
     } else {
       btn.disabled = false;
@@ -143,5 +142,87 @@ function toggleProfile(pk, btn) {
     showMsgToast('Error: ' + err, 'error');
   });
 }
+
+// ---- Drag-and-drop reordering ----
+(function () {
+  const tbody = document.getElementById('profiles-tbody');
+  if (!tbody) return;
+
+  let dragSrc = null;
+
+  tbody.addEventListener('dragstart', e => {
+    const row = e.target.closest('tr');
+    if (!row) return;
+    dragSrc = row;
+    row.classList.add('opacity-40');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  tbody.addEventListener('dragend', e => {
+    const row = e.target.closest('tr');
+    if (row) row.classList.remove('opacity-40');
+    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+    dragSrc = null;
+  });
+
+  tbody.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const row = e.target.closest('tr');
+    if (!row || row === dragSrc) return;
+    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+    row.classList.add('drag-over');
+  });
+
+  tbody.addEventListener('dragleave', e => {
+    const row = e.target.closest('tr');
+    if (row) row.classList.remove('drag-over');
+  });
+
+  tbody.addEventListener('drop', e => {
+    e.preventDefault();
+    const target = e.target.closest('tr');
+    if (!target || target === dragSrc) return;
+
+    // Insert before or after based on cursor position within row
+    const rect = target.getBoundingClientRect();
+    const after = e.clientY > rect.top + rect.height / 2;
+    if (after) {
+      target.after(dragSrc);
+    } else {
+      target.before(dragSrc);
+    }
+
+    // Re-number priority cells and save
+    const rows = [...tbody.querySelectorAll('tr')];
+    rows.forEach((r, i) => {
+      const cell = r.querySelector('.priority-cell');
+      if (cell) cell.textContent = i;
+    });
+    saveOrder(rows);
+  });
+
+  function saveOrder(rows) {
+    const order = rows.map(r => parseInt(r.dataset.pk, 10));
+    fetch('/organizer/profiles/reorder/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCsrfToken(),
+      },
+      body: JSON.stringify({ order }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (!data.success) showMsgToast(data.error || 'Reorder failed', 'error');
+    })
+    .catch(err => showMsgToast('Error: ' + err, 'error'));
+  }
+})();
 </script>
+
+<style>
+#profiles-tbody tr.drag-over td { border-top: 2px solid oklch(var(--p)); }
+#profiles-tbody tr { transition: opacity 0.15s; }
+</style>
 {% endblock %}

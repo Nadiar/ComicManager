@@ -133,6 +133,22 @@ This prevents orphaned characters (spaces, `#`) when optional fields are absent.
 { (<year>)}         -> " (2011)" if year exists, "" if empty
 ```
 
+**Indexed list fields:** comma-separated fields like `writer`, `penciller`, `characters` can be accessed by position. Indices are 1-based. Append `[f]` for first name or `[l]` for last name:
+
+| Syntax | Description | Example (writer = "Chuck Dixon, Kelley Puckett") |
+|--------|-------------|--------------------------------------------------|
+| `{<writer[1]>}` | First writer, full name | `Chuck Dixon` |
+| `{<writer[2]>}` | Second writer, full name | `Kelley Puckett` |
+| `{<writer[1][f]>}` | First writer, first name only | `Chuck` |
+| `{<writer[1][l]>}` | First writer, last name only | `Dixon` |
+| `{<writer[2][l]>}` | Second writer, last name only | `Puckett` |
+
+If the index is out of range (e.g. `writer[3]` when there is only one writer) the field renders as empty, so it works safely with conditional segments:
+
+```
+{ by <writer[1][l]>}   -> " by Dixon" if writer exists, "" if empty
+```
+
 **Month names:** `{<month>}` maps numeric months to names automatically:
 
 | Number | Name | Number | Name |
@@ -173,6 +189,48 @@ Result: `Batman #001 - (Court of Owls).cbz`, or `Batman #001.cbz` if no story ar
 {<series>}{ v<volume>}{ (<year>)}.cbz
 ```
 Result: `Batman v2 (2014).cbz`, or `Batman (2014).cbz` if no volume is set.
+
+---
+
+### TPB Profile Setup — Multi-volume vs Standalone
+
+TPB collections come in two shapes:
+
+- **Multi-volume series** — a run of numbered trade paperbacks (e.g. Spider-Gwen TPB #001, #002, #003). These should be grouped into a series subfolder so they stay together.
+- **Standalone collected editions** — a single TPB with no numbered siblings (e.g. Moon Knight by MacKay). A subfolder adds no value; the writer name in the filename makes it instantly recognisable.
+
+The `Count` field (the total issue count from ComicVine) is the discriminator. Create two profiles and set their priorities so the more specific one is evaluated first.
+
+**Profile 1 — TPB multi-volume (lower priority number = evaluated first)**
+
+Matching rule: `Format is TPB` AND `Count greater than 1`
+
+```
+Folder:  {<publisher>}/{<seriesgroup>}/{<series>}/{<format>}/{<series>} ({<volume>})
+File:    {<series>} #{<number3>} [{<month>}, {<year>}]
+```
+
+Result:
+```
+Marvel/Earth/Spider-Gwen/TPB/Spider-Gwen (2017)/Spider-Gwen #001 [February, 2017].cbz
+Marvel/Earth/Spider-Gwen/TPB/Spider-Gwen (2017)/Spider-Gwen #002 [January, 2018].cbz
+```
+
+**Profile 2 — TPB standalone (higher priority number = fallback)**
+
+Matching rule: `Format is TPB` (catches all remaining TPBs that did not match Profile 1)
+
+```
+Folder:  {<publisher>}/{<seriesgroup>}/{<series>}/{<format>}
+File:    {<series>}{ by <writer[1][l]>}{ [{<month>}, {<year>}]}
+```
+
+Result:
+```
+Marvel/Earth/Moon Knight/TPB/Moon Knight by MacKay [April, 2022].cbz
+```
+
+If `writer` is empty the entire `by …` segment is dropped because `by` lives inside the `{}`, leaving just `Moon Knight [April, 2022].cbz`.
 
 ---
 

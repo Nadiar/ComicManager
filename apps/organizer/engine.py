@@ -40,7 +40,14 @@ FIELD_MAP = {
 
     # Tags field - standard model field
     "Tags": "tags",
+
+    # Numeric fields
+    "Count": "count",
+    "Page Count": "page_count",
 }
+
+# Fields that support numeric comparison operators
+NUMERIC_FIELDS = {"Count", "Page Count", "Volume", "Year", "Month"}
 
 
 def matches_profile(comic: Comic, profile: OrganizerProfile) -> bool:
@@ -148,6 +155,22 @@ def evaluate_single_rule(comic: Comic, rule: dict) -> bool:
     # Normalize to lowercase for comparison
     comic_value_lower = (comic_value or "").lower()
     rule_value_lower = rule_value.lower()
+
+    # Numeric comparison operators
+    if operator in ("greater than", "less than", "greater than or equal to", "less than or equal to"):
+        try:
+            comic_num = float(comic_value) if comic_value else 0
+            rule_num = float(rule_value) if rule_value else 0
+        except (ValueError, TypeError):
+            return False
+        if operator == "greater than":
+            return comic_num > rule_num
+        elif operator == "less than":
+            return comic_num < rule_num
+        elif operator == "greater than or equal to":
+            return comic_num >= rule_num
+        else:  # less than or equal to
+            return comic_num <= rule_num
 
     # Apply operator
     if operator == "is":

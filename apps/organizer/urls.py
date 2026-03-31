@@ -12,6 +12,7 @@ urlpatterns = [
     path("profiles/<int:pk>/delete/", views.profile_delete, name="profile_delete"),
     path("profiles/<int:pk>/duplicate/", views.profile_duplicate, name="profile_duplicate"),
     path("profiles/<int:pk>/toggle/", views.profile_toggle, name="profile_toggle"),
+    path("profiles/reorder/", views.profile_reorder, name="profile_reorder"),
 
     # Import
     path("import/", views.import_view, name="import"),

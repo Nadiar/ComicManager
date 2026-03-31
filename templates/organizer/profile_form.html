@@ -99,13 +99,12 @@
           <label class="label">
             <span class="label-text">Folder Template</span>
           </label>
-          <input
-            type="text"
+          <textarea
             name="folder_template"
-            value="{{ profile.folder_template|default:'{<publisher>}/{<series>}' }}"
-            class="input input-bordered font-mono text-sm"
+            rows="3"
+            class="textarea textarea-bordered font-mono text-sm resize-y w-full"
             placeholder="{<publisher>}/{<series>} ({<volume0>})"
-          >
+          >{{ profile.folder_template|default:'{<publisher>}/{<series>}' }}</textarea>
           <label class="label">
             <span class="label-text-alt">Path segments separated by / or \</span>
           </label>
@@ -115,13 +114,12 @@
           <label class="label">
             <span class="label-text">File Template</span>
           </label>
-          <input
-            type="text"
+          <textarea
             name="file_template"
-            value="{{ profile.file_template|default:'{<series>} #{<number3>}' }}"
-            class="input input-bordered font-mono text-sm"
+            rows="3"
+            class="textarea textarea-bordered font-mono text-sm resize-y w-full"
             placeholder="{<series>} #{<number3>} [{<year>}]"
-          >
+          >{{ profile.file_template|default:'{<series>} #{<number3>}' }}</textarea>
           <label class="label">
             <span class="label-text-alt">Filename without extension</span>
           </label>
@@ -164,8 +162,11 @@
           <div><code class="text-primary">{&lt;genre&gt;}</code> Genre</div>
           <div><code class="text-primary">{&lt;seriesgroup&gt;}</code> Series group</div>
           <div><code class="text-primary">{&lt;maincharacter&gt;}</code> Main character</div>
-          <div><code class="text-primary">{&lt;writer&gt;}</code> Writer</div>
-          <div><code class="text-primary">{&lt;penciller&gt;}</code> Penciller</div>
+          <div><code class="text-primary">{&lt;writer&gt;}</code> Writer(s)</div>
+          <div><code class="text-primary">{&lt;writer[1]&gt;}</code> First writer</div>
+          <div><code class="text-primary">{&lt;writer[1][l]&gt;}</code> First writer last name</div>
+          <div><code class="text-primary">{&lt;writer[1][f]&gt;}</code> First writer first name</div>
+          <div><code class="text-primary">{&lt;penciller&gt;}</code> Penciller(s)</div>
           <div><code class="text-primary">{&lt;inker&gt;}</code> Inker</div>
           <div><code class="text-primary">{&lt;colorist&gt;}</code> Colorist</div>
           <div><code class="text-primary">{&lt;letterer&gt;}</code> Letterer</div>
@@ -195,8 +196,14 @@
 <script>
 const RULE_FIELDS = {{ rule_fields|safe }};
 const RULE_OPERATORS = {{ rule_operators|safe }};
+const NUMERIC_OPERATORS = {{ numeric_operators|safe }};
+const NUMERIC_FIELDS = new Set({{ numeric_fields|safe }});
 const CUSTOM_VALUE_KEYS = {{ custom_value_keys|safe }};
 const CUSTOM_SENTINEL = '__custom__';
+
+function getOperatorsForField(field) {
+  return NUMERIC_FIELDS.has(field) ? [...RULE_OPERATORS, ...NUMERIC_OPERATORS] : RULE_OPERATORS;
+}
 
 // Populate datalist for custom key autocomplete
 const _dl = document.getElementById('custom-keys-list');
@@ -247,19 +254,26 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   keyInput.value = customKey;
   keyInput.style.display = isCustom ? '' : 'none';
 
-  fieldSelect.addEventListener('change', () => {
-    keyInput.style.display = fieldSelect.value === CUSTOM_SENTINEL ? '' : 'none';
-  });
-
   const opSelect = document.createElement('select');
   opSelect.className = 'select select-bordered select-sm';
   opSelect.dataset.role = 'operator';
-  RULE_OPERATORS.forEach(o => {
-    const opt = document.createElement('option');
-    opt.value = o;
-    opt.textContent = o;
-    if (o === operator) opt.selected = true;
-    opSelect.appendChild(opt);
+
+  function populateOpSelect(selectedField, selectedOp) {
+    opSelect.innerHTML = '';
+    getOperatorsForField(selectedField).forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o;
+      opt.textContent = o;
+      if (o === selectedOp) opt.selected = true;
+      opSelect.appendChild(opt);
+    });
+  }
+  populateOpSelect(isCustom ? CUSTOM_SENTINEL : field, operator);
+
+  fieldSelect.addEventListener('change', () => {
+    keyInput.style.display = fieldSelect.value === CUSTOM_SENTINEL ? '' : 'none';
+    const currentOp = opSelect.value;
+    populateOpSelect(fieldSelect.value, currentOp);
   });
 
   const valueInput = document.createElement('input');

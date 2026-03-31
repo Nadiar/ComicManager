@@ -200,11 +200,30 @@ def get_placeholder_value(comic: Comic, field_spec: str, profile: OrganizerProfi
     - Default values: volume0 (use 0 if empty)
     - Month conversion: month (converts to name)
     - Custom fields: Custom(X)
+    - Indexed list fields: writer[1] (first writer), writer[2] (second writer)
+    - Name parts: writer[1][f] (first name), writer[1][l] (last name)
     """
     # Check for Custom(X) syntax
     if field_spec.startswith("Custom(") and field_spec.endswith(")"):
         custom_key = field_spec[7:-1]
         return comic.custom_values.get(custom_key, "")
+
+    # Check for index/name-part syntax: field[N] or field[N][f] or field[N][l]
+    index_match = re.match(r'^(.+?)\[(\d+)\](?:\[([fl])\])?$', field_spec)
+    if index_match:
+        base_field = index_match.group(1)
+        index = int(index_match.group(2)) - 1  # 1-based to 0-based
+        name_part = index_match.group(3)  # 'f', 'l', or None
+        full_value = get_simple_value(comic, base_field, profile)
+        items = [v.strip() for v in full_value.split(",") if v.strip()]
+        if index < 0 or index >= len(items):
+            return ""
+        selected = items[index]
+        if name_part == "f":
+            return selected.split()[0] if selected.split() else selected
+        if name_part == "l":
+            return selected.split()[-1] if selected.split() else selected
+        return selected
 
     # Check for padding suffix (number3, altNumber2, volume0, etc.)
     padding_match = re.match(r'^(.+?)(\d+)$', field_spec)
