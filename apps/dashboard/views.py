@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
-from django.db.models import Count
+from django.db.models import Count, Q
 from apps.core.models import Comic
 from .models import SmartList
 from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS
@@ -16,12 +16,14 @@ def index(request):
         "new":       Comic.objects.filter(state="new").count(),
         "written":   Comic.objects.filter(state="write").count(),
         "new_cbr_count": Comic.objects.filter(state="new", flags__needs_conversion=True).count(),
+        "scrape_skipped": Comic.objects.filter(state="scrape", flags__scrape_skipped=True).count(),
     }
 
     # Get counts per workflow state
     state_counts = dict(
         Comic.objects.values("state").annotate(count=Count("id")).values_list("state", "count")
     )
+    stats["scrape_scrapeable"] = state_counts.get("scrape", 0) - stats["scrape_skipped"]
 
     # Workflow pipeline stages
     pipeline = [
@@ -175,7 +177,6 @@ def index(request):
 
     # Active flags only — excludes maintenance flags (count_mismatch, format_mismatch_in_volume,
     # cv_volume_conflict, needs_reformat) which live in the Maintenance tab
-    from django.db.models import Q
     _active_flags_q = (
         Q(flags__corrupted_archive=True) |
         Q(flags__low_page_count=True) |
