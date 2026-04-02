@@ -21,7 +21,7 @@
   {% if reformat_group %}
   <div class="card bg-warning/10 border border-warning">
     <div class="card-body p-4">
-      <div class="flex justify-between items-center mb-4">
+      <div class="flex justify-between items-center">
         <div>
           <h3 class="font-bold text-warning text-lg">{{ reformat_group.name }}</h3>
           <p class="text-sm text-base-content/70">Issue count changed, format may need updating</p>
@@ -39,6 +39,10 @@
           </button>
         </div>
       </div>
+      <details class="mt-4">
+        <summary class="cursor-pointer text-sm text-base-content/60 select-none mb-2">
+          Show/hide {{ reformat_group.count }} comic{{ reformat_group.count|pluralize }}
+        </summary>
       <div class="overflow-x-auto">
         <table class="table table-sm table-zebra">
           <thead>
@@ -91,6 +95,7 @@
           </tbody>
         </table>
       </div>
+      </details>
     </div>
   </div>
   {% endif %}
