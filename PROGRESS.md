@@ -262,7 +262,7 @@
 - [x] [BUG.35] The "State" dropdown in the comic edit page still lists removed/legacy states (e.g. `count`) and does not reflect the current 7-stage pipeline. Update the dropdown to only show valid pipeline states and keep the warning "Changing state manually can break the pipeline workflow. Use with caution."
 - [x] [BUG.36] `scrape_all` excludes comics with empty `custom_values` due to JSONField NULL behaviour in PostgreSQL `exclude`. Fixed by using `filter` with negated Q objects instead of `exclude` on JSONField lookups.
 - [x] [BUG.37] On the comic detail page, the "Write to file" action under Actions does not advance the comic state after writing. The comic remains in the "Write to CBZ" state instead of moving to the written state.
-- [ ] [BUG.38] Run Path Audit progress bar does not stretch to fill the full width of its container box.
+- [x] [BUG.38] Run Path Audit progress bar does not stretch to fill the full width of its container box.
 
 
 
@@ -311,8 +311,8 @@
 **Goal:** Track nice-to-have features and enhancements that are not yet prioritised.
 
 **Current Status & Tasks:**
-- [ ] [FI.4] Export tagging rulesets as a `.dat` file generated from the current database state (all rulesets, including ones created or edited in the UI), not a re-export of the originally imported file. Export button removed from `/tagging/` until this is properly implemented.
-- [ ] [FI.5] Export organizer profiles as a `.lop` file generated from the current database state. Would complete the import/export round-trip for both `.dat` (tagging rules) and `.lop` (organizer profiles).
+- [x] [FI.4] Export tagging rulesets as a `.dat` file generated from the current database state (all rulesets, including ones created or edited in the UI), not a re-export of the originally imported file. Export button removed from `/tagging/` until this is properly implemented.
+- [x] [FI.5] Export organizer profiles as a `.lop` file generated from the current database state. Would complete the import/export round-trip for both `.dat` (tagging rules) and `.lop` (organizer profiles).
 - [ ] [FI.1] PDF to CBZ conversion. Currently `convert_cbr` only handles CBR/CB7 (archive re-pack). PDF conversion requires rendering each page to an image (e.g. via `pdf2image` / Ghostscript), which is a separate, non-trivial operation. Would allow PDFs flagged `is_pdf` to be converted in-place rather than only deleted or suppressed.
 - [ ] [FI.2] ComicVine API call budget management. Better track, save, and display remaining API calls. Currently the count may be inaccurate or not conserved across sessions. Consider caching responses, batching requests, and showing a live remaining-calls indicator in the UI.
 - [ ] [FI.3] In `try_api_metadata_match`, the credits fetch at the end of a successful API match is budget-gated separately from the initial search. If the budget runs out between the search and the credits call, basic metadata is applied without full credits (writer, penciller, etc.). This is undesirable. The fix should check upfront whether there is enough budget for both the search and the credits fetch combined, and if not, skip the comic entirely rather than applying incomplete metadata.
