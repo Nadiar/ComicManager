@@ -107,8 +107,8 @@
                 <span class="text-base-content/40">0</span>
                 {% endif %}
               </td>
-              <td>
-                <div class="flex gap-1 flex-wrap">
+              <td class="whitespace-nowrap">
+                <div class="flex gap-1">
                 {% if stage.count > 0 %}
                 <a href="/comics/?state={{ stage.state }}" class="btn btn-xs btn-ghost">View</a>
                 {% endif %}
@@ -117,6 +117,9 @@
                 <button onclick="runAction('/comics/scan-untagged/', this, 'Scanning untagged')" class="btn btn-xs btn-info">Scan Untagged</button>
                 {% if stage.count > 0 %}
                 <button onclick="runAction('/comics/accept-all/', this, 'Accepting comics')" class="btn btn-xs btn-success">Accept All</button>
+                {% endif %}
+                {% if stats.new_cbr_count > 0 %}
+                <button onclick="runAction('/comics/convert-all/', this, 'Converting to CBZ')" class="btn btn-xs btn-warning">Convert to CBZ</button>
                 {% endif %}
                 {% endif %}
 

@@ -15,6 +15,7 @@ def index(request):
         "physical":  Comic.objects.filter(medium="physical").count(),
         "new":       Comic.objects.filter(state="new").count(),
         "written":   Comic.objects.filter(state="write").count(),
+        "new_cbr_count": Comic.objects.filter(state="new", flags__needs_conversion=True).count(),
     }
 
     # Get counts per workflow state
