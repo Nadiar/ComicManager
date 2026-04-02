@@ -431,6 +431,7 @@ def detect_format(comic, _one_shot_max=None, _limited_max=None) -> str | None:
         4. Omnibus by pages: page_count >= 500 with no TPB signals (last resort fallback)
 
     Step 3 — Publication structure:
+        Preview: "Preview"/"Previews" keyword in series/title
         Annual: keyword in series/title
         Count-based: One-Shot (count=1), Limited Series (2-15), Main Series (16+)
     """
@@ -460,6 +461,8 @@ def detect_format(comic, _one_shot_max=None, _limited_max=None) -> str | None:
         return "Omnibus"
 
     # Step 3: Publication structure
+    if re.search(r"\bPreviews?\b", text, re.IGNORECASE):
+        return "Preview"
     if re.search(r"\bAnnual\b", text, re.IGNORECASE):
         return "Annual"
 

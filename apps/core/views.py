@@ -2182,6 +2182,7 @@ FORMAT_DISPLAY_ORDER = [
     ("Director's Cut", "directors-cut"),
     ("Black & White", "black-and-white"),
     ("Annual", "annual"),
+    ("Preview", "preview"),
     ("One-Shot", "one-shot"),
     ("Limited Series", "limited-series"),
     ("Main Series", "main-series"),
