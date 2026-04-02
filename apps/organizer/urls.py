@@ -14,8 +14,9 @@ urlpatterns = [
     path("profiles/<int:pk>/toggle/", views.profile_toggle, name="profile_toggle"),
     path("profiles/reorder/", views.profile_reorder, name="profile_reorder"),
 
-    # Import
+    # Import / Export
     path("import/", views.import_view, name="import"),
+    path("export/", views.export_view, name="export"),
 
     # Preview (for comics)
     path("preview/<uuid:pk>/", views.preview_view, name="preview"),

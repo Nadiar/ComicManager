@@ -1,10 +1,10 @@
 """
-Library Organizer Parser - Imports .lop XML files from ComicRack.
+Library Organizer Parser - Imports and exports .lop XML files for ComicRack.
 """
 
 import re
 import xml.etree.ElementTree as ET
-from html import unescape
+from html import escape, unescape
 from typing import Any
 
 from django.db import transaction
@@ -220,3 +220,78 @@ def import_profiles(file_path: str, clear_existing: bool = True) -> dict:
         "imported_count": len(created_profiles),
         "profiles": [p.name for p in created_profiles],
     }
+
+
+def _set_text(parent: ET.Element, tag: str, text: str) -> ET.Element:
+    """Add a child element with text content."""
+    child = ET.SubElement(parent, tag)
+    child.text = text
+    return child
+
+
+def _build_exclude_rules_elem(parent: ET.Element, exclude_rules: dict) -> None:
+    """Build ExcludeRules XML element from the stored JSON structure."""
+    rules_elem = ET.SubElement(
+        parent,
+        'ExcludeRules',
+        Operator=exclude_rules.get('operator', 'All'),
+        ExcludeMode=exclude_rules.get('mode', 'Only'),
+    )
+    for rule in exclude_rules.get('rules', []):
+        _build_rule_or_group(rules_elem, rule)
+
+
+def _build_rule_or_group(parent: ET.Element, item: dict) -> None:
+    """Recursively build ExcludeRule or ExcludeGroup elements."""
+    if item.get('type') == 'group':
+        group_elem = ET.SubElement(parent, 'ExcludeGroup', Operator=item.get('operator', 'All'))
+        for child in item.get('rules', []):
+            _build_rule_or_group(group_elem, child)
+    else:
+        ET.SubElement(
+            parent,
+            'ExcludeRule',
+            Field=item.get('field', ''),
+            Operator=item.get('operator', 'is'),
+            Value=item.get('value', ''),
+        )
+
+
+def export_lop_profiles() -> str:
+    """
+    Export all OrganizerProfile records from the database as a .lop XML string.
+
+    Returns:
+        XML string in ComicRack .lop format.
+    """
+    profiles = OrganizerProfile.objects.all().order_by('priority', 'name')
+
+    root = ET.Element('LibraryOrganizer')
+
+    for profile in profiles:
+        profile_elem = ET.SubElement(root, 'Profile', Name=profile.name)
+
+        _set_text(profile_elem, 'Mode', 'Move' if profile.is_enabled else 'Simulate')
+        # HTML-escape templates to match ComicRack's encoding
+        _set_text(profile_elem, 'FolderTemplate', escape(profile.folder_template, quote=False))
+        _set_text(profile_elem, 'FileTemplate', escape(profile.file_template, quote=False))
+        _set_text(profile_elem, 'BaseFolder', profile.base_folder)
+        _set_text(profile_elem, 'RemoveEmptyFolder', str(profile.remove_empty_folder).lower())
+        _set_text(profile_elem, 'AutoSpaceFields', str(profile.auto_space_fields).lower())
+        _set_text(profile_elem, 'ReplaceMultipleSpaces', str(profile.replace_multiple_spaces).lower())
+
+        if profile.exclude_rules:
+            _build_exclude_rules_elem(profile_elem, profile.exclude_rules)
+
+        if profile.illegal_characters:
+            ic_elem = ET.SubElement(profile_elem, 'IllegalCharacters')
+            for name, value in profile.illegal_characters.items():
+                ET.SubElement(ic_elem, 'Item', Name=escape(name, quote=False), Value=escape(value, quote=False))
+
+        if profile.months:
+            months_elem = ET.SubElement(profile_elem, 'Months')
+            for name, value in profile.months.items():
+                ET.SubElement(months_elem, 'Item', Name=str(name), Value=str(value))
+
+    ET.indent(root, space='  ')
+    return '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(root, encoding='unicode')

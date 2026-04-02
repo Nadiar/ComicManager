@@ -4,7 +4,7 @@ Library Organizer Views - Profile management and organization operations.
 
 import json
 import os
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST, require_GET
 from django.contrib import messages
@@ -12,7 +12,7 @@ from django.contrib import messages
 from apps.core.models import Comic
 
 from .models import OrganizerProfile
-from .parser import import_profiles
+from .parser import export_lop_profiles, import_profiles
 from .engine import FIELD_MAP, NUMERIC_FIELDS
 from .services import (
     organize_comic,
@@ -256,6 +256,20 @@ def import_view(request):
     return render(request, 'organizer/import.html', {
         'existing_count': OrganizerProfile.objects.count(),
     })
+
+
+@require_GET
+def export_view(request):
+    """Export all profiles as a .lop file download."""
+    count = OrganizerProfile.objects.count()
+    if count == 0:
+        messages.error(request, 'No profiles to export.')
+        return redirect('organizer:profile_list')
+
+    xml_content = export_lop_profiles()
+    response = HttpResponse(xml_content, content_type='application/xml')
+    response['Content-Disposition'] = 'attachment; filename="organizer_profiles.lop"'
+    return response
 
 
 # ============================================================================

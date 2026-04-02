@@ -9,6 +9,7 @@
     <h1 class="text-3xl font-bold">File Organizer Profiles</h1>
     <div class="flex gap-2">
       <a href="{% url 'organizer:import' %}" class="btn btn-outline">Import .lop</a>
+      {% if profiles %}<a href="{% url 'organizer:export' %}" class="btn btn-outline">Export .lop</a>{% endif %}
       <a href="{% url 'organizer:profile_create' %}" class="btn btn-primary">New Profile</a>
     </div>
   </div>
