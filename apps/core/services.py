@@ -433,7 +433,7 @@ def detect_format(comic, _one_shot_max=None, _limited_max=None) -> str | None:
     Step 3 — Publication structure:
         Preview: "Preview"/"Previews" keyword in series/title
         Annual: keyword in series/title
-        Count-based: One-Shot (count=1), Limited Series (2-15), Main Series (16+)
+        Count-based: Main Series (count > 15, or issue# > 15), Limited Series (2–15 with low issue#), One-Shot (count = 1 with low issue#)
     """
     from .models import get_setting
 
@@ -470,16 +470,14 @@ def detect_format(comic, _one_shot_max=None, _limited_max=None) -> str | None:
         one_shot_max = _one_shot_max if _one_shot_max is not None else get_setting("one_shot_max_count", 1)
         limited_max = _limited_max if _limited_max is not None else get_setting("limited_series_max_count", 15)
 
-        if comic.count <= one_shot_max:
-            return "One-Shot"
-        elif comic.count <= limited_max:
-            # High issue number signals a continuation/renumbered series
-            issue_num = _parse_issue_number(comic.number)
-            if issue_num is not None and issue_num > limited_max:
-                return "Main Series"
-            return "Limited Series"
-        else:
+        if comic.count > limited_max:
             return "Main Series"
+        issue_num = _parse_issue_number(comic.number)
+        if issue_num is not None and issue_num > limited_max:
+            return "Main Series"  # continuation / renumbered series
+        if comic.count > one_shot_max:
+            return "Limited Series"
+        return "One-Shot"
 
     return None
 
