@@ -134,6 +134,13 @@ def detect_duplicates_by_metadata(comics: list[Comic]) -> list[DuplicateGroup]:
             dup_comics.extend(physical)
 
         if len(dup_comics) >= 2:
+            # Page-count sanity check: a TPB and a single issue often share the
+            # same series+number+volume but are not duplicates.  If the largest
+            # page count is more than 3× the smallest, skip this group.
+            pages = [c.page_count for c in dup_comics if c.page_count]
+            if len(pages) >= 2 and min(pages) > 0 and max(pages) / min(pages) > 3:
+                continue
+
             series, number, volume = key
             match_key = f"{series} #{number}" + (f" v{volume}" if volume else "")
 

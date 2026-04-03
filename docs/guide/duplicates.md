@@ -11,9 +11,9 @@ Duplicates are a common problem in digital comic collections. You might have:
 - The same issue with different metadata.
 - A physical comic and a digital copy of the same issue. *(Note: ComicManager explicitly allows one physical and one digital copy of the exact same issue without treating them as duplicates).*
 
-Standard metadata-based duplicate detection (like checking Series + Number) isn't enough. It can't distinguish between a main cover and a variant cover, or even between a high-quality scan and a low-quality one.
+Standard metadata-based duplicate detection (like checking Series + Number) is not enough. It cannot distinguish between a main cover and a variant cover, or between a high-quality scan and a low-quality one.
 
-That's why ComicManager primarily uses Image Hashing (pHash/ahash). By looking at the *actual cover image*, we can find near-identical images even if the file is completely different. This is a "fingerprinting" technique that is extremely accurate.
+That is why ComicManager primarily uses Image Hashing (pHash/ahash). By looking at the *actual cover image*, we can find near-identical images even if the file is completely different. This is a "fingerprinting" technique that is extremely accurate.
 
 ---
 
@@ -24,13 +24,45 @@ That's why ComicManager primarily uses Image Hashing (pHash/ahash). By looking a
 
 ### Duplicate Methods
 
-ComicManager groups duplicates using four methods, which you can filter by using the tabs on the Duplicate Review page:
-- **CV ID**: Finds comics linked to the exact same ComicVine issue ID.
-- **Metadata**: Finds comics with the same series, volume, and issue number.
-- **Cover Hash**: Finds comics with visually identical cover images using pHash (even if resized or slightly different scans).
-- **Filename**: Catches OS-generated duplicate files (e.g., `file_1.cbz`, `file (1).cbz`).
+ComicManager groups duplicates using four methods, which you can filter by using the tabs on the Duplicate Review page.
 
 One digital and one physical copy of the same comic is explicitly **not** a duplicate. Cover Hash and Filename detection only apply to digital comics.
+
+#### CV ID
+
+Matches comics that share the exact same ComicVine issue ID (`comicvine_issue` custom value). This is the most reliable method: if two files were both scraped and matched to the same CV issue, they are almost certainly duplicates.
+
+The one exception is a digital+physical pair for the same issue. That combination is intentional and is excluded from grouping.
+
+#### Series / Number (Metadata)
+
+Matches comics with the same series name (case-insensitive), issue number (leading zeros stripped), and volume year. This catches unscraped or mis-tagged duplicates that have no CV ID yet.
+
+Groups already covered by CV ID matching are skipped to avoid double-reporting.
+
+Two additional filters prevent false positives:
+
+- **Digital/physical exclusion**: a single digital + single physical copy is not a duplicate.
+- **Page-count ratio check**: if the largest page count in the group is more than 3x the smallest, the group is skipped. This prevents a TPB (e.g. 120 pages) from being matched against a single issue (e.g. 24 pages) that share the same series, number, and year.
+
+#### Cover Hash
+
+Matches comics whose cover images are visually near-identical, measured by the Hamming distance between their pHash fingerprints. The default threshold is a distance of 5 bits, adjustable via **Settings > Deduplication > Cover Hash max distance**. Two covers can be resized, re-encoded, or slightly different scans and still match.
+
+Only digital comics with a computed pHash are considered. Groups are built using a union-find algorithm so that transitively similar covers end up in the same group.
+
+The distance for each member is shown in the review table. Lower is more similar; 0 means bit-for-bit identical.
+
+#### Filename
+
+Catches OS-generated duplicate files produced when a file is copied and the OS appends a suffix to avoid a name collision:
+
+| OS | Example |
+|----|---------|
+| Linux | `Comic #001_1.cbz`, `Comic #001_2.cbz` |
+| Windows | `Comic #001 (1).cbz`, `Comic #001 (2).cbz` |
+
+The suffix is stripped and the canonical base name is used as the grouping key. At least one file in the group must carry the suffix. Two different comics that happen to live in the same folder are not grouped.
 
 ```
           ┌──────────────────────────────────────────────────────────┐
@@ -48,9 +80,10 @@ One digital and one physical copy of the same comic is explicitly **not** a dupl
           │  CV ID       same comicvine_issue value                  │
           ├─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
           │  Metadata    same series + number + volume               │
-          │              (skips if already grouped by CV ID)         │
+          │              skips if already grouped by CV ID           │
+          │              skips if page-count ratio > 3x (TPB guard)  │
           ├─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
-          │  Cover Hash  pHash Hamming distance ≤ 5 (configurable)   │
+          │  Cover Hash  pHash Hamming distance <= 5 (configurable)  │
           ├─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
           │  Filename    same base filename, strip _1 / (1) suffix   │
           ├──────────────────────────────────────────────────────────┤
@@ -79,12 +112,44 @@ We want to make sure the metadata and format are correct before we resolve dupli
 
 ## Resolving Duplicates
 
-Each duplicate group shows a side-by-side comparison of metadata and cover thumbnails. For each comic in the group you can take one of four actions:
+Each duplicate group shows a side-by-side comparison of metadata and cover thumbnails. For each comic in the group you can take one of these actions:
 
-- **Keep**: Marks this comic as the winner and advances it to the next pipeline stage (Organize). Other comics in the group remain pending until you resolve them.
-- **Delete**: Hard deletes the comic — the file is removed from disk and the database record is gone permanently. Empty parent folders are cleaned up automatically.
+- **Keep**: Advances this comic to Organize. If only one other comic remains pending after this, it is auto-kept too and the group resolves. With 3+ comics in a group, the group stays open so you can handle the rest individually.
+- **Delete**: Hard deletes the comic. The file is removed from disk and the database record is gone permanently. Empty parent folders are cleaned up automatically.
 - **Keep & Del Rest**: One-click resolution. Keeps the selected comic and hard deletes all others in the group.
-- **Re-queue**: Sends the comic back to the Import stage and clears its ComicVine data so it can be re-scraped from scratch. Use this if you suspect a bad match caused the false duplicate.
-- **Keep All**: Marks all comics in the group as intentional — they all advance to Organize. Use this when the detection was a false positive.
+- **Re-queue**: Sends the comic back to the Import stage and clears its ComicVine data so it can be re-scraped from scratch. Use this if you suspect a bad match caused the false positive.
+- **Keep All**: Marks all comics in the group as intentional. They all advance to Organize. Use this when the detection was a false positive.
 
 Every resolution decision is recorded in the `DuplicateResolution` audit log, viewable at `/duplicates/history/`.
+
+---
+
+## Examples
+
+### Two copies of the same issue (2-comic group)
+
+You have `Batman 001.cbz` and `Batman (2011) #1.cbz`. Same issue, different filenames. They land in a Cover Hash group.
+
+1. Compare covers and metadata in the group card.
+2. Click **Keep & Del Rest** on the higher-quality file. The other file is deleted from disk and the group resolves in one click.
+
+### Accidental OS duplicate (Filename group)
+
+You copied a file and your OS created `Batman 001_1.cbz` alongside `Batman 001.cbz`.
+
+1. The Filename detection groups them automatically.
+2. Click **Del** on `Batman 001_1.cbz`. The last remaining comic is auto-kept and the group resolves.
+
+### Three versions: keep one, re-scrape one, delete one
+
+You have three copies: a good scan, a low-quality scan, and one that might have been mis-tagged.
+
+1. Click **Del** on the low-quality scan. The group refreshes with 2 remaining.
+2. Click **Re-Q** on the possibly mis-tagged one. It leaves the group and goes back to Import for re-scraping.
+3. The last comic is auto-kept and the group resolves.
+
+### False positive (TPB vs single issue)
+
+Series/Number detection matched a TPB and a single issue with the same series and number. They are not duplicates.
+
+Click **Keep All**. Both advance to Organize and the group is marked intentional.

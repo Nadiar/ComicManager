@@ -117,6 +117,8 @@ def seed_default_settings(sender, **kwargs):
         # Format Detection
         dict(key="one_shot_max_count",       label="One-Shot Max Count",       type="int", group="Format", help_text="Comics with count <= this value are One-Shot (default: 1)", value="1"),
         dict(key="limited_series_max_count", label="Limited Series Max Count", type="int", group="Format", help_text="Comics with count <= this (but > One-Shot max) are Limited Series; above = Main Series (default: 15)", value="15"),
+        # Deduplication
+        dict(key="duplicate_phash_distance", label="Cover Hash max distance", type="int", group="Deduplication", help_text="Maximum pHash Hamming distance for two covers to be considered duplicates (0 = identical, default: 5). Lower values are stricter.", value="5"),
         # Appearance
         dict(key="show_series_completion",     label="Show Series Completion",            type="bool", group="Appearance", help_text="Show a progress bar on comic detail pages indicating how complete the series/volume is", value="true"),
         dict(key="hide_zero_maintenance_rows", label="Hide zero-count maintenance rows",  type="bool", group="Appearance", help_text="Hide rows with a count of 0 in the Review & Maintenance card on the dashboard", value="false"),
