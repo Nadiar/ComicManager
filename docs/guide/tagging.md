@@ -95,7 +95,10 @@ Rules can match and modify the following fields:
 | `Year` | Publication year |
 | `Tags` | Tags |
 | `Original Format` | Original format from source data |
-| `FileName` | The comic's filename (without path) |
+| `FileName` | Full path including filename and extension |
+| `FileNameOnly` | Filename and extension only (no directory) |
+| `FilePath` | Directory path only (no filename) |
+| `FileExtension` | File extension without leading dot (e.g. `cbz`) |
 
 **Organizational fields:**
 

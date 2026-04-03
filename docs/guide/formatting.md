@@ -13,7 +13,7 @@ ComicManager can automatically assign any of these eight formats:
 - **Director's Cut**: Series or title contains "Director's Cut".
 - **Black & White**: Series or title contains "Black & White" or "B&W".
 - **Omnibus**: "Omnibus" appears anywhere in the series, title, or summary. Also applied when page count is 500 or more and no other collection keyword matched.
-- **TPB**: "TPB" or "Trade Paperback" in the series or title. Also applied when page count is 80 or more and the summary describes a collected issue range (e.g. "Collects #1-5", "#2-#8").
+- **TPB**: "TPB" or "Trade Paperback" in the series, title, or summary. Also applied when page count is 80 or more and the summary describes a collected issue range (e.g. "Collects #1-5", "#2-#8", "#1, 2, 3, 4", or "features the following issues").
 - **Annual**: Series or title contains "Annual".
 - **One-Shot**: A standalone single-issue series (`count = 1` with a low issue number).
 - **Limited Series**: A series with a known, finite run (`count 2–15`), where issue numbers are also in a low range.
@@ -42,7 +42,8 @@ Rules are evaluated in priority order. The first match wins.
 ├────────────────────────────────────────────────────────────────────────────┤
 │ "Omnibus" in series, title, or summary? ────── YES ──▶  Omnibus           │
 ├────────────────────────────────────────────────────────────────────────────┤
-│ "TPB" / "Trade Paperback" in series or title?  YES ──▶  TPB               │
+│ "TPB" / "Trade Paperback" in series, title,                                │
+│ or summary? ────────────────────────────────── YES ──▶  TPB               │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ page_count ≥ 80 AND summary has issue range? ─ YES ──▶  TPB               │
 ├────────────────────────────────────────────────────────────────────────────┤
@@ -60,13 +61,13 @@ Rules are evaluated in priority order. The first match wins.
 ├────────────────────────────────────────────────────────────────────────────┤
 │ count > 1? (so 2–15, low issue number) ─────── YES ──▶  Limited Series    │
 ├────────────────────────────────────────────────────────────────────────────┤
-│ (count = 1, low issue number) ──────────────────────▶  One-Shot           │
+│ (count = 1, low issue number) ──────────────── YES ──▶  One-Shot          │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
 "Continuation / renumbered series" means the issue numbers are in a high range (above 15), regardless of the volume's issue count. This catches both limited-looking volumes (count 2–15) and single-issue entries (count=1) that continue legacy numbering from a prior volume. For example, a volume with count=11 and issues #695–705, or a single issue at #33, is an ongoing series, not a limited run or one-shot. Use `format_ok` on the detail page to permanently lock the format if the auto-detection is wrong for a specific comic.
 
-"Issue range in summary" means the summary text contains a pattern like `#1-5`, `#2-#8`, or the word `Collects` (e.g. "Collects Batman #10-15"). This is the signal that the book bundles multiple individual issues rather than being a single-issue story.
+"Issue range in summary" means the summary text contains one of these collection signals: a range like `#1-5` or `#2-#8`, the word `Collects` (e.g. "Collects Batman #10-15"), a comma-separated issue list like `#1, 2, 3, 4`, the phrase "features the following issues", or "collecting issues". Any of these indicate the book bundles multiple individual issues rather than being a single-issue story.
 
 ### Known edge case: Omnibus in the summary
 
