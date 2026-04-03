@@ -68,6 +68,12 @@ Rules are evaluated in priority order. The first match wins.
 
 "Issue range in summary" means the summary text contains a pattern like `#1-5`, `#2-#8`, or the word `Collects` (e.g. "Collects Batman #10-15"). This is the signal that the book bundles multiple individual issues rather than being a single-issue story.
 
+### Known edge case: Omnibus in the summary
+
+Some comics are incorrectly classified as Omnibus because their ComicVine summary mentions the word "Omnibus" incidentally. For example, an old anthology issue whose summary reads "later reprinted in the DC Omnibus". The comic itself is not an Omnibus, but the keyword match fires anyway.
+
+If you see a regular single issue suggested as Omnibus on the Format Review page, open its detail/edit page and use the **Confirm Format** toggle to lock the correct format. Once confirmed, the comic will no longer appear on the Format Review page and its format will not be overwritten by future re-format runs.
+
 ### Why do we format after tagging?
 
 We apply DataManager rules *before* formatting because those rules might standardize the series name or the publisher, which can improve the accuracy of the formatting logic.

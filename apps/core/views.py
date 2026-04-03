@@ -2202,13 +2202,13 @@ def format_review(request):
     """
     from collections import defaultdict
 
-    # Get comics in 'formatted' state
-    tagged_comics = Comic.objects.filter(state=Comic.STATE_FORMATTED).annotate(
+    # Get comics in 'formatted' state, excluding those with a confirmed format
+    tagged_comics = Comic.objects.filter(state=Comic.STATE_FORMATTED, format_ok=False).annotate(
         number_sort_key=natural_number_annotation()
     ).order_by("series", "volume", "number_sort_key", "number")
 
-    # Get comics needing re-format (any state)
-    reformat_comics = list(Comic.objects.filter(needs_reformat=True).annotate(
+    # Get comics needing re-format (any state), excluding those with a confirmed format
+    reformat_comics = list(Comic.objects.filter(needs_reformat=True, format_ok=False).annotate(
         number_sort_key=natural_number_annotation()
     ).order_by("series", "volume", "number_sort_key", "number"))
 
