@@ -2275,6 +2275,18 @@ def format_group_comics(request, format_type):
 
 
 @require_POST
+def accept_reformat_comic(request, pk):
+    """Accept a single comic from the needs_reformat queue."""
+    from django.http import HttpResponse
+    comic = get_object_or_404(Comic, pk=pk)
+    new_format = _detect_format(comic)
+    if new_format:
+        comic.format = new_format
+    comic.needs_reformat = False
+    comic.save()
+    return HttpResponse("")
+
+
 def accept_format_group(request, format_type):
     """
     Accept all comics of a specific format type.

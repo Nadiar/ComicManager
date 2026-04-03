@@ -23,6 +23,7 @@ urlpatterns = [
     path("format-all/", views.format_all_comics, name="format_all"),
     path("format/", views.format_review, name="format_review"),
     path("format/accept/<slug:format_type>/", views.accept_format_group, name="format_accept"),
+    path("<uuid:pk>/accept-reformat/", views.accept_reformat_comic, name="accept_reformat"),
     path("format/comics/<slug:format_type>/", views.format_group_comics, name="format_group_comics"),
     path("deduplicate-all/", views.deduplicate_all_comics, name="deduplicate_all"),
     path("organize-all/", views.organize_all_comics, name="organize_all"),

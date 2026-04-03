@@ -57,6 +57,7 @@
               <th>Current Format</th>
               <th>Suggested Format</th>
               <th>State</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -89,6 +90,17 @@
               </td>
               <td>
                 <span class="badge badge-sm badge-info">{{ row.comic.state }}</span>
+              </td>
+              <td>
+                <button
+                  type="button"
+                  class="btn btn-xs btn-success"
+                  hx-post="{% url 'core:accept_reformat' row.comic.pk %}"
+                  hx-target="closest tr"
+                  hx-swap="outerHTML"
+                >
+                  Accept
+                </button>
               </td>
             </tr>
             {% endfor %}
