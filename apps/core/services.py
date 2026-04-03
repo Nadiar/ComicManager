@@ -402,9 +402,16 @@ def _detect_flags(
 OMNIBUS_MIN_PAGES = 500
 TPB_MIN_PAGES = 80
 
-# Matches issue ranges in a description: "#1-5", "#2-#8", "Collects Batman #10-15", etc.
+# Matches collection signals in a description:
+#   - issue ranges:  "#1-5", "#2-#8", "Collects Batman #10-15"
+#   - issue lists:   "#  1,   2,   3" (space-padded numbers after a hash)
+#   - collection phrases: "features the following issues", "collecting issues"
 TPB_ISSUE_RANGE_RE = re.compile(
-    r"#\s*\d+\s*[-\u2013]\s*#?\s*\d+|Collects\b",
+    r"#\s*\d+\s*[-\u2013]\s*#?\s*\d+"          # range: #1-5 or #2-#8
+    r"|Collects\b"                               # "Collects ..."
+    r"|#\s*\d+(?:\s*,\s*\d+)+"                  # list: #1, 2, 3, 4
+    r"|features\s+the\s+following\s+issues"      # "features the following issues"
+    r"|collecting\s+issues",
     re.IGNORECASE,
 )
 
@@ -452,7 +459,7 @@ def detect_format(comic, _one_shot_max=None, _limited_max=None) -> str | None:
     if re.search(r"\bOmnibus\b", text + " " + summary, re.IGNORECASE):
         return "Omnibus"
     # TPB signals evaluated before page-count Omnibus fallback
-    if re.search(r"\bTPB\b|\bTrade\s+Paperback\b", text, re.IGNORECASE):
+    if re.search(r"\bTPB\b|\bTrade\s+Paperback\b", text + " " + summary, re.IGNORECASE):
         return "TPB"
     if page_count >= TPB_MIN_PAGES and TPB_ISSUE_RANGE_RE.search(summary):
         return "TPB"
