@@ -234,6 +234,167 @@ If `writer` is empty the entire `by …` segment is dropped because `by` lives i
 
 ---
 
+## Example Setups
+
+These examples show different ways to structure a library. They range from simple to detailed so you can find a style that fits your collection.
+
+---
+
+### 1. Simple flat structure
+
+Good for smaller collections where you just want everything tidy without deep nesting.
+
+**Folder:** `{<publisher>}/{<series>}{ (<year>)}/`
+**File:** `{<series>} {#<number3>}{ (<year>)}`
+
+```
+DC Comics/Batman (2011)/Batman #001 (2011).cbz
+Marvel Comics/Daredevil (1998)/Daredevil #001 (1998).cbz
+Image Comics/Saga (2012)/Saga #001 (2012).cbz
+```
+
+---
+
+### 2. Publisher + series group + series
+
+A common structure for large Marvel/DC collections. The series group (e.g. "Batman Family") creates a mid-level grouping so related titles stay together.
+
+**Folder:** `{<publisher>}/{<seriesgroup>}/{<series>}{ (<year>)}/`
+**File:** `{<series>} {#<number3>}{ (<year>)}`
+
+```
+DC Comics/Batman Family/Batman (2011)/Batman #001 (2011).cbz
+DC Comics/Batman Family/Detective Comics (2011)/Detective Comics #001 (2011).cbz
+Marvel Comics/X-Men/Uncanny X-Men (1963)/Uncanny X-Men #001 (1963).cbz
+```
+
+---
+
+### 3. Character-first browsing
+
+Organizes by main character before series, so browsing by character feels natural. Works well if you collect a specific character across many titles.
+
+**Folder:** `{<publisher>}/{<maincharacter>}/{<format>}/{<series>}{ (<year>)}/`
+**File:** `{<series>} {#<number3>}`
+
+```
+DC Comics/Batman/Main Series/Batman (2011)/Batman #001.cbz
+DC Comics/Batman/Limited Series/Batman - Noel (2011)/Batman - Noel #001.cbz
+DC Comics/Batman/TPB/Batman by Snyder & Capullo (2012)/Batman by Snyder & Capullo #001.cbz
+Marvel Comics/Spider-Man/Main Series/Amazing Spider-Man (1963)/Amazing Spider-Man #001.cbz
+```
+
+---
+
+### 4. Format-first split
+
+Separates ongoing issues from collected editions at the top level. Useful if you mix periodicals and trades heavily and want them completely separated.
+
+**Folder (ongoing):** `Ongoing/{<publisher>}/{<series>}{ (<year>)}/`
+**Folder (TPB):** `Collected/{<publisher>}/{<series>}{ (<year>)}/`
+**File:** `{<series>} {#<number3>}{ (<year>)}`
+
+```
+Ongoing/Marvel Comics/Amazing Spider-Man (2022)/Amazing Spider-Man #001 (2022).cbz
+Ongoing/DC Comics/Batman (2016)/Batman #001 (2016).cbz
+Collected/Marvel Comics/Immortal Hulk (2018)/Immortal Hulk #001 (2018).cbz
+Collected/DC Comics/All-Star Superman (2005)/All-Star Superman #001 (2005).cbz
+```
+
+---
+
+### 5. Indie publisher (flat per publisher)
+
+For smaller publishers where a deep hierarchy adds noise. One folder per series under the publisher is enough.
+
+**Folder:** `{<publisher>}/{<series>}/`
+**File:** `{<series>} {#<number3>}{ (<year>)}`
+
+```
+Image Comics/Saga/Saga #001 (2012).cbz
+Image Comics/Invincible/Invincible #001 (2003).cbz
+Dark Horse Comics/Hellboy/Hellboy #001 (1994).cbz
+BOOM! Studios/Something is Killing the Children/Something is Killing the Children #001 (2019).cbz
+```
+
+---
+
+### 6. Manga-style by author
+
+For manga or creator-owned work where the author is more meaningful than the publisher. Groups all of an author's work in one place.
+
+**Folder:** `{<writer[1][l]>}, {<writer[1][f]>}/{<series>}/`
+**File:** `{<series>} {#<number3>}`
+
+```
+Oda, Eiichiro/One Piece/One Piece #001.cbz
+Miura, Kentaro/Berserk/Berserk #001.cbz
+Urasawa, Naoki/Monster/Monster #001.cbz
+Urasawa, Naoki/20th Century Boys/20th Century Boys #001.cbz
+```
+
+---
+
+### 7. Year-based archive
+
+Good for people who browse by era rather than by character or publisher. Each year gets its own folder under the publisher.
+
+**Folder:** `{<publisher>}/{<year>}/{<series>}/`
+**File:** `{<series>} {#<number3>} [{<month>}, {<year>}]`
+
+```
+Marvel Comics/1963/Amazing Spider-Man/Amazing Spider-Man #001 [March, 1963].cbz
+DC Comics/1986/Batman/Batman #001 [January, 1986].cbz
+DC Comics/2011/Action Comics/Action Comics #001 [November, 2011].cbz
+```
+
+---
+
+### 8. Story arc in filename
+
+If you re-read by story arc rather than issue number, embedding the arc name in the filename makes it easy to find specific runs.
+
+**Folder:** `{<publisher>}/{<seriesgroup>}/{<series>}{ (<year>)}/`
+**File:** `{<series>} {#<number3>}{ - <storyarc>}{ (<year>)}`
+
+```
+DC Comics/Batman Family/Batman (2011)/Batman #001 - Court of Owls (2011).cbz
+DC Comics/Batman Family/Batman (2011)/Batman #009 - Night of the Owls (2012).cbz
+DC Comics/Batman Family/Batman (2011)/Batman #013 - Death of the Family (2012).cbz
+```
+
+---
+
+### 9. TPB multi-volume with volume year subfolder
+
+Groups a TPB run into a subfolder named after the series and its start year so volumes stay together and sort in order.
+
+**Folder:** `{<publisher>}/{<seriesgroup>}/{<series>}/{<format>}/{<series>}{ (<year>)}/`
+**File:** `{<series>} {#<number3>} [{<month>}, {<year>}]`
+
+```
+Marvel Comics/Spider-Man Family/Spider-Gwen/TPB/Spider-Gwen (2017)/Spider-Gwen #001 [February, 2017].cbz
+Marvel Comics/Spider-Man Family/Spider-Gwen/TPB/Spider-Gwen (2017)/Spider-Gwen #002 [January, 2018].cbz
+Marvel Comics/Avengers/Moon Knight/TPB/Moon Knight (2021)/Moon Knight #001 [May, 2022].cbz
+```
+
+---
+
+### 10. Franchise-first (custom field)
+
+For cross-publisher franchises like Star Wars, use a custom field to break them out into their own top-level folder regardless of publisher.
+
+**Folder:** `{<Custom(Franchise)>}/{<maincharacter>}/{<format>}/{<series>}{ (<year>)}/`
+**File:** `{<series>} {#<number3>} [{<month>}, {<year>}]`
+
+```
+Star Wars/Darth Vader/Main Series/Darth Vader (2020)/Darth Vader #001 [March, 2020].cbz
+Star Wars/X-Wing Rogue Squadron/Main Series/X-Wing Rogue Squadron (1995)/X-Wing Rogue Squadron #001 [July, 1995].cbz
+Star Wars/General/TPB/Star Wars Legends Epic Collection (2015)/Star Wars Legends Epic Collection #001 [March, 2015].cbz
+```
+
+---
+
 ## Physical Comics
 
 Physical comics do not use the Library Organizer because there is no file to move. Instead, they utilize a **Storage Location** text field (e.g. "Box 12", "Shelf A") to keep track of where the physical issue is located. This field can be updated directly from the comic detail page.
