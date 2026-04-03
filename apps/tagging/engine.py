@@ -5,6 +5,7 @@ Supports all 17 rule modifiers and 8 action modifiers from ComicRack's DataManag
 """
 
 import re
+from pathlib import Path
 from typing import Any
 
 from apps.core.models import Comic
@@ -45,10 +46,30 @@ FIELD_MAP = {
     "ADs": ("custom_values", "ADs"),
     "Review": ("custom_values", "Review"),
     "SeriesComplete": ("custom_values", "SeriesComplete"),
-    # File-based fields (read-only for rules, not settable via actions)
-    "FileName": "file_path",
+    # File-based fields (read-only, not settable via actions)
+    "FileName": "file_path",          # full path including filename+extension
+    "FileNameOnly": "__file_name__",  # filename + extension only
+    "FilePath": "__file_dir__",       # directory portion only (no filename)
+    "FileExtension": "__file_ext__",  # extension without leading dot
     "Original Format": "original_format",
 }
+
+# Sentinel values used in FIELD_MAP for path-derived computed fields
+_PATH_FIELDS = {"__file_name__", "__file_dir__", "__file_ext__"}
+
+
+def _get_path_field(comic: Comic, sentinel: str) -> str:
+    """Return a path-derived field value from comic.file_path."""
+    if not comic.file_path:
+        return ""
+    p = Path(comic.file_path)
+    if sentinel == "__file_name__":
+        return p.name
+    if sentinel == "__file_dir__":
+        return str(p.parent)
+    if sentinel == "__file_ext__":
+        return p.suffix.lstrip(".")
+    return ""
 
 
 def get_comic_field_value(comic: Comic, field_name: str) -> str:
@@ -72,6 +93,9 @@ def get_comic_field_value(comic: Comic, field_name: str) -> str:
         # Custom value field: ("custom_values", "key")
         _, key = mapping
         return str(comic.custom_values.get(key, ""))
+
+    if mapping in _PATH_FIELDS:
+        return _get_path_field(comic, mapping)
 
     # Direct model attribute
     value = getattr(comic, mapping, None)
@@ -104,7 +128,7 @@ def set_comic_field_value(comic: Comic, field_name: str, value: str) -> bool:
         return True
 
     # Direct model attribute - check if writable
-    if mapping in ("file_path",):  # Read-only fields
+    if mapping in ("file_path",) or mapping in _PATH_FIELDS:  # Read-only fields
         return False
 
     setattr(comic, mapping, value if value else None)
