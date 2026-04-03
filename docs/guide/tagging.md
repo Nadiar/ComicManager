@@ -96,9 +96,11 @@ Rules can match and modify the following fields:
 | `Tags` | Tags |
 | `Original Format` | Original format from source data |
 | `FileName` | Full path including filename and extension |
-| `FileNameOnly` | Filename and extension only (no directory) |
-| `FilePath` | Directory path only (no filename) |
-| `FileExtension` | File extension without leading dot (e.g. `cbz`) |
+| `FileNameOnly` | Filename and extension only (no directory) — ComicManager only |
+| `FilePath` | Directory path only (no filename) — ComicManager only |
+| `FileExtension` | File extension without leading dot (e.g. `cbz`) — ComicManager only |
+
+> **Compatibility note:** `FileNameOnly`, `FilePath`, and `FileExtension` are ComicManager-specific fields not recognized by Library Organizer. If you use any of them in a ruleset, the exported `.lop` file will not be importable into Library Organizer. Rulesets that only use standard fields (everything above those three) export to `.lop` files that work in both ComicManager and Library Organizer.
 
 **Organizational fields:**
 
