@@ -47,7 +47,8 @@ export default defineConfig({
           { text: 'Audit Log & Rollback', link: '/guide/audit-log' },
           { text: 'CBZ Page Manager', link: '/guide/page-manager' },
           { text: 'Missing Issues Detection', link: '/guide/missing-issues' },
-          { text: 'File Format Handling', link: '/guide/file-formats' }
+          { text: 'File Format Handling', link: '/guide/file-formats' },
+          { text: 'Bulk State Operations', link: '/guide/bulk-state' }
         ]
       },
       {
