@@ -73,3 +73,39 @@ The final active step is writing the `ComicInfo.xml` metadata *inside* the CBZ f
 The comic is fully processed and written. This view shows your entire library. If metadata is updated after writing, use the Maintenance queue to re-organize or re-write stale files.
 - **Purpose**: Overview of the complete library and ongoing sync tasks.
 - **Status**: Your comic is fully processed.
+
+## Run Full Pipeline
+
+For CBZ files where you want everything done in one go, the **Run Full Pipeline** button skips the manual step-by-step process and runs all 8 phases automatically.
+
+### Where to find it
+
+- **Per-row button**: On the New phase comic list, each CBZ row shows a **Run Pipeline** button next to Accept. Only CBZ files show this button; CBR and other formats do not.
+- **Bulk button**: The **Run Pipeline (All)** toolbar button on the New phase list runs the pipeline across every eligible CBZ in the table at once.
+
+### What it does
+
+For each comic, the pipeline runs these steps in order:
+
+1. **Accept**: copies proposed values (series, number, volume, year) to confirmed fields.
+2. **Scrape**: matches against ComicVine to fetch full metadata and cover.
+3. **Tag**: applies your DataManager rules (series group, main character, publisher standardization, etc.).
+4. **Format**: detects the format (One-Shot, TPB, Omnibus, etc.).
+5. **Deduplicate**: checks for duplicates. Stops here if a duplicate is found.
+6. **Organize**: moves the file into the library using your Organization Profile.
+7. **Write**: embeds ComicInfo.xml into the CBZ file. Comic is now Done.
+
+### Results modal
+
+After the pipeline finishes, a results modal opens:
+
+- **Single comic**: shows a detailed breakdown of each step; the ComicVine match (with cover), tag rule changes, format detection patterns, and old/new file path.
+- **Bulk run**: shows a summary table with one row per comic and the outcome (Written, Duplicate, Error).
+
+Comics identified as duplicates show a "View Original" link. Successfully processed comics show a "View Comic" link. Dismissing the modal reloads the page so the processed comics are removed from the New list.
+
+### Limitations
+
+- Only CBZ files are supported. CBR and CB7 files must be converted first (use the Convert button in the row), then run the pipeline.
+- The scrape step requires a ComicVine match. If no match is found the pipeline stops and marks the comic as an error. 
+- If a comic is flagged as a duplicate it stops at the deduplication step and is not moved or written.

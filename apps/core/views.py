@@ -479,54 +479,64 @@ def convert_cbr(request, pk):
     original_path = Path(comic.file_path)
     new_path = original_path.with_suffix(".cbz")
 
-    # Don't overwrite existing CBZ
+    # If a CBZ already exists alongside the CBR, the previous conversion created the
+    # file but failed to update the database record. Recover by updating the DB and
+    # deleting the original CBR instead of returning an error.
     if new_path.exists():
-        return JsonResponse({
-            "success": False,
-            "error": f"Target file already exists: {new_path.name}"
-        }, status=400)
+        try:
+            zipfile.ZipFile(new_path, "r").close()  # validate it's a real zip
+        except zipfile.BadZipFile:
+            new_path.unlink()  # corrupted — delete and let the conversion proceed
+        else:
+            # Valid CBZ exists: update the record and clean up the CBR
+            from django.db import IntegrityError
+            from .audit import log_batch_entry
+            try:
+                comic.file_path = str(new_path)
+                comic.file_format = "cbz"
+                comic.flags.pop("needs_conversion", None)
+                comic.save()
+            except IntegrityError as e:
+                err_msg = f"CBZ already assigned to another comic: {new_path.name}"
+                log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                                {"error": [None, err_msg]})
+                return JsonResponse({"success": False, "error": err_msg}, status=409)
+            if original_path.exists():
+                original_path.unlink()
+            log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                            {"path": [str(original_path), str(new_path)]})
+            return JsonResponse({
+                "success": True,
+                "message": f"Recovered existing CBZ: {new_path.name}",
+                "new_path": str(new_path),
+            })
 
     try:
-        # Import patoolib lazily (only needed for conversion)
         import patoolib
 
-        # Create temp directory for extraction
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Extract archive using patoolib
             patoolib.extract_archive(str(original_path), outdir=temp_dir, verbosity=-1)
 
-            # Create new CBZ (ZIP file)
             with zipfile.ZipFile(new_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 for root, dirs, files in os.walk(temp_dir):
-                    # Skip __MACOSX and hidden directories
                     dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__MACOSX"]
-
                     for file in sorted(files):
-                        # Skip hidden files and metadata
                         if file.startswith(".") or file == "Thumbs.db":
                             continue
-
                         file_path = Path(root) / file
-                        # Calculate archive path (relative to temp_dir)
                         arc_path = file_path.relative_to(temp_dir)
                         zf.write(file_path, arc_path)
 
-        # Update comic record
         old_path_str = comic.file_path
         comic.file_path = str(new_path)
         comic.file_format = "cbz"
-
-        # Remove needs_conversion flag
-        if comic.flags and "needs_conversion" in comic.flags:
-            del comic.flags["needs_conversion"]
-            # Keep as empty dict, not None (NOT NULL constraint)
-            if not comic.flags:
-                comic.flags = {}
-
+        comic.flags.pop("needs_conversion", None)
         comic.save()
-
-        # Delete original file after successful conversion
         original_path.unlink()
+
+        from .audit import log_batch_entry
+        log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                        {"path": [old_path_str, str(new_path)]})
 
         return JsonResponse({
             "success": True,
@@ -535,13 +545,15 @@ def convert_cbr(request, pk):
         })
 
     except Exception as e:
-        # Clean up partial CBZ if it exists
         if new_path.exists():
             new_path.unlink()
-
+        err_msg = str(e)
+        from .audit import log_batch_entry
+        log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                        {"error": [None, err_msg]})
         return JsonResponse({
             "success": False,
-            "error": str(e)
+            "error": err_msg,
         }, status=500)
 
 
@@ -1550,6 +1562,56 @@ def scrape_all_comics(request):
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Scraping {total} comics in background"})
 
 
+@require_POST
+def run_full_pipeline(request):
+    """
+    Dispatch a Celery task to run the full import pipeline.
+
+    If 'comic_id' is provided, processes that single comic.
+    Otherwise processes all eligible STATE_NEW comics.
+
+    Processes each comic through: accept, scrape, tag, format, deduplicate, organize, write.
+    Stops per-comic at deduplication if a duplicate is found.
+    """
+    from celery.result import AsyncResult
+    from apps.dashboard.tasks import run_full_pipeline_task
+
+    active = request.session.get("pipeline_task_id")
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse(
+            {"success": False, "error": "Pipeline is already running", "task_id": active},
+            status=409,
+        )
+
+    comic_id = request.POST.get("comic_id")
+    if comic_id:
+        comic = get_object_or_404(Comic, pk=comic_id)
+        if comic.state != Comic.STATE_NEW:
+            return JsonResponse(
+                {"success": False, "error": f"Comic is not in new state (current: {comic.state})"},
+                status=400,
+            )
+        if comic.file_format != "cbz":
+            return JsonResponse(
+                {"success": False, "error": f"Pipeline only supports CBZ files (this is {comic.file_format or 'unknown'})"},
+                status=400,
+            )
+        comic_ids = [str(comic.pk)]
+    else:
+        comic_ids = list(
+            Comic.objects.filter(state=Comic.STATE_NEW, file_format="cbz")
+            .exclude(proposed_series__isnull=True)
+            .exclude(proposed_series="")
+            .values_list("pk", flat=True)
+        )
+        comic_ids = [str(pk) for pk in comic_ids]
+        if not comic_ids:
+            return JsonResponse({"success": True, "task_id": None, "total": 0,
+                                 "message": "No eligible CBZ comics in new state"})
+
+    result = run_full_pipeline_task.delay(comic_ids)
+    request.session["pipeline_task_id"] = result.id
+    return JsonResponse({"success": True, "task_id": result.id, "total": len(comic_ids)})
 
 
 def _populate_missing_counts():
@@ -2850,6 +2912,7 @@ def _clear_task_session(request, task_id):
         "audit_task_id",
         "reorganize_task_id",
         "smartlist_action_task_id",
+        "pipeline_task_id",
         "active_task_id",
     )
     for key in session_keys:

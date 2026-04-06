@@ -204,6 +204,15 @@
       >
         Accept All
       </button>
+      <button
+        type="button"
+        id="run-pipeline-all-btn"
+        class="btn btn-sm btn-primary"
+        onclick="runAllPipeline(this)"
+        title="Run full pipeline on all new comics"
+      >
+        Run Pipeline (All)
+      </button>
       {% endif %}
       {% if current_state == 'scrape' and comics or current_flag == 'metadata_mismatch' and comics %}
       <label class="label cursor-pointer gap-2 mr-2">
@@ -467,6 +476,16 @@
             >
               {% if current_flag %}Add to Workflow{% else %}Accept{% endif %}
             </button>
+            {% if comic.file_format == 'cbz' %}
+            <button
+              type="button"
+              class="btn btn-xs btn-primary"
+              onclick="runSinglePipeline('{{ comic.pk }}', this)"
+              title="Run full pipeline: accept, scrape, tag, format, deduplicate, organize, write"
+            >
+              Run Pipeline
+            </button>
+            {% endif %}
             {% endif %}
             {% if comic.state == 'scrape' or current_flag == 'metadata_mismatch' %}
             <button
@@ -860,6 +879,26 @@
   <form method="dialog" class="modal-backdrop">
     <button>close</button>
   </form>
+</dialog>
+
+<!-- Full Pipeline Results Modal -->
+<dialog id="pipeline-result-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-2xl w-full">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-lg" id="pipeline-modal-title">Pipeline Complete</h3>
+      <span id="pipeline-modal-badge" class="badge badge-lg"></span>
+    </div>
+
+    <div id="pipeline-modal-body" class="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+      <!-- Populated by JS -->
+    </div>
+
+    <div class="modal-action mt-4">
+      <a id="pipeline-view-comic-btn" href="#" class="btn btn-ghost hidden" target="_blank" rel="noopener">View Comic</a>
+      <button class="btn btn-primary" onclick="window.location.reload()">Dismiss</button>
+    </div>
+  </div>
+  <div class="modal-backdrop" onclick="window.location.reload()"></div>
 </dialog>
 
 <style>
@@ -1795,19 +1834,23 @@ function convertComic(pk, btn) {
         formatCell.textContent = 'cbz';
       }
     } else {
+      const errMsg = data.error || 'Conversion failed';
       btn.classList.remove('btn-primary');
       btn.classList.add('btn-error');
       btn.innerHTML = 'Error';
-      btn.title = data.error;
+      btn.title = errMsg;
       btn.disabled = false;
+      window.showMsgToast('Convert failed: ' + errMsg, 'error');
     }
   })
   .catch(err => {
+    const errMsg = err.toString();
     btn.classList.remove('btn-primary');
     btn.classList.add('btn-error');
     btn.innerHTML = 'Error';
-    btn.title = err.toString();
+    btn.title = errMsg;
     btn.disabled = false;
+    window.showMsgToast('Convert failed: ' + errMsg, 'error');
   });
 }
 
@@ -2684,5 +2727,347 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 });
+
+// ── Full Pipeline ────────────────────────────────────────────────────────────
+
+let _pipelinePollTimer = null;
+
+function runAllPipeline(btn) {
+  window.showConfirm(
+    'Run the full pipeline on ALL new comics? Steps: accept, scrape, tag, format, deduplicate, organize, write.\n\nComics identified as duplicates will stop at deduplication.',
+    function() {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Running...';
+
+      fetch('/comics/run-pipeline/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken() },
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.success) {
+          btn.disabled = false;
+          btn.innerHTML = 'Run Pipeline (All)';
+          window.showQuickToast(data.error || 'Failed to start pipeline', 'error');
+          return;
+        }
+        if (!data.task_id) {
+          btn.disabled = false;
+          btn.innerHTML = 'Run Pipeline (All)';
+          window.showQuickToast('No eligible new comics found', 'info');
+          return;
+        }
+        if (window.startTaskPolling) {
+          window.startTaskPolling(data.task_id, 'Running pipeline (' + data.total + ' comics)');
+        }
+        _pollPipelineCompletion(data.task_id, btn);
+      })
+      .catch(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = 'Run Pipeline (All)';
+        window.showQuickToast(String(err), 'error');
+      });
+    }
+  );
+}
+
+function runSinglePipeline(comicId, btn) {
+  window.showConfirm(
+    'Run the full pipeline on this comic? Steps: accept, scrape, tag, format, deduplicate, organize, write.\n\nWill stop at deduplication if a duplicate is found.',
+    function() {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span>';
+
+      var formData = new FormData();
+      formData.append('comic_id', comicId);
+
+      fetch('/comics/run-pipeline/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCsrfToken() },
+        body: formData,
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data.success) {
+          btn.disabled = false;
+          btn.innerHTML = 'Run Pipeline';
+          window.showQuickToast(data.error || 'Failed to start pipeline', 'error');
+          return;
+        }
+        if (window.startTaskPolling) {
+          window.startTaskPolling(data.task_id, 'Running pipeline');
+        }
+        _pollPipelineCompletion(data.task_id, btn);
+      })
+      .catch(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = 'Run Pipeline';
+        window.showQuickToast(String(err), 'error');
+      });
+    }
+  );
+}
+
+function _pollPipelineCompletion(taskId, btn) {
+  fetch('/comics/task-progress/' + taskId + '/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.state === 'SUCCESS') {
+        _openPipelineModal(data.result || {});
+        if (btn) {
+          btn.innerHTML = 'Done';
+          btn.classList.remove('btn-primary');
+          btn.classList.add('btn-success');
+        }
+      } else if (data.state === 'FAILURE') {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = 'Run Pipeline';
+        }
+        window.showQuickToast('Pipeline failed: ' + (data.error || 'Unknown error'), 'error');
+      } else {
+        _pipelinePollTimer = setTimeout(function() {
+          _pollPipelineCompletion(taskId, btn);
+        }, 2000);
+      }
+    })
+    .catch(function() {
+      _pipelinePollTimer = setTimeout(function() {
+        _pollPipelineCompletion(taskId, btn);
+      }, 4000);
+    });
+}
+
+function _openPipelineModalBulk(result) {
+  if (window.dismissTaskToast) {
+    window.dismissTaskToast = function() {
+      var toast = document.getElementById('task-progress-toast');
+      if (toast) toast.classList.add('hidden');
+    };
+  }
+
+  var badgeMap = { success: ['badge-success', 'Written'], duplicate: ['badge-warning', 'Duplicate'], error: ['badge-error', 'Error'] };
+
+  document.getElementById('pipeline-modal-title').textContent = 'Pipeline Complete — ' + (result.total || 0) + ' comics';
+  var badgeEl = document.getElementById('pipeline-modal-badge');
+  badgeEl.className = 'badge badge-lg ' + (result.error_count > 0 ? 'badge-error' : result.duplicate_count > 0 ? 'badge-warning' : 'badge-success');
+  var parts = [];
+  if (result.success_count   > 0) parts.push(result.success_count + ' written');
+  if (result.duplicate_count > 0) parts.push(result.duplicate_count + ' dupes');
+  if (result.error_count     > 0) parts.push(result.error_count + ' errors');
+  badgeEl.textContent = parts.join(', ') || 'Done';
+
+  document.getElementById('pipeline-view-comic-btn').classList.add('hidden');
+
+  var body = document.getElementById('pipeline-modal-body');
+  var rows = (result.results || []).map(function(r) {
+    var badge = badgeMap[r.outcome] || ['badge-neutral', r.outcome];
+    var detail = '';
+    if (r.outcome === 'duplicate') detail = 'Duplicate of: ' + _escHtml(r.duplicate_of_title || 'Unknown');
+    else if (r.outcome === 'error') detail = _escHtml(r.error || '');
+
+    var link = '';
+    if (r.outcome === 'duplicate' && r.duplicate_of_pk) {
+      link = '<a href="/comics/' + r.duplicate_of_pk + '/" class="btn btn-xs btn-ghost" target="_blank" rel="noopener">View Original</a>';
+    } else if (r.pk) {
+      link = '<a href="/comics/' + r.pk + '/" class="btn btn-xs btn-ghost" target="_blank" rel="noopener">View</a>';
+    }
+
+    return '<tr>' +
+      '<td class="font-medium text-sm">' + _escHtml(r.title || '?') + '</td>' +
+      '<td><span class="badge badge-sm ' + badge[0] + '">' + badge[1] + '</span></td>' +
+      '<td class="text-xs text-base-content/60 max-w-xs truncate" title="' + _escHtml(detail) + '">' + detail + '</td>' +
+      '<td>' + link + '</td>' +
+    '</tr>';
+  }).join('');
+
+  body.innerHTML =
+    '<table class="table table-sm table-zebra w-full">' +
+      '<thead><tr><th>Comic</th><th>Outcome</th><th>Details</th><th></th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+
+  document.getElementById('pipeline-result-modal').showModal();
+}
+
+function _openPipelineModal(result) {
+  // Prevent the toast's 5-second auto-dismiss from reloading the page while the modal is open.
+  if (window.dismissTaskToast) {
+    window.dismissTaskToast = function() {
+      var toast = document.getElementById('task-progress-toast');
+      if (toast) toast.classList.add('hidden');
+    };
+  }
+
+  if ((result.total || 0) > 1) {
+    _openPipelineModalBulk(result);
+    return;
+  }
+
+  var r = (result.results || [])[0] || {};
+  var outcome = r.outcome || 'error';
+
+  // Header badge
+  var badgeMap = { success: ['badge-success', 'Written'], duplicate: ['badge-warning', 'Duplicate'], error: ['badge-error', 'Error'] };
+  var badge = badgeMap[outcome] || ['badge-neutral', outcome];
+  document.getElementById('pipeline-modal-title').textContent = r.title || 'Pipeline Complete';
+  var badgeEl = document.getElementById('pipeline-modal-badge');
+  badgeEl.className = 'badge badge-lg ' + badge[0];
+  badgeEl.textContent = badge[1];
+
+  // View Comic button
+  var viewBtn = document.getElementById('pipeline-view-comic-btn');
+  if (r.pk && outcome !== 'duplicate') {
+    viewBtn.href = '/comics/' + r.pk + '/';
+    viewBtn.textContent = 'View Comic';
+    viewBtn.classList.remove('hidden');
+  } else if (r.duplicate_of_pk) {
+    viewBtn.href = '/comics/' + r.duplicate_of_pk + '/';
+    viewBtn.textContent = 'View Original';
+    viewBtn.classList.remove('hidden');
+  } else {
+    viewBtn.classList.add('hidden');
+  }
+
+  var body = document.getElementById('pipeline-modal-body');
+  body.innerHTML = '';
+
+  // Error banner (shown when outcome is error or duplicate)
+  if (outcome === 'error' && r.error) {
+    body.innerHTML += _pipelineSection('error', 'Pipeline stopped',
+      '<p class="text-sm text-error font-mono">' + _escHtml(r.error) + '</p>');
+  }
+  if (outcome === 'duplicate') {
+    body.innerHTML += _pipelineSection('warning', 'Duplicate detected',
+      '<p class="text-sm">This comic is a duplicate of <strong>' +
+      _escHtml(r.duplicate_of_title || 'Unknown') + '</strong>. Processing stopped here.</p>');
+  }
+
+  // Scrape section
+  if (r.scrape) {
+    var s = r.scrape;
+    var scrapeContent = '';
+    if (s.matched) {
+      scrapeContent +=
+        '<div class="flex gap-3 mb-2">' +
+          '<div class="text-center">' +
+            '<img src="/comics/' + _escHtml(r.pk) + '/cover/" ' +
+                 'class="w-16 h-20 object-cover rounded border border-base-300" ' +
+                 'alt="File cover" onerror="this.style.display=\'none\'">' +
+            '<div class="text-xs text-base-content/50 mt-1">File</div>' +
+          '</div>' +
+          (s.cv_cover_url
+            ? '<div class="text-center">' +
+                '<img src="' + _escHtml(s.cv_cover_url) + '" ' +
+                     'class="w-16 h-20 object-cover rounded border border-base-300" ' +
+                     'alt="CV cover" onerror="this.style.display=\'none\'">' +
+                '<div class="text-xs text-base-content/50 mt-1">CV match</div>' +
+              '</div>'
+            : '') +
+          '<div class="flex-1 text-sm">' +
+            '<div class="font-medium">' + _escHtml(s.series || '') + ' #' + _escHtml(s.number || '') + '</div>' +
+            (s.title ? '<div class="text-base-content/70 italic text-xs">' + _escHtml(s.title) + '</div>' : '') +
+            '<div class="text-base-content/60 text-xs mt-1">' + _escHtml(s.publisher || '') + '</div>' +
+            '<div class="text-base-content/40 text-xs font-mono mt-1">' + _escHtml(s.match_type || '') + (s.issue_id ? ' · CV #' + s.issue_id : '') + '</div>' +
+          '</div>' +
+        '</div>';
+    } else {
+      scrapeContent = '<p class="text-sm text-warning">No match found — comic stopped here.</p>';
+    }
+    body.innerHTML += _pipelineSection(s.matched ? 'success' : 'warning', 'Scrape', scrapeContent);
+  }
+
+  // Tag section
+  if (r.tag) {
+    var t = r.tag;
+    var tagContent = '';
+    if (t.matched_count === 0) {
+      tagContent = '<p class="text-sm text-base-content/60">No rulesets matched.</p>';
+    } else {
+      tagContent += '<div class="flex gap-4 mb-2 text-sm">' +
+        '<span><span class="font-medium">' + t.matched_count + '</span> <span class="text-base-content/60">rulesets matched</span></span>' +
+        '<span><span class="font-medium">' + t.changes_count + '</span> <span class="text-base-content/60">changes</span></span>' +
+      '</div>';
+      tagContent += '<div class="text-xs text-base-content/60 mb-2">Matched: ' + _escHtml(t.matched_rulesets.join(', ')) + '</div>';
+      if (t.changes && t.changes.length > 0) {
+        tagContent += '<table class="table table-xs w-full"><thead><tr><th>Field</th><th>Action</th><th>Value</th></tr></thead><tbody>';
+        t.changes.forEach(function(c) {
+          tagContent += '<tr><td>' + _escHtml(c.field) + '</td><td>' + _escHtml(c.action) + '</td><td class="font-mono">' + _escHtml(c.new_value) + '</td></tr>';
+        });
+        tagContent += '</tbody></table>';
+      }
+    }
+    body.innerHTML += _pipelineSection('success', 'Tag', tagContent);
+  }
+
+  // Format section
+  if (r.format) {
+    var f = r.format;
+    var fmtContent = '<div class="flex gap-4 mb-2 text-sm">' +
+      '<span>Series: <span class="font-medium">' + _escHtml(f.series || '-') + '</span></span>' +
+      '<span>Count: <span class="font-medium">' + (f.count != null ? f.count : '-') + '</span></span>' +
+      '<span>Pages: <span class="font-medium">' + (f.page_count || '-') + '</span></span>' +
+    '</div>';
+    if (f.title) {
+      fmtContent += '<div class="text-xs text-base-content/60 mb-2 italic">' + _escHtml(f.title) + '</div>';
+    }
+    var fmtResult = f.format_changed
+      ? 'Changed: <span class="line-through text-base-content/40">' + _escHtml(f.old_format || 'none') + '</span> → <strong>' + _escHtml(f.new_format || 'none') + '</strong>'
+      : 'Format: <strong>' + _escHtml(f.new_format || 'none') + '</strong>';
+    fmtContent += '<div class="text-sm mb-2">' + fmtResult + '</div>';
+    if (f.patterns_checked && f.patterns_checked.length) {
+      fmtContent += '<div class="grid grid-cols-1 gap-0.5 text-xs">';
+      f.patterns_checked.forEach(function(p) {
+        fmtContent += '<div class="' + (p.matched ? 'text-success font-medium' : 'text-base-content/40') + '">' +
+          (p.matched ? '✓ ' : '○ ') + _escHtml(p.pattern) + '</div>';
+      });
+      fmtContent += '</div>';
+    }
+    body.innerHTML += _pipelineSection('success', 'Format', fmtContent);
+  }
+
+  // Organize section
+  if (r.organize) {
+    var o = r.organize;
+    var orgContent = '';
+    if (o.moved) {
+      orgContent =
+        '<div class="text-xs font-mono space-y-1">' +
+          '<div class="text-base-content/50">From</div>' +
+          '<div class="break-all text-base-content/80">' + _escHtml(o.old_path || '-') + '</div>' +
+          '<div class="text-base-content/50 mt-1">To</div>' +
+          '<div class="break-all text-success">' + _escHtml(o.new_path || '-') + '</div>' +
+        '</div>';
+    } else {
+      orgContent = '<div class="text-xs font-mono break-all text-base-content/60">' + _escHtml(o.new_path || o.old_path || '-') + '</div>' +
+        '<div class="text-xs text-base-content/40 mt-1">File already in correct location</div>';
+    }
+    body.innerHTML += _pipelineSection('success', 'Organize', orgContent);
+  }
+
+  document.getElementById('pipeline-result-modal').showModal();
+}
+
+function _pipelineSection(type, label, content) {
+  var iconMap = { success: '✓', warning: '!', error: '✕' };
+  var colorMap = { success: 'text-success', warning: 'text-warning', error: 'text-error' };
+  var icon = iconMap[type] || '·';
+  var color = colorMap[type] || 'text-base-content';
+  return '<div class="bg-base-200 rounded-box p-3">' +
+    '<div class="flex items-center gap-2 mb-2">' +
+      '<span class="font-bold text-xs ' + color + '">' + icon + '</span>' +
+      '<span class="font-semibold text-sm">' + _escHtml(label) + '</span>' +
+    '</div>' +
+    '<div>' + content + '</div>' +
+  '</div>';
+}
+
+function _escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 </script>
 {% endblock %}

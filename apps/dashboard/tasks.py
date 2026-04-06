@@ -306,3 +306,279 @@ def _run_write(comic):
     # Sync last_written to updated_at so the comic is not immediately stale
     Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
     log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
+
+
+@shared_task(bind=True, name="dashboard.run_full_pipeline", queue="write")
+def run_full_pipeline_task(self, comic_ids: list):
+    """
+    Run the full import pipeline on a list of comics in STATE_NEW.
+
+    Steps per comic:
+      1. Accept (proposed values -> confirmed, STATE_NEW -> STATE_IMPORTED)
+      2. Scrape (ComicVine local db or API)
+      3. Tag (DataManager rules, STATE_TAGGED)
+      4. Advance STATE_TAGGED -> STATE_FORMATTED (mirrors tag_all_task logic)
+      5. Format detection (STATE_FORMATTED -> STATE_DEDUPLICATED)
+      6. Deduplicate — stops here if comic.is_duplicate is True
+      7. Organize (move file, -> STATE_WRITTEN)
+      8. Write ComicInfo.xml
+
+    Captures per-step detail (scrape match, tag changes, format patterns, file paths)
+    for display in the results modal.
+    """
+    import re
+    from apps.core.models import Comic
+    from apps.core.audit import log_batch_entry
+    from apps.core.services import detect_format, OMNIBUS_MIN_PAGES, TPB_MIN_PAGES, TPB_ISSUE_RANGE_RE
+    from apps.scraper.comicvine import ComicVineScraper
+    from apps.scraper.services import find_best_match, apply_cv_match
+    from apps.tagging.engine import apply_datamanager_rules, is_publisher_known
+    from apps.duplicates.services import run_duplicate_detection
+
+    total = len(comic_ids)
+    results = []
+    errors = []
+
+    self.update_state(
+        state="PROGRESS",
+        meta={"current": 0, "total": total, "processed": 0, "errors": []},
+    )
+
+    scraper = ComicVineScraper()
+
+    for i, comic_id in enumerate(comic_ids):
+        from apps.core.tasks import is_cancelled, clear_cancel
+        if is_cancelled(self.request.id):
+            clear_cancel(self.request.id)
+            return {
+                "total": total, "processed": i, "results": results,
+                "errors": errors, "cancelled": True,
+                "success_count": sum(1 for r in results if r["outcome"] == "success"),
+                "duplicate_count": sum(1 for r in results if r["outcome"] == "duplicate"),
+                "error_count": sum(1 for r in results if r["outcome"] == "error"),
+            }
+
+        try:
+            comic = Comic.objects.get(pk=comic_id)
+        except Comic.DoesNotExist:
+            results.append({
+                "pk": str(comic_id), "title": "Unknown",
+                "outcome": "error", "stopped_at": "load",
+                "error": "Comic not found",
+                "duplicate_of_pk": None, "duplicate_of_title": None,
+                "scrape": None, "tag": None, "format": None, "organize": None,
+            })
+            errors.append(f"Comic {comic_id}: not found")
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i + 1, "total": total, "processed": i + 1, "errors": errors},
+            )
+            continue
+
+        title = (
+            f"{comic.proposed_series or comic.series or '?'} "
+            f"#{comic.proposed_number or comic.number or '?'}"
+        )
+        result = {
+            "pk": str(comic.pk), "title": title, "outcome": "success",
+            "stopped_at": None, "error": None,
+            "duplicate_of_pk": None, "duplicate_of_title": None,
+            "scrape": None, "tag": None, "format": None, "organize": None,
+        }
+
+        if comic.file_format != "cbz":
+            result["outcome"] = "error"
+            result["error"] = f"Skipped: pipeline only supports CBZ (file is {comic.file_format or 'unknown'})"
+            errors.append(f"{title}: not a CBZ file")
+            results.append(result)
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i + 1, "total": total, "processed": i + 1, "errors": errors},
+            )
+            continue
+
+        try:
+            # Step 1: Accept
+            if comic.state == Comic.STATE_NEW:
+                comic.series = comic.proposed_series
+                comic.number = comic.proposed_number
+                comic.volume = comic.proposed_volume
+                comic.year = comic.proposed_year
+                comic.state = Comic.STATE_IMPORTED
+                comic.save()
+
+            # Step 2: Scrape — inline to capture match detail
+            for key in ("scrape_no_match", "scrape_error", "scrape_error_detail"):
+                comic.flags.pop(key, None)
+
+            match = find_best_match(comic, scraper)
+            if match:
+                apply_cv_match(comic, match, scraper, insert_covers=False)
+                result["scrape"] = {
+                    "matched": True,
+                    "match_type": getattr(match, "match_type", ""),
+                    "series": match.series,
+                    "number": match.issue_number,
+                    "title": match.title,
+                    "publisher": match.publisher,
+                    "issue_id": match.issue_id,
+                    "cv_cover_url": getattr(match, "cover_url", None),
+                }
+            else:
+                comic.add_flag("scrape_no_match")
+                comic.save(update_fields=["flags"])
+                result["scrape"] = {"matched": False}
+                raise Exception(f"No CV match found for {comic.series} #{comic.number}")
+
+            # Step 3: Tag — inline to capture rule changes
+            before_series_group = comic.series_group
+            before_main_char = comic.main_character_or_team
+
+            tag_result = apply_datamanager_rules(comic, save=False)
+            comic.custom_values["DataManager_Processed"] = "Yes"
+
+            if comic.publisher and comic.has_flag("unknown_publisher"):
+                if is_publisher_known(comic.publisher):
+                    comic.remove_flag("unknown_publisher")
+
+            state_before_tag = comic.state
+            if comic.state in (
+                Comic.STATE_NEW, Comic.STATE_IMPORTED,
+                Comic.STATE_SCRAPED, Comic.STATE_COUNTED,
+            ):
+                comic.state = Comic.STATE_TAGGED
+
+            comic.save()
+
+            audit_changes = {}
+            if comic.series_group != before_series_group:
+                audit_changes["series_group"] = [before_series_group, comic.series_group]
+            if comic.main_character_or_team != before_main_char:
+                audit_changes["main_character_or_team"] = [before_main_char, comic.main_character_or_team]
+            if comic.state != state_before_tag:
+                audit_changes["state"] = [state_before_tag, comic.state]
+            log_batch_entry("run_pipeline", comic, state_before_tag, comic.state, audit_changes)
+
+            result["tag"] = {
+                "matched_rulesets": tag_result["matched_rulesets"],
+                "matched_count": tag_result["matched_count"],
+                "changes": [
+                    {
+                        "field": c.get("field", ""),
+                        "action": c.get("action", ""),
+                        "new_value": str(c.get("new_value", "")),
+                    }
+                    for c in tag_result["changes"]
+                ],
+                "changes_count": tag_result["changes_count"],
+            }
+
+            # Step 4: Advance TAGGED -> FORMATTED (mirrors tag_all_task inline logic)
+            comic.refresh_from_db(fields=["state"])
+            if comic.state == Comic.STATE_TAGGED:
+                comic.state = Comic.STATE_FORMATTED
+                comic.save(update_fields=["state", "updated_at"])
+                log_batch_entry(
+                    "run_pipeline", comic, Comic.STATE_TAGGED, Comic.STATE_FORMATTED, {}
+                )
+
+            # Step 5: Format detection — capture detail, then run _run_format
+            old_format = comic.format
+            detected_format = detect_format(comic)
+            _text = f"{comic.series or ''} {comic.title or ''}"
+            _summary = comic.summary or ""
+            _pages = comic.page_count or 0
+
+            _run_format(comic)
+
+            result["format"] = {
+                "old_format": old_format,
+                "new_format": comic.format,
+                "detected_format": detected_format,
+                "format_changed": old_format != comic.format,
+                "series": comic.series,
+                "title": comic.title,
+                "count": comic.count,
+                "page_count": _pages,
+                "patterns_checked": [
+                    {"pattern": "Director's Cut (text)",
+                     "matched": detected_format == "Director's Cut"},
+                    {"pattern": "Black & White (text)",
+                     "matched": detected_format == "Black & White"},
+                    {"pattern": "Omnibus (keyword in title/summary)",
+                     "matched": detected_format == "Omnibus" and bool(
+                         re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
+                    {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)",
+                     "matched": detected_format == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not
+                         re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
+                    {"pattern": "TPB (keyword)",
+                     "matched": detected_format == "TPB" and bool(
+                         re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
+                    {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)",
+                     "matched": detected_format == "TPB" and _pages >= TPB_MIN_PAGES and bool(
+                         TPB_ISSUE_RANGE_RE.search(_summary))},
+                    {"pattern": "Annual (keyword)",
+                     "matched": detected_format == "Annual"},
+                    {"pattern": "One-Shot (count=1)",
+                     "matched": detected_format == "One-Shot"},
+                    {"pattern": "Limited Series (count 2-15)",
+                     "matched": detected_format == "Limited Series"},
+                    {"pattern": "Main Series (count>15)",
+                     "matched": detected_format == "Main Series"},
+                ],
+            }
+
+            # Step 6: Deduplicate
+            run_duplicate_detection()
+            comic.refresh_from_db()
+
+            if comic.is_duplicate:
+                dup = comic.duplicate_of
+                result["outcome"] = "duplicate"
+                result["stopped_at"] = "deduplicate"
+                result["duplicate_of_pk"] = str(dup.pk) if dup else None
+                result["duplicate_of_title"] = (
+                    f"{dup.series} #{dup.number}" if dup else "Unknown"
+                )
+                results.append(result)
+                errors.append(f"{title}: duplicate of {result['duplicate_of_title']}")
+                self.update_state(
+                    state="PROGRESS",
+                    meta={"current": i + 1, "total": total, "processed": i + 1, "errors": errors},
+                )
+                continue
+
+            # Step 7: Organize — capture old path before moving
+            old_path = comic.file_path
+            _run_organize(comic)
+            comic.refresh_from_db(fields=["file_path"])
+            result["organize"] = {
+                "old_path": old_path,
+                "new_path": comic.file_path,
+                "moved": old_path != comic.file_path,
+            }
+
+            # Step 8: Write ComicInfo.xml
+            _run_write(comic)
+
+        except Exception as e:
+            result["outcome"] = "error"
+            result["error"] = str(e)
+            errors.append(f"{title}: {str(e)}")
+
+        results.append(result)
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": i + 1, "total": total, "processed": i + 1, "errors": errors},
+        )
+
+    return {
+        "total": total,
+        "processed": len(results),
+        "success_count": sum(1 for r in results if r["outcome"] == "success"),
+        "duplicate_count": sum(1 for r in results if r["outcome"] == "duplicate"),
+        "error_count": sum(1 for r in results if r["outcome"] == "error"),
+        "results": results,
+        "errors": errors,
+        "cancelled": False,
+    }

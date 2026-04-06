@@ -11,6 +11,7 @@ urlpatterns = [
     path("convert-all-zip/", views.convert_all_zip, name="convert_all_zip"),
     path("accept-all/", views.accept_all_comics, name="accept_all"),
     path("scrape-all/", views.scrape_all_comics, name="scrape_all"),
+    path("run-pipeline/", views.run_full_pipeline, name="run_pipeline"),
     path("populate-counts/", views.populate_counts, name="populate_counts"),
     path("detect-count-mismatches/", views.detect_count_mismatches, name="detect_count_mismatches"),
     path("fix-count-mismatches/", views.fix_count_mismatches, name="fix_count_mismatches"),

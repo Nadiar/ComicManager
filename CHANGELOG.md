@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Run Full Pipeline**: A single-click button that runs all 8 import phases automatically for CBZ files in the New state. Available as a per-row button (single comic) and a toolbar button (all eligible CBZ comics in the list). Each comic is accepted, scraped, tagged, formatted, deduplicated, organized, and written in sequence. Duplicate detection stops processing early and marks the comic accordingly. After completion a results modal shows a per-step breakdown for single runs or a summary table for bulk runs, with "View Comic" and "View Original" links. Non-CBZ files are excluded; CBR files must be converted to CBZ first.
+
+- **CBR conversion audit logging and error recovery**: Converting a CBR or CB7 file to CBZ now logs every outcome to the Batch Audit Log (success, recovered, and error). If a CBZ already exists alongside the CBR from a partial previous conversion, the DB record is recovered and the original CBR cleaned up instead of returning an error. If the CBZ path is already assigned to a different comic record, a clear error is shown in a toast notification and logged to the batch log.
+
 - **Populate Counts background task (P3.2)**: The synchronous "Populate Counts" and "Detect Count Mismatches" actions are now wrapped in a single Celery task (`populate_counts_task`) with progress reporting and cooperative cancellation. Dispatched via POST to `/comics/populate-counts-all/`. Runs in two phases: first populates missing counts from the CV SQLite DB, then detects count mismatches within volumes.
 
 - **Unknown Publisher flagging (P4.5)**: After scraping, comics whose publisher is not covered by any enabled DataManager ruleset's Publisher rules are automatically flagged `unknown_publisher`. The flag appears in the dashboard Review Queue. Supports all rule modifiers (Is, Contains, StartsWith, RegEx, etc.) for matching. The flag is cleared on re-scrape, re-tag, or batch re-tag when the publisher becomes covered by a ruleset.

@@ -418,8 +418,39 @@ def convert_all_cbr_task(self):
         new_path = original_path.with_suffix(".cbz")
 
         if new_path.exists():
-            errors.append(f"{comic.proposed_series} #{comic.proposed_number}: target already exists")
-            continue
+            try:
+                zipfile.ZipFile(new_path, "r").close()
+            except zipfile.BadZipFile:
+                new_path.unlink()
+            else:
+                # Valid CBZ already exists — recover DB record
+                from django.db import IntegrityError
+                from .audit import log_batch_entry
+                try:
+                    comic.file_path = str(new_path)
+                    comic.file_format = "cbz"
+                    comic.flags.pop("needs_conversion", None)
+                    comic.save()
+                except IntegrityError:
+                    err_msg = f"CBZ already assigned to another comic: {new_path.name}"
+                    errors.append(f"{comic.proposed_series} #{comic.proposed_number}: {err_msg}")
+                    log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                                    {"error": [None, err_msg]})
+                    self.update_state(
+                        state="PROGRESS",
+                        meta={"current": i + 1, "total": total, "processed": converted, "errors": errors},
+                    )
+                    continue
+                if original_path.exists():
+                    original_path.unlink()
+                log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                                {"path": [str(original_path), str(new_path)]})
+                converted += 1
+                self.update_state(
+                    state="PROGRESS",
+                    meta={"current": i + 1, "total": total, "processed": converted, "errors": errors},
+                )
+                continue
 
         try:
             import patoolib
@@ -445,6 +476,9 @@ def convert_all_cbr_task(self):
                     comic.flags = {}
             comic.save()
             original_path.unlink()
+            from .audit import log_batch_entry
+            log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                            {"path": [str(original_path), str(new_path)]})
             converted += 1
 
         except (PermissionError, OSError) as e:
@@ -454,6 +488,9 @@ def convert_all_cbr_task(self):
                 new_path.unlink()
             err_msg = str(e)
             errors.append(f"{comic.proposed_series} #{comic.proposed_number}: {err_msg}")
+            from .audit import log_batch_entry
+            log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                            {"error": [None, err_msg]})
             self.update_state(
                 state="PROGRESS",
                 meta={"current": i + 1, "total": total, "processed": converted, "errors": errors},
@@ -464,7 +501,11 @@ def convert_all_cbr_task(self):
         except Exception as e:
             if new_path.exists():
                 new_path.unlink()
-            errors.append(f"{comic.proposed_series} #{comic.proposed_number}: {str(e)}")
+            err_msg = str(e)
+            errors.append(f"{comic.proposed_series} #{comic.proposed_number}: {err_msg}")
+            from .audit import log_batch_entry
+            log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                            {"error": [None, err_msg]})
 
         self.update_state(
             state="PROGRESS",
