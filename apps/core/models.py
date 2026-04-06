@@ -29,7 +29,7 @@ class Comic(models.Model):
         (STATE_DEDUPLICATED, "Deduplicate"),
         (STATE_ORGANIZED,    "Move Files"),
         (STATE_WRITTEN,      "Write to CBZ"),
-        (STATE_DONE,         "All Comics"),
+        (STATE_DONE,         "Done"),
     ]
 
     # Identity

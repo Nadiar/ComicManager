@@ -34,7 +34,7 @@ def index(request):
         {"state": "deduplicate", "label": "5. Deduplicate",   "description": "Identify and resolve duplicates",        "action": "Detect Dupes",   "count": state_counts.get("deduplicate", 0)},
         {"state": "move",        "label": "6. Move Files",    "description": "Move files to library folder",           "action": "Organize All",   "count": state_counts.get("move",        0)},
         {"state": "write",       "label": "7. Write to CBZ",  "description": "Write ComicInfo.xml into CBZ",           "action": "Write All",      "count": state_counts.get("write",       0)},
-        {"state": "done",        "label": "8. All Comics",    "description": "Written — sync library paths if needed", "action": "Sync Paths",     "count": state_counts.get("done",        0)},
+        {"state": "done",        "label": "8. Done",          "description": "Written — sync library paths if needed", "action": "Sync Paths",     "count": state_counts.get("done",        0)},
     ]
 
     # Review queue
