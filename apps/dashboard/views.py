@@ -14,7 +14,7 @@ def index(request):
         "digital":   Comic.objects.filter(medium="digital").count(),
         "physical":  Comic.objects.filter(medium="physical").count(),
         "new":       Comic.objects.filter(state="new").count(),
-        "written":   Comic.objects.filter(state="write").count(),
+        "written":   Comic.objects.filter(state="done").count(),
         "new_cbr_count": Comic.objects.filter(state="new", flags__needs_conversion=True).count(),
         "scrape_skipped": Comic.objects.filter(state="scrape", flags__scrape_skipped=True).count(),
     }
