@@ -412,6 +412,12 @@ def run_full_pipeline_task(self, comic_ids: list):
                 comic.number = comic.proposed_number
                 comic.volume = comic.proposed_volume
                 comic.year = comic.proposed_year
+                if comic.file_path and not comic.phash:
+                    from apps.scraper.hasher import extract_cover_hashes
+                    hashes = extract_cover_hashes(comic.file_path)
+                    if hashes:
+                        comic.phash = hashes.phash_hex
+                        comic.ahash = hashes.ahash_hex
                 comic.state = Comic.STATE_IMPORTED
                 comic.save()
 

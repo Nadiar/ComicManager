@@ -247,10 +247,65 @@ def try_api_metadata_match(comic, scraper):
     # Step 4: fetch full issue details with credits
     detailed = scraper.get_issue_from_api(issue_id)
     if detailed:
+        if not _verify_cover_hash(comic, detailed):
+            logger.info(
+                "API match rejected by cover hash for comic %s (issue %s)",
+                comic.pk,
+                issue_id,
+            )
+            return None
         detailed.match_type = "api+volume+detail"
         return detailed
 
     return None
+
+
+def _verify_cover_hash(comic, match, threshold=15):
+    """
+    Download the CV cover for `match` and compare it against the comic's stored phash/ahash.
+    Returns True if hashes agree (or if verification cannot be performed).
+    Returns False if the cover hash clearly disagrees, indicating a likely wrong match.
+    Uses a more lenient threshold (15) than local DB matching (10) since API covers
+    may differ slightly from local scans (different crop or edition).
+    """
+    import io
+    import imagehash
+    from PIL import Image
+    from apps.core.cover_cache import get_cv_cover
+
+    if not match.cover_url:
+        return True
+
+    # If hashes aren't stored yet (e.g. API-only mode skipped Layer 1),
+    # compute them now from the local file so we can still verify.
+    if (not comic.phash or not comic.ahash) and comic.file_path:
+        hashes = extract_cover_hashes(comic.file_path)
+        if hashes:
+            comic.phash = hashes.phash_hex
+            comic.ahash = hashes.ahash_hex
+
+    if not comic.phash or not comic.ahash:
+        return True
+
+    try:
+        cover_bytes = get_cv_cover(match.issue_id, match.cover_url)
+        if not cover_bytes:
+            return True
+        img = Image.open(io.BytesIO(cover_bytes)).convert("RGB")
+        api_phash = imagehash.phash(img)
+        api_ahash = imagehash.average_hash(img)
+        local_phash = imagehash.hex_to_hash(comic.phash)
+        local_ahash = imagehash.hex_to_hash(comic.ahash)
+        pdist = api_phash - local_phash
+        adist = api_ahash - local_ahash
+        if pdist <= threshold and adist <= threshold:
+            return True
+        comic.flags["scrape_error_detail"] = (
+            f"cover hash mismatch (phash dist {pdist}, ahash dist {adist})"
+        )
+        return False
+    except Exception:
+        return True
 
 
 def apply_cv_match(comic, match, scraper=None, insert_covers=True):

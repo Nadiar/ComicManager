@@ -578,6 +578,13 @@ def accept_comic(request, pk):
     comic.volume = comic.proposed_volume
     comic.year = comic.proposed_year
 
+    # Compute cover hashes from the local file if not already set
+    if comic.file_path and not comic.phash:
+        hashes = extract_cover_hashes(comic.file_path)
+        if hashes:
+            comic.phash = hashes.phash_hex
+            comic.ahash = hashes.ahash_hex
+
     # Advance state
     comic.state = Comic.STATE_IMPORTED
     comic.save()
@@ -622,6 +629,13 @@ def accept_all_comics(request):
         comic.number = comic.proposed_number
         comic.volume = comic.proposed_volume
         comic.year = comic.proposed_year
+
+        # Compute cover hashes from the local file if not already set
+        if comic.file_path and not comic.phash:
+            hashes = extract_cover_hashes(comic.file_path)
+            if hashes:
+                comic.phash = hashes.phash_hex
+                comic.ahash = hashes.ahash_hex
 
         # Advance state
         comic.state = Comic.STATE_IMPORTED
@@ -1588,16 +1602,41 @@ def scrape_comic(request, pk):
         if not cv_issue_id:
             comic.flags["scrape_no_match"] = True
             comic.save(update_fields=["flags"])
+        from apps.core.audit import log_batch_entry
+        no_match_changes = {"result": [None, "no_match"]}
+        detail = comic.flags.get("scrape_error_detail")
+        if detail:
+            no_match_changes["reason"] = [None, detail]
+        log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, no_match_changes)
         return JsonResponse({
             "success": False,
             "error": "No match found in ComicVine database"
         }, status=404)
+
+    before_series = comic.series
+    before_publisher = comic.publisher
+    before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
+    before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
 
     try:
         _apply_match(comic, match, scraper)
     except Exception as e:
         logger.exception("scrape_comic [%s]: error applying match %s", pk, match.issue_id)
         return JsonResponse({"success": False, "error": f"Error applying match: {e}"}, status=500)
+
+    from apps.core.audit import log_batch_entry
+    changes = {}
+    if comic.series != before_series:
+        changes["series"] = [before_series, comic.series]
+    if comic.publisher != before_publisher:
+        changes["publisher"] = [before_publisher, comic.publisher]
+    after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
+    after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
+    if after_cv_issue != before_cv_issue:
+        changes["cv_issue"] = [before_cv_issue, after_cv_issue]
+    if after_cv_volume != before_cv_volume:
+        changes["cv_volume"] = [before_cv_volume, after_cv_volume]
+    log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, changes)
 
     return JsonResponse({
         "success": True,
@@ -3035,13 +3074,38 @@ def force_scrape(request, pk):
         match = _find_best_match(comic, scraper)
 
     if not match:
+        from apps.core.audit import log_batch_entry
+        no_match_changes = {"result": [None, "no_match"]}
+        detail = comic.flags.get("scrape_error_detail")
+        if detail:
+            no_match_changes["reason"] = [None, detail]
+        log_batch_entry("scrape_all", comic, comic.state, comic.state, no_match_changes)
         return JsonResponse({
             "success": False,
             "error": "No match found in ComicVine database"
         }, status=404)
 
+    before_series = comic.series
+    before_publisher = comic.publisher
+    before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
+    before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
+
     # Apply the match (this also enriches with credits)
     _apply_match(comic, match, scraper)
+
+    from apps.core.audit import log_batch_entry
+    changes = {}
+    if comic.series != before_series:
+        changes["series"] = [before_series, comic.series]
+    if comic.publisher != before_publisher:
+        changes["publisher"] = [before_publisher, comic.publisher]
+    after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
+    after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
+    if after_cv_issue != before_cv_issue:
+        changes["cv_issue"] = [before_cv_issue, after_cv_issue]
+    if after_cv_volume != before_cv_volume:
+        changes["cv_volume"] = [before_cv_volume, after_cv_volume]
+    log_batch_entry("scrape_all", comic, comic.state, comic.state, changes)
 
     return JsonResponse({
         "success": True,

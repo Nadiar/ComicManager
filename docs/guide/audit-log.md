@@ -4,7 +4,7 @@ ComicManager keeps a detailed log of all batch actions to help you track changes
 
 ## Audit Log Features
 
-All batch pipeline actions (Scrape, Tag, Format, Organize, Write) are recorded in the **Batch Audit Log**:
+All pipeline actions are recorded in the **Batch Audit Log**. This includes both batch operations (Scrape All, Tag All, etc.) and single-comic scrapes triggered from the comic list or detail page:
 - **Action Type**: See which batch operation was performed (e.g. `scrape_all`, `organize_all`, `audit_metadata`).
 - **Comic Info**: Identify each comic by name and UUID. You can click the Info button to open the comic detail page directly.
 - **State Transition**: Track changes from one workflow state to another.
@@ -29,7 +29,7 @@ If a batch action fails or produces unwanted results, use the **Rollback** featu
 
 Each log entry shows a **before/after diff** of the fields that changed. For example:
 
-- A scrape entry shows `proposed_series -> series`, `proposed_number -> number`, and the assigned `comicvine_issue` ID.
+- A scrape entry shows the fields that changed: `series`, `publisher`, `cv_issue`, and `cv_volume` when values differed before and after the match. If the scrape failed, the entry shows `result: null -> no_match`. When the failure was caused by a Layer 3 cover hash rejection, a `reason` field is also included (e.g. `reason: null -> cover hash mismatch (phash dist 42, ahash dist 38)`).
 - An organize entry shows `file: ["/comics/untagged/Batman #1.cbz", "/comics/library/DC Comics/Batman (2011)/Batman #001.cbz"]` — the old path and the new path as a two-element array.
 - A write entry shows which ComicInfo.xml fields were embedded.
 - A `convert_zip` entry shows the old `.zip` path and the new `.cbz` path.

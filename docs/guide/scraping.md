@@ -58,6 +58,20 @@ Place `inducks.db` (generated from ISV flat files) at `data/inducks.db`.
 
 ---
 
+## Cover Hash Computation
+
+Before matching begins, ComicManager computes two perceptual hashes of the local cover image and stores them on the comic record. These are used for both duplicate detection and scrape matching.
+
+**When hashes are computed:**
+
+Hashes are computed when a comic is accepted from the New stage (via the Accept button, Accept All, or Run Full Pipeline). The first page of the CBZ is read and both a perceptual hash (pHash) and an average hash (aHash) are saved to the database.
+
+If hashes are missing when Layer 3 API matching runs, they are computed on the fly at that point as a fallback.
+
+Physical comics and comics without a readable CBZ cover will have no hashes stored, which is handled gracefully throughout the pipeline.
+
+---
+
 ## How Matching Works
 
 ComicManager uses a layered, fallback matching strategy. Each layer is tried in order until a confident match is found.
@@ -95,8 +109,8 @@ ComicManager uses a layered, fallback matching strategy. Each layer is tried in 
                   ┌─────┴──────┐         │
                score > 0    no match     │
                   │            │         └───────────────────┐
-                  ▼            ▼                             │  
-              ┌───────┐  ┌────────────────────────────┐      | 
+                  ▼            ▼                             │
+              ┌───────┐  ┌────────────────────────────┐      |
               │ MATCH │  │ scrape_api_fallback        │      |
               └───────┘  │ enabled? (DB-only option)  │      |
                          └──────┬─────────────────────┘      |
@@ -108,10 +122,10 @@ ComicManager uses a layered, fallback matching strategy. Each layer is tried in 
                     │               │  scrape_no_match   │   |
                     │               │  flag set          │   |
                     │               └────────────────────┘   |
-                    │                                        |     
-                    └─────────────────┐       ┌──────────────┘ 
-                                      │       |        
-                                      ▼       ▼    
+                    │                                        |
+                    └─────────────────┐       ┌──────────────┘
+                                      │       |
+                                      ▼       ▼
                           ┌─────────────────────────────┐
                           │ Layer 3                     │
                           ├─────────────────────────────┤
@@ -123,21 +137,27 @@ ComicManager uses a layered, fallback matching strategy. Each layer is tried in 
                           │    issue_number:{num}       │
                           │ 3. /issue/4000-{id}         │
                           │    (full details + credits) │
+                          │ 4. Cover hash verification  │
+                          │    Download CV cover and    │
+                          │    compare vs local hash.   │
+                          │    Reject if dist > 15.     │
                           └───────────┬─────────────────┘
                                       │
-                            ┌─────────┴──────────┐
-                         match found          no match
-                            │                     │
-                            ▼                     ▼
-                        ┌───────┐  ┌────────────────────┐
-                        │ MATCH │  │  scrape_no_match   │
-                        └───────┘  │  flag set          │
-                                   └────────────────────┘
+                         ┌────────────┴─────────────┐
+                    hash agrees or               hash disagrees
+                    no local hash                (dist > 15)
+                         │                           │
+                         ▼                           ▼
+                     ┌───────┐         ┌─────────────────────┐
+                     │ MATCH │         │  scrape_no_match    │
+                     └───────┘         │  reason stored in   │
+                                       │  scrape_error_detail│
+                                       └─────────────────────┘
 ```
 
 ### Layer 1: Cover Image Hash Match (DB mode only)
 
-The cover image is extracted from the CBZ and converted to a perceptual hash (pHash) and an average hash (aHash). These are compared against all covers in `comicvine.db` using Hamming distance.
+The stored cover hashes (computed at accept time, see above) are compared against all covers in `comicvine.db` using Hamming distance.
 
 Why this is the most reliable method: hashes are based on the actual pixels of the cover, so they match even if the filename is completely wrong or the metadata is absent. It also means we avoid needing an LLM or OCR to extract information from the cover image. The downside is that if a cover variant looks significantly different from the one in the database, no hash match will be found. In practice this has not been a major issue.
 
@@ -162,8 +182,11 @@ In API-only mode (or when the local DB has no match and the **API fallback** set
 1. `/search?resources=volume` searches for volumes by series name. Publisher, start year, and issue count are returned inline, so no separate `/volume` calls are needed.
 2. `/issues?filter=volume:{id},issue_number:{num}` finds the specific issue within the best-scoring volume.
 3. `/issue/4000-{id}` fetches full details and credits for the matched issue.
+4. **Cover hash verification.** The cover URL returned by the API is downloaded and hashed. The result is compared against the comic's stored pHash and aHash using Hamming distance. If both distances are within 15 (a more lenient threshold than Layer 1 uses, to account for crop and edition differences), the match is accepted. If either distance exceeds 15, the match is rejected and `scrape_no_match` is set with a reason stored in `flags.scrape_error_detail` (e.g. `cover hash mismatch (phash dist 42, ahash dist 38)`).
 
-This costs exactly **3 API calls** and **0 `/volume` calls** per comic.
+Cover verification is skipped automatically when the comic has no stored hashes (physical comics, unhashed archives) or when the API returns no cover URL. In those cases the metadata match is accepted as-is.
+
+This costs exactly **3 API calls** and **0 `/volume` calls** per comic. The cover image download is not an API call and does not count against the hourly budget.
 
 Before attempting a search, the remaining API budget is checked. If fewer than 3 calls are available, the comic is skipped rather than errored and can be retried in the next budget window.
 
@@ -324,8 +347,11 @@ INDUCKS does not provide total issue counts. INDUCKS-sourced comics are excluded
 Failed scrapes are surfaced in the **Review Queue** on the Dashboard via specific flags:
 
 ### `scrape_no_match`
-Set when the scraper finds no viable candidate.
-**Resolution:** Edit `proposed_series` and `proposed_number` on the comic's edit page to fix a bad filename parse, then re-scrape. Or manually search via the scrape modal. If it's a self-published one-shot, clear the flag manually to move it forward.
+Set when the scraper finds no viable candidate, or when Layer 3 finds a metadata match but the cover hash comparison rejects it.
+
+Check `flags.scrape_error_detail` on the comic (visible on the detail page and in the audit log) for the rejection reason. A value like `cover hash mismatch (phash dist 42, ahash dist 38)` means a metadata match was found but the API cover did not visually match the local file. This usually means the wrong volume was selected (e.g. a reprint series with the same name and issue number). Try re-scraping and selecting a different volume manually via the scrape modal.
+
+For plain no-match cases, edit `proposed_series` and `proposed_number` on the comic's edit page to fix a bad filename parse, then re-scrape. Or manually search via the scrape modal. If it is a self-published one-shot, clear the flag manually to move it forward.
 
 ### `scrape_error`
 Set when a technical error occurs: network timeout, API error, or a corrupted cover image. The detail is stored in `flags.scrape_error_detail`.

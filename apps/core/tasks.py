@@ -708,8 +708,12 @@ def scrape_all_task(self):
                 errors.append(f"{comic.series} #{comic.number}: no match found")
 
                 from .audit import log_batch_entry
+                no_match_changes = {"result": [None, "no_match"]}
+                detail = comic.flags.get("scrape_error_detail")
+                if detail:
+                    no_match_changes["reason"] = [None, detail]
                 log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state,
-                                {"result": [None, "no_match"]})
+                                no_match_changes)
         except Exception as e:
             err_msg = str(e)
             comic.flags["scrape_error"] = True

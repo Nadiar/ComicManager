@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Cover hash verification for API matches**: Layer 3 (CV API matching) now downloads the ComicVine cover image for the matched issue and compares it against the comic's stored pHash and aHash using Hamming distance. If both distances exceed 15, the match is rejected and `scrape_no_match` is set. The rejection reason (e.g. `cover hash mismatch (phash dist 42, ahash dist 38)`) is stored in `flags.scrape_error_detail` and shown in the audit log. Verification is skipped automatically when the comic has no stored hashes or the API returns no cover URL. Cover downloads do not count against the API call budget.
+
+- **Cover hashes computed at accept time**: When a comic is accepted from the New stage (single Accept, Accept All, or Run Full Pipeline), the first page of the CBZ is now read and both pHash and aHash are computed and saved to the database. Previously hashes were only set as a side effect of Layer 1 hash matching (DB mode only), leaving API-only mode comics without hashes. A fallback still computes hashes on the fly during Layer 3 matching for comics accepted before this change.
+
+- **Audit logging for single-comic scrapes**: `scrape_comic` and `force_scrape` views now write entries to the Batch Audit Log at `/settings/log/`, matching the detail level of batch scraping. Successful matches log `series`, `publisher`, `cv_issue`, and `cv_volume` changes. Failed matches log `result: null -> no_match` plus a `reason` field when a cover hash mismatch was the cause. Previously only batch scrape tasks were logged.
+
 - **ComicVine API fallback toggle**: A new setting `scrape_api_fallback` (Settings page, Scraping group) enables the ComicVine API as a Layer 3 fallback even when `comicvine.db` is present. When the local DB finds no hash or metadata match, ComicManager will attempt an API match before giving up.
 
 - **Volume-based API matching strategy**: `try_api_metadata_match` now uses a 3-call approach inspired by comic-vine-scraper. A single `/search?resources=volume` call returns publisher, start year, and issue count inline (no separate `/volume` calls). The best-scoring volume is then probed with `/issues?filter=volume:{id},issue_number:{num}`, and full details including credits are fetched with a single `/issue` call. Total cost is exactly 3 API calls and 0 `/volume` calls per comic, down from the previous 1+N+1 approach.
