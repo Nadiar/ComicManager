@@ -20,6 +20,14 @@ CV_API_BUDGET_KEY = "cv_api_call_count"
 CV_API_BUDGET_LIMIT = 200
 CV_API_BUDGET_WINDOW = 3600  # 1 hour in seconds
 
+# Per-path budget keys (ComicVine enforces 200/hour per path independently)
+CV_API_PATH_KEYS = {
+    "search":  "cv_api_calls_search",
+    "volume":  "cv_api_calls_volume",
+    "issue":   "cv_api_calls_issue",
+    "issues":  "cv_api_calls_issues",
+}
+
 # MCL cache key (parsed index lives in cache to avoid re-parsing on every request)
 CV_MCL_CACHE_KEY = "cv_mcl_index"
 CV_MCL_CACHE_TTL = 3600  # 1 hour
@@ -261,26 +269,38 @@ def get_volume_completion_from_mcl(cv_volume_id: str) -> dict | None:
 # API call budget tracker
 # ---------------------------------------------------------------------------
 
-def increment_api_call_count(n: int = 1) -> int:
+def _cache_incr(key: int, n: int = 1) -> int:
+    """Increment a Redis counter, creating it with a 1-hour TTL if missing."""
+    try:
+        return cache.incr(key, delta=n)
+    except ValueError:
+        cache.set(key, n, CV_API_BUDGET_WINDOW)
+        return n
+
+
+def increment_api_call_count(n: int = 1, path: str = "") -> int:
     """
     Increment the rolling API call counter by n and return the new total.
 
-    Uses Redis (Django cache) with a TTL of CV_API_BUDGET_WINDOW seconds.
-    The TTL is set only when the key is first created, so the window is
-    anchored to the first call in the current period.
+    path: the endpoint prefix ("search", "volume", "issue") used to also
+    update the per-path counter. Pass "" to skip per-path tracking.
     """
-    try:
-        new_value = cache.incr(CV_API_BUDGET_KEY, delta=n)
-    except ValueError:
-        # Key does not exist — create it with TTL
-        cache.set(CV_API_BUDGET_KEY, n, CV_API_BUDGET_WINDOW)
-        new_value = n
+    new_value = _cache_incr(CV_API_BUDGET_KEY, n)
+    if path and path in CV_API_PATH_KEYS:
+        _cache_incr(CV_API_PATH_KEYS[path], n)
     return new_value
 
 
 def get_api_calls_used() -> int:
     """Return the number of API calls made in the current rolling window."""
     return cache.get(CV_API_BUDGET_KEY, 0)
+
+
+def get_api_calls_per_path() -> dict:
+    """Return per-path call counts for search, volume, and issue."""
+    keys = list(CV_API_PATH_KEYS.values())
+    cached = cache.get_many(keys)
+    return {path: cached.get(key, 0) for path, key in CV_API_PATH_KEYS.items()}
 
 
 def get_api_calls_remaining() -> int:

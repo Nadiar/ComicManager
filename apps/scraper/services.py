@@ -142,12 +142,12 @@ def try_metadata_match(comic, scraper):
     cv_number = comic.number or comic.proposed_number
     cv_year = comic.year or comic.proposed_year
 
-    if not cv_series or not cv_number:
+    if not cv_series:
         return None
 
     matches = scraper.match_by_metadata(
         series=cv_series,
-        issue_number=cv_number,
+        issue_number=cv_number or "",
         year=cv_year,
     )
 
@@ -160,18 +160,21 @@ def find_best_match(comic, scraper, max_distance=10):
     right strategy based on available data sources.
 
     Strategy (in order):
-    1. Local DB available: hash match -> metadata match
+    1. Local DB available: hash match -> metadata match -> API fallback (if enabled)
     2. Local DB unavailable: API metadata match
 
     Returns the best CVMatch or None. Callers should not need to know which
     strategy was used — the match_type field on the result reflects it.
     """
     from apps.scraper.cv_sources import is_cv_db_available
+    from apps.core.models import get_setting
 
     if is_cv_db_available():
         match = try_hash_match(comic, scraper, max_distance=max_distance)
         if not match:
             match = try_metadata_match(comic, scraper)
+        if not match and get_setting("scrape_api_fallback", False):
+            match = try_api_metadata_match(comic, scraper)
         return match
 
     return try_api_metadata_match(comic, scraper)
@@ -179,65 +182,75 @@ def find_best_match(comic, scraper, max_distance=10):
 
 def try_api_metadata_match(comic, scraper):
     """
-    Match a comic using the ComicVine API search endpoint.
+    Match a comic using the ComicVine API with minimal calls.
 
-    Used when the local comicvine.db is unavailable (API-only mode).
-    Checks the rolling API budget before making any calls and returns None
-    immediately if the budget is exhausted.
+    Strategy (inspired by comic-vine-scraper):
+    1. /search?resources=volume  — returns publisher/start_year/count inline,
+       no separate /volume calls needed.
+    2. /issues?filter=volume:{id},issue_number:{num}  — pinpoints the exact
+       issue within the matched volume without fetching all issues.
+    3. /issue/4000-{id}  — full details and credits for the winning issue.
 
-    Typical API calls per comic:
-    - search_api(query, limit=5): 1 call + up to 5 volume-info calls
-    - get_issue_from_api(issue_id): 1 call + 1 volume call for credits
-
-    Returns the best CVMatch (with full credits) or None.
+    Total: 3 calls, 0 /volume calls (vs the old approach of 1+N+1).
     """
+    import logging
     from apps.scraper.cv_sources import check_api_budget
 
+    logger = logging.getLogger(__name__)
     cv_series = comic.series or comic.proposed_series
     cv_number = comic.number or comic.proposed_number
 
-    if not cv_series or not cv_number:
+    if not cv_series:
         return None
 
     if not check_api_budget(required=3):
-        import logging
-        logging.getLogger(__name__).warning(
-            "CV API budget exhausted — skipping comic %s", comic.pk
-        )
+        logger.warning("CV API budget exhausted — skipping comic %s", comic.pk)
         return None
 
-    query = f"{cv_series} #{cv_number}"
-    candidates = scraper.search_api(query, limit=5)
-
-    if not candidates:
+    # Step 1: search volumes by series name
+    volumes = scraper.search_volumes_api(cv_series, limit=10)
+    if not volumes:
         return None
 
-    # Score each candidate and take the best
-    scored = []
-    for match in candidates:
-        score = metadata_alignment_score(comic, match)
-        if score > 0:
-            scored.append((match, score))
-
+    # Step 2: score volumes by series + year, pick the best match
+    scored = [(v, metadata_alignment_score(comic, v)) for v in volumes]
+    scored = [(v, s) for v, s in scored if s > 0]
     if not scored:
         return None
-
     scored.sort(key=lambda x: -x[1])
-    best = scored[0][0]
+    best_volume = scored[0][0]
 
-    # Fetch full credits for the chosen match
     if not check_api_budget(required=2):
-        # Budget too low for the detail call — return shallow match
-        best.match_type = f"api+search"
-        return best
+        logger.warning("CV API budget too low for issue lookup — skipping comic %s", comic.pk)
+        return None
 
-    detailed = scraper.get_issue_from_api(best.issue_id)
+    # Step 3: find the specific issue within the matched volume
+    if cv_number:
+        issue = scraper.get_issue_by_volume_and_number(best_volume.volume_id, cv_number)
+        if not issue:
+            return None
+        issue_id = issue.issue_id
+    else:
+        # No issue number — can't filter, skip the /issues call
+        # Fall back to the first issue in the best-matching volume if it's a one-shot
+        if best_volume.issue_count == 1:
+            issue = scraper.get_issue_by_volume_and_number(best_volume.volume_id, "1")
+            if not issue:
+                return None
+            issue_id = issue.issue_id
+        else:
+            return None
+
+    if not check_api_budget(required=1):
+        return None
+
+    # Step 4: fetch full issue details with credits
+    detailed = scraper.get_issue_from_api(issue_id)
     if detailed:
-        detailed.match_type = "api+detail"
+        detailed.match_type = "api+volume+detail"
         return detailed
 
-    best.match_type = "api+search"
-    return best
+    return None
 
 
 def apply_cv_match(comic, match, scraper=None, insert_covers=True):

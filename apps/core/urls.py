@@ -56,6 +56,7 @@ urlpatterns = [
     path("<uuid:pk>/scrape/", views.scrape_comic, name="scrape"),
     path("<uuid:pk>/scrape/preview/", views.scrape_preview, name="scrape_preview"),
     path("<uuid:pk>/scrape/api-search/", views.scrape_api_search, name="scrape_api_search"),
+    path("scrape/volume-batch/", views.scrape_volume_batch, name="scrape_volume_batch"),
     path("<uuid:pk>/scrape/inducks-search/", views.inducks_search, name="inducks_search"),
     path("<uuid:pk>/cv-compare/", views.cv_compare, name="cv_compare"),
     path("<uuid:pk>/search-alt-covers/", views.search_alt_covers, name="search_alt_covers"),

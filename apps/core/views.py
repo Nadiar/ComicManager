@@ -882,7 +882,7 @@ def scrape_api_search(request, pk):
         })
 
     try:
-        api_matches = scraper.search_api(query)
+        api_matches = scraper.search_api(query, limit=12, fetch_volume_info=False)
     except ComicVineRateLimitError as e:
         return JsonResponse({
             "success": False,
@@ -899,8 +899,8 @@ def scrape_api_search(request, pk):
             "series": match.series,
             "number": match.issue_number,
             "title": match.title,
-            "publisher": match.publisher,
-            "year": match.start_year,
+            "publisher": None,
+            "year": match.start_year,  # cover_date year fallback, no /volume call
             "cover_url": match.cover_url,
             "cover_urls": match.cover_urls or [],
             "match_type": match.match_type,
@@ -922,6 +922,51 @@ def scrape_api_search(request, pk):
         },
         "matches": all_matches,
     })
+
+
+def scrape_volume_batch(request):
+    """
+    Fetch publisher/start_year/issue_count for a batch of CV volume IDs.
+
+    Query param: vids — comma-separated volume ID integers.
+    Returns: { "volumes": { "<id>": { "publisher": ..., "year": ..., "issue_count": ... } } }
+
+    Results are cached in the module-level volume cache so repeated calls for
+    the same volume are free.
+    """
+    from apps.scraper.comicvine import ComicVineScraper
+    from apps.scraper.cv_sources import check_api_budget
+    from .models import get_setting
+
+    api_key = get_setting("cv_api_key", "").strip()
+    if not api_key:
+        return JsonResponse({"success": False, "error": "No API key configured"}, status=400)
+
+    raw = request.GET.get("vids", "")
+    try:
+        volume_ids = [int(v.strip()) for v in raw.split(",") if v.strip().isdigit()]
+    except ValueError:
+        return JsonResponse({"success": False, "error": "Invalid volume IDs"}, status=400)
+
+    if not volume_ids:
+        return JsonResponse({"success": True, "volumes": {}})
+
+    scraper = ComicVineScraper()
+    result = {}
+    for vid in volume_ids[:6]:  # cap at 6 per request to protect budget
+        if not check_api_budget(required=1):
+            break
+        try:
+            info = scraper._get_volume_info(vid)
+            result[str(vid)] = {
+                "publisher": info.get("publisher"),
+                "year": str(info.get("start_year") or ""),
+                "issue_count": info.get("issue_count"),
+            }
+        except Exception:
+            result[str(vid)] = {"publisher": None, "year": "", "issue_count": None}
+
+    return JsonResponse({"success": True, "volumes": result})
 
 
 def inducks_search(request, pk):
@@ -1512,22 +1557,47 @@ def scrape_comic(request, pk):
     match = None
 
     if cv_issue_id:
-        if is_cv_db_available():
-            match = scraper.get_issue_details(int(cv_issue_id))
-        if not match:
-            match = scraper.get_issue_from_api(int(cv_issue_id))
+        try:
+            if is_cv_db_available():
+                match = scraper.get_issue_details(int(cv_issue_id))
+            if not match:
+                match = scraper.get_issue_from_api(int(cv_issue_id))
+        except ComicVineRateLimitError as e:
+            logger.warning("scrape_comic [%s]: rate limited — %s", pk, e)
+            return JsonResponse({"success": False, "error": str(e), "rate_limited": True}, status=429)
+        except Exception as e:
+            logger.exception("scrape_comic [%s]: error fetching issue %s", pk, cv_issue_id)
+            return JsonResponse({"success": False, "error": f"Scrape error: {e}"}, status=500)
         if match:
             match.match_type = "manual"
     else:
-        match = _find_best_match(comic, scraper)
+        try:
+            match = _find_best_match(comic, scraper)
+        except ComicVineRateLimitError as e:
+            logger.warning("scrape_comic [%s]: rate limited — %s", pk, e)
+            return JsonResponse({"success": False, "error": str(e), "rate_limited": True}, status=429)
+        except Exception as e:
+            logger.exception("scrape_comic [%s]: unexpected error during auto-match", pk)
+            return JsonResponse({"success": False, "error": f"Scrape error: {e}"}, status=500)
 
     if not match:
+        logger.warning(
+            "scrape_comic [%s]: no match found for %s #%s",
+            pk, comic.proposed_series or comic.series, comic.proposed_number or comic.number,
+        )
+        if not cv_issue_id:
+            comic.flags["scrape_no_match"] = True
+            comic.save(update_fields=["flags"])
         return JsonResponse({
             "success": False,
             "error": "No match found in ComicVine database"
         }, status=404)
 
-    _apply_match(comic, match, scraper)
+    try:
+        _apply_match(comic, match, scraper)
+    except Exception as e:
+        logger.exception("scrape_comic [%s]: error applying match %s", pk, match.issue_id)
+        return JsonResponse({"success": False, "error": f"Error applying match: {e}"}, status=500)
 
     return JsonResponse({
         "success": True,

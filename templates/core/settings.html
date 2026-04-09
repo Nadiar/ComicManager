@@ -76,6 +76,33 @@
         <span class="badge badge-error">Scraping mode: No data source configured</span>
         {% endif %}
       </div>
+
+      {% if not cv_status.db or scrape_api_fallback %}
+      <div class="mt-4 pt-4 border-t border-base-content/10">
+        <div class="mb-2">
+          {% if not cv_status.db %}
+          <span class="font-semibold text-sm">ComicVine API Mode</span>
+          <span class="text-base-content/60 text-xs ml-2">— local DB not found, using REST API for scraping</span>
+          {% else %}
+          <span class="font-semibold text-sm">ComicVine API Fallback active</span>
+          <span class="text-base-content/60 text-xs ml-2">— API is tried when local DB finds no match</span>
+          {% endif %}
+        </div>
+        <div class="flex flex-wrap gap-6 mt-2">
+          {% for path, used in api_calls_per_path.items %}
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-base-content/50 font-mono w-14">/{{ path }}</span>
+            <div class="w-24 bg-base-300 rounded-full h-2 overflow-hidden">
+              <div class="h-full rounded-full transition-all {% if used > 180 %}bg-error{% elif used > 140 %}bg-warning{% else %}bg-success{% endif %}"
+                style="width: {% widthratio used api_budget_limit 100 %}%">
+              </div>
+            </div>
+            <span class="font-mono text-xs {% if used > 180 %}text-error{% elif used > 140 %}text-warning{% else %}text-base-content/70{% endif %}">{{ used }} / {{ api_budget_limit }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
     </div>
   </div>
 

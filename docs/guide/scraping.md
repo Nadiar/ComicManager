@@ -41,9 +41,9 @@ To use API mode, set your **ComicVine API Key** in Settings.
 ::: tip Which mode am I in?
 Go to **Settings** and check the **ComicVine Data Sources** section. Each data source shows its current status:
 
-- `comicvine.db` — local SQLite index (hash + metadata matching, Series Audit)
-- `latest.mcl` — volume list with issue IDs (Series Audit fallback)
-- API key — ComicVine REST API (manual search + API-only batch scraping)
+- `comicvine.db`: local SQLite index (hash + metadata matching, Series Audit)
+- `latest.mcl`: volume list with issue IDs (Series Audit fallback)
+- API key: ComicVine REST API (manual search + API-only batch scraping)
 
 The active scraping mode is shown below, for example: `Scraping mode: Full local DB`.
 :::
@@ -62,59 +62,77 @@ Place `inducks.db` (generated from ISV flat files) at `data/inducks.db`.
 
 ComicManager uses a layered, fallback matching strategy. Each layer is tried in order until a confident match is found.
 
-```bash
-              ┌──────────────┐
-              │   CBZ file   │
-              └──────┬───────┘
-                     │
-         ┌───────────┴────────────┐
-         │                        │
-  comicvine.db present     no comicvine.db
-         │                        │
-         ▼                        │
-┌──────────────────────┐          │
-│ Layer 1              │          │
-├──────────────────────┤          │
-│ Cover Hash Match     │          │
-│ pHash + aHash vs.    │          │
-│ all DB covers        │          │
-└──────────┬───────────┘          │
-           │                      │
-     ┌─────┴──────┐               │
-  score > 0    no match           │
-     │            │               │
-     ▼            ▼               │
- ┌───────┐  ┌───────────────────┐ │
- │ MATCH │  │ Layer 2           │ │
- └───────┘  ├───────────────────┤ │
-            │ Metadata Match    │ │
-            │ Fuzzy series name │ │
-            │ + number vs. DB   │ │
-            └────────┬──────────┘ │
-                     │            │
-               ┌─────┴─────┐      │
-            score > 0    no match │
-               │           │      │
-               ▼           └──────┤
-           ┌───────┐              │
-           │ MATCH │              ▼
-           └───────┘  ┌───────────────────────┐
-                      │ Layer 3               │
-                      ├───────────────────────┤
-                      │ CV API Search         │
-                      │ "{series} #{number}"  │
-                      │ score up to 5         │
-                      │ candidates            │
-                      └───────────┬───────────┘
-                                  │
-                        ┌─────────┴──────────┐
-                     score > 0           no match
-                        │                    │
-                        ▼                    ▼
-                    ┌───────┐  ┌──────────────────────┐
-                    │ MATCH │  │  scrape_no_match     │
-                    └───────┘  │  flag set            │
-                               └──────────────────────┘
+```
+                    ┌──────────────┐
+                    │   CBZ file   │
+                    └──────┬───────┘
+                           │
+              ┌────────────┴─────────────┐
+              │                          │
+       comicvine.db present        no comicvine.db
+              │                          │
+              ▼                          │
+   ┌──────────────────────┐              │
+   │ Layer 1              │              │
+   ├──────────────────────┤              │
+   │ Cover Hash Match     │              │
+   │ pHash + aHash vs.    │              │
+   │ all DB covers        │              │
+   └──────────┬───────────┘              │
+              │                          │
+        ┌─────┴──────┐                   │
+     score > 0    no match               │
+        │            │                   │
+        ▼            ▼                   │
+    ┌───────┐  ┌───────────────────┐     │
+    │ MATCH │  │ Layer 2           │     │
+    └───────┘  ├───────────────────┤     │
+               │ Metadata Match    │     │
+               │ Fuzzy series name │     │
+               │ + number vs. DB   │     │
+               └────────┬──────────┘     │
+                        │                │
+                  ┌─────┴──────┐         │
+               score > 0    no match     │
+                  │            │         └───────────────────┐
+                  ▼            ▼                             │  
+              ┌───────┐  ┌────────────────────────────┐      | 
+              │ MATCH │  │ scrape_api_fallback        │      |
+              └───────┘  │ enabled? (DB-only option)  │      |
+                         └──────┬─────────────────────┘      |
+                                │                            |
+                    ┌───────────┴────────────┐               |
+                   yes                       no              |
+                    │                        │               |
+                    │               ┌────────────────────┐   |
+                    │               │  scrape_no_match   │   |
+                    │               │  flag set          │   |
+                    │               └────────────────────┘   |
+                    │                                        |     
+                    └─────────────────┐       ┌──────────────┘ 
+                                      │       |        
+                                      ▼       ▼    
+                          ┌─────────────────────────────┐
+                          │ Layer 3                     │
+                          ├─────────────────────────────┤
+                          │ CV API Volume Search        │
+                          │ 1. /search?resources=       │
+                          │    volume (series name)     │
+                          │ 2. /issues?filter=          │
+                          │    volume:{id},             │
+                          │    issue_number:{num}       │
+                          │ 3. /issue/4000-{id}         │
+                          │    (full details + credits) │
+                          └───────────┬─────────────────┘
+                                      │
+                            ┌─────────┴──────────┐
+                         match found          no match
+                            │                     │
+                            ▼                     ▼
+                        ┌───────┐  ┌────────────────────┐
+                        │ MATCH │  │  scrape_no_match   │
+                        └───────┘  │  flag set          │
+                                   └────────────────────┘
 ```
 
 ### Layer 1: Cover Image Hash Match (DB mode only)
@@ -139,11 +157,15 @@ If no hash match passes validation, ComicManager queries the local DB using the 
 
 ### Layer 3: API Search (API mode or DB fallback)
 
-In API-only mode (or when the local DB has no match), ComicManager queries the ComicVine search endpoint with `"{series} #{number}"` as the query string, retrieves up to 5 candidates, scores them with the same alignment algorithm as Layer 1, and fetches full credits for the best match.
+In API-only mode (or when the local DB has no match and the **API fallback** setting is enabled), ComicManager uses a volume-based search strategy:
 
-Before attempting a search, the remaining API budget is checked. If fewer than 3 calls are available, the comic is skipped rather than errored and can be retried in the next budget window. The credits fetch at the end is also budget-gated: if the budget runs out between the search and the credits call, basic metadata is applied without full credits.
+1. `/search?resources=volume` searches for volumes by series name. Publisher, start year, and issue count are returned inline, so no separate `/volume` calls are needed.
+2. `/issues?filter=volume:{id},issue_number:{num}` finds the specific issue within the best-scoring volume.
+3. `/issue/4000-{id}` fetches full details and credits for the matched issue.
 
-Each API search costs approximately 3-7 API calls (search + volume info + issue detail + credits).
+This costs exactly **3 API calls** and **0 `/volume` calls** per comic.
+
+Before attempting a search, the remaining API budget is checked. If fewer than 3 calls are available, the comic is skipped rather than errored and can be retried in the next budget window.
 
 ---
 
@@ -172,7 +194,7 @@ You can scrape a single comic from the comic's detail page, or directly from the
 
 1. Click **Scrape** in the actions panel or on the row.
 2. The scrape modal opens and runs the matching layers automatically. The result shows the series name, issue number, publisher, ComicVine IDs, and match confidence score.
-3. If the automatic match is wrong, you can search manually inside the modal using a different series name or issue number.
+3. If the automatic match is wrong, you can search manually inside the modal using a different series name or issue number. Results are shown in batches of 3. Click **Show 3 more** to load additional results. Publisher and year for each result are fetched lazily in small batches to conserve API budget.
 4. For I.N.D.U.C.K.S., switch to the INDUCKS tab in the modal and search by publication title, story title, or story code.
 5. Click **Accept** to apply the match or **Reject** to discard it and leave the comic unchanged.
 
@@ -322,9 +344,20 @@ If you intentionally skip a comic (via the detail actions menu) so that it doesn
 
 ComicVine's API enforces a limit of approximately 200 calls per hour. The rate limit is enforced per IP address, not just per API key. Switching to a different API key does not reset the limit if you are on the same IP.
 
-ComicManager tracks this with a rolling Redis counter (`cv_api_call_count`). Before every API call, it checks remaining budget:
-- Each API search costs approximately 3 calls (search query + volume info + issue detail).
-- Each credits fetch costs 1-2 additional calls.
+ComicManager tracks this with a rolling Redis counter per endpoint path. Each path (`/search`, `/volume`, `/issues`, `/issue`) has its own budget tracked independently. Usage is visible under **Settings** in the ComicVine Data Sources section.
+
+Approximate call costs per operation:
+
+| Operation | /search | /volume | /issues | /issue |
+|-----------|---------|---------|---------|--------|
+| Auto scrape (Layer 3) | 1 | 0 | 1 | 1 |
+| Manual search (first 3 results) | 1 | up to 3 | 0 | 0 |
+| Manual search (each "Show 3 more") | 0 | up to 3 | 0 | 0 |
+| Apply manual selection | 0 | 0 | 0 | 1 |
+
+::: warning Rate limit details
+The figures above are approximate based on observed behaviour. The actual limits and enforcement rules are defined by ComicVine. Check [https://comicvine.gamespot.com/api/](https://comicvine.gamespot.com/api/) for authoritative information, especially if you are being rate limited unexpectedly.
+:::
 
 When the budget is exhausted, comics are skipped (not errored) and can be re-scraped in the next budget window. A warning is logged to the Celery worker log and UI toast.
 

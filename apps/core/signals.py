@@ -99,6 +99,7 @@ def seed_default_settings(sender, **kwargs):
         dict(key="cv_api_key",            label="ComicVine API Key",          type="secret", group="Scraping",   help_text="Get yours at comicvine.gamespot.com/api/", value=""),
         dict(key="scrape_0day_hours",     label="0Day window (hours)",         type="int",    group="Scraping",   help_text="Comics added within this many hours go into the 0Day queue", value="24"),
         dict(key="scrape_hash_threshold", label="Hash match threshold",        type="int",    group="Scraping",   help_text="Max hamming distance for pHash match (lower = stricter)", value="8"),
+        dict(key="scrape_api_fallback",   label="API fallback when DB present", type="bool",   group="Scraping",   help_text="If no match is found in the local ComicVine DB, also try the ComicVine API. Uses your API budget.", value="false"),
         dict(key="inducks_enabled",       label="Enable Inducks search",      type="bool",   group="Scraping",   help_text="Show Inducks search option in the scrape modal for Disney comics", value="false"),
         dict(key="inducks_username",      label="Inducks username",           type="text",   group="Scraping",   help_text="Your inducks.org username (required for cover images)", value=""),
         dict(key="inducks_password",      label="Inducks password",           type="secret", group="Scraping",   help_text="Your inducks.org password (required for cover images)", value=""),

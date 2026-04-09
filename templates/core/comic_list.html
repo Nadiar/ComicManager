@@ -1160,22 +1160,23 @@ function scrapeComic(pk, btn) {
         'X-CSRFToken': getCsrfToken(),
       }
     })
-    .then(response => response.json())
-    .then(data => {
+    .then(response => response.json().then(data => ({ ok: response.ok, data })))
+    .then(({ ok, data }) => {
       if (data.success) {
         updateRowAfterScrape(btn, data);
       } else {
+        const msg = data.error || 'No match found';
         btn.classList.remove('btn-secondary');
         btn.classList.add('btn-error');
-        btn.innerHTML = 'Failed';
-        btn.title = data.error;
+        btn.innerHTML = msg;
+        btn.title = msg;
         btn.disabled = false;
       }
     })
     .catch(err => {
       btn.classList.remove('btn-secondary');
       btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
+      btn.innerHTML = 'Scrape error';
       btn.title = err.toString();
       btn.disabled = false;
     });
@@ -1357,6 +1358,11 @@ function closeScrapeModal() {
   window._currentScrapeBtn = null;
 }
 
+// Stores all API search results between batches
+let _apiAllMatches = [];
+let _apiShownCount = 0;
+const API_BATCH_SIZE = 3;
+
 function searchApi() {
   const modal = document.getElementById('scrape-modal');
   const pk = modal.dataset.comicPk;
@@ -1367,6 +1373,8 @@ function searchApi() {
 
   if (!query) return;
 
+  _apiAllMatches = [];
+  _apiShownCount = 0;
   apiMatchesDiv.innerHTML = '';
   apiLoading.classList.remove('hidden');
   apiError.className = 'alert alert-error mt-2 hidden';
@@ -1393,64 +1401,9 @@ function searchApi() {
         return;
       }
 
-      data.matches.forEach((match, idx) => {
-        const card = document.createElement('div');
-        card.className = 'card card-compact bg-base-300 cursor-pointer hover:ring-2 hover:ring-accent transition-all border border-accent/30';
-
-        const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
-        const coverContainerId = `api-cover-${idx}`;
-        const hasMultipleCovers = covers.length > 1;
-
-        card.innerHTML = `
-          <figure class="px-2 pt-2 relative bg-base-100/50 rounded-t-xl">
-            <div id="${coverContainerId}" class="flex justify-center items-center">
-              ${covers.length > 0
-                ? `<img src="${covers[0]}" alt="Cover" class="modal-cover-img rounded shadow-md" data-covers='${JSON.stringify(covers)}' data-cover-idx="0" />`
-                : '<div class="w-[100px] h-[150px] bg-base-300 rounded flex items-center justify-center text-base-content/50 text-xs">No cover</div>'
-              }
-            </div>
-            ${hasMultipleCovers ? `
-              <div class="absolute bottom-1 left-0 right-0 flex justify-center gap-1">
-                <button type="button" class="btn btn-circle btn-xs btn-primary cover-nav" data-dir="prev" data-target="${coverContainerId}">‹</button>
-                <span class="text-xs font-medium bg-base-100 px-2 py-0.5 rounded-full cover-counter shadow">1/${covers.length}</span>
-                <button type="button" class="btn btn-circle btn-xs btn-primary cover-nav" data-dir="next" data-target="${coverContainerId}">›</button>
-              </div>
-            ` : ''}
-          </figure>
-          <div class="card-body p-2 gap-1">
-            <h3 class="card-title text-sm font-bold leading-tight">${match.series} #${match.number}</h3>
-            <p class="text-xs text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
-            <div class="flex flex-wrap gap-1 mt-1">
-              <span class="badge badge-xs badge-accent">api</span>
-            </div>
-          </div>
-        `;
-
-        card.addEventListener('click', (e) => {
-          if (!e.target.closest('.cover-nav')) {
-            selectMatch(pk, match.issue_id);
-          }
-        });
-
-        apiMatchesDiv.appendChild(card);
-      });
-
-      // Wire cover navigation for API results
-      apiMatchesDiv.querySelectorAll('.cover-nav').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const container = document.getElementById(btn.dataset.target);
-          const img = container.querySelector('.modal-cover-img');
-          if (!img) return;
-          const covers = JSON.parse(img.dataset.covers);
-          let idx = parseInt(img.dataset.coverIdx);
-          idx = btn.dataset.dir === 'next' ? (idx + 1) % covers.length : (idx - 1 + covers.length) % covers.length;
-          img.src = covers[idx];
-          img.dataset.coverIdx = idx;
-          const counter = btn.parentElement.querySelector('.cover-counter');
-          if (counter) counter.textContent = `${idx + 1} / ${covers.length}`;
-        });
-      });
+      _apiAllMatches = data.matches;
+      _apiShownCount = 0;
+      _showApiResultBatch(pk);
     })
     .catch(err => {
       apiLoading.classList.add('hidden');
@@ -1458,6 +1411,110 @@ function searchApi() {
       apiError.classList.remove('hidden');
       document.getElementById('api-search-error-text').textContent = err.toString();
     });
+}
+
+function _showApiResultBatch(pk) {
+  const apiMatchesDiv = document.getElementById('api-matches');
+  const batch = _apiAllMatches.slice(_apiShownCount, _apiShownCount + API_BATCH_SIZE);
+  if (!batch.length) return;
+
+  // Remove existing "Show more" button before appending new cards
+  const existing = apiMatchesDiv.querySelector('.api-show-more-btn');
+  if (existing) existing.remove();
+
+  const startIdx = _apiShownCount;
+  batch.forEach((match, i) => {
+    const idx = startIdx + i;
+    const card = document.createElement('div');
+    card.className = 'card card-compact bg-base-300 cursor-pointer hover:ring-2 hover:ring-accent transition-all border border-accent/30';
+    card.dataset.volumeId = match.volume_id;
+
+    const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
+    const coverContainerId = `api-cover-${idx}`;
+    const hasMultipleCovers = covers.length > 1;
+
+    card.innerHTML = `
+      <figure class="px-2 pt-2 relative bg-base-100/50 rounded-t-xl">
+        <div id="${coverContainerId}" class="flex justify-center items-center">
+          ${covers.length > 0
+            ? `<img src="${covers[0]}" alt="Cover" class="modal-cover-img rounded shadow-md" data-covers='${JSON.stringify(covers)}' data-cover-idx="0" />`
+            : '<div class="w-[100px] h-[150px] bg-base-300 rounded flex items-center justify-center text-base-content/50 text-xs">No cover</div>'
+          }
+        </div>
+        ${hasMultipleCovers ? `
+          <div class="absolute bottom-1 left-0 right-0 flex justify-center gap-1">
+            <button type="button" class="btn btn-circle btn-xs btn-primary cover-nav" data-dir="prev" data-target="${coverContainerId}">‹</button>
+            <span class="text-xs font-medium bg-base-100 px-2 py-0.5 rounded-full cover-counter shadow">1/${covers.length}</span>
+            <button type="button" class="btn btn-circle btn-xs btn-primary cover-nav" data-dir="next" data-target="${coverContainerId}">›</button>
+          </div>
+        ` : ''}
+      </figure>
+      <div class="card-body p-2 gap-1">
+        <h3 class="card-title text-sm font-bold leading-tight">${match.series} #${match.number}</h3>
+        <p class="text-xs text-primary font-medium api-vol-info" data-vol="${match.volume_id}">${match.year ? '(' + match.year + ')' : '<span class="loading loading-dots loading-xs"></span>'}</p>
+        <div class="flex flex-wrap gap-1 mt-1">
+          <span class="badge badge-xs badge-accent">api</span>
+        </div>
+      </div>
+    `;
+
+    card.addEventListener('click', (e) => {
+      if (!e.target.closest('.cover-nav')) {
+        selectMatch(pk, match.issue_id);
+      }
+    });
+
+    // Wire cover nav
+    card.querySelectorAll('.cover-nav').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const container = document.getElementById(btn.dataset.target);
+        const img = container.querySelector('.modal-cover-img');
+        if (!img) return;
+        const covers = JSON.parse(img.dataset.covers);
+        let cidx = parseInt(img.dataset.coverIdx);
+        cidx = btn.dataset.dir === 'next' ? (cidx + 1) % covers.length : (cidx - 1 + covers.length) % covers.length;
+        img.src = covers[cidx];
+        img.dataset.coverIdx = cidx;
+        const counter = btn.parentElement.querySelector('.cover-counter');
+        if (counter) counter.textContent = `${cidx + 1} / ${covers.length}`;
+      });
+    });
+
+    apiMatchesDiv.appendChild(card);
+  });
+
+  _apiShownCount += batch.length;
+
+  // Fetch volume info for unique volume IDs in this batch
+  const newVolumeIds = [...new Set(batch.map(m => m.volume_id).filter(Boolean))];
+  if (newVolumeIds.length) {
+    fetch(`/comics/scrape/volume-batch/?vids=${newVolumeIds.join(',')}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) return;
+        Object.entries(data.volumes).forEach(([vid, info]) => {
+          apiMatchesDiv.querySelectorAll(`.api-vol-info[data-vol="${vid}"]`).forEach(el => {
+            const parts = [];
+            if (info.publisher) parts.push(info.publisher);
+            if (info.year) parts.push(`(${info.year})`);
+            el.textContent = parts.join(' ') || '—';
+          });
+        });
+      })
+      .catch(() => {
+        // Volume info fetch failed — leave as-is (year from cover_date still shown)
+      });
+  }
+
+  // Add "Show 3 more" button if there are more results
+  if (_apiShownCount < _apiAllMatches.length) {
+    const remaining = _apiAllMatches.length - _apiShownCount;
+    const moreBtn = document.createElement('div');
+    moreBtn.className = 'api-show-more-btn col-span-full flex justify-center mt-1';
+    moreBtn.innerHTML = `<button type="button" class="btn btn-sm btn-outline btn-accent" onclick="_showApiResultBatch('${pk}')">Show ${Math.min(API_BATCH_SIZE, remaining)} more (${remaining} remaining)</button>`;
+    apiMatchesDiv.appendChild(moreBtn);
+  }
 }
 
 {% if inducks_enabled %}

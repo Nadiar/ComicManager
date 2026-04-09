@@ -39,37 +39,6 @@
     </div>
   </div>
 
-  <!-- API-only mode budget banner (shown when comicvine.db is absent) -->
-  {% if not cv_status.db %}
-  <div class="card {% if api_calls_remaining < 10 %}bg-error/10 border border-error{% elif api_calls_remaining < 30 %}bg-warning/10 border border-warning{% else %}bg-base-200{% endif %}">
-    <div class="card-body py-3">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <span class="font-semibold">ComicVine API Mode</span>
-          <span class="text-base-content/60 text-sm ml-2">— local DB not found, using REST API for scraping (~25–50 comics/hour)</span>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="text-sm">
-            <span class="font-mono font-bold {% if api_calls_remaining < 10 %}text-error{% elif api_calls_remaining < 30 %}text-warning{% else %}text-success{% endif %}">{{ api_calls_remaining }}</span>
-            <span class="text-base-content/50">/ {{ api_budget_limit }} calls remaining this hour</span>
-          </span>
-          <div class="w-32 bg-base-300 rounded-full h-2 overflow-hidden">
-            <div class="h-full rounded-full transition-all
-              {% if api_calls_remaining < 10 %}bg-error{% elif api_calls_remaining < 30 %}bg-warning{% else %}bg-success{% endif %}"
-              style="width: {{ api_calls_remaining_pct }}%">
-            </div>
-          </div>
-        </div>
-      </div>
-      {% if cv_status.mcl %}
-      <p class="text-xs text-base-content/50 mt-1">Series Audit is available via latest.mcl ({{ cv_status.mcl_count }} volume{% if cv_status.mcl_count != 1 %}s{% endif %}).</p>
-      {% else %}
-      <p class="text-xs text-base-content/50 mt-1">Series Audit is disabled — no comicvine.db or latest.mcl found. <a href="{% url 'settings:index' %}" class="link">Configure data sources</a>.</p>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
   <!-- Workflow Pipeline -->
   <div class="card bg-base-200">
     <div class="card-body">

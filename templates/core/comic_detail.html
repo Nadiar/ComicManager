@@ -1112,6 +1112,10 @@ async function selectMatch(issueId, source, issuecode, storycode) {
   }
 }
 
+let _detailApiAllMatches = [];
+let _detailApiShownCount = 0;
+const DETAIL_API_BATCH_SIZE = 3;
+
 function searchApi() {
   const query = document.getElementById('api-search-input').value.trim();
   const apiMatchesDiv = document.getElementById('api-matches');
@@ -1120,6 +1124,8 @@ function searchApi() {
 
   if (!query) return;
 
+  _detailApiAllMatches = [];
+  _detailApiShownCount = 0;
   apiMatchesDiv.innerHTML = '';
   apiLoading.classList.remove('hidden');
   apiError.className = 'alert alert-error mt-2 hidden';
@@ -1146,32 +1152,9 @@ function searchApi() {
         return;
       }
 
-      data.matches.forEach((match, idx) => {
-        const card = document.createElement('div');
-        card.className = 'card bg-base-300 cursor-pointer hover:ring-2 hover:ring-accent transition-all border border-accent/30';
-
-        const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
-
-        card.innerHTML = `
-          <figure class="px-4 pt-4 h-52 bg-base-100/50 rounded-t-xl flex justify-center items-center">
-            ${covers.length > 0
-              ? `<img src="${covers[0]}" alt="Cover" class="rounded-lg max-h-48 max-w-full object-contain shadow-md" />`
-              : '<div class="h-48 w-full bg-base-300 rounded-lg flex items-center justify-center text-base-content/50 text-sm">No cover</div>'
-            }
-          </figure>
-          <div class="card-body p-4 gap-2">
-            <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
-            <p class="text-sm text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
-            ${match.title ? `<p class="text-sm text-base-content/70 line-clamp-2">${match.title}</p>` : ''}
-            <div class="flex flex-wrap gap-2 mt-2">
-              <span class="badge badge-accent">api</span>
-            </div>
-          </div>
-        `;
-
-        card.addEventListener('click', () => selectMatch(match.issue_id));
-        apiMatchesDiv.appendChild(card);
-      });
+      _detailApiAllMatches = data.matches;
+      _detailApiShownCount = 0;
+      _showDetailApiResultBatch();
     })
     .catch(err => {
       apiLoading.classList.add('hidden');
@@ -1179,6 +1162,73 @@ function searchApi() {
       apiError.classList.remove('hidden');
       document.getElementById('api-search-error-text').textContent = err.toString();
     });
+}
+
+function _showDetailApiResultBatch() {
+  const apiMatchesDiv = document.getElementById('api-matches');
+  const batch = _detailApiAllMatches.slice(_detailApiShownCount, _detailApiShownCount + DETAIL_API_BATCH_SIZE);
+  if (!batch.length) return;
+
+  const existing = apiMatchesDiv.querySelector('.api-show-more-btn');
+  if (existing) existing.remove();
+
+  const startIdx = _detailApiShownCount;
+  batch.forEach((match, i) => {
+    const idx = startIdx + i;
+    const card = document.createElement('div');
+    card.className = 'card bg-base-300 cursor-pointer hover:ring-2 hover:ring-accent transition-all border border-accent/30';
+
+    const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
+
+    card.innerHTML = `
+      <figure class="px-4 pt-4 h-52 bg-base-100/50 rounded-t-xl flex justify-center items-center">
+        ${covers.length > 0
+          ? `<img src="${covers[0]}" alt="Cover" class="rounded-lg max-h-48 max-w-full object-contain shadow-md" />`
+          : '<div class="h-48 w-full bg-base-300 rounded-lg flex items-center justify-center text-base-content/50 text-sm">No cover</div>'
+        }
+      </figure>
+      <div class="card-body p-4 gap-2">
+        <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
+        <p class="text-sm text-primary font-medium api-vol-info" data-vol="${match.volume_id}">${match.year ? '(' + match.year + ')' : '<span class="loading loading-dots loading-xs"></span>'}</p>
+        ${match.title ? `<p class="text-sm text-base-content/70 line-clamp-2">${match.title}</p>` : ''}
+        <div class="flex flex-wrap gap-2 mt-2">
+          <span class="badge badge-accent">api</span>
+        </div>
+      </div>
+    `;
+
+    card.addEventListener('click', () => selectMatch(match.issue_id));
+    apiMatchesDiv.appendChild(card);
+  });
+
+  _detailApiShownCount += batch.length;
+
+  // Fetch volume info for unique volume IDs in this batch
+  const newVolumeIds = [...new Set(batch.map(m => m.volume_id).filter(Boolean))];
+  if (newVolumeIds.length) {
+    fetch(`/comics/scrape/volume-batch/?vids=${newVolumeIds.join(',')}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) return;
+        Object.entries(data.volumes).forEach(([vid, info]) => {
+          apiMatchesDiv.querySelectorAll(`.api-vol-info[data-vol="${vid}"]`).forEach(el => {
+            const parts = [];
+            if (info.publisher) parts.push(info.publisher);
+            if (info.year) parts.push(`(${info.year})`);
+            el.textContent = parts.join(' ') || '—';
+          });
+        });
+      })
+      .catch(() => {});
+  }
+
+  if (_detailApiShownCount < _detailApiAllMatches.length) {
+    const remaining = _detailApiAllMatches.length - _detailApiShownCount;
+    const moreBtn = document.createElement('div');
+    moreBtn.className = 'api-show-more-btn col-span-full flex justify-center mt-2';
+    moreBtn.innerHTML = `<button type="button" class="btn btn-sm btn-outline btn-accent" onclick="_showDetailApiResultBatch()">Show ${Math.min(DETAIL_API_BATCH_SIZE, remaining)} more (${remaining} remaining)</button>`;
+    apiMatchesDiv.appendChild(moreBtn);
+  }
 }
 
 // Allow Enter key in API search input

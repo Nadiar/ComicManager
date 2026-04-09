@@ -13,6 +13,7 @@ Configure how ComicManager interacts with external metadata sources.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `cv_api_key` | _(empty)_ | Your ComicVine API key. Required if you are not using a local `comicvine.db`. Get one at comicvine.gamespot.com/api/ |
+| `scrape_api_fallback` | `false` | When `comicvine.db` is present but returns no match, also try the ComicVine API. Uses your API budget (3 calls per comic). |
 | `scrape_0day_hours` | `24` | Currently unused. Reserved for future use. |
 | `scrape_hash_threshold` | `8` | Maximum Hamming distance for a pHash cover match to be accepted. Lower = stricter. Range: 0 (exact) to ~20 (loose). |
 | `inducks_enabled` | `false` | Show the INDUCKS search option in the scrape modal (for Disney/European comics). |

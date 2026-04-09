@@ -32,6 +32,13 @@ _hash_cache: dict | None = None
 _hash_cache_db_path: str | None = None
 _hash_cache_mtime: float = 0.0
 
+# Module-level volume info cache (publisher, start_year, issue_count).
+# Volume metadata rarely changes, so this persists for the process lifetime.
+# Capped at 2000 entries to avoid unbounded growth across long-running workers.
+_volume_cache: dict[int, dict] = {}
+_volume_cache_lock = threading.Lock()
+_VOLUME_CACHE_MAX = 2000
+
 
 def _load_hash_cache(db_path: str) -> dict:
     """
@@ -773,7 +780,9 @@ class ComicVineScraper:
                 if data.get("error") == "OK" and data.get("results") is not None:
                     try:
                         from apps.scraper.cv_sources import increment_api_call_count
-                        increment_api_call_count()
+                        # Derive path label from endpoint (e.g. "search", "volume/4050-...", "issue/4000-...")
+                        path_label = endpoint.split("/")[0]
+                        increment_api_call_count(path=path_label)
                     except Exception:
                         pass
                     return data
@@ -792,7 +801,15 @@ class ComicVineScraper:
             return None
 
     def _get_volume_info(self, volume_id: int) -> dict:
-        """Fetch publisher and start_year for a volume from the API."""
+        """Fetch publisher and start_year for a volume from the API.
+
+        Results are cached in a module-level dict for the process lifetime so
+        the same volume is never fetched twice across multiple search calls.
+        """
+        with _volume_cache_lock:
+            if volume_id in _volume_cache:
+                return _volume_cache[volume_id]
+
         data = self._api_request(f"volume/4050-{volume_id}", {
             "field_list": "publisher,start_year,count_of_issues",
         })
@@ -800,14 +817,28 @@ class ComicVineScraper:
             return {}
         result = data.get("results") if isinstance(data.get("results"), dict) else {}
         pub = result.get("publisher") or {}
-        return {
+        info = {
             "publisher": pub.get("name"),
             "start_year": result.get("start_year"),
             "issue_count": result.get("count_of_issues"),
         }
 
-    def search_api(self, query: str, limit: int = 10) -> list[CVMatch]:
-        """Search the ComicVine API for issues matching a query string."""
+        with _volume_cache_lock:
+            if len(_volume_cache) >= _VOLUME_CACHE_MAX:
+                # Evict oldest entry to keep the cache bounded
+                _volume_cache.pop(next(iter(_volume_cache)))
+            _volume_cache[volume_id] = info
+
+        return info
+
+    def search_api(self, query: str, limit: int = 10, fetch_volume_info: bool = False) -> list[CVMatch]:
+        """Search the ComicVine API for issues matching a query string.
+
+        fetch_volume_info: if True, makes an additional /volume call per unique
+        volume to populate publisher, start_year, and issue_count. Only needed
+        when showing results to the user — auto-match scoring uses cover_date
+        year and doesn't need publisher, so leave False to save API budget.
+        """
         data = self._api_request("search", {
             "resources": "issue",
             "query": query,
@@ -816,17 +847,11 @@ class ComicVineScraper:
         if not data:
             return []
 
-        # Collect unique volume IDs to batch-fetch publisher/year
-        volume_ids = set()
-        for r in data["results"]:
-            vol = r.get("volume") or {}
-            if vol.get("id"):
-                volume_ids.add(vol["id"])
-
-        # Fetch volume info (publisher, start_year) for each unique volume
         volume_cache = {}
-        for vid in volume_ids:
-            volume_cache[vid] = self._get_volume_info(vid)
+        if fetch_volume_info:
+            volume_ids = {r["volume"]["id"] for r in data["results"] if r.get("volume", {}).get("id")}
+            for vid in volume_ids:
+                volume_cache[vid] = self._get_volume_info(vid)
 
         matches = []
         for r in data["results"]:
@@ -839,12 +864,9 @@ class ComicVineScraper:
             if cover_url and cover_url not in cover_urls:
                 cover_urls.insert(0, cover_url)
 
-            # Get publisher/year from volume cache, fall back to cover_date year
-            vol_info = volume_cache.get(volume.get("id"), {})
             cover_date = r.get("cover_date") or ""
-            year = vol_info.get("start_year")
-            if not year and len(cover_date) >= 4:
-                year = cover_date[:4]
+            vol_info = volume_cache.get(volume.get("id"), {})
+            year = vol_info.get("start_year") or (cover_date[:4] if len(cover_date) >= 4 else None)
 
             matches.append(CVMatch(
                 issue_id=r["id"],
@@ -866,6 +888,104 @@ class ComicVineScraper:
 
         return matches
 
+    def search_volumes_api(self, query: str, limit: int = 10) -> list[CVMatch]:
+        """Search CV API for volumes by series name.
+
+        Returns volume-level CVMatch objects with publisher, start_year, and
+        count_of_issues included directly from the search response — no
+        separate /volume calls needed.
+        """
+        data = self._api_request("search", {
+            "resources": "volume",
+            "query": query,
+            "limit": limit,
+            "field_list": "name,start_year,publisher,id,image,count_of_issues",
+        })
+        if not data:
+            return []
+
+        matches = []
+        for r in data["results"]:
+            pub = r.get("publisher") or {}
+            image = r.get("image") or {}
+            cover_url = image.get("medium_url") or image.get("small_url")
+            cover_urls = []
+            if image.get("original_url"):
+                cover_urls.append(image["original_url"])
+            if cover_url and cover_url not in cover_urls:
+                cover_urls.insert(0, cover_url)
+
+            # Populate the volume cache so get_issue_from_api doesn't re-fetch
+            vid = r.get("id")
+            if vid:
+                info = {
+                    "publisher": pub.get("name"),
+                    "start_year": r.get("start_year"),
+                    "issue_count": r.get("count_of_issues"),
+                }
+                with _volume_cache_lock:
+                    if len(_volume_cache) >= _VOLUME_CACHE_MAX:
+                        _volume_cache.pop(next(iter(_volume_cache)))
+                    _volume_cache.setdefault(vid, info)
+
+            matches.append(CVMatch(
+                issue_id=0,
+                volume_id=r["id"],
+                series=r.get("name", ""),
+                issue_number="",
+                title=None,
+                cover_date=None,
+                publisher=pub.get("name"),
+                start_year=r.get("start_year"),
+                issue_count=r.get("count_of_issues"),
+                description=None,
+                image_url=image.get("original_url"),
+                cover_url=cover_url,
+                cover_urls=cover_urls,
+                match_type="api_volume",
+                match_score=0,
+            ))
+
+        return matches
+
+    def get_issue_by_volume_and_number(self, volume_id: int, issue_number: str) -> Optional["CVMatch"]:
+        """Find a specific issue within a volume using the /issues filter endpoint.
+
+        Uses filter=volume:{id},issue_number:{num} — a single targeted call
+        that avoids fetching all issues in the volume.
+        ComicVine does not handle leading zeros well, so they are stripped.
+        """
+        num = str(issue_number).lstrip("0") or "0"
+        data = self._api_request("issues", {
+            "field_list": "id,name,issue_number,image,cover_date",
+            "filter": f"volume:{volume_id},issue_number:{num}",
+        })
+        if not data or not data.get("results"):
+            return None
+
+        r = data["results"][0]
+        image = r.get("image") or {}
+        cover_url = image.get("medium_url") or image.get("small_url")
+        cover_date = r.get("cover_date") or ""
+
+        return CVMatch(
+            issue_id=r["id"],
+            volume_id=volume_id,
+            series="",
+            issue_number=r.get("issue_number", ""),
+            title=r.get("name"),
+            cover_date=cover_date,
+            publisher=None,
+            start_year=cover_date[:4] if len(cover_date) >= 4 else None,
+            issue_count=None,
+            description=None,
+            image_url=image.get("original_url"),
+            cover_url=cover_url,
+            cover_urls=[image.get("original_url"), cover_url] if image.get("original_url") else [cover_url],
+            match_type="api_filter",
+            match_score=0,
+        )
+
     def get_issue_from_api(self, issue_id: int) -> Optional[CVMatch]:
         """Fetch full issue details from the ComicVine API, including credits."""
         data = self._api_request(f"issue/4000-{issue_id}", {
@@ -884,21 +1004,17 @@ class ComicVineScraper:
         image = r.get("image") or {}
         volume_id = volume.get("id")
 
-        # Fetch volume details for publisher, start_year, issue_count
+        # Fetch volume details for publisher, start_year, issue_count.
+        # _get_volume_info checks the module-level cache first, so if
+        # search_volumes_api already ran, this costs 0 extra API calls.
         publisher = None
         start_year = None
         issue_count = None
         if volume_id:
-            vol_data = self._api_request(f"volume/4050-{volume_id}", {
-                "field_list": "id,name,start_year,count_of_issues,publisher",
-            })
-            if vol_data:
-                vr = vol_data["results"]
-                start_year = str(vr.get("start_year", "")) or None
-                issue_count = vr.get("count_of_issues")
-                pub = vr.get("publisher")
-                if pub:
-                    publisher = pub.get("name")
+            vol_info = self._get_volume_info(volume_id)
+            publisher = vol_info.get("publisher")
+            start_year = str(vol_info.get("start_year", "")) or None
+            issue_count = vol_info.get("issue_count")
 
         # Parse credits (API returns lists directly, our parsers handle both)
         person_credits = _parse_credits_json(r.get("person_credits"))

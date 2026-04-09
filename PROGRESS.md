@@ -29,6 +29,7 @@
 - [x] [P1.20] Implement logic to identify `.zip` and rezip them to `.cbz` if user wants. Use Review Queue like [P1.5].
 - [x] [P1.21] Verified: `is_zip` does not block batch scraping. `scrape_all_task` only excludes `scrape_skipped` and inducks-sourced comics — `is_pdf`, `low_page_count`, and `needs_conversion` are not excluded either. ZIP files are valid comic archives and can be scraped for metadata normally; the rename to `.cbz` is a separate step. No change needed.
 - [x] [P1.22] Workflow pipeline step 1 (New) should show an action button for "Convert to CBZ" when any comics in the new state are in CBR or CB7 format — similar to the "Needs Conversion" row in the Review & Maintenance card.
+- [ ] [P1.23] The "Auto-convert CBR to CBZ" setting (`import_convert_cbr`) exists in Settings but is never read during import. The `needs_conversion` flag is set unconditionally on CBR/CB7 files regardless of this setting. Fix: read the setting in the import service and only set the flag when it's enabled. Also check whether the setting should trigger an automatic conversion task on import rather than just flagging.
 
 ### Phase 2: ComicVine Scraping (Comicrack_guide 02 & 03)
 
@@ -52,6 +53,7 @@
 - [x] [P2.13] Implement metadata-only matching for physical comics. (See P2.9.)
 - [x] [P2.14] If flag=scrape_skipped but manually scraping is done and confirmed, the flag should be cleared. `apply_cv_match` and `apply_inducks_match` both call `comic.remove_flag("scrape_skipped")` on successful match confirmation.
 - [x] [P2.15] Workflow pipeline step 2 (Scrape) should show two separate counts: all scrapeable comics (excluding scrape_skipped) and skipped comics. The "Scrape All" action button should be disabled (or hidden) when all remaining comics in that state have `scrape_skipped=True`.
+- [ ] [P2.16] The "0Day window (hours)" setting (`scrape_0day_hours`) exists in Settings but appears to never be read anywhere. Originally intended to put recently-added comics into a 0Day priority queue. Verify whether it is used; if not, either implement the 0Day queue logic or remove the setting.
 
 ### Phase 3: Issue Count (Comicrack_guide 04 - Add Count)
 
@@ -314,8 +316,8 @@
 - [x] [FI.4] Export tagging rulesets as a `.dat` file generated from the current database state (all rulesets, including ones created or edited in the UI), not a re-export of the originally imported file. Export button removed from `/tagging/` until this is properly implemented.
 - [x] [FI.5] Export organizer profiles as a `.lop` file generated from the current database state. Would complete the import/export round-trip for both `.dat` (tagging rules) and `.lop` (organizer profiles).
 - [ ] [FI.1] PDF to CBZ conversion. Currently `convert_cbr` only handles CBR/CB7 (archive re-pack). PDF conversion requires rendering each page to an image (e.g. via `pdf2image` / Ghostscript), which is a separate, non-trivial operation. Would allow PDFs flagged `is_pdf` to be converted in-place rather than only deleted or suppressed.
-- [ ] [FI.2] ComicVine API call budget management. Better track, save, and display remaining API calls. Currently the count may be inaccurate or not conserved across sessions. Consider caching responses, batching requests, and showing a live remaining-calls indicator in the UI.
-- [ ] [FI.3] In `try_api_metadata_match`, the credits fetch at the end of a successful API match is budget-gated separately from the initial search. If the budget runs out between the search and the credits call, basic metadata is applied without full credits (writer, penciller, etc.). This is undesirable. The fix should check upfront whether there is enough budget for both the search and the credits fetch combined, and if not, skip the comic entirely rather than applying incomplete metadata.
+- [x] [FI.2] ComicVine API call budget management. Per-path rolling counters (/search, /volume, /issues, /issue) tracked in Redis and displayed as progress bars in Settings. Budget checked before every call; comics skipped when exhausted rather than errored. Manual search results loaded in batches of 3 with lazy /volume fetching to minimise cost.
+- [x] [FI.3] Resolved by redesigning `try_api_metadata_match` to use a 3-call volume-based strategy: /search returns credits inline via /issue on the final call, so there is no separate budget-gated credits fetch. Full credits are always included or the entire match is skipped.
 
 ## Code to Port
 

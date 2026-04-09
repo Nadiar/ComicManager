@@ -355,6 +355,12 @@
     }
 
     function progressText(data) {
+      if (data.step) {
+        var text = data.step;
+        if (data.comic) text += ' — ' + data.comic;
+        if (data.errors && data.errors.length > 0) text += ' (' + data.errors.length + ' error' + (data.errors.length !== 1 ? 's' : '') + ')';
+        return text;
+      }
       if (data.flagged !== undefined && data.cleared !== undefined) {
         // Audit-specific progress
         var parts = [];

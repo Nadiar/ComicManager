@@ -397,8 +397,16 @@ def run_full_pipeline_task(self, comic_ids: list):
             )
             continue
 
+        def _step(label):
+            self.update_state(
+                state="PROGRESS",
+                meta={"current": i, "total": total, "processed": i, "errors": errors,
+                      "step": label, "comic": title},
+            )
+
         try:
             # Step 1: Accept
+            _step("Accepting")
             if comic.state == Comic.STATE_NEW:
                 comic.series = comic.proposed_series
                 comic.number = comic.proposed_number
@@ -408,6 +416,7 @@ def run_full_pipeline_task(self, comic_ids: list):
                 comic.save()
 
             # Step 2: Scrape — inline to capture match detail
+            _step("Scraping")
             for key in ("scrape_no_match", "scrape_error", "scrape_error_detail"):
                 comic.flags.pop(key, None)
 
@@ -431,6 +440,7 @@ def run_full_pipeline_task(self, comic_ids: list):
                 raise Exception(f"No CV match found for {comic.series} #{comic.number}")
 
             # Step 3: Tag — inline to capture rule changes
+            _step("Tagging")
             before_series_group = comic.series_group
             before_main_char = comic.main_character_or_team
 
@@ -483,6 +493,7 @@ def run_full_pipeline_task(self, comic_ids: list):
                 )
 
             # Step 5: Format detection — capture detail, then run _run_format
+            _step("Detecting format")
             old_format = comic.format
             detected_format = detect_format(comic)
             _text = f"{comic.series or ''} {comic.title or ''}"
@@ -529,6 +540,7 @@ def run_full_pipeline_task(self, comic_ids: list):
             }
 
             # Step 6: Deduplicate
+            _step("Checking duplicates")
             run_duplicate_detection()
             comic.refresh_from_db()
 
@@ -549,6 +561,7 @@ def run_full_pipeline_task(self, comic_ids: list):
                 continue
 
             # Step 7: Organize — capture old path before moving
+            _step("Moving file")
             old_path = comic.file_path
             _run_organize(comic)
             comic.refresh_from_db(fields=["file_path"])
@@ -559,6 +572,7 @@ def run_full_pipeline_task(self, comic_ids: list):
             }
 
             # Step 8: Write ComicInfo.xml
+            _step("Writing ComicInfo.xml")
             _run_write(comic)
 
         except Exception as e:

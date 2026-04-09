@@ -13,12 +13,19 @@ def settings_index(request):
     for s in settings:
         grouped.setdefault(s.group, []).append(s)
 
-    from apps.scraper.cv_sources import get_cv_source_status
+    from apps.scraper.cv_sources import get_cv_source_status, get_api_calls_remaining, get_api_calls_per_path, CV_API_BUDGET_LIMIT
+    from .models import get_setting
     cv_status = get_cv_source_status()
+    api_remaining = get_api_calls_remaining()
 
     return render(request, "core/settings.html", {
         "grouped": grouped,
         "cv_status": cv_status,
+        "api_calls_remaining": api_remaining,
+        "api_calls_remaining_pct": round(api_remaining / CV_API_BUDGET_LIMIT * 100),
+        "api_budget_limit": CV_API_BUDGET_LIMIT,
+        "api_calls_per_path": get_api_calls_per_path(),
+        "scrape_api_fallback": get_setting("scrape_api_fallback", False),
     })
 
 
