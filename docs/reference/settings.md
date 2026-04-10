@@ -32,7 +32,6 @@ Control how new comics are flagged during the import phase.
 |---------|---------|-------------|
 | `min_page_count` | `5` | Comics with fewer pages than this threshold are flagged with `low_page_count` for review. |
 | `cover_page_threshold` | `3` | Comics at or below this page count AND with "cover" in the filename are flagged as cover-only files. |
-| `import_convert_cbr` | `true` | Flag CBR/CB7 files with `needs_conversion` on import so they appear in the Review Queue for conversion. |
 
 ---
 

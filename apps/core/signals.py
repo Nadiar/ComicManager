@@ -108,7 +108,6 @@ def seed_default_settings(sender, **kwargs):
         # Import
         dict(key="min_page_count",        label="Minimum page count",          type="int",    group="Import",     help_text="Comics below this page count are flagged for review", value="5"),
         dict(key="cover_page_threshold",  label="Cover-only page threshold",   type="int",    group="Import",     help_text="Files at or below this count + 'cover' in name are flagged", value="3"),
-        dict(key="import_convert_cbr",    label="Auto-convert CBR to CBZ",     type="bool",   group="Import",     help_text="Automatically queue CBR/CB7 files for conversion on import", value="true"),
         # Library
         dict(key="untagged_dir",          label="Untagged (drop) folder",      type="path",   group="Library",    help_text="Where new digital comics are dropped for import", value="/comics/untagged"),
         dict(key="library_dir",           label="Organized library folder",    type="path",   group="Library",    help_text="Where the Library Organizer moves finished comics", value="/comics/library"),
@@ -130,3 +129,4 @@ def seed_default_settings(sender, **kwargs):
 
     # Remove obsolete settings
     Setting.objects.filter(key="dry_run_organizer").delete()
+    Setting.objects.filter(key="import_convert_cbr").delete()
