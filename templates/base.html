@@ -37,27 +37,38 @@
       <a href="/" class="text-xl font-bold text-primary">ComicManager</a>
     </div>
     <div class="navbar-center hidden lg:flex">
-      <ul class="menu menu-horizontal px-1 gap-1">
-        <li><a href="/" class="{% block nav_dashboard %}{% endblock %}">Dashboard</a></li>
-        <li><a href="/comics/" class="{% block nav_comics %}{% endblock %}">Comics</a></li>
-        <li><a href="/smartlists/" class="{% block nav_smartlists %}{% endblock %}">Smart Lists</a></li>
-        <li><a href="{% url 'core:character_audit_search' %}" class="{% block nav_audit %}{% endblock %}">Series Audit</a></li>
-        <li><a href="/physical/" class="{% block nav_physical %}{% endblock %}">Physical</a></li>
-        <li>
-          <details>
-            <summary>Workflow</summary>
-            <ul class="p-2 bg-base-200 rounded-box z-10 w-48">
-              <li><a href="/tagging/rulesets/">Tagging Rules</a></li>
-              <li><a href="/tagging/publishers/">Publishers</a></li>
-              <li><a href="/organizer/profiles/">File Organizer</a></li>
-              <li><a href="/organizer/path-audit/">Path Audit</a></li>
-              <li><a href="/duplicates/">Duplicates</a></li>
-              <li><a href="{% url 'core:format_review' %}">Format Review</a></li>
-            </ul>
-          </details>
-        </li>
-        <li><a href="/settings/" class="{% block nav_settings %}{% endblock %}">Settings</a></li>
-      </ul>
+      <div class="flex items-center gap-1 text-sm">
+        <a href="/" class="px-3 py-2 rounded-lg hover:bg-base-300 {% block nav_dashboard %}{% endblock %}">Dashboard</a>
+        <div class="nav-dd relative">
+          <a href="/comics/" class="px-3 py-2 rounded-lg hover:bg-base-300 block {% block nav_comics %}{% endblock %}">Comics</a>
+          <ul class="nav-dd-content hidden absolute top-full left-0 menu p-2 shadow bg-base-200 rounded-box z-50 w-36 mt-1">
+            <li><a href="/physical/" class="{% block nav_physical %}{% endblock %}">Physical</a></li>
+          </ul>
+        </div>
+        <a href="/smartlists/" class="px-3 py-2 rounded-lg hover:bg-base-300 {% block nav_smartlists %}{% endblock %}">Smart Lists</a>
+        <a href="{% url 'core:character_audit_search' %}" class="px-3 py-2 rounded-lg hover:bg-base-300 {% block nav_audit %}{% endblock %}">Series Audit</a>
+        <div class="nav-dd relative">
+          <span class="px-3 py-2 rounded-lg hover:bg-base-300 cursor-pointer block">Workflow</span>
+          <ul class="nav-dd-content hidden absolute top-full left-0 menu p-2 shadow bg-base-200 rounded-box z-50 w-44 mt-1">
+            <li><a href="/comics/?state=new">1. New</a></li>
+            <li><a href="/comics/?state=scrape">2. Scrape</a></li>
+            <li><a href="/comics/?state=tagging">3. Tagging</a></li>
+            <li><a href="/comics/format/">4. Formats</a></li>
+            <li><a href="/duplicates/">5. Deduplicate</a></li>
+            <li><a href="/comics/?state=move">6. Move Files</a></li>
+            <li><a href="/comics/?state=write">7. Write to CBZ</a></li>
+          </ul>
+        </div>
+        <div class="nav-dd relative">
+          <a href="/settings/" class="px-3 py-2 rounded-lg hover:bg-base-300 block {% block nav_settings %}{% endblock %}">Settings</a>
+          <ul class="nav-dd-content hidden absolute top-full right-0 menu p-2 shadow bg-base-200 rounded-box z-50 w-48 mt-1">
+            <li><a href="/tagging/rulesets/">Tagging Rules</a></li>
+            <li><a href="/tagging/publishers/">Publishers</a></li>
+            <li><a href="/organizer/profiles/">File Organizer</a></li>
+            <li><a href="/organizer/path-audit/">Path Audit</a></li>
+          </ul>
+        </div>
+      </div>
     </div>
     <div class="navbar-end">
       <span class="text-xs text-base-content/50">v0.1.0</span>
@@ -565,6 +576,20 @@
       startPolling(genericTaskId, genericTaskLabel || 'Processing');
     }
   })();
+  </script>
+
+  <script>
+  // Navbar hover dropdowns with grace period so the menu doesn't vanish mid-move
+  document.querySelectorAll('.nav-dd').forEach(function(li) {
+    var menu = li.querySelector('.nav-dd-content');
+    var timer;
+    function show() { clearTimeout(timer); menu.classList.remove('hidden'); }
+    function hide() { timer = setTimeout(function() { menu.classList.add('hidden'); }, 150); }
+    li.addEventListener('mouseenter', show);
+    li.addEventListener('mouseleave', hide);
+    menu.addEventListener('mouseenter', show);
+    menu.addEventListener('mouseleave', hide);
+  });
   </script>
 
 </body>
