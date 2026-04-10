@@ -3845,7 +3845,7 @@ def character_audit_search(request):
         )
 
         volumes_data = get_volume_completion_bulk(volume_ids)
-        volumes_data.sort(key=lambda x: (x["completion"], x["volume_info"]["name"]))
+        volumes_data.sort(key=lambda x: (x["volume_info"]["name"] or "").lower())
 
     return render(request, "core/character_audit_search.html", {
         "query": query,

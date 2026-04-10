@@ -40,13 +40,30 @@
     <div class="divider">Results for "{{ query }}"</div>
 
     {% if volumes_data %}
-      <div class="grid grid-cols-1 gap-6">
+      <!-- Sort controls -->
+      <div class="flex flex-wrap gap-2 items-center text-sm mb-2">
+        <span class="text-base-content/50">Sort:</span>
+        <button class="btn btn-xs btn-primary" data-sort="name">Name ↑</button>
+        <button class="btn btn-xs btn-ghost" data-sort="year">Year</button>
+        <button class="btn btn-xs btn-ghost" data-sort="total">Total Issues</button>
+        <button class="btn btn-xs btn-ghost" data-sort="owned">Owned</button>
+        <button class="btn btn-xs btn-ghost" data-sort="completion">% Owned</button>
+        <button class="btn btn-xs btn-ghost" data-sort="missing">Missing</button>
+      </div>
+
+      <div class="grid grid-cols-1 gap-6" id="audit-results">
         {% for data in volumes_data %}
-          <div class="card bg-base-200 shadow-xl border border-base-300">
+          <div class="card bg-base-200 shadow-xl border border-base-300"
+               data-name="{{ data.volume_info.name|lower }}"
+               data-year="{{ data.volume_info.start_year|default:0 }}"
+               data-total="{{ data.total_count }}"
+               data-owned="{{ data.owned_count }}"
+               data-completion="{{ data.completion }}"
+               data-missing="{{ data.missing_count }}">
             <div class="card-body py-4">
               <div class="flex items-center justify-between mb-2">
                 <h3 class="font-semibold text-sm">
-                  Series Completion — {{ data.volume_info.name }}
+                  {{ data.volume_info.name }}
                   {% if data.volume_info.start_year %}({{ data.volume_info.start_year }}){% endif %}
                 </h3>
                 <div class="flex items-center gap-3">
@@ -82,4 +99,54 @@
     {% endif %}
   {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  var grid = document.getElementById('audit-results');
+  if (!grid) return;
+
+  var currentSort = 'name';
+  var currentDir = 'asc';
+
+  function sortCards(key, dir) {
+    var cards = Array.from(grid.children);
+    var numeric = ['year', 'total', 'owned', 'completion', 'missing'];
+    cards.sort(function (a, b) {
+      var av = a.dataset[key] || '';
+      var bv = b.dataset[key] || '';
+      if (numeric.includes(key)) {
+        av = parseFloat(av) || 0;
+        bv = parseFloat(bv) || 0;
+      }
+      if (av < bv) return dir === 'asc' ? -1 : 1;
+      if (av > bv) return dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    cards.forEach(function (c) { grid.appendChild(c); });
+  }
+
+  document.querySelectorAll('[data-sort]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.dataset.sort;
+      if (key === currentSort) {
+        currentDir = currentDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSort = key;
+        currentDir = 'asc';
+      }
+      sortCards(currentSort, currentDir);
+
+      document.querySelectorAll('[data-sort]').forEach(function (b) {
+        var isActive = b.dataset.sort === currentSort;
+        b.classList.toggle('btn-primary', isActive);
+        b.classList.toggle('btn-ghost', !isActive);
+        b.textContent = b.textContent.replace(/ [↑↓]$/, '');
+        if (isActive) b.textContent += currentDir === 'asc' ? ' ↑' : ' ↓';
+      });
+    });
+  });
+})();
+</script>
 {% endblock %}
