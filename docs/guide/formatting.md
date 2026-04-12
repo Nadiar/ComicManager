@@ -8,13 +8,14 @@ The **Formatting** phase identifies the specific publication format for each com
 
 The "Format" field is a key piece of metadata for how you'll eventually organize your files on disk. While ComicVine provides some format information, it's often incomplete or inconsistent. ComicManager uses a combination of **keyword matching** and **issue count rules** to automatically categorize your collection.
 
-ComicManager can automatically assign any of these eight formats:
+ComicManager can automatically assign any of these nine formats:
 
 - **Director's Cut**: Series or title contains "Director's Cut".
 - **Black & White**: Series or title contains "Black & White" or "B&W".
 - **Omnibus**: "Omnibus" appears anywhere in the series, title, or summary. Also applied when page count is 500 or more and no other collection keyword matched.
 - **TPB**: "TPB" or "Trade Paperback" in the series, title, or summary. Also applied when page count is 80 or more and the summary describes a collected issue range (e.g. "Collects #1-5", "#2-#8", "#1, 2, 3, 4", or "features the following issues").
 - **Annual**: Series or title contains "Annual".
+- **Preview**: Series or title contains "Preview" or "Previews". Catches preview comics and Previews catalog issues that would otherwise be mis-tagged as regular series issues.
 - **One-Shot**: A standalone single-issue series (`count = 1` with a low issue number).
 - **Limited Series**: A series with a known, finite run (`count 2–15`), where issue numbers are also in a low range.
 - **Main Series**: An ongoing publication with 16 or more issues (`count > 15`), or a continuation/renumbered series where `count ≤ 15` but issue numbers are higher than 15.
@@ -50,6 +51,8 @@ Rules are evaluated in priority order. The first match wins.
 │ page_count ≥ 500? ──────────────────────────── YES ──▶  Omnibus           │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ "Annual" in series or title? ───────────────── YES ──▶  Annual            │
+├────────────────────────────────────────────────────────────────────────────┤
+│ "Preview" / "Previews" in series or title? ─── YES ──▶  Preview           │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ count not set? ─────────────────────────────── YES ──▶  (no result)       │
 │                                                          missing_format    │
@@ -91,8 +94,18 @@ Set when no rule produces a result (e.g. count is not set and no keywords match)
 ### `needs_reformat`
 Automatically set when a comic's issue count changes and the current format no longer matches. For example, a comic you had as a "One-Shot" because only one issue was released but it needs to become a "Limited Series" once the next issue is out. It appears in the Maintenance tab of the dashboard. Run **Format All** to process all flagged comics in one go.
 
+### Confirming a Format (`format_ok`)
+
+If auto-detection produces the wrong result for a specific comic, open its detail page and use the **Confirm Format** toggle. This sets `format_ok = True` on the comic, which:
+
+- Excludes the comic from the **Format Review** page so it no longer appears as a suggestion.
+- Prevents future re-format runs from overwriting the format you chose.
+- Suppresses the `format_mismatch_in_volume` flag for that comic.
+
+When you resolve a duplicate group and keep one comic, `format_ok` is also set automatically on the kept comic so it is not re-evaluated as part of a conflict.
+
 ### `format_mismatch_in_volume`
-Set when comics in your library share the same ComicVine Volume ID but have different format values. This usually means an issue count is wrong or a DataManager rule was misapplied. Can be permanently suppressed per-comic via "Accept Conflict".
+Set when comics in your library share the same ComicVine Volume ID but have different format values. This usually means an issue count is wrong or a DataManager rule was misapplied. Can be permanently suppressed per-comic via "Accept Conflict" or by using **Confirm Format** on the detail page.
 
 ### `cv_volume_conflict`
 Set when two comics have the same Series, Volume, and Format but are linked to different ComicVine Volume IDs. This usually indicates a bad scrape where a comic was matched to the wrong series. Can also be permanently dismissed via "Accept Conflict".

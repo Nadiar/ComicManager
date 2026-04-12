@@ -107,5 +107,24 @@ Comics identified as duplicates show a "View Original" link. Successfully proces
 ### Limitations
 
 - Only CBZ files are supported. CBR and CB7 files must be converted first (use the Convert button in the row), then run the pipeline.
-- The scrape step requires a ComicVine match. If no match is found the pipeline stops and marks the comic as an error. 
+- The scrape step requires a ComicVine match. If no match is found the pipeline stops and marks the comic as an error.
 - If a comic is flagged as a duplicate it stops at the deduplication step and is not moved or written.
+
+## Bulk Actions
+
+Every comic list view (pipeline stages, flag views, and smart lists) has a **Bulk Action** dropdown in the toolbar. It applies an action to exactly the comics currently visible in the table, respecting any active search terms, filters, and sort order.
+
+### Available actions
+
+| Action | What it does |
+|--------|-------------|
+| **Scrape** | Runs the ComicVine (or I.N.D.U.C.K.S.) scrape on each comic |
+| **Tag / Re-tag** | Applies your DataManager rulesets |
+| **Detect Format** | Re-runs format detection |
+| **Organize** | Moves each comic to its library path |
+| **Force Write** | Embeds ComicInfo.xml even if validation would normally block it |
+| **Suppress Flag** | Marks the active flag as accepted (available on `?flag=X` views only) |
+
+### How it works
+
+Bulk Action dispatches a Celery background task and uses the same progress toast, cancellation button, and audit log as the dashboard batch buttons. The task re-runs the same filter query the page used, so what you see is exactly what gets processed. If the task encounters a disk-full error or permission error it stops after the current comic and reports how many were processed.

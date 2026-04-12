@@ -59,6 +59,10 @@ docker compose exec web python manage.py import_datamanager /path/to/dataman.dat
 
 Duplicate rulesets (same name + group path) are skipped automatically.
 
+## Exporting Rulesets
+
+Go to **Tagging** and click **Export DataManager**. This downloads a `.dat` file generated from the current database state. It includes all rulesets, including ones you created or edited in the UI, not just the originally imported file. The exported file can be re-imported into ComicManager or used as a backup.
+
 ## Publisher Management
 
 ComicManager helps you track which publishers are covered by your enabled rulesets via the **Publishers** page (`/tagging/publishers/`).

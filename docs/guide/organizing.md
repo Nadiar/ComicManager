@@ -19,6 +19,18 @@ If you used ComicRack's Library Organizer, you can import your existing `.lop` f
 
 Go to **Organizer** and click **Import Profile**. Upload your `.lop` file and choose whether to clear existing profiles before importing. The profiles appear immediately in the profile list and are ready to use.
 
+### Exporting Organizer Profiles
+
+Go to **Organizer** and click **Export Profiles**. This downloads a `.lop` file generated from the current database state. It includes profiles you created or edited in the UI, not just the originally imported file.
+
+::: warning Compatibility note
+ComicManager-specific features (indexed credit fields like `{<writer[1][l]>}`, and conditions using `FileNameOnly`, `FilePath`, `FileExtension`) are not recognized by ComicRack's Library Organizer. If any of your profiles use these features, the exported `.lop` file will open in ComicRack but those conditions or template tokens will not work correctly. Profiles that only use standard fields and variables will round-trip without issues.
+:::
+
+### Reordering Profiles
+
+ComicManager evaluates profiles **top-to-bottom**, applying the first profile whose conditions match a comic. Drag the handle on the left of any row to reorder profiles and control which rules take priority. Changes are saved automatically.
+
 ---
 
 ## Library Organization Rules
@@ -58,6 +70,37 @@ Over time, your library structure might change or metadata might be updated afte
 - **Scan Path Audit**: A manual tool to scan your entire library and compare current file paths with the "Expected" paths based on your organization profile. It identifies any comics that are in the wrong location or have the wrong filename.
 
 ![Path Audit Tool](/path_audit.png)
+
+---
+
+## Profile Matching Conditions
+
+Each organizer profile can have one or more matching conditions that control which comics the profile applies to. A profile with no conditions matches all comics.
+
+**Available fields for conditions:**
+
+| Field | Type | Example |
+|-------|------|---------|
+| `Format` | Text | `TPB`, `Main Series` |
+| `Publisher` | Text | `DC Comics` |
+| `Series` | Text | `Batman` |
+| `SeriesGroup` | Text | `Batman Family` |
+| `MainCharacterOrTeam` | Text | `Batman` |
+| `Count` | Numeric | `12` |
+| `Page Count` | Numeric | `120` |
+
+**Text operators:** `Is`, `IsAnyOf`, `Contains`, `StartsWith`, `Not`, `NotContains`, and their variants.
+
+**Numeric operators** (for `Count` and `Page Count`):
+
+| Operator | Meaning |
+|----------|---------|
+| `greater than` | Field value is strictly greater than the given number |
+| `less than` | Field value is strictly less than the given number |
+| `greater than or equal` | Field value is greater than or equal to the given number |
+| `less than or equal` | Field value is less than or equal to the given number |
+
+These numeric operators make it possible to split TPBs by volume count (e.g. `Count greater than 1` for multi-volume series) or to treat thick omnibus-sized books differently from slim one-shots.
 
 ---
 
