@@ -330,7 +330,17 @@ FILTER_FIELD_OPTIONS = [
     # ComicVine custom values
     ("custom_values__comicvine_volume", "CV Volume ID"),
     ("custom_values__comicvine_issue", "CV Issue ID"),
+    ("custom_values__comicvine_issue_count", "CV Issue Count"),
     ("custom_values__scrape_source", "Scrape Source"),
+    ("custom_values__scrape_score", "Scrape Score"),
+    # DataManager custom values
+    ("custom_values__DataManager_Processed", "DataManager Processed"),
+    ("custom_values__Original Format", "Original Format"),
+    ("custom_values__Leading Numbers", "Leading Numbers"),
+    ("custom_values__First Series", "First Series"),
+    ("custom_values__Second Series", "Second Series"),
+    ("custom_values__IsStarWars", "IsStarWars"),
+    ("custom_values__HasAltCovers", "Has Alt Covers"),
 ]
 
 FILTER_LOOKUP_OPTIONS = [
@@ -338,6 +348,10 @@ FILTER_LOOKUP_OPTIONS = [
     ("not_exact", "not equals"),
     ("icontains", "contains"),
     ("not_icontains", "not contains"),
+    ("istartswith", "starts with"),
+    ("not_istartswith", "not starts with"),
+    ("iendswith", "ends with"),
+    ("not_iendswith", "not ends with"),
     ("gt", "greater than"),
     ("lt", "less than"),
     ("gte", "at least"),
@@ -382,20 +396,406 @@ def smartlist_index(request):
 
 
 def _parse_filters_from_post(post_data):
-    """Parse filter arrays from POST data into JSON list."""
-    fields = post_data.getlist("filter_field")
-    lookups = post_data.getlist("filter_lookup")
-    values = post_data.getlist("filter_value")
+    """Parse filter data from POST into JSON list via the filters_json hidden field."""
+    import json
+    filters_json = post_data.get("filters_json", "")
+    if filters_json:
+        try:
+            return json.loads(filters_json)
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return []
+
+
+def _parse_cbl(xml_bytes):
+    """
+    Parse a ComicRack CBL file into (name, filters, warnings).
+
+    filters: list of SmartList filter dicts (leaf or group).
+    warnings: list of strings for skipped/unsupported matchers.
+    """
+    import xml.etree.ElementTree as ET
+
+    XSI_TYPE = "{http://www.w3.org/2001/XMLSchema-instance}type"
+
+    FIELD_MAP = {
+        "ComicBookPublisherMatcher": "publisher",
+        "ComicBookSeriesMatcher": "series",
+        "ComicBookTitleMatcher": "title",
+        "ComicBookNumberMatcher": "number",
+        "ComicBookVolumeMatcher": "volume",
+        "ComicBookYearMatcher": "year",
+        "ComicBookFullPathMatcher": "file_path",
+        "ComicBookFileMatcher": "file_path",
+        "ComicBookFormatMatcher": "format",
+        "ComicBookMainCharacterOrTeamMatcher": "main_character_or_team",
+        "ComicBookTagsMatcher": "genre",
+        "ComicBookSummaryMatcher": "summary",
+    }
+
+    # FormatMatcher and MainCharacterOrTeamMatcher treat empty MatchValue as isnull
+    ISNULL_ON_EMPTY = {"ComicBookFormatMatcher", "ComicBookMainCharacterOrTeamMatcher"}
+
+    OPERATOR_MAP = {
+        None: "exact",
+        "0": "exact",
+        "1": "icontains",
+        "3": "iendswith",
+        "4": "istartswith",
+    }
+
+    warnings = []
+
+    def parse_matcher(el):
+        short_type = el.get(XSI_TYPE, "").split(":")[-1]
+        negated = el.get("Not") == "true"
+
+        if short_type == "ComicBookGroupMatcher":
+            mode_attr = el.get("MatcherMode", "And")
+            mode = "or" if mode_attr == "Or" else "and"
+            sub_filters = []
+            matchers_el = el.find("Matchers")
+            if matchers_el is not None:
+                for sub_el in matchers_el:
+                    result = parse_matcher(sub_el)
+                    if result is not None:
+                        sub_filters.append(result)
+            return {"mode": mode, "filters": sub_filters} if sub_filters else None
+
+        if short_type == "ComicBookCustomValuesMatcher":
+            key = (el.findtext("MatchValue") or "").strip()
+            if not key:
+                return None
+            field = f"custom_values__{key}"
+            val2_el = el.find("MatchValue2")
+            if val2_el is None:
+                lookup = "isnull" if negated else "not_isnull"
+                return {"field": field, "lookup": lookup, "value": "true"}
+            lookup = "not_exact" if negated else "exact"
+            return {"field": field, "lookup": lookup, "value": (val2_el.text or "").strip()}
+
+        field = FIELD_MAP.get(short_type)
+        if field is None:
+            if short_type:
+                warnings.append(f"Skipped unsupported matcher: {short_type}")
+            return None
+
+        op = el.get("MatchOperator")
+        base_lookup = OPERATOR_MAP.get(op, "icontains")
+        match_value = (el.findtext("MatchValue") or "").strip()
+
+        if not match_value and short_type in ISNULL_ON_EMPTY:
+            lookup = "isnull" if negated else "not_isnull"
+            return {"field": field, "lookup": lookup, "value": "true"}
+
+        if not match_value:
+            return None
+
+        lookup = f"not_{base_lookup}" if negated else base_lookup
+        return {"field": field, "lookup": lookup, "value": match_value}
+
+    try:
+        root = ET.fromstring(xml_bytes)
+    except ET.ParseError as e:
+        raise ValueError(f"Invalid XML: {e}")
+
+    name = (root.findtext("Name") or "Imported Smart List").strip()
+
+    # ComicManager complete exports embed the full filter JSON for lossless round-trips.
+    cm_filters_el = root.find("ComicManagerFilters")
+    if cm_filters_el is not None and cm_filters_el.text:
+        import json as _json
+        try:
+            filters = _json.loads(cm_filters_el.text)
+            return name, filters, []
+        except (ValueError, TypeError):
+            pass  # Fall through to standard CBL parsing
 
     filters = []
-    for field, lookup, value in zip(fields, lookups, values):
-        if field and value:  # Skip empty rows
-            filters.append({
-                "field": field,
-                "lookup": lookup,
-                "value": value,
+    matchers_el = root.find("Matchers")
+    if matchers_el is not None:
+        for el in matchers_el:
+            result = parse_matcher(el)
+            if result is not None:
+                filters.append(result)
+
+    return name, filters, warnings
+
+
+def _collect_unknown_fields(filters, known_fields):
+    """Return a set of field values in the filter tree that are not in known_fields."""
+    unknown = set()
+    for item in (filters or []):
+        if "mode" in item:
+            unknown |= _collect_unknown_fields(item.get("filters", []), known_fields)
+        else:
+            field = item.get("field", "")
+            if field and field not in known_fields:
+                unknown.add(field)
+    return unknown
+
+
+def _apply_field_mappings(filters, mappings):
+    """
+    Walk the filter tree and apply field substitutions from mappings dict.
+    mappings: {old_field: new_field}  — empty string new_field means skip that filter.
+    """
+    result = []
+    for item in (filters or []):
+        if "mode" in item:
+            sub = _apply_field_mappings(item.get("filters", []), mappings)
+            if sub:
+                result.append({"mode": item["mode"], "filters": sub})
+        else:
+            field = item.get("field", "")
+            if field in mappings:
+                new_field = mappings[field]
+                if new_field:
+                    result.append({**item, "field": new_field})
+                # empty string → skip
+            else:
+                result.append(item)
+    return result
+
+
+def smartlist_import_cbl(request):
+    """Import a ComicRack CBL file as a new SmartList."""
+    import json
+    from django.contrib import messages
+
+    known_fields = {v for v, _ in FILTER_FIELD_OPTIONS}
+
+    if request.method == "POST":
+        step = request.POST.get("step", "upload")
+
+        # ── Step 2: user has resolved unknown field mappings ──────────────────
+        if step == "map":
+            try:
+                cbl_name = request.POST.get("cbl_name", "Imported Smart List")
+                cbl_warnings = json.loads(request.POST.get("cbl_warnings", "[]"))
+                filters = json.loads(request.POST.get("cbl_filters", "[]"))
+            except (json.JSONDecodeError, ValueError):
+                messages.error(request, "Invalid mapping data. Please re-upload the file.")
+                return render(request, "dashboard/smartlist_import_cbl.html")
+
+            # Build mappings from posted fields: mapping_<old_field> = new_field
+            mappings = {}
+            for key, val in request.POST.items():
+                if key.startswith("mapping_"):
+                    old_field = key[len("mapping_"):]
+                    mappings[old_field] = val  # empty string = skip
+
+            filters = _apply_field_mappings(filters, mappings)
+            sl = SmartList.objects.create(name=cbl_name, filters=filters)
+
+            for warning in cbl_warnings:
+                messages.warning(request, warning)
+            messages.success(request, f"Imported '{cbl_name}' successfully.")
+            return redirect("dashboard:smartlist_edit", pk=sl.pk)
+
+        # ── Step 1: file upload ───────────────────────────────────────────────
+        uploaded = request.FILES.get("cbl_file")
+        if not uploaded:
+            messages.error(request, "No file uploaded.")
+            return render(request, "dashboard/smartlist_import_cbl.html")
+
+        try:
+            name, filters, warnings = _parse_cbl(uploaded.read())
+        except ValueError as e:
+            messages.error(request, f"Failed to parse CBL file: {e}")
+            return render(request, "dashboard/smartlist_import_cbl.html")
+
+        unknown_fields = _collect_unknown_fields(filters, known_fields)
+
+        if unknown_fields:
+            return render(request, "dashboard/smartlist_import_cbl_map.html", {
+                "cbl_name": name,
+                "cbl_filters": json.dumps(filters),
+                "cbl_warnings": json.dumps(warnings),
+                "unknown_fields": sorted(unknown_fields),
+                "field_options": FILTER_FIELD_OPTIONS,
             })
-    return filters
+
+        sl = SmartList.objects.create(name=name, filters=filters)
+        for warning in warnings:
+            messages.warning(request, warning)
+        messages.success(request, f"Imported '{name}' successfully.")
+        return redirect("dashboard:smartlist_edit", pk=sl.pk)
+
+    return render(request, "dashboard/smartlist_import_cbl.html")
+
+
+def _export_cbl_xml(smart_list, complete=False):
+    """
+    Convert a SmartList's filters to CBL XML bytes.
+
+    Returns (xml_bytes, warnings) where warnings is a list of strings describing
+    filters that could not be mapped to CBL and were skipped.
+
+    When complete=True, the full filter JSON is embedded in a <ComicManagerFilters>
+    element so the file can be re-imported into ComicManager without any data loss.
+    """
+    import xml.etree.ElementTree as ET
+
+    FIELD_MAP = {
+        "publisher": "ComicBookPublisherMatcher",
+        "series": "ComicBookSeriesMatcher",
+        "title": "ComicBookTitleMatcher",
+        "number": "ComicBookNumberMatcher",
+        "volume": "ComicBookVolumeMatcher",
+        "year": "ComicBookYearMatcher",
+        "file_path": "ComicBookFullPathMatcher",
+        "format": "ComicBookFormatMatcher",
+        "main_character_or_team": "ComicBookMainCharacterOrTeamMatcher",
+        "genre": "ComicBookTagsMatcher",
+        "summary": "ComicBookSummaryMatcher",
+    }
+
+    # These fields support isnull/not_isnull via empty MatchValue
+    ISNULL_ON_EMPTY = {"format", "main_character_or_team"}
+
+    OPERATOR_MAP = {
+        "exact": None,
+        "icontains": "1",
+        "iendswith": "3",
+        "istartswith": "4",
+    }
+
+    XSI = "http://www.w3.org/2001/XMLSchema-instance"
+    XSD = "http://www.w3.org/2001/XMLSchema"
+    warnings = []
+
+    def make_matcher_el(xsi_type, not_attr=False, operator=None, match_value="", match_value2=None):
+        el = ET.Element("ComicBookMatcher")
+        el.set(f"{{{XSI}}}type", xsi_type)
+        if not_attr:
+            el.set("Not", "true")
+        if operator is not None:
+            el.set("MatchOperator", operator)
+        mv = ET.SubElement(el, "MatchValue")
+        mv.text = match_value
+        if match_value2 is not None:
+            mv2 = ET.SubElement(el, "MatchValue2")
+            mv2.text = match_value2
+        return el
+
+    def convert_leaf(f):
+        field = f.get("field", "")
+        lookup = f.get("lookup", "exact")
+        value = str(f.get("value", ""))
+
+        negated = lookup.startswith("not_")
+        base_lookup = lookup[4:] if negated else lookup
+
+        # Custom values
+        if field.startswith("custom_values__"):
+            key = field[len("custom_values__"):]
+            if base_lookup == "isnull":
+                return make_matcher_el(
+                    "ComicBookCustomValuesMatcher",
+                    not_attr=not negated,  # isnull=True means key absent; Not="true" = key absent
+                    match_value=key,
+                )
+            if base_lookup == "exact":
+                return make_matcher_el(
+                    "ComicBookCustomValuesMatcher",
+                    not_attr=negated,
+                    match_value=key,
+                    match_value2=value,
+                )
+            warnings.append(f"Skipped custom_values__{key}: lookup '{lookup}' not supported in CBL")
+            return None
+
+        # isnull/not_isnull on special fields
+        if base_lookup == "isnull":
+            if field in ISNULL_ON_EMPTY:
+                xsi_type = FIELD_MAP[field]
+                # Import maps: Not="true" → isnull, No Not → not_isnull.
+                # Export reverses: isnull → Not="true" (not_attr=True), not_isnull → no Not (not_attr=False).
+                # negated=False for isnull, negated=True for not_isnull → not_attr = not negated.
+                return make_matcher_el(xsi_type, not_attr=not negated, match_value="")
+            warnings.append(f"Skipped '{field}': 'is empty' not supported in CBL for this field")
+            return None
+
+        xsi_type = FIELD_MAP.get(field)
+        if xsi_type is None:
+            warnings.append(f"Skipped '{field}': no CBL matcher equivalent")
+            return None
+
+        operator = OPERATOR_MAP.get(base_lookup)
+        if operator is None and base_lookup != "exact":
+            warnings.append(f"Skipped '{field}': lookup '{lookup}' not supported in CBL")
+            return None
+
+        return make_matcher_el(xsi_type, not_attr=negated, operator=operator, match_value=value)
+
+    def convert_items(filter_list, parent_el):
+        for item in (filter_list or []):
+            if "mode" in item:
+                mode = item.get("mode", "and")
+                group_el = ET.SubElement(parent_el, "ComicBookMatcher")
+                group_el.set(f"{{{XSI}}}type", "ComicBookGroupMatcher")
+                if mode == "or":
+                    group_el.set("MatcherMode", "Or")
+                sub_matchers = ET.SubElement(group_el, "Matchers")
+                convert_items(item.get("filters", []), sub_matchers)
+                if len(sub_matchers) == 0:
+                    parent_el.remove(group_el)
+            else:
+                el = convert_leaf(item)
+                if el is not None:
+                    parent_el.append(el)
+
+    ET.register_namespace("xsd", XSD)
+    ET.register_namespace("xsi", XSI)
+
+    root = ET.Element("ReadingList")
+    # Set xsd manually (never used in attributes so ET won't auto-declare it).
+    # xsi is auto-declared by ET when it serialises the xsi:type attributes.
+    root.set("xmlns:xsd", XSD)
+
+    name_el = ET.SubElement(root, "Name")
+    name_el.text = smart_list.name
+
+    ET.SubElement(root, "Books")
+
+    matchers_el = ET.SubElement(root, "Matchers")
+    convert_items(smart_list.filters or [], matchers_el)
+
+    if complete:
+        import json as _json
+        cm_el = ET.SubElement(root, "ComicManagerFilters")
+        cm_el.text = _json.dumps(smart_list.filters or [])
+
+    ET.indent(root, space="  ")
+    xml_bytes = b'<?xml version="1.0"?>\n' + ET.tostring(root, encoding="unicode").encode("utf-8")
+    return xml_bytes, warnings
+
+
+def smartlist_export_cbl(request, pk):
+    """Export a SmartList as a ComicRack CBL file."""
+    sl = get_object_or_404(SmartList, pk=pk)
+    mode = request.GET.get("mode", "")
+
+    if mode == "complete":
+        xml_bytes, _ = _export_cbl_xml(sl, complete=True)
+        safe_name = "".join(c if c.isalnum() or c in " .-_" else "_" for c in sl.name)
+        response = HttpResponse(xml_bytes, content_type="application/octet-stream")
+        response["Content-Disposition"] = f'attachment; filename="{safe_name}.cbl"'
+        return response
+
+    xml_bytes, warnings = _export_cbl_xml(sl, complete=False)
+
+    if mode == "comicrak" or not warnings:
+        safe_name = "".join(c if c.isalnum() or c in " .-_" else "_" for c in sl.name)
+        response = HttpResponse(xml_bytes, content_type="application/octet-stream")
+        response["Content-Disposition"] = f'attachment; filename="{safe_name}.cbl"'
+        return response
+
+    return render(request, "dashboard/smartlist_export_cbl_warn.html", {
+        "smart_list": sl,
+        "warnings": warnings,
+    })
 
 
 def smartlist_create(request):

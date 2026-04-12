@@ -6,7 +6,10 @@
 <div class="space-y-6">
   <div class="flex justify-between items-center">
     <h1 class="text-3xl font-bold">Smart Lists</h1>
-    <a href="{% url 'dashboard:smartlist_create' %}" class="btn btn-primary">Create Smart List</a>
+    <div class="flex gap-2">
+      <a href="{% url 'dashboard:smartlist_import_cbl' %}" class="btn btn-ghost">Import CBL</a>
+      <a href="{% url 'dashboard:smartlist_create' %}" class="btn btn-primary">Create Smart List</a>
+    </div>
   </div>
 
   {% if smart_lists %}
@@ -26,14 +29,6 @@
         <p class="text-sm text-base-content/60">{{ item.smartlist.description }}</p>
         {% endif %}
 
-        <!-- Filter summary -->
-        {% if item.smartlist.filters %}
-        <div class="flex flex-wrap gap-1 mt-1">
-          {% for f in item.smartlist.filters %}
-          <span class="badge badge-sm badge-outline">{{ f.field }} {{ f.lookup }} {{ f.value }}</span>
-          {% endfor %}
-        </div>
-        {% endif %}
 
         <!-- CV Volume completion -->
         {% if item.smartlist.has_cv_volume %}

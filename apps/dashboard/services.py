@@ -1,6 +1,6 @@
 import sqlite3
 from django.conf import settings
-from django.db.models import BooleanField, Case, F, Value, When
+from django.db.models import BooleanField, Case, F, Q, Value, When
 from apps.core.models import Comic
 from apps.core.utils import natural_number_annotation
 
@@ -27,9 +27,11 @@ ALLOWED_JSON_PREFIXES = {"custom_values", "flags"}
 # Whitelist of allowed Django ORM lookups
 ALLOWED_LOOKUPS = {
     "exact", "iexact", "icontains", "contains",
+    "istartswith", "iendswith",
     "gt", "gte", "lt", "lte",
     "isnull",
     "not_exact", "not_icontains", "not_isnull",
+    "not_istartswith", "not_iendswith",
 }
 
 # Sort field mapping (reuse pattern from comic_list view)
@@ -71,11 +73,69 @@ def _coerce_value(value, lookup, field=""):
     return value
 
 
+def _build_leaf_q(f):
+    """Build a Q object for a single leaf filter dict {field, lookup, value}. Returns None if invalid."""
+    field = f.get("field", "")
+    lookup = f.get("lookup", "exact")
+    value = f.get("value")
+
+    base_field = field.split("__")[0]
+    if base_field not in ALLOWED_FIELDS and base_field not in ALLOWED_JSON_PREFIXES:
+        return None
+    if lookup not in ALLOWED_LOOKUPS:
+        return None
+
+    negate = lookup.startswith("not_")
+    if negate:
+        lookup = lookup[4:]
+
+    value = _coerce_value(value, lookup, field)
+
+    if lookup == "exact":
+        orm_key = field
+    else:
+        orm_key = f"{field}__{lookup}"
+
+    q = Q(**{orm_key: value})
+    return ~q if negate else q
+
+
+def _build_filter_q(filter_list):
+    """Build a Q object from a list of filter items (leaves and/or groups), combined with AND."""
+    q = Q()
+    for item in (filter_list or []):
+        if "mode" in item:
+            sub_q = _build_group_q(item)
+            if sub_q is not None:
+                q &= sub_q
+        else:
+            leaf_q = _build_leaf_q(item)
+            if leaf_q is not None:
+                q &= leaf_q
+    return q
+
+
+def _build_group_q(group):
+    """Build a Q object for a {mode, filters} group dict."""
+    mode = group.get("mode", "and")
+    filters = group.get("filters") or []
+    if mode == "or":
+        q = None
+        for item in filters:
+            sub_q = _build_group_q(item) if "mode" in item else _build_leaf_q(item)
+            if sub_q is not None:
+                q = sub_q if q is None else q | sub_q
+        return q
+    else:
+        return _build_filter_q(filters)
+
+
 def build_queryset(smart_list):
     """
     Build a Comic queryset from SmartList filter criteria.
 
-    Each filter is a dict with: field, lookup, value.
+    Filters may be leaf dicts {field, lookup, value} or group dicts {mode, filters}.
+    Top-level items are combined with AND; groups use their declared mode (and/or).
     Returns an ordered QuerySet.
     """
     qs = Comic.objects.all()
@@ -89,38 +149,8 @@ def build_queryset(smart_list):
         )
     )
 
-    for f in (smart_list.filters or []):
-        field = f.get("field", "")
-        lookup = f.get("lookup", "exact")
-        value = f.get("value")
-
-        # Validate field
-        base_field = field.split("__")[0]
-        if base_field not in ALLOWED_FIELDS and base_field not in ALLOWED_JSON_PREFIXES:
-            continue
-
-        # Validate lookup
-        if lookup not in ALLOWED_LOOKUPS:
-            continue
-
-        # Handle negated lookups (not_exact → exclude with exact, etc.)
-        negate = lookup.startswith("not_")
-        if negate:
-            lookup = lookup[4:]  # strip "not_" prefix
-
-        # Coerce value
-        value = _coerce_value(value, lookup, field)
-
-        # Build ORM filter key
-        if lookup == "exact":
-            orm_key = field
-        else:
-            orm_key = f"{field}__{lookup}"
-
-        if negate:
-            qs = qs.exclude(**{orm_key: value})
-        else:
-            qs = qs.filter(**{orm_key: value})
+    filter_q = _build_filter_q(smart_list.filters or [])
+    qs = qs.filter(filter_q)
 
     # Annotate for natural number sorting (1, 2, 10 instead of 1, 10, 2)
     qs = qs.annotate(number_sort_key=natural_number_annotation())

@@ -52,6 +52,7 @@
       {% if smart_list.has_cv_volume %}
       <a href="{% url 'dashboard:smartlist_missing' smart_list.pk %}" class="btn btn-warning btn-outline btn-sm">View Missing Issues</a>
       {% endif %}
+      <a href="{% url 'dashboard:smartlist_export_cbl' smart_list.pk %}" class="btn btn-ghost btn-sm">Download CBL</a>
       <a href="{% url 'dashboard:smartlist_edit' smart_list.pk %}" class="btn btn-ghost btn-sm">Edit</a>
       <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost btn-sm">Back to Lists</a>
     </div>
@@ -70,15 +71,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Filter badges -->
-  {% if smart_list.filters %}
-  <div class="flex flex-wrap gap-2">
-    {% for f in smart_list.filters %}
-    <span class="badge badge-outline">{{ f.field }} {{ f.lookup }} "{{ f.value }}"</span>
-    {% endfor %}
-  </div>
-  {% endif %}
 
   <!-- CV Volume completion bar -->
   {% if completion_data %}

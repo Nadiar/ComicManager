@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Export CBL — {{ smart_list.name }} — ComicManager{% endblock %}
+{% block nav_smartlists %}active{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-xl">
+  <div class="flex justify-between items-center">
+    <h1 class="text-3xl font-bold">Export CBL</h1>
+    <a href="{% url 'dashboard:smartlist_detail' smart_list.pk %}" class="btn btn-ghost">Cancel</a>
+  </div>
+
+  <div class="alert alert-warning">
+    <div class="space-y-1">
+      <p class="font-semibold">Some filters in "{{ smart_list.name }}" cannot be represented in standard CBL format:</p>
+      <ul class="list-disc list-inside text-sm mt-2">
+        {% for w in warnings %}
+        <li>{{ w }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="card bg-base-200">
+    <div class="card-body space-y-4">
+      <div class="flex gap-4 items-start">
+        <div class="flex-1">
+          <p class="font-semibold">ComicRack-safe</p>
+          <p class="text-sm text-base-content/70">Standard CBL format. Unsupported filters are skipped. Works in ComicRack and ComicManager.</p>
+        </div>
+        <button type="button" class="btn btn-outline" onclick="downloadAndBack('?mode=comicrak')">Download</button>
+      </div>
+      <div class="divider my-0"></div>
+      <div class="flex gap-4 items-start">
+        <div class="flex-1">
+          <p class="font-semibold">Complete</p>
+          <p class="text-sm text-base-content/70">All filters preserved. Can be re-imported into ComicManager without any data loss. Not compatible with ComicRack.</p>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="downloadAndBack('?mode=complete')">Download</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function downloadAndBack(query) {
+  const iframe = document.createElement('iframe');
+  iframe.style.display = 'none';
+  iframe.src = query;
+  document.body.appendChild(iframe);
+  setTimeout(() => {
+    window.location.href = '{% url "dashboard:smartlist_detail" smart_list.pk %}';
+  }, 1000);
+}
+</script>
+{% endblock %}

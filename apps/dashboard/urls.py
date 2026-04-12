@@ -6,10 +6,12 @@ urlpatterns = [
     path("", views.index, name="index"),
     path("smartlists/", views.smartlist_index, name="smartlist_index"),
     path("smartlists/create/", views.smartlist_create, name="smartlist_create"),
+    path("smartlists/import-cbl/", views.smartlist_import_cbl, name="smartlist_import_cbl"),
     path("smartlists/cv-search/", views.smartlist_cv_search, name="smartlist_cv_search"),
     path("smartlists/<uuid:pk>/", views.smartlist_detail, name="smartlist_detail"),
     path("smartlists/<uuid:pk>/edit/", views.smartlist_edit, name="smartlist_edit"),
     path("smartlists/<uuid:pk>/delete/", views.smartlist_delete, name="smartlist_delete"),
+    path("smartlists/<uuid:pk>/export-cbl/", views.smartlist_export_cbl, name="smartlist_export_cbl"),
     path("smartlists/<uuid:pk>/missing/", views.smartlist_missing, name="smartlist_missing"),
     path("smartlists/<uuid:pk>/run-action/", views.smartlist_run_action, name="smartlist_run_action"),
 ]

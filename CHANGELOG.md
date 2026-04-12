@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CBL import for Smart Lists (CP.6)**: ComicRack `.cbl` files can now be imported as Smart Lists via the **Import CBL** button on the Smart Lists index page. Matcher types (Publisher, Series, Title, File, Format, Custom Values, etc.) are mapped to ComicManager filter fields. OR/AND groups are preserved. If the CBL contains filter fields not in the standard list, a mapping step prompts the user to choose the correct internal field or skip those filters. Unsupported matcher types are skipped with a warning shown on the edit page.
+
+- **CBL export for Smart Lists**: Any Smart List can be exported as a `.cbl` file via the **Download CBL** button on the Smart List detail page. If all filters map cleanly to CBL, the file downloads immediately. If any filters have no CBL equivalent (flag filters, numeric operators, etc.) a choice page is shown with two options: **ComicRack-safe** (standard CBL, unsupported filters skipped, works in ComicRack) and **Complete** (all filters preserved by embedding the full filter data in the file, for lossless ComicManager round-trips). Complete exports can be re-imported into ComicManager without data loss; ComicRack ignores the extra element.
+
+- **OR group support in Smart List filters**: The filter system now supports nested AND/OR groups in addition to the existing flat AND-only list. Use **Add OR Group** on the Smart List form to group conditions that should match any (OR) or all (AND) of their filters. The filter JSON schema is backward compatible; all existing Smart Lists continue to work without changes.
+
+- **New filter lookup operators**: Smart List filters now support `starts with`, `not starts with`, `ends with`, and `not ends with` in addition to the existing operators.
+
+- **Expanded Smart List filter fields**: DataManager custom values (`DataManager_Processed`, `Original Format`, `Leading Numbers`, `First Series`, `Second Series`, `IsStarWars`, `Has Alt Covers`), ComicVine fields (`CV Issue Count`, `Scrape Score`) are now available in the filter field dropdown.
+
 - **Cover hash verification for API matches**: Layer 3 (CV API matching) now downloads the ComicVine cover image for the matched issue and compares it against the comic's stored pHash and aHash using Hamming distance. If both distances exceed 15, the match is rejected and `scrape_no_match` is set. The rejection reason (e.g. `cover hash mismatch (phash dist 42, ahash dist 38)`) is stored in `flags.scrape_error_detail` and shown in the audit log. Verification is skipped automatically when the comic has no stored hashes or the API returns no cover URL. Cover downloads do not count against the API call budget.
 
 - **Cover hashes computed at accept time**: When a comic is accepted from the New stage (single Accept, Accept All, or Run Full Pipeline), the first page of the CBZ is now read and both pHash and aHash are computed and saved to the database. Previously hashes were only set as a side effect of Layer 1 hash matching (DB mode only), leaving API-only mode comics without hashes. A fallback still computes hashes on the fly during Layer 3 matching for comics accepted before this change.
