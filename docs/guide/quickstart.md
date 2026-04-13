@@ -71,7 +71,7 @@ docker compose exec web python manage.py migrate
 
 ## 6. Open the app
 
-Visit `http://localhost:8000` (or the port you set in `.env`). No login required.
+Visit `http://localhost:8381` (or the port you set in `.env`). No login required.
 
 Go to **Settings** to configure your ComicVine API key and library paths.
 

@@ -30,7 +30,7 @@ Open `.env` and set the required variables:
 | `UID` / `GID` | Host user IDs so Docker writes files as you. Run `id -u` and `id -g`. |
 | `SECRET_KEY` | Django secret key. Change to a long random string. |
 | `DB_PASSWORD` | PostgreSQL password. |
-| `PORT` | Host port for the web interface. Default: `8000`. |
+| `PORT` | Host port for the web interface. Default: `8381`. |
 | `UNTAGGED_DIR` | Host path for incoming comics. Default: `./untagged`. |
 | `LIBRARY_DIR` | Host path for your organised library. Default: `./Comics`. |
 
@@ -75,7 +75,7 @@ docker compose exec web python manage.py migrate
 
 ## 6. Open the app
 
-Visit `http://localhost:8000` (or the port you set in `.env`). No login required.
+Visit `http://localhost:8381` (or the port you set in `.env`). No login required.
 
 Go to **Settings** and configure at minimum:
 
