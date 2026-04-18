@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-mood="{{ prefs.mood }}" data-density="{{ prefs.table_density }}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,83 +13,190 @@
       if (match) evt.detail.headers["X-CSRFToken"] = match[1];
     });
   </script>
-  <style>
-    /* Constrained modal images - fixed width, auto height */
-    .modal-cover-img {
-      width: 100px;
-      height: auto;
-      object-fit: contain;
-    }
-    /* Larger cover images for scrape modal (side-by-side comparison) */
-    .modal-cover-lg {
-      width: 150px;
-      height: auto;
-      max-height: 220px;
-      object-fit: contain;
-    }
-  </style>
 </head>
-<body class="min-h-screen bg-base-100">
+<body style="background: var(--cm-bg); color: var(--cm-fg); margin: 0;">
 
-  <!-- Navbar -->
-  <div class="navbar bg-base-200 border-b border-base-300 px-4">
-    <div class="navbar-start">
-      <a href="/" class="text-xl font-bold text-primary">ComicManager</a>
-    </div>
-    <div class="navbar-center hidden lg:flex">
-      <div class="flex items-center gap-1 text-sm">
-        <a href="/" class="px-3 py-2 rounded-lg hover:bg-base-300 {% block nav_dashboard %}{% endblock %}">Dashboard</a>
-        <div class="nav-dd relative">
-          <a href="/comics/" class="px-3 py-2 rounded-lg hover:bg-base-300 block {% block nav_comics %}{% endblock %}">Comics</a>
-          <ul class="nav-dd-content hidden absolute top-full left-0 menu p-2 shadow bg-base-200 rounded-box z-50 w-36 mt-1">
-            <li><a href="/physical/" class="{% block nav_physical %}{% endblock %}">Physical</a></li>
-          </ul>
-        </div>
-        <a href="/smartlists/" class="px-3 py-2 rounded-lg hover:bg-base-300 {% block nav_smartlists %}{% endblock %}">Smart Lists</a>
-        <a href="{% url 'core:character_audit_search' %}" class="px-3 py-2 rounded-lg hover:bg-base-300 {% block nav_audit %}{% endblock %}">Series Audit</a>
-        <div class="nav-dd relative">
-          <span class="px-3 py-2 rounded-lg hover:bg-base-300 cursor-pointer block">Workflow</span>
-          <ul class="nav-dd-content hidden absolute top-full left-0 menu p-2 shadow bg-base-200 rounded-box z-50 w-44 mt-1">
-            <li><a href="/comics/?state=new">1. New</a></li>
-            <li><a href="/comics/?state=scrape">2. Scrape</a></li>
-            <li><a href="/comics/?state=tagging">3. Tagging</a></li>
-            <li><a href="/comics/format/">4. Formats</a></li>
-            <li><a href="/duplicates/">5. Deduplicate</a></li>
-            <li><a href="/comics/?state=move">6. Move Files</a></li>
-            <li><a href="/comics/?state=write">7. Write to CBZ</a></li>
-          </ul>
-        </div>
-        <div class="nav-dd relative">
-          <a href="/settings/" class="px-3 py-2 rounded-lg hover:bg-base-300 block {% block nav_settings %}{% endblock %}">Settings</a>
-          <ul class="nav-dd-content hidden absolute top-full right-0 menu p-2 shadow bg-base-200 rounded-box z-50 w-48 mt-1">
-            <li><a href="/tagging/rulesets/">Tagging Rules</a></li>
-            <li><a href="/tagging/publishers/">Publishers</a></li>
-            <li><a href="/organizer/profiles/">File Organizer</a></li>
-            <li><a href="/organizer/path-audit/">Path Audit</a></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-    <div class="navbar-end">
-      <span class="text-xs text-base-content/50">v0.1.0</span>
-    </div>
-  </div>
+{% comment %}Shared logo SVG — rendered in both topnav and sidebar{% endcomment %}
+{% with logo_svg='<svg width="22" height="22" viewBox="0 0 24 24" style="display:block;flex-shrink:0;"><rect x="3" y="3" width="14" height="18" rx="2" fill="var(--cm-accent)"/><rect x="7" y="6" width="14" height="15" rx="2" fill="oklch(0.25 0.02 60)" stroke="var(--cm-accent)" stroke-width="1.2"/><path d="M10 11 h8 M10 14 h6 M10 17 h4" stroke="var(--cm-accent)" stroke-width="1.4" stroke-linecap="round"/></svg>' %}
 
-  <!-- Messages -->
-  {% if messages %}
-  <div class="p-4 space-y-2">
-    {% for message in messages %}
-    <div class="alert alert-{{ message.tags|default:'info' }}">
-      <span>{{ message }}</span>
+<div class="cm-layout {% if prefs.nav == 'sidebar' %}sidebar{% else %}topnav{% endif %}">
+
+  {% if prefs.nav == 'sidebar' %}
+  <!-- ── Sidebar ── -->
+  <aside class="cm-sidebar" id="cm-sidebar">
+
+    <div class="cm-sb-header">
+      {{ logo_svg }}
+      <span class="cm-sb-brand">ComicManager</span>
     </div>
-    {% endfor %}
-  </div>
+
+    <nav class="cm-sb-nav">
+
+      <!-- Main -->
+      <div class="cm-sb-group-label">Main</div>
+      <a href="/" class="cm-sb-item {% if request.path == '/' %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+        <span class="cm-sb-item-label">Dashboard</span>
+      </a>
+      <a href="/comics/" class="cm-sb-item {% if '/comics/' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="9" height="13" rx="1.5"/><rect x="5" y="3" width="9" height="13" rx="1.5"/></svg>
+        <span class="cm-sb-item-label">Comics</span>
+      </a>
+      <a href="/physical/" class="cm-sb-item {% if '/physical/' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h10v10H3z"/><path d="M6 3v10M10 3v10"/></svg>
+        <span class="cm-sb-item-label">Physical</span>
+      </a>
+      <a href="/smartlists/" class="cm-sb-item {% if '/smartlists/' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h8M2 12h5"/></svg>
+        <span class="cm-sb-item-label">Smart Lists</span>
+      </a>
+      <a href="{% url 'core:character_audit_search' %}" class="cm-sb-item {% if '/audit/' in request.path or 'character' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3"/></svg>
+        <span class="cm-sb-item-label">Series Audit</span>
+      </a>
+
+      <!-- Workflow -->
+      <div class="cm-sb-group-label">Workflow</div>
+      <a href="/comics/?state=new"     class="cm-sb-item">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v6M5 8h6"/></svg>
+        <span class="cm-sb-item-label">1. New</span>
+      </a>
+      <a href="/comics/?state=scrape"  class="cm-sb-item">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3"/></svg>
+        <span class="cm-sb-item-label">2. Scrape</span>
+      </a>
+      <a href="/comics/?state=tagging" class="cm-sb-item">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8l5-5h6v6l-5 5-6-6z"/><circle cx="10" cy="6" r="1.2" fill="currentColor" stroke="none"/></svg>
+        <span class="cm-sb-item-label">3. Tagging</span>
+      </a>
+      <a href="/comics/format/"        class="cm-sb-item {% if '/comics/format/' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8" rx="1.5"/><path d="M5 4V3M11 4V3"/></svg>
+        <span class="cm-sb-item-label">4. Formats</span>
+      </a>
+      <a href="/duplicates/"           class="cm-sb-item {% if '/duplicates/' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="8" height="10" rx="1.5"/><rect x="6" y="4" width="8" height="10" rx="1.5"/></svg>
+        <span class="cm-sb-item-label">5. Deduplicate</span>
+      </a>
+      <a href="/comics/?state=move"    class="cm-sb-item">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12V5a1 1 0 011-1h4l2 2h4a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1z"/></svg>
+        <span class="cm-sb-item-label">6. Move Files</span>
+      </a>
+      <a href="/comics/?state=write"   class="cm-sb-item">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 13l2-2 7-7-2-2-7 7-2 2h2z"/><path d="M11 4l2 2"/></svg>
+        <span class="cm-sb-item-label">7. Write to CBZ</span>
+      </a>
+
+      <!-- Settings -->
+      <div class="cm-sb-group-label">Settings</div>
+      <a href="/tagging/rulesets/"    class="cm-sb-item {% if '/tagging/rulesets' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h8M2 12h5"/><path d="M12 7v6M9 10h6"/></svg>
+        <span class="cm-sb-item-label">Tagging Rules</span>
+      </a>
+      <a href="/tagging/publishers/"  class="cm-sb-item {% if '/tagging/publishers' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="12" height="8" rx="1"/><path d="M5 5V3.5a3 3 0 016 0V5"/></svg>
+        <span class="cm-sb-item-label">Publishers</span>
+      </a>
+      <a href="/organizer/profiles/"  class="cm-sb-item {% if '/organizer/profiles' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12V5a1 1 0 011-1h4l2 2h4a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1z"/></svg>
+        <span class="cm-sb-item-label">File Organizer</span>
+      </a>
+      <a href="/organizer/path-audit/" class="cm-sb-item {% if '/organizer/path-audit' in request.path %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8h12M8 2l6 6-6 6"/></svg>
+        <span class="cm-sb-item-label">Path Audit</span>
+      </a>
+      <a href="/settings/"            class="cm-sb-item {% if request.path == '/settings/' %}active{% endif %}">
+        <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.1 3.1l1.4 1.4M11.5 11.5l1.4 1.4M3.1 12.9l1.4-1.4M11.5 4.5l1.4-1.4"/></svg>
+        <span class="cm-sb-item-label">Settings</span>
+      </a>
+
+    </nav>
+
+    <div class="cm-sb-footer">
+      <button class="cm-sb-collapse-btn" id="cm-sb-toggle" title="Collapse sidebar">
+        <svg class="cm-sb-collapse-icon" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 2L4 7l5 5"/></svg>
+      </button>
+    </div>
+
+  </aside>
   {% endif %}
 
-  <!-- Main content -->
-  <main class="p-6">
-    {% block content %}{% endblock %}
-  </main>
+  <!-- ── Main content area ── -->
+  <div class="cm-layout-content">
+
+    {% if prefs.nav == 'topnav' %}
+    <!-- Top navigation bar -->
+    <nav class="cm-topnav">
+      <a href="/" class="cm-topnav-logo" style="text-decoration:none;">
+        {{ logo_svg }}
+        <span class="cm-topnav-brand">ComicManager</span>
+      </a>
+      <div class="cm-topnav-items">
+        <a href="/" class="cm-nav-item {% block nav_dashboard %}{% endblock %}">Dashboard</a>
+        <div class="cm-nav-dd">
+          <a href="/comics/" class="cm-nav-item {% block nav_comics %}{% endblock %}">
+            Comics
+            <svg class="cm-nav-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5 L5 6.5 L8 3.5"/></svg>
+          </a>
+          <div class="cm-nav-dd-menu">
+            <a href="/physical/" class="cm-nav-dd-item {% block nav_physical %}{% endblock %}">Physical</a>
+          </div>
+        </div>
+        <a href="/smartlists/" class="cm-nav-item {% block nav_smartlists %}{% endblock %}">Smart Lists</a>
+        <a href="{% url 'core:character_audit_search' %}" class="cm-nav-item {% block nav_audit %}{% endblock %}">Series Audit</a>
+        <div class="cm-nav-dd">
+          <span class="cm-nav-item cm-nav-label">
+            Workflow
+            <svg class="cm-nav-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5 L5 6.5 L8 3.5"/></svg>
+          </span>
+          <div class="cm-nav-dd-menu">
+            <a href="/comics/?state=new"     class="cm-nav-dd-item">1. New</a>
+            <a href="/comics/?state=scrape"  class="cm-nav-dd-item">2. Scrape</a>
+            <a href="/comics/?state=tagging" class="cm-nav-dd-item">3. Tagging</a>
+            <a href="/comics/format/"        class="cm-nav-dd-item">4. Formats</a>
+            <a href="/duplicates/"           class="cm-nav-dd-item">5. Deduplicate</a>
+            <a href="/comics/?state=move"    class="cm-nav-dd-item">6. Move Files</a>
+            <a href="/comics/?state=write"   class="cm-nav-dd-item">7. Write to CBZ</a>
+          </div>
+        </div>
+        <div class="cm-nav-dd">
+          <a href="/settings/" class="cm-nav-item {% block nav_settings %}{% endblock %}">
+            Settings
+            <svg class="cm-nav-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5 L5 6.5 L8 3.5"/></svg>
+          </a>
+          <div class="cm-nav-dd-menu" style="left:auto;right:0;">
+            <a href="/tagging/rulesets/"    class="cm-nav-dd-item">Tagging Rules</a>
+            <a href="/tagging/publishers/"  class="cm-nav-dd-item">Publishers</a>
+            <a href="/organizer/profiles/"  class="cm-nav-dd-item">File Organizer</a>
+            <a href="/organizer/path-audit/" class="cm-nav-dd-item">Path Audit</a>
+          </div>
+        </div>
+      </div>
+      <div class="cm-topnav-end">
+        <span class="mono" style="font-size:10.5px;color:var(--cm-fg-3);">v0.1.0</span>
+      </div>
+    </nav>
+    {% endif %}
+
+    <!-- Messages -->
+    {% if messages %}
+    <div class="p-4 space-y-2">
+      {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }}">
+        <span>{{ message }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Main content -->
+    <main class="p-6">
+      {% block content %}{% endblock %}
+    </main>
+
+  </div><!-- /.cm-layout-content -->
+
+</div><!-- /.cm-layout -->
+{% endwith %}
 
   <!-- Background task progress notification -->
   <div id="task-progress-toast" class="toast toast-end toast-bottom z-50 hidden">
@@ -581,18 +688,30 @@
   {% block extra_js %}{% endblock %}
 
   <script>
-  // Navbar hover dropdowns with grace period so the menu doesn't vanish mid-move
-  document.querySelectorAll('.nav-dd').forEach(function(li) {
-    var menu = li.querySelector('.nav-dd-content');
+  // Topnav dropdown hover with grace-period
+  document.querySelectorAll('.cm-nav-dd').forEach(function(dd) {
+    var menu = dd.querySelector('.cm-nav-dd-menu');
+    if (!menu) return;
     var timer;
-    function show() { clearTimeout(timer); menu.classList.remove('hidden'); }
-    function hide() { timer = setTimeout(function() { menu.classList.add('hidden'); }, 150); }
-    li.addEventListener('mouseenter', show);
-    li.addEventListener('mouseleave', hide);
-    menu.addEventListener('mouseenter', show);
-    menu.addEventListener('mouseleave', hide);
+    dd.addEventListener('mouseenter', function() { clearTimeout(timer); menu.style.display = 'block'; });
+    dd.addEventListener('mouseleave', function() { timer = setTimeout(function() { menu.style.display = ''; }, 150); });
+    menu.addEventListener('mouseenter', function() { clearTimeout(timer); });
+    menu.addEventListener('mouseleave', function() { timer = setTimeout(function() { menu.style.display = ''; }, 150); });
   });
+
+  // Sidebar collapse toggle (persisted in localStorage)
+  (function() {
+    var sb = document.getElementById('cm-sidebar');
+    var btn = document.getElementById('cm-sb-toggle');
+    if (!sb || !btn) return;
+    if (localStorage.getItem('cm.sb.collapsed') === '1') sb.classList.add('collapsed');
+    btn.addEventListener('click', function() {
+      sb.classList.toggle('collapsed');
+      localStorage.setItem('cm.sb.collapsed', sb.classList.contains('collapsed') ? '1' : '0');
+    });
+  })();
   </script>
+
 
 </body>
 </html>
