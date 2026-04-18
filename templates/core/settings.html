@@ -13,6 +13,66 @@
     </div>
   </div>
 
+  <!-- Display preferences -->
+  <div class="card bg-base-200">
+    <div class="card-body">
+      <h2 class="card-title">Display</h2>
+      <p class="text-sm text-base-content/60 mb-4">Changes apply immediately and persist across sessions.</p>
+      <form id="prefs-form"
+            hx-post="{% url 'settings:update_preferences' %}"
+            hx-swap="none"
+            hx-trigger="change"
+            hx-on::after-request="window.location.reload()">
+        {% csrf_token %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+          <div class="form-control gap-1">
+            <label class="label-text font-medium">Navigation</label>
+            <select name="nav" class="select select-bordered select-sm w-full">
+              <option value="topnav"  {% if prefs.nav == "topnav"  %}selected{% endif %}>Top bar</option>
+              <option value="sidebar" {% if prefs.nav == "sidebar" %}selected{% endif %}>Sidebar</option>
+            </select>
+          </div>
+
+          <div class="form-control gap-1">
+            <label class="label-text font-medium">Accent mood</label>
+            <select name="mood" class="select select-bordered select-sm w-full">
+              <option value="warm" {% if prefs.mood == "warm" %}selected{% endif %}>Warm (amber)</option>
+              <option value="cool" {% if prefs.mood == "cool" %}selected{% endif %}>Cool (cyan)</option>
+              <option value="oled" {% if prefs.mood == "oled" %}selected{% endif %}>OLED (black)</option>
+            </select>
+          </div>
+
+          <div class="form-control gap-1">
+            <label class="label-text font-medium">Table density</label>
+            <select name="table_density" class="select select-bordered select-sm w-full">
+              <option value="compact" {% if prefs.table_density == "compact" %}selected{% endif %}>Compact</option>
+              <option value="default" {% if prefs.table_density == "default" %}selected{% endif %}>Default</option>
+              <option value="comfy"   {% if prefs.table_density == "comfy"   %}selected{% endif %}>Comfy</option>
+            </select>
+          </div>
+
+          <div class="form-control gap-1">
+            <label class="label-text font-medium">Pipeline view</label>
+            <select name="dashboard_pipeline" class="select select-bordered select-sm w-full">
+              <option value="segments" {% if prefs.dashboard_pipeline == "segments" %}selected{% endif %}>Segments</option>
+              <option value="kanban"   {% if prefs.dashboard_pipeline == "kanban"   %}selected{% endif %}>Kanban</option>
+              <option value="flow"     {% if prefs.dashboard_pipeline == "flow"     %}selected{% endif %}>Flow</option>
+            </select>
+          </div>
+
+          <div class="form-control gap-1 flex-row items-center justify-between sm:col-span-2">
+            <label class="label-text font-medium cursor-pointer" for="show_covers_toggle">Show cover art in tables</label>
+            <input type="checkbox" id="show_covers_toggle" name="show_covers"
+                   class="toggle toggle-primary"
+                   {% if prefs.show_covers %}checked{% endif %}>
+          </div>
+
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ComicVine Data Sources Status -->
   <div class="card bg-base-200 mb-6">
     <div class="card-body">

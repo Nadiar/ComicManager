@@ -1,9 +1,11 @@
 import json
 
 from django.core.paginator import Paginator
+from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from .models import Setting
+from django.views.decorators.http import require_POST
+from .models import Setting, UserPreference
 
 
 def settings_index(request):
@@ -40,6 +42,18 @@ def settings_update(request):
             Setting.objects.filter(key=key).update(value=value)
         messages.success(request, "Settings saved.")
     return redirect("settings:index")
+
+
+@require_POST
+def update_preferences(request):
+    prefs = UserPreference.get()
+    allowed = {"nav", "mood", "table_density", "dashboard_pipeline"}
+    for field in allowed:
+        if field in request.POST:
+            setattr(prefs, field, request.POST[field])
+    prefs.show_covers = "show_covers" in request.POST
+    prefs.save()
+    return HttpResponse(status=204)
 
 
 def settings_log(request):

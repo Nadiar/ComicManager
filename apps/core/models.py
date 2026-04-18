@@ -255,3 +255,36 @@ def get_setting(key: str, default=None):
         return Setting.objects.get(key=key).typed_value
     except Setting.DoesNotExist:
         return default
+
+
+class UserPreference(models.Model):
+    """Singleton model for per-user display preferences (single-user app)."""
+
+    NAV_TOPNAV  = "topnav"
+    NAV_SIDEBAR = "sidebar"
+
+    MOOD_WARM = "warm"
+    MOOD_COOL = "cool"
+    MOOD_OLED = "oled"
+
+    DENSITY_COMPACT = "compact"
+    DENSITY_DEFAULT = "default"
+    DENSITY_COMFY   = "comfy"
+
+    PIPELINE_SEGMENTS = "segments"
+    PIPELINE_KANBAN   = "kanban"
+    PIPELINE_FLOW     = "flow"
+
+    nav               = models.CharField(max_length=16, default=NAV_TOPNAV)
+    mood              = models.CharField(max_length=16, default=MOOD_WARM)
+    table_density     = models.CharField(max_length=16, default=DENSITY_DEFAULT)
+    show_covers       = models.BooleanField(default=True)
+    dashboard_pipeline = models.CharField(max_length=16, default=PIPELINE_SEGMENTS)
+
+    class Meta:
+        verbose_name = "User Preference"
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj

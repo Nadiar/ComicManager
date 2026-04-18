@@ -7,4 +7,5 @@ urlpatterns = [
     path("", settings_views.settings_index, name="index"),
     path("update/", settings_views.settings_update, name="update"),
     path("log/", settings_views.settings_log, name="log"),
+    path("preferences/", settings_views.update_preferences, name="update_preferences"),
 ]
