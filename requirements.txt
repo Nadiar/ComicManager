@@ -1,4 +1,6 @@
 django>=5.1
+channels[daphne]>=4.0
+channels-redis>=4.2
 psycopg[binary]>=3.2
 celery[redis]>=5.4
 django-celery-beat>=2.7

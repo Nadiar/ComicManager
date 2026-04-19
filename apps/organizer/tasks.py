@@ -6,11 +6,12 @@ import logging
 import os
 
 from celery import shared_task
+from apps.core.task_base import ProgressTask
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, name="organizer.audit_paths", queue="organize")
+@shared_task(bind=True, base=ProgressTask, name="organizer.audit_paths", queue="organize")
 def audit_paths_task(self):
     """
     Scan all organized/written digital comics.
@@ -99,7 +100,7 @@ def audit_paths_task(self):
     }
 
 
-@shared_task(bind=True, name="organizer.reorganize_all_flagged", queue="organize")
+@shared_task(bind=True, base=ProgressTask, name="organizer.reorganize_all_flagged", queue="organize")
 def reorganize_all_flagged_task(self):
     """
     Re-organize all comics flagged with needs_reorganize=True.

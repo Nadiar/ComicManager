@@ -5,11 +5,12 @@ Celery tasks for Dashboard / Smart List operations.
 import logging
 
 from celery import shared_task
+from apps.core.task_base import ProgressTask
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, name="dashboard.smartlist_action", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="dashboard.smartlist_action", queue="write")
 def run_smartlist_action_task(self, smart_list_id, action):
     """
     Run a workflow action on all comics in a Smart List.
@@ -308,7 +309,7 @@ def _run_write(comic):
     log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
 
 
-@shared_task(bind=True, name="dashboard.run_full_pipeline", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="dashboard.run_full_pipeline", queue="write")
 def run_full_pipeline_task(self, comic_ids: list):
     """
     Run the full import pipeline on a list of comics in STATE_NEW.

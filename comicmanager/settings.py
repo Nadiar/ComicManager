@@ -8,6 +8,7 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 INSTALLED_APPS = [
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -15,6 +16,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # Third party
+    "channels",
     "django_celery_beat",
     "django_celery_results",
     "django_htmx",
@@ -72,6 +74,17 @@ DATABASES = {
         "HOST": "db",
         "PORT": "5432",
     }
+}
+
+ASGI_APPLICATION = "comicmanager.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")],
+        },
+    },
 }
 
 # Celery

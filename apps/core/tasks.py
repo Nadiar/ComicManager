@@ -4,6 +4,7 @@ Celery tasks for long-running core operations.
 
 from celery import shared_task
 from django.utils import timezone
+from .task_base import ProgressTask
 
 
 # =============================================================================
@@ -39,7 +40,7 @@ def clear_cancel(task_id):
 # Write tasks
 # =============================================================================
 
-@shared_task(bind=True, name="core.write_all_comics", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.write_all_comics", queue="write")
 def write_all_comics_task(self):
     """
     Write ComicInfo.xml for all comics in 'written' state.
@@ -116,7 +117,7 @@ def write_all_comics_task(self):
     return {"written": written, "total": total, "errors": errors, "cancelled": False}
 
 
-@shared_task(bind=True, name="core.write_stale_comics", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.write_stale_comics", queue="write")
 def write_stale_comics_task(self):
     """
     Write ComicInfo.xml for all comics in 'written' state where the DB has
@@ -194,7 +195,7 @@ def write_stale_comics_task(self):
     return {"written": written, "total": total, "errors": errors, "cancelled": False}
 
 
-@shared_task(bind=True, name="core.write_missing_comics", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.write_missing_comics", queue="write")
 def write_missing_comics_task(self):
     """
     Write ComicInfo.xml for digital comics in 'written' state that have never
@@ -270,7 +271,7 @@ def write_missing_comics_task(self):
     return {"written": written, "total": total, "errors": errors, "cancelled": False}
 
 
-@shared_task(bind=True, name="core.rewrite_updated_comics", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.rewrite_updated_comics", queue="write")
 def rewrite_updated_comics_task(self):
     """
     Rewrite ComicInfo.xml for all comics with the count_updated flag.
@@ -343,7 +344,7 @@ def rewrite_updated_comics_task(self):
 # Scan / Import tasks
 # =============================================================================
 
-@shared_task(bind=True, name="core.scan_untagged", queue="import")
+@shared_task(bind=True, base=ProgressTask, name="core.scan_untagged", queue="import")
 def scan_untagged_task(self):
     """
     Scan the untagged folder for new comics and import them.
@@ -369,7 +370,7 @@ def scan_untagged_task(self):
     }
 
 
-@shared_task(bind=True, name="core.convert_all_cbr", queue="import")
+@shared_task(bind=True, base=ProgressTask, name="core.convert_all_cbr", queue="import")
 def convert_all_cbr_task(self):
     """
     Convert all CBR/CB7 files flagged for conversion to CBZ format.
@@ -515,7 +516,7 @@ def convert_all_cbr_task(self):
     return {"converted": converted, "processed": converted, "total": total, "errors": errors, "cancelled": False}
 
 
-@shared_task(bind=True, name="core.convert_all_zip", queue="import")
+@shared_task(bind=True, base=ProgressTask, name="core.convert_all_zip", queue="import")
 def convert_all_zip_task(self):
     """
     Rename all .zip files flagged with is_zip to .cbz in place.
@@ -601,7 +602,7 @@ def convert_all_zip_task(self):
 # Scrape task
 # =============================================================================
 
-@shared_task(bind=True, name="core.scrape_all", queue="scrape")
+@shared_task(bind=True, base=ProgressTask, name="core.scrape_all", queue="scrape")
 def scrape_all_task(self):
     """
     Scrape all comics in 'imported' state against the ComicVine database.
@@ -761,7 +762,7 @@ def scrape_all_task(self):
 # Tag / Format tasks
 # =============================================================================
 
-@shared_task(bind=True, name="core.tag_all", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.tag_all", queue="write")
 def tag_all_task(self):
     """
     Apply DataManager rules to all comics in 'tagged' state.
@@ -817,7 +818,7 @@ def tag_all_task(self):
     return {"processed": processed, "total": total, "errors": errors, "cancelled": False}
 
 
-@shared_task(bind=True, name="core.retag_flagged", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.retag_flagged", queue="write")
 def retag_flagged_task(self, flag_name):
     """
     Re-tag all comics that have a specific flag (e.g. unknown_publisher).
@@ -867,7 +868,7 @@ def retag_flagged_task(self, flag_name):
     return {"processed": processed, "total": total, "errors": errors, "cancelled": False}
 
 
-@shared_task(bind=True, name="core.format_all", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.format_all", queue="write")
 def format_all_task(self):
     """
     Apply format detection to all comics in 'formatted' state.
@@ -920,7 +921,7 @@ def format_all_task(self):
 # Organize / Deduplicate tasks
 # =============================================================================
 
-@shared_task(bind=True, name="core.organize_all", queue="organize")
+@shared_task(bind=True, base=ProgressTask, name="core.organize_all", queue="organize")
 def organize_all_task(self):
     """
     Organize all comics in 'organized' state into the library.
@@ -987,7 +988,7 @@ def organize_all_task(self):
     return {"processed": processed, "total": total, "errors": errors, "cancelled": False}
 
 
-@shared_task(bind=True, name="core.deduplicate_all", queue="organize")
+@shared_task(bind=True, base=ProgressTask, name="core.deduplicate_all", queue="organize")
 def deduplicate_all_task(self):
     """
     Run duplicate detection on all comics in 'formatted' state.
@@ -1013,7 +1014,7 @@ def deduplicate_all_task(self):
 # Bulk action task (run any action on a filtered set of comics)
 # =============================================================================
 
-@shared_task(bind=True, name="core.bulk_action", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.bulk_action", queue="write")
 def bulk_action_task(self, comic_ids, action, flag_name=None):
     """
     Run a workflow action on an explicit list of comic IDs.
@@ -1118,7 +1119,7 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
 # Search alt covers task
 # =============================================================================
 
-@shared_task(bind=True, name="core.search_alt_covers", queue="import")
+@shared_task(bind=True, base=ProgressTask, name="core.search_alt_covers", queue="import")
 def search_alt_covers_task(self, comic_pk, variant_urls):
     """
     Download and insert variant covers into a comic's CBZ file.
@@ -1151,7 +1152,7 @@ def search_alt_covers_task(self, comic_pk, variant_urls):
     return {"success": False, "error": "No covers downloaded", "inserted": 0}
 
 
-@shared_task(bind=True, name="core.audit_metadata", queue="scrape")
+@shared_task(bind=True, base=ProgressTask, name="core.audit_metadata", queue="scrape")
 def audit_metadata_task(self):
     """
     Background task to audit metadata mismatches between local DB and ComicVine.
@@ -1282,7 +1283,7 @@ def audit_metadata_task(self):
 # Populate counts task
 # =============================================================================
 
-@shared_task(bind=True, name="core.populate_counts", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.populate_counts", queue="write")
 def populate_counts_task(self):
     """
     Populate missing issue counts from CV SQLite DB, then detect count mismatches.
@@ -1470,7 +1471,7 @@ def populate_counts_task(self):
     }
 
 
-@shared_task(bind=True, name="core.detect_format_upgrades", queue="write")
+@shared_task(bind=True, base=ProgressTask, name="core.detect_format_upgrades", queue="write")
 def detect_format_upgrades_task(self):
     """
     Scan all comics with a count-based format and flag those where the detected

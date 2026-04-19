@@ -94,10 +94,11 @@
     <div style="display:grid;grid-template-columns:repeat({{ pipeline|length }},1fr);border-top:1px solid var(--cm-border);">
       {% for stage in pipeline %}
       <div style="padding:8px 10px;{% if not forloop.last %}border-right:1px solid var(--cm-border);{% endif %}">
-        {% if stage.count > 0 %}
         {% if stage.state == 'new' %}
-          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/accept-all/', this, 'Accepting')">Accept</button>
-        {% elif stage.state == 'scrape' %}
+          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/scan-untagged/', this, 'Scanning')">Scan</button>
+          {% if stage.count > 0 %}<button class="cm-btn sm" style="width:100%;justify-content:center;margin-top:4px;" onclick="runAction('/comics/accept-all/', this, 'Accepting')">Accept</button>{% endif %}
+        {% elif stage.count > 0 %}
+        {% if stage.state == 'scrape' %}
           <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/scrape-all/', this, 'Scraping')">Scrape</button>
         {% elif stage.state == 'tagging' %}
           <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/tag-all/', this, 'Tagging')">Tag</button>
@@ -144,10 +145,11 @@
         <div style="font-size:10.5px;color:var(--cm-fg-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ stage.description }}</div>
         <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:auto;">
           <span class="mono tnum" style="font-size:19px;font-weight:700;color:{% if stage.count == 0 %}var(--cm-fg-3){% elif stage.state == 'done' %}var(--cm-ok){% else %}var(--cm-accent){% endif %};">{{ stage.count }}</span>
-          {% if stage.count > 0 %}
           {% if stage.state == 'new' %}
-            <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/accept-all/', this, 'Accepting')">Accept All</button>
-          {% elif stage.state == 'scrape' %}
+            <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/scan-untagged/', this, 'Scanning')">Scan for New</button>
+            {% if stage.count > 0 %}<button class="cm-btn sm" style="margin-top:6px;" onclick="event.stopPropagation();runAction('/comics/accept-all/', this, 'Accepting')">Accept All</button>{% endif %}
+          {% elif stage.count > 0 %}
+          {% if stage.state == 'scrape' %}
             <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/scrape-all/', this, 'Scraping')">Scrape All</button>
           {% elif stage.state == 'tagging' %}
             <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/tag-all/', this, 'Tagging')">Tag All</button>

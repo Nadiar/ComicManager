@@ -199,18 +199,17 @@
 {% endwith %}
 
   <!-- Background task progress notification -->
-  <div id="task-progress-toast" class="toast toast-end toast-bottom z-50 hidden">
-    <div class="alert bg-base-200 shadow-lg border border-base-300 w-96">
-      <div class="w-full">
-        <div class="flex justify-between items-center mb-2">
-          <span class="font-semibold text-sm" id="task-progress-label">Processing...</span>
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-base-content/60" id="task-progress-count"></span>
-            <button id="task-cancel-btn" class="btn btn-xs btn-ghost text-error hidden" onclick="window.cancelActiveTask()">Cancel</button>
-            <button id="task-dismiss-btn" class="btn btn-xs btn-ghost hidden" onclick="window.dismissTaskToast()">Dismiss</button>
-          </div>
+  <div id="task-progress-toast" class="fixed bottom-4 right-4 z-[70] hidden" style="width:340px">
+    <div class="cm-card" style="padding:0;overflow:hidden">
+      <div class="px-3 pt-2 pb-1">
+        <div class="flex items-center gap-1.5 mb-1.5">
+          <span id="task-spinner" class="text-[var(--cm-accent)] text-sm">◐</span>
+          <span class="flex-1 text-sm font-semibold truncate" id="task-progress-label">Processing...</span>
+          <span class="text-xs text-base-content/50 mono tnum" id="task-progress-count"></span>
+          <button id="task-cancel-btn" class="btn btn-xs btn-ghost text-error hidden" onclick="window.cancelActiveTask()">Cancel</button>
+          <button id="task-dismiss-btn" class="btn btn-xs btn-ghost hidden" onclick="window.dismissTaskToast()">Dismiss</button>
         </div>
-        <progress id="task-progress-bar" class="progress progress-primary w-full" value="0" max="100"></progress>
+        <progress id="task-progress-bar" class="progress progress-primary w-full" style="height:3px;border-radius:0" value="0" max="100"></progress>
         <div id="task-progress-status" class="text-xs text-base-content/60 mt-1"></div>
         <div id="task-queue-status" class="hidden text-xs text-base-content/40 mt-0.5"></div>
         <div id="task-log-link" class="hidden mt-1">
@@ -459,6 +458,19 @@
     function showLogLink() { logLink.classList.remove('hidden'); }
     function hideLogLink() { logLink.classList.add('hidden'); }
 
+    function markTaskDone(taskId) {
+      try {
+        var done = JSON.parse(sessionStorage.getItem('cm.done_tasks') || '[]');
+        if (done.indexOf(taskId) === -1) { done.push(taskId); }
+        sessionStorage.setItem('cm.done_tasks', JSON.stringify(done.slice(-20)));
+      } catch(e) {}
+    }
+    function isTaskDone(taskId) {
+      try {
+        return JSON.parse(sessionStorage.getItem('cm.done_tasks') || '[]').indexOf(taskId) !== -1;
+      } catch(e) { return false; }
+    }
+
     function showErrors(errors) {
       if (!errors || errors.length === 0) {
         errorList.classList.add('hidden');
@@ -560,7 +572,7 @@
       showErrors(null);
       labelEl.textContent = taskLabel + '...';
       status.textContent = 'Starting...';
-      count.textContent = '';
+      count.textContent = '0%';
       bar.value = 0;
       bar.classList.remove('progress-success', 'progress-error');
       bar.classList.add('progress-primary');
@@ -576,13 +588,14 @@
           if (data.state === 'PROGRESS') {
             var pct = data.total > 0 ? Math.round((data.current / data.total) * 100) : 0;
             bar.value = pct;
-            count.textContent = data.current + ' / ' + data.total;
-            status.textContent = progressText(data);
+            count.textContent = pct + '%';
+            status.textContent = (data.current && data.total ? data.current + ' / ' + data.total + ' — ' : '') + progressText(data);
             setTimeout(pollProgress, POLL_INTERVAL);
 
           } else if (data.state === 'SUCCESS') {
             bar.value = 100;
             var r = data.result || {};
+            markTaskDone(activeTaskId);
             hideCancel();
             if (r.cancelled) {
               labelEl.textContent = taskLabel + ' cancelled';
@@ -611,6 +624,7 @@
             }
 
           } else if (data.state === 'FAILURE') {
+            markTaskDone(activeTaskId);
             hideCancel();
             labelEl.textContent = taskLabel + ' failed';
             status.textContent = data.error || 'Unknown error';
@@ -669,17 +683,95 @@
       setTimeout(function() { hideToast(); location.reload(); }, 2000);
     };
 
+    // ── WebSocket — real-time task events ─────────────────────────────────────
+    (function() {
+      function connect() {
+        var proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        var ws = new WebSocket(proto + '//' + location.host + '/ws/tasks/');
+
+        ws.onmessage = function(e) {
+          var msg;
+          try { msg = JSON.parse(e.data); } catch(_) { return; }
+
+          if (msg.type === 'task.snapshot') {
+            if (!activeTaskId && msg.tasks && msg.tasks.length > 0) {
+              var running = msg.tasks.find(function(t) { return t.state === 'PROGRESS' && !isTaskDone(t.task_id); });
+              if (running) {
+                startPolling(running.task_id, running.label || 'Processing');
+                bar.value = running.pct || 0;
+                count.textContent = (running.pct || 0) + '%';
+                if (running.sublabel) status.textContent = running.sublabel;
+              }
+            }
+            return;
+          }
+
+          if (!activeTaskId || msg.task_id !== activeTaskId) return;
+
+          if (msg.state === 'PROGRESS') {
+            if (msg.pct !== undefined) bar.value = msg.pct;
+            count.textContent = (msg.pct || 0) + '%';
+            status.textContent = (msg.current && msg.total ? msg.current + ' / ' + msg.total + ' — ' : '') + (msg.sublabel || progressText(msg));
+          } else if (msg.state === 'SUCCESS') {
+            bar.value = 100;
+            markTaskDone(activeTaskId);
+            hideCancel();
+            var r = msg.result || {};
+            if (r.cancelled) {
+              labelEl.textContent = taskLabel + ' cancelled';
+              bar.classList.remove('progress-primary'); bar.classList.add('progress-error');
+            } else if (r.stopped_early) {
+              labelEl.textContent = taskLabel + ' stopped early';
+              bar.classList.remove('progress-primary'); bar.classList.add('progress-error');
+            } else {
+              labelEl.textContent = taskLabel + ' complete!';
+              bar.classList.remove('progress-primary'); bar.classList.add('progress-success');
+            }
+            count.textContent = '';
+            status.textContent = successText(r);
+            showErrors(r.errors);
+            showLogLink();
+            activeTaskId = null;
+            if (actionQueue.length > 0) {
+              status.textContent = 'Starting next task...';
+              setTimeout(processNextAction, 800);
+            } else {
+              showDismiss();
+              setTimeout(function() { window.dismissTaskToast(); }, 5000);
+            }
+          } else if (msg.state === 'FAILURE') {
+            markTaskDone(activeTaskId);
+            hideCancel();
+            labelEl.textContent = taskLabel + ' failed';
+            status.textContent = msg.error || 'Unknown error';
+            bar.classList.remove('progress-primary'); bar.classList.add('progress-error');
+            activeTaskId = null;
+            if (actionQueue.length > 0) {
+              setTimeout(processNextAction, 800);
+            } else {
+              showDismiss();
+            }
+          }
+        };
+
+        ws.onclose = function() { setTimeout(connect, 3000); };
+        ws.onerror = function() {};
+      }
+
+      connect();
+    })();
+
     // Auto-start toast for active background tasks (resume after page reload)
     var writeTaskId = "{{ active_write_task_id|escapejs }}";
     var smartlistTaskId = "{{ active_smartlist_action_task_id|escapejs }}";
     var genericTaskId = "{{ active_task_id|escapejs }}";
     var genericTaskLabel = "{{ active_task_label|escapejs }}";
 
-    if (writeTaskId) {
+    if (writeTaskId && !isTaskDone(writeTaskId)) {
       startPolling(writeTaskId, 'Writing comics');
-    } else if (smartlistTaskId) {
+    } else if (smartlistTaskId && !isTaskDone(smartlistTaskId)) {
       startPolling(smartlistTaskId, 'Smart list action');
-    } else if (genericTaskId) {
+    } else if (genericTaskId && !isTaskDone(genericTaskId)) {
       startPolling(genericTaskId, genericTaskLabel || 'Processing');
     }
   })();
