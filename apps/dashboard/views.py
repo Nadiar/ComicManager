@@ -250,6 +250,27 @@ def index(request):
                 entry["total_issues"] = missing_data["total_count"]
         dashboard_smartlists.append(entry)
 
+    # Severity for "Needs your attention" card
+    _severity = {
+        "corrupted_archive": "err", "low_page_count": "err",
+        "cover_only": "err",        "scrape_error": "err",
+        "is_pdf": "warn",           "no_series": "warn",
+        "missing_count": "warn",    "count_updated": "warn",
+        "metadata_mismatch": "warn","scrape_no_match": "warn",
+        "missing_format": "warn",   "unknown_publisher": "warn",
+        "needs_conversion": "info", "is_zip": "info",
+        "scrape_skipped": "info",
+    }
+    for item in review_queue:
+        item["sev"] = _severity.get(item["flag"], "warn")
+
+    # In-flight: comics actively in the pipeline (all stages except done)
+    stats["in_flight"] = sum(
+        state_counts.get(s, 0)
+        for s in ["new", "scrape", "tagging", "formats", "deduplicate", "move", "write"]
+    )
+    stats["complete_pct"] = round(stats["written"] / max(stats["total"], 1) * 100)
+
     from apps.scraper.cv_sources import get_cv_source_status
     from apps.core.models import get_setting
     cv_status = get_cv_source_status()

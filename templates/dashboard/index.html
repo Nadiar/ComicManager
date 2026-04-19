@@ -3,481 +3,380 @@
 {% block nav_dashboard %}active{% endblock %}
 
 {% block content %}
-<style>
-  /* Allow pipeline step circles to expand into ovals for large numbers */
-  .steps .step:after {
-    width: auto !important;
-    min-width: 2rem !important;
-    padding-inline: 0.5rem !important;
-  }
-</style>
-<div class="space-y-6">
+<div style="display:flex;flex-direction:column;gap:24px;padding-bottom:0;">
 
-  <h1 class="text-3xl font-bold">Dashboard</h1>
-
-  <!-- Stats row -->
-  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Total Comics</div>
-      <div class="stat-value text-primary">{{ stats.total }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Digital</div>
-      <div class="stat-value">{{ stats.digital }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Physical</div>
-      <div class="stat-value">{{ stats.physical }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">New / Unprocessed</div>
-      <div class="stat-value text-warning">{{ stats.new }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Complete</div>
-      <div class="stat-value text-success">{{ stats.written }}</div>
+  <!-- Page header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <h1 style="margin:0;font-size:22px;font-weight:700;letter-spacing:-0.01em;">Dashboard</h1>
+    <div class="cm-seg">
+      <button onclick="setPipelineVariant('segments')" class="{% if prefs.dashboard_pipeline == 'segments' %}on{% endif %}">Segments</button>
+      <button onclick="setPipelineVariant('kanban')"   class="{% if prefs.dashboard_pipeline == 'kanban'   %}on{% endif %}">Kanban</button>
+      <button onclick="setPipelineVariant('flow')"     class="{% if prefs.dashboard_pipeline == 'flow'     %}on{% endif %}">Flow</button>
     </div>
   </div>
 
-  <!-- Workflow Pipeline -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">Workflow Pipeline</h2>
-      <div class="overflow-x-auto">
-        <ul class="steps steps-horizontal w-full">
-          {% for stage in pipeline %}
-          <li class="step {% if stage.count > 0 %}step-primary{% endif %}" data-content="{{ stage.count }}">
-            <div class="text-xs mt-1">{{ stage.label }}</div>
-          </li>
-          {% endfor %}
-        </ul>
-      </div>
+  <!-- ── Stat tiles ── -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
 
-      <!-- Pipeline details table -->
-      <div class="overflow-x-auto mt-4">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Stage</th>
-              <th>Description</th>
-              <th class="text-right">Count</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for stage in pipeline %}
-            <tr class="{% if stage.count > 0 %}bg-base-300{% endif %}">
-              <td class="font-medium">{{ stage.label }}</td>
-              <td class="text-base-content/60">{{ stage.description }}</td>
-              <td class="text-right">
-                {% if stage.state == 'scrape' %}
-                  {% if stats.scrape_scrapeable > 0 %}
-                  <span class="badge badge-primary">{{ stats.scrape_scrapeable }}</span>
-                  {% else %}
-                  <span class="text-base-content/40">0</span>
-                  {% endif %}
-                  {% if stats.scrape_skipped > 0 %}
-                  <span class="badge badge-ghost ml-1">{{ stats.scrape_skipped }} skipped</span>
-                  {% endif %}
-                {% else %}
-                  {% if stage.count > 0 %}
-                  <span class="badge badge-primary">{{ stage.count }}</span>
-                  {% else %}
-                  <span class="text-base-content/40">0</span>
-                  {% endif %}
-                {% endif %}
-              </td>
-              <td class="whitespace-nowrap">
-                <div class="flex gap-1">
-                {% if stage.count > 0 %}
-                <a href="/comics/?state={{ stage.state }}" class="btn btn-xs btn-ghost">View</a>
-                {% endif %}
+    <div class="cm-card" style="padding:18px 20px;display:flex;flex-direction:column;gap:10px;min-height:110px;">
+      <span class="cm-section-lbl">Total Comics</span>
+      <span class="mono tnum" style="font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1;color:var(--cm-fg);">{{ stats.total|floatformat:"0" }}</span>
+      <span class="mono tnum" style="font-size:11px;color:var(--cm-fg-3);">{{ stats.digital }} digital · {{ stats.physical }} physical</span>
+    </div>
 
-                {% if stage.state == 'new' %}
-                <button onclick="runAction('/comics/scan-untagged/', this, 'Scanning untagged')" class="btn btn-xs btn-info">Scan Untagged</button>
-                {% if stage.count > 0 %}
-                <button onclick="runAction('/comics/accept-all/', this, 'Accepting comics')" class="btn btn-xs btn-success">Accept All</button>
-                {% endif %}
-                {% if stats.new_cbr_count > 0 %}
-                <button onclick="runAction('/comics/convert-all/', this, 'Converting to CBZ')" class="btn btn-xs btn-warning">Convert to CBZ</button>
-                {% endif %}
-                {% endif %}
+    <div class="cm-card" style="padding:18px 20px;display:flex;flex-direction:column;gap:10px;min-height:110px;">
+      <span class="cm-section-lbl">In Flight</span>
+      <span class="mono tnum" style="font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1;color:var(--cm-accent);">{{ stats.in_flight }}</span>
+      <span class="mono tnum" style="font-size:11px;color:var(--cm-fg-3);">across 7 stages</span>
+    </div>
 
-                {% if stage.state == 'scrape' and stage.count > 0 %}
-                <button onclick="runAction('/comics/scrape-all/', this, 'Scraping comics')" class="btn btn-xs btn-success{% if stats.scrape_scrapeable == 0 %} btn-disabled{% endif %}">Scrape All</button>
-                {% endif %}
+    <div class="cm-card" style="padding:18px 20px;display:flex;flex-direction:column;gap:10px;min-height:110px;">
+      <span class="cm-section-lbl">Needs Review</span>
+      <span class="mono tnum" style="font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1;color:{% if flagged_count > 0 %}var(--cm-warn){% else %}var(--cm-fg-3){% endif %};">{{ flagged_count }}</span>
+      <span class="mono tnum" style="font-size:11px;color:var(--cm-fg-3);">flags need attention</span>
+    </div>
 
-                {% if stage.state == 'tagging' and stage.count > 0 %}
-                <button onclick="runAction('/comics/tag-all/', this, 'Tagging comics')" class="btn btn-xs btn-success">Tag All</button>
-                {% endif %}
+    <div class="cm-card" style="padding:18px 20px;display:flex;flex-direction:column;gap:10px;min-height:110px;">
+      <span class="cm-section-lbl">Complete</span>
+      <span class="mono tnum" style="font-size:30px;font-weight:700;letter-spacing:-0.02em;line-height:1;color:var(--cm-ok);">{{ stats.written }}</span>
+      <span class="mono tnum" style="font-size:11px;color:var(--cm-fg-3);">{{ stats.complete_pct }}% of library</span>
+    </div>
 
-                {% if stage.state == 'formats' and stage.count > 0 %}
-                <button onclick="runAction('/comics/format-all/', this, 'Formatting comics')" class="btn btn-xs btn-success">Format All</button>
-                <a href="{% url 'core:format_review' %}" class="btn btn-xs btn-info">Review Formats</a>
-                {% endif %}
+  </div>
 
-                {% if stage.state == 'deduplicate' and stage.count > 0 %}
-                <a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-info">Review Dupes</a>
-                <button onclick="runAction('/comics/deduplicate-all/', this, 'Deduplicating')" class="btn btn-xs btn-success">Detect Dupes</button>
-                {% endif %}
+  <!-- ── Pipeline card ── -->
+  {% if prefs.dashboard_pipeline == 'kanban' %}
 
-                {% if stage.state == 'move' and stage.count > 0 %}
-                <button onclick="runAction('/comics/organize-all/', this, 'Organizing comics')" class="btn btn-xs btn-success">Organize All</button>
-                {% endif %}
-
-                {% if stage.state == 'write' and stage.count > 0 %}
-                <button onclick="runAction('/comics/write-all/', this, 'Writing comics')" class="btn btn-xs btn-success" id="btn-write-all">Write All</button>
-                {% endif %}
-
-                {% if stage.state == 'done' %}
-                <button onclick="runAction('/comics/sync-library-paths/', this)" class="btn btn-xs btn-info">Sync Paths</button>
-                {% endif %}
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+  <div class="cm-card" style="overflow:hidden;">
+    <div class="cm-card-hd">
+      <h3>Workflow Pipeline · Kanban</h3>
+      <span style="font-size:11px;color:var(--cm-fg-3);">Coming in a future update</span>
+    </div>
+    <div style="padding:48px 24px;text-align:center;background:var(--cm-bg);">
+      <div style="display:inline-flex;flex-direction:column;align-items:center;gap:10px;border:1px dashed var(--cm-border);border-radius:8px;padding:32px 48px;">
+        <span style="font-size:13px;font-weight:600;color:var(--cm-fg-1);">Kanban drag-to-run</span>
+        <span style="font-size:12px;color:var(--cm-fg-3);">Step 5 of the redesign — switch to Segments or Flow for now</span>
       </div>
     </div>
   </div>
+
+  {% elif prefs.dashboard_pipeline == 'flow' %}
+
+  <div class="cm-card" style="overflow:hidden;">
+    <div class="cm-card-hd">
+      <h3>Workflow Pipeline · Flow</h3>
+      <span style="font-size:11px;color:var(--cm-fg-3);">Coming in a future update</span>
+    </div>
+    <div style="padding:36px 28px 20px;background:var(--cm-bg);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:0;">
+        {% for stage in pipeline %}
+        {% with pending=stage.count|add:0 %}
+        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;">
+          {% with size=stage.count %}
+          <div style="width:{% if stage.count > 1000 %}90px{% elif stage.count > 100 %}78px{% elif stage.count > 10 %}66px{% else %}54px{% endif %};height:{% if stage.count > 1000 %}90px{% elif stage.count > 100 %}78px{% elif stage.count > 10 %}66px{% else %}54px{% endif %};border-radius:50%;background:{% if stage.state == 'done' %}var(--cm-ok-dim){% elif stage.count > 0 %}var(--cm-accent-dim){% else %}var(--cm-bg-2){% endif %};border:2px solid {% if stage.state == 'done' %}var(--cm-ok){% elif stage.count > 0 %}var(--cm-accent){% else %}var(--cm-border){% endif %};display:flex;align-items:center;justify-content:center;cursor:pointer;{% if stage.count > 0 and stage.state != 'done' %}animation:cm-pulse 2s ease-in-out infinite;{% endif %}"
+               onclick="{% if stage.state == 'deduplicate' %}window.location='/duplicates/'{% elif stage.state == 'formats' %}window.location='/comics/format/'{% else %}window.location='/comics/?state={{ stage.state }}'{% endif %}">
+            <span class="mono tnum" style="font-size:13px;font-weight:700;line-height:1;color:{% if stage.state == 'done' %}var(--cm-ok){% elif stage.count > 0 %}var(--cm-accent){% else %}var(--cm-fg-3){% endif %};">{{ stage.count }}</span>
+          </div>
+          {% endwith %}
+          <div style="text-align:center;">
+            <div style="font-size:10.5px;font-weight:600;">{{ stage.label|slice:"3:" }}</div>
+          </div>
+        </div>
+        {% if not forloop.last %}
+        <div style="flex:1;height:2px;background:var(--cm-border);margin:0 4px;min-width:10px;position:relative;">
+          {% if stage.count > 0 and stage.state != 'done' %}<div class="barstripe" style="position:absolute;inset:0;"></div>{% endif %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        {% endfor %}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat({{ pipeline|length }},1fr);border-top:1px solid var(--cm-border);">
+      {% for stage in pipeline %}
+      <div style="padding:8px 10px;{% if not forloop.last %}border-right:1px solid var(--cm-border);{% endif %}">
+        {% if stage.count > 0 %}
+        {% if stage.state == 'new' %}
+          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/accept-all/', this, 'Accepting')">Accept</button>
+        {% elif stage.state == 'scrape' %}
+          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/scrape-all/', this, 'Scraping')">Scrape</button>
+        {% elif stage.state == 'tagging' %}
+          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/tag-all/', this, 'Tagging')">Tag</button>
+        {% elif stage.state == 'formats' %}
+          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/format-all/', this, 'Formatting')">Format</button>
+        {% elif stage.state == 'deduplicate' %}
+          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/deduplicate-all/', this, 'Deduplicating')">Detect</button>
+        {% elif stage.state == 'move' %}
+          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/organize-all/', this, 'Organizing')">Organize</button>
+        {% elif stage.state == 'write' %}
+          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/write-all/', this, 'Writing')">Write</button>
+        {% elif stage.state == 'done' %}
+          <button class="cm-btn sm" style="width:100%;justify-content:center;" onclick="runAction('/comics/sync-library-paths/', this)">Sync</button>
+        {% endif %}
+        {% else %}
+        <span style="opacity:.4;font-size:11px;color:var(--cm-fg-3);">—</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% else %}
+
+  <!-- Segments (default) -->
+  <div class="cm-card" style="overflow:hidden;">
+    <div class="cm-card-hd" style="padding:14px 18px;">
+      <h3>Workflow Pipeline</h3>
+    </div>
+    <div style="display:flex;height:128px;background:var(--cm-bg);">
+      {% for stage in pipeline %}
+      {% with pending=stage.count %}
+      <div class="pipe-seg {% if stage.count > 0 and stage.state != 'done' %}active{% elif stage.state == 'done' %}done{% endif %}"
+           onclick="{% if stage.state == 'deduplicate' %}window.location='/duplicates/'{% elif stage.state == 'formats' %}window.location='/comics/format/'{% elif stage.state == 'done' %}return false{% else %}window.location='/comics/?state={{ stage.state }}'{% endif %}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div style="display:flex;align-items:center;gap:5px;">
+            <span class="mono" style="font-size:10px;color:var(--cm-fg-3);width:10px;">{{ forloop.counter }}</span>
+            <span style="font-size:11.5px;font-weight:600;color:var(--cm-fg);">{{ stage.label|slice:"3:" }}</span>
+          </div>
+          {% if stage.count > 0 and stage.state != 'done' %}
+          <span class="cm-dot cm-pulse" style="color:var(--cm-accent);flex-shrink:0;margin-top:3px;"></span>
+          {% endif %}
+        </div>
+        <div style="font-size:10.5px;color:var(--cm-fg-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ stage.description }}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:auto;">
+          <span class="mono tnum" style="font-size:19px;font-weight:700;color:{% if stage.count == 0 %}var(--cm-fg-3){% elif stage.state == 'done' %}var(--cm-ok){% else %}var(--cm-accent){% endif %};">{{ stage.count }}</span>
+          {% if stage.count > 0 %}
+          {% if stage.state == 'new' %}
+            <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/accept-all/', this, 'Accepting')">Accept All</button>
+          {% elif stage.state == 'scrape' %}
+            <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/scrape-all/', this, 'Scraping')">Scrape All</button>
+          {% elif stage.state == 'tagging' %}
+            <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/tag-all/', this, 'Tagging')">Tag All</button>
+          {% elif stage.state == 'formats' %}
+            <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/format-all/', this, 'Formatting')">Format All</button>
+          {% elif stage.state == 'deduplicate' %}
+            <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/deduplicate-all/', this, 'Deduplicating')">Detect Dupes</button>
+          {% elif stage.state == 'move' %}
+            <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/organize-all/', this, 'Organizing')">Organize All</button>
+          {% elif stage.state == 'write' %}
+            <button class="cm-btn sm" style="background:var(--cm-accent);color:var(--cm-accent-fg);border-color:transparent;font-weight:600;" onclick="event.stopPropagation();runAction('/comics/write-all/', this, 'Writing')">Write All</button>
+          {% elif stage.state == 'done' %}
+            <button class="cm-btn sm" onclick="event.stopPropagation();runAction('/comics/sync-library-paths/', this)">Sync Paths</button>
+          {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </div>
+
+  {% endif %}
+
+  <!-- ── Needs your attention ── -->
+  <div class="cm-card">
+    <div class="cm-card-hd">
+      <h3>Needs your attention</h3>
+      <span class="mono tnum" style="font-size:11px;color:var(--cm-fg-3);">{{ flagged_count }} items</span>
+    </div>
+
+    {% for item in review_queue %}
+    {% if item.flag != 'count_mismatch' and item.flag != 'format_mismatch_in_volume' and item.flag != 'cv_volume_conflict' and item.action != 'reformat' %}
+    {% if item.count > 0 %}
+    <div style="display:grid;grid-template-columns:160px 1fr 80px auto;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--cm-border);">
+      <span class="cm-chip {{ item.sev }}"><span class="cm-dot"></span>{{ item.label }}</span>
+      <span style="font-size:12.5px;color:var(--cm-fg-1);">{{ item.description }}</span>
+      <span class="mono tnum" style="font-size:15px;font-weight:700;text-align:right;color:{% if item.sev == 'err' %}var(--cm-err){% elif item.sev == 'info' %}var(--cm-info){% else %}var(--cm-warn){% endif %};">{{ item.count }}</span>
+      <div style="display:flex;gap:6px;">
+        {% if item.link %}
+        <a href="{{ item.link }}" class="cm-btn sm ghost">View</a>
+        {% else %}
+        <a href="/comics/?flag={{ item.flag }}" class="cm-btn sm ghost">View</a>
+        {% endif %}
+        {% if item.action == 'populate' %}
+          <button class="cm-btn sm ok" onclick="runAction('/comics/populate-counts/', this)">Populate</button>
+        {% elif item.action == 'rewrite' %}
+          <button class="cm-btn sm ok" onclick="runAction('/comics/rewrite-updated/', this, 'Rewriting')">Rewrite</button>
+        {% elif item.action == 'convert' %}
+          <button class="cm-btn sm" style="background:var(--cm-info-dim);color:var(--cm-info);border-color:transparent;" onclick="runAction('/comics/convert-all/', this, 'Converting')">Convert</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+
+    {% if flagged_count == 0 %}
+    <div style="padding:32px 18px;text-align:center;color:var(--cm-fg-3);font-size:12.5px;">
+      <span class="cm-chip ok">No active flags</span>
+    </div>
+    {% endif %}
+
+    <!-- Maintenance footer -->
+    <div style="padding:10px 18px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--cm-border);">
+      <span style="font-size:11.5px;color:var(--cm-fg-3);">
+        Plus <span class="mono tnum" style="color:var(--cm-fg-2);">{{ maintenance_count }}</span> maintenance items (low priority)
+      </span>
+      <button class="cm-btn sm ghost" onclick="document.getElementById('maintenance-panel').classList.toggle('hidden')">
+        Show maintenance
+        <svg width="11" height="11" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3.5L5 6.5L8 3.5"/></svg>
+      </button>
+    </div>
+
+    <!-- Maintenance items (collapsed by default) -->
+    <div id="maintenance-panel" class="hidden" style="border-top:1px solid var(--cm-border);">
+      {% with items=count_mismatch_count|add:0 %}
+      {% if count_mismatch_count > 0 %}
+      <div style="display:grid;grid-template-columns:160px 1fr 80px auto;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--cm-border);">
+        <span class="cm-chip warn"><span class="cm-dot"></span>Count Mismatch</span>
+        <span style="font-size:12px;color:var(--cm-fg-2);">Comics in same volume disagree on issue count</span>
+        <span class="mono tnum" style="font-size:14px;font-weight:700;text-align:right;color:var(--cm-warn);">{{ count_mismatch_count }}</span>
+        <div style="display:flex;gap:6px;">
+          <a href="/comics/?flag=count_mismatch" class="cm-btn sm ghost">View</a>
+          <button class="cm-btn sm" style="background:var(--cm-info-dim);color:var(--cm-info);border-color:transparent;" onclick="runAction('/comics/detect-count-mismatches/', this)">Detect</button>
+        </div>
+      </div>
+      {% endif %}
+      {% endwith %}
+      {% if format_mismatch_count > 0 %}
+      <div style="display:grid;grid-template-columns:160px 1fr 80px auto;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--cm-border);">
+        <span class="cm-chip warn"><span class="cm-dot"></span>Format Mismatch</span>
+        <span style="font-size:12px;color:var(--cm-fg-2);">Same CV volume has conflicting formats</span>
+        <span class="mono tnum" style="font-size:14px;font-weight:700;text-align:right;color:var(--cm-warn);">{{ format_mismatch_count }}</span>
+        <div style="display:flex;gap:6px;">
+          <a href="/comics/?flag=format_mismatch_in_volume" class="cm-btn sm ghost">View</a>
+          <button class="cm-btn sm" style="background:var(--cm-info-dim);color:var(--cm-info);border-color:transparent;" onclick="runAction('/comics/detect-format-conflicts/', this)">Detect</button>
+        </div>
+      </div>
+      {% endif %}
+      {% if cv_volume_conflict_count > 0 %}
+      <div style="display:grid;grid-template-columns:160px 1fr 80px auto;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--cm-border);">
+        <span class="cm-chip warn"><span class="cm-dot"></span>CV Volume Conflict</span>
+        <span style="font-size:12px;color:var(--cm-fg-2);">Same Series+Volume linked to different CV volumes</span>
+        <span class="mono tnum" style="font-size:14px;font-weight:700;text-align:right;color:var(--cm-warn);">{{ cv_volume_conflict_count }}</span>
+        <div style="display:flex;gap:6px;">
+          <a href="/comics/?flag=cv_volume_conflict" class="cm-btn sm ghost">View</a>
+        </div>
+      </div>
+      {% endif %}
+      {% if needs_reformat_count > 0 %}
+      <div style="display:grid;grid-template-columns:160px 1fr 80px auto;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--cm-border);">
+        <span class="cm-chip warn"><span class="cm-dot"></span>Format Upgrade</span>
+        <span style="font-size:12px;color:var(--cm-fg-2);">Issue count changed — format should be upgraded</span>
+        <span class="mono tnum" style="font-size:14px;font-weight:700;text-align:right;color:var(--cm-warn);">{{ needs_reformat_count }}</span>
+        <div style="display:flex;gap:6px;">
+          <a href="/comics/format/" class="cm-btn sm ghost">View</a>
+          <button class="cm-btn sm ok" onclick="runAction('/comics/reformat-flagged/', this, 'Re-formatting')">Re-format</button>
+        </div>
+      </div>
+      {% endif %}
+      {% if dup_total > 0 %}
+      <div style="display:grid;grid-template-columns:160px 1fr 80px auto;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--cm-border);">
+        <span class="cm-chip warn"><span class="cm-dot"></span>Duplicates</span>
+        <span style="font-size:12px;color:var(--cm-fg-2);">Pending duplicate groups</span>
+        <span class="mono tnum" style="font-size:14px;font-weight:700;text-align:right;color:var(--cm-warn);">{{ dup_total }}</span>
+        <div style="display:flex;gap:6px;">
+          <a href="{% url 'duplicates:review' %}" class="cm-btn sm ghost">Review</a>
+        </div>
+      </div>
+      {% endif %}
+      {% if needs_reorganize_count > 0 %}
+      <div style="display:grid;grid-template-columns:160px 1fr 80px auto;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--cm-border);">
+        <span class="cm-chip info"><span class="cm-dot"></span>Needs Re-organize</span>
+        <span style="font-size:12px;color:var(--cm-fg-2);">Metadata changed since last organize</span>
+        <span class="mono tnum" style="font-size:14px;font-weight:700;text-align:right;color:var(--cm-info);">{{ needs_reorganize_count }}</span>
+        <div style="display:flex;gap:6px;">
+          <a href="{% url 'organizer:path_audit' %}" class="cm-btn sm ghost">Path Audit</a>
+          <button class="cm-btn sm" style="background:var(--cm-info-dim);color:var(--cm-info);border-color:transparent;" onclick="runAction('{% url 'organizer:start_reorganize_all' %}', this, 'Re-organizing')">Re-organize</button>
+        </div>
+      </div>
+      {% endif %}
+      {% if stale_count > 0 %}
+      <div style="display:grid;grid-template-columns:160px 1fr 80px auto;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--cm-border);">
+        <span class="cm-chip info"><span class="cm-dot"></span>Stale Metadata</span>
+        <span style="font-size:12px;color:var(--cm-fg-2);">DB updated after last ComicInfo.xml write</span>
+        <span class="mono tnum" style="font-size:14px;font-weight:700;text-align:right;color:var(--cm-info);">{{ stale_count }}</span>
+        <div style="display:flex;gap:6px;">
+          <a href="{% url 'core:list' %}?state=write" class="cm-btn sm ghost">View</a>
+          <button class="cm-btn sm ok" onclick="runAction('{% url 'core:write_stale' %}', this, 'Writing stale')">Write Stale</button>
+        </div>
+      </div>
+      {% endif %}
+      {% if missing_comicinfo_count > 0 %}
+      <div style="display:grid;grid-template-columns:160px 1fr 80px auto;align-items:center;gap:14px;padding:10px 18px;">
+        <span class="cm-chip info"><span class="cm-dot"></span>Missing ComicInfo</span>
+        <span style="font-size:12px;color:var(--cm-fg-2);">Written comics never had ComicInfo.xml written</span>
+        <span class="mono tnum" style="font-size:14px;font-weight:700;text-align:right;color:var(--cm-info);">{{ missing_comicinfo_count }}</span>
+        <div style="display:flex;gap:6px;">
+          <button class="cm-btn sm ok" onclick="runAction('{% url 'core:write_missing' %}', this, 'Writing missing')">Write Missing</button>
+        </div>
+      </div>
+      {% endif %}
+      {% if maintenance_count == 0 %}
+      <div style="padding:20px 18px;text-align:center;color:var(--cm-fg-3);font-size:12px;">No maintenance items.</div>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <div style="height:120px;"></div>
+
+</div>
 
 <script>
 function getCsrfToken() {
   return document.querySelector('meta[name="csrf-token"]')?.content ||
-         document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+         document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
+}
+
+function setPipelineVariant(v) {
+  var params = new URLSearchParams({
+    nav:               '{{ prefs.nav }}',
+    mood:              '{{ prefs.mood }}',
+    table_density:     '{{ prefs.table_density }}',
+    dashboard_pipeline: v,
+  });
+  {% if prefs.show_covers %}params.append('show_covers', 'on');{% endif %}
+  fetch('{% url "settings:update_preferences" %}', {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/x-www-form-urlencoded'},
+    body: params.toString(),
+  }).then(() => location.reload());
 }
 
 async function runAction(url, btn, taskLabel) {
-  const originalText = btn.textContent;
-
+  var originalText = btn.textContent;
   if (window.isTaskActive && window.isTaskActive()) {
     if (window.enqueueAction) {
       window.enqueueAction(
         async () => {
-          const r = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+          var r = await fetch(url, {method:'POST', headers:{'X-CSRFToken': getCsrfToken()}});
           return r.json();
         },
-        taskLabel || originalText,
-        btn
+        taskLabel || originalText, btn
       );
     }
     return;
   }
-
   btn.disabled = true;
-  btn.textContent = 'Starting...';
-
+  btn.textContent = 'Starting…';
   try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {'X-CSRFToken': getCsrfToken()},
-    });
-    const data = await resp.json();
-
+    var resp = await fetch(url, {method:'POST', headers:{'X-CSRFToken': getCsrfToken()}});
+    var data = await resp.json();
     if (data.task_id) {
-      // Async task dispatched
-      btn.textContent = 'Running...';
-      btn.classList.remove('btn-success', 'btn-info');
-      btn.classList.add('btn-info');
-      if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id, taskLabel || originalText);
-      }
+      btn.textContent = 'Running…';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, taskLabel || originalText);
     } else if (data.success) {
-      // Synchronous operation completed
       btn.textContent = 'Done!';
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-info');
-      if (window.showQuickToast) {
-        window.showQuickToast(data.message || 'Done!');
-      } else {
-        setTimeout(() => location.reload(), 1500);
-      }
+      if (window.showQuickToast) window.showQuickToast(data.message || 'Done!');
+      else setTimeout(() => location.reload(), 1500);
     } else {
       btn.textContent = data.error || 'Error';
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-error');
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.disabled = false;
-        btn.classList.remove('btn-error');
-        btn.classList.add('btn-success');
-      }, 3000);
+      setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 3000);
     }
-  } catch (err) {
+  } catch(e) {
     btn.textContent = 'Error';
-    btn.classList.remove('btn-success');
-    btn.classList.add('btn-error');
-    console.error(err);
+    console.error(e);
   }
 }
-
-// Alias for backward compatibility with existing write-all buttons
-async function runWriteTask(url, btn) {
-  return runAction(url, btn, 'Writing comics');
-}
-
-// Disable Write All button if a task is already running
-if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
-  var wb = document.getElementById('btn-write-all');
-  wb.disabled = true;
-  wb.textContent = 'Running...';
-  wb.classList.remove('btn-success');
-  wb.classList.add('btn-info');
-}
 </script>
-
-  <!-- Review & Maintenance -->
-  <div class="card bg-base-200 {% if flagged_count > 0 or maintenance_count > 0 %}border border-warning{% endif %}">
-    <div class="card-body">
-      <div class="flex justify-between items-center mb-2">
-        <h2 class="card-title {% if flagged_count > 0 %}text-warning{% endif %}">Review &amp; Maintenance</h2>
-        <div class="flex gap-2">
-          {% if flagged_count > 0 %}<span class="badge badge-warning">{{ flagged_count }} active</span>{% endif %}
-          {% if maintenance_count > 0 %}<span class="badge badge-info">{{ maintenance_count }} maintenance</span>{% endif %}
-        </div>
-      </div>
-
-      <div role="tablist" class="tabs tabs-bordered">
-        <input type="radio" name="dash_tabs" role="tab" class="tab"
-               aria-label="Active{% if flagged_count > 0 %} ({{ flagged_count }}){% endif %}"
-               {% if flagged_count > 0 or maintenance_count == 0 %}checked{% endif %} />
-        <div role="tabpanel" class="tab-content pt-4">
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Issue</th>
-                  <th>Description</th>
-                  <th class="text-right">Count</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in review_queue %}
-                {% if item.flag != 'count_mismatch' and item.flag != 'format_mismatch_in_volume' and item.flag != 'cv_volume_conflict' and item.action != 'reformat' %}
-                {% if item.count > 0 or not hide_zero_maintenance_rows %}
-                <tr class="{% if item.count > 0 %}bg-base-300{% endif %}">
-                  <td class="font-medium">
-                    {% if item.action == 'delete' %}
-                    <span class="text-error">{{ item.label }}</span>
-                    {% elif item.action == 'convert' %}
-                    <span class="text-info">{{ item.label }}</span>
-                    {% elif item.count == 0 %}
-                    <span class="text-base-content/40">{{ item.label }}</span>
-                    {% else %}
-                    <span class="text-warning">{{ item.label }}</span>
-                    {% endif %}
-                  </td>
-                  <td class="text-base-content/60">{{ item.description }}</td>
-                  <td class="text-right">
-                    {% if item.count > 0 %}
-                    <span class="badge badge-warning">{{ item.count }}</span>
-                    {% else %}
-                    <span class="text-base-content/30">0</span>
-                    {% endif %}
-                  </td>
-                  <td class="flex gap-1">
-                    {% if item.count > 0 %}
-                      {% if item.link %}
-                      <a href="{{ item.link }}" class="btn btn-xs btn-ghost">View</a>
-                      {% else %}
-                      <a href="/comics/?flag={{ item.flag }}" class="btn btn-xs btn-ghost">View</a>
-                      {% endif %}
-                    {% endif %}
-                    {% if item.action == 'populate' and item.count > 0 %}
-                    <button onclick="runAction('/comics/populate-counts/', this)" class="btn btn-xs btn-success">Populate Counts</button>
-                    {% endif %}
-                    {% if item.flag == 'count_updated' %}
-                    <button onclick="runAction('/comics/rewrite-updated/', this, 'Rewriting comics')" class="btn btn-xs btn-success">Rewrite All</button>
-                    {% endif %}
-                  </td>
-                </tr>
-                {% endif %}
-                {% endif %}
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <input type="radio" name="dash_tabs" role="tab" class="tab"
-               aria-label="Maintenance{% if maintenance_count > 0 %} ({{ maintenance_count }}){% endif %}"
-               {% if flagged_count == 0 and maintenance_count > 0 %}checked{% endif %} />
-        <div role="tabpanel" class="tab-content pt-4">
-          <table class="table table-sm">
-            <thead><tr><th>Issue</th><th>Detail</th><th class="text-right">Count</th><th></th></tr></thead>
-            <tbody>
-              <!-- Count Mismatch -->
-              {% if not hide_zero_maintenance_rows or count_mismatch_count > 0 %}
-              <tr class="{% if count_mismatch_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if count_mismatch_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Count Mismatch</td>
-                <td class="text-base-content/60">Comics in the same CV volume disagree on issue count</td>
-                <td class="text-right">
-                  {% if count_mismatch_count > 0 %}<span class="badge badge-warning">{{ count_mismatch_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if count_mismatch_count > 0 %}<a href="/comics/?flag=count_mismatch" class="btn btn-xs btn-ghost">View</a>{% endif %}
-                  <button onclick="runAction('/comics/detect-count-mismatches/', this)" class="btn btn-xs btn-info">Detect Mismatches</button>
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Format Mismatch in Volume -->
-              {% if not hide_zero_maintenance_rows or format_mismatch_count > 0 %}
-              <tr class="{% if format_mismatch_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if format_mismatch_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Format Mismatch in Volume</td>
-                <td class="text-base-content/60">Comics linked to the same CV volume have conflicting formats</td>
-                <td class="text-right">
-                  {% if format_mismatch_count > 0 %}<span class="badge badge-warning">{{ format_mismatch_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if format_mismatch_count > 0 %}<a href="/comics/?flag=format_mismatch_in_volume" class="btn btn-xs btn-ghost">View</a>{% endif %}
-                  <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
-                </td>
-              </tr>
-              {% endif %}
-              <!-- CV Volume Conflict -->
-              {% if not hide_zero_maintenance_rows or cv_volume_conflict_count > 0 %}
-              <tr class="{% if cv_volume_conflict_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if cv_volume_conflict_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">CV Volume Conflict</td>
-                <td class="text-base-content/60">Comics with the same Series+Volume+Format are linked to different CV volumes</td>
-                <td class="text-right">
-                  {% if cv_volume_conflict_count > 0 %}<span class="badge badge-warning">{{ cv_volume_conflict_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if cv_volume_conflict_count > 0 %}<a href="/comics/?flag=cv_volume_conflict" class="btn btn-xs btn-ghost">View</a>{% endif %}
-                  <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Format Upgrade Needed -->
-              {% if not hide_zero_maintenance_rows or needs_reformat_count > 0 %}
-              <tr class="{% if needs_reformat_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if needs_reformat_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Format Upgrade Needed</td>
-                <td class="text-base-content/60">Issue count changed — format should be upgraded (e.g. One-Shot to Limited Series)</td>
-                <td class="text-right">
-                  {% if needs_reformat_count > 0 %}<span class="badge badge-warning">{{ needs_reformat_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if needs_reformat_count > 0 %}<a href="/comics/format/" class="btn btn-xs btn-ghost">View</a>{% endif %}
-                  <button onclick="runAction('/comics/detect-format-upgrades/', this)" class="btn btn-xs btn-info">Detect Upgrades</button>
-                  {% if needs_reformat_count > 0 %}
-                  <button onclick="runAction('/comics/reformat-flagged/', this, 'Re-formatting flagged')" class="btn btn-xs btn-success">Re-format Flagged</button>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Duplicates -->
-              {% if not hide_zero_maintenance_rows or dup_total > 0 %}
-              <tr class="{% if dup_total > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if dup_total > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Duplicates</td>
-                <td class="text-base-content/60 text-xs">
-                  {% if dup_total > 0 %}
-                    {% if dup_by_method.cv_id %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.cv_id }} by CV ID</span>{% endif %}
-                    {% if dup_by_method.metadata %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.metadata }} by Series/Number</span>{% endif %}
-                    {% if dup_by_method.phash %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.phash }} by pHash</span>{% endif %}
-                    {% if dup_by_method.filename %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.filename }} by Filename</span>{% endif %}
-                  {% else %}No duplicate groups pending{% endif %}
-                </td>
-                <td class="text-right">
-                  {% if dup_total > 0 %}<span class="badge badge-warning">{{ dup_total }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td>
-                  {% if dup_total > 0 %}<a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-ghost">Review</a>{% endif %}
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Needs Re-organize -->
-              {% if not hide_zero_maintenance_rows or needs_reorganize_count > 0 %}
-              <tr class="{% if needs_reorganize_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if needs_reorganize_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Needs Re-organize</td>
-                <td class="text-base-content/60">Metadata changed after last organize, or organizer profile template was updated</td>
-                <td class="text-right">
-                  {% if needs_reorganize_count > 0 %}<span class="badge badge-warning">{{ needs_reorganize_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  <a href="{% url 'organizer:path_audit' %}" class="btn btn-xs btn-ghost">Path Audit</a>
-                  {% if needs_reorganize_count > 0 %}
-                  <button onclick="runAction('{% url 'organizer:start_reorganize_all' %}', this, 'Re-organizing')" class="btn btn-xs btn-info">Re-organize All</button>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Stale Metadata -->
-              {% if not hide_zero_maintenance_rows or stale_count > 0 %}
-              <tr class="{% if stale_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if stale_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Stale Metadata</td>
-                <td class="text-base-content/60">Database updated after last ComicInfo.xml write</td>
-                <td class="text-right">
-                  {% if stale_count > 0 %}<span class="badge badge-warning">{{ stale_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if stale_count > 0 %}
-                  <a href="{% url 'core:list' %}?state=write" class="btn btn-xs btn-ghost">View</a>
-                  <button onclick="runAction('{% url 'core:write_stale' %}', this, 'Writing stale')" class="btn btn-xs btn-warning">Write Stale</button>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Missing ComicInfo.xml -->
-              {% if not hide_zero_maintenance_rows or missing_comicinfo_count > 0 %}
-              <tr class="{% if missing_comicinfo_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if missing_comicinfo_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Missing ComicInfo.xml</td>
-                <td class="text-base-content/60">Written digital comics that have never had ComicInfo.xml written</td>
-                <td class="text-right">
-                  {% if missing_comicinfo_count > 0 %}<span class="badge badge-warning">{{ missing_comicinfo_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if missing_comicinfo_count > 0 %}
-                  <a href="{% url 'core:list' %}?state=write" class="btn btn-xs btn-ghost">View</a>
-                  <button onclick="runAction('{% url 'core:write_missing' %}', this, 'Writing missing')" class="btn btn-xs btn-success">Write Missing</button>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endif %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Smart Lists -->
-  {% if dashboard_smartlists %}
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <div class="flex justify-between items-center">
-        <h2 class="card-title">Smart Lists</h2>
-        <a href="/smartlists/" class="btn btn-sm btn-ghost">View All</a>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-        {% for entry in dashboard_smartlists %}
-        <a href="{% url 'dashboard:smartlist_detail' entry.smartlist.pk %}" class="card bg-base-300 hover:bg-base-100 transition-colors cursor-pointer">
-          <div class="card-body p-4">
-            <div class="flex justify-between items-start">
-              <div class="font-medium">
-                {% if entry.smartlist.icon %}{{ entry.smartlist.icon }} {% endif %}{{ entry.smartlist.name }}
-              </div>
-              <span class="badge badge-primary badge-sm">{{ entry.count }}</span>
-            </div>
-
-            {% if entry.completion is not None %}
-            <div class="mt-2">
-              <div class="flex justify-between text-xs text-base-content/60 mb-1">
-                <span>{{ entry.owned }}/{{ entry.total_issues }} issues</span>
-                <span class="{% if entry.completion == 100 %}text-success{% elif entry.completion >= 75 %}text-info{% elif entry.completion >= 50 %}text-warning{% else %}text-error{% endif %} font-bold">{{ entry.completion }}%</span>
-              </div>
-              <progress class="progress progress-success w-full h-2" value="{{ entry.completion }}" max="100"></progress>
-            </div>
-            {% endif %}
-          </div>
-        </a>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-</div>
 {% endblock %}
