@@ -4,613 +4,516 @@
 {% block nav_comics %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-4">
-  <!-- Workflow Navigation -->
-  {% if current_state and workflow_states %}
-  <div class="flex items-center gap-1 text-sm overflow-x-auto pb-2">
-    {% for state_key, state_label in workflow_states %}
-    <a href="?state={{ state_key }}"
-       class="btn btn-xs {% if state_key == current_state %}btn-primary{% else %}btn-ghost btn-outline{% endif %}">
-      {{ forloop.counter }}. {{ state_label }}
-    </a>
-    {% if not forloop.last %}
-    <span class="text-base-content/30">→</span>
+<style>
+.cm-list-row:hover { background: var(--cm-bg-2); }
+.cm-list-row.selected { background: var(--cm-accent-dim) !important; }
+</style>
+
+<!-- Toolbar -->
+<form method="GET" id="filter-form" style="padding:10px 16px; border-bottom:1px solid var(--cm-border); display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--cm-bg-1);">
+  {% if current_state %}<input type="hidden" name="state" value="{{ current_state }}">{% endif %}
+  {% if current_flag %}<input type="hidden" name="flag" value="{{ current_flag }}">{% endif %}
+  {% if filter_rail_open %}<input type="hidden" name="rail" value="1">{% endif %}
+
+  <!-- Search -->
+  <div style="position:relative; flex:0 0 300px;">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--cm-fg-3);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" name="q" value="{{ current_search|default:'' }}"
+           placeholder="Series, writer, characters · (#N [YYYY] V2)"
+           class="cm-input" style="padding-left:28px; width:100%; height:30px; font-size:12px;">
+  </div>
+
+  <!-- View mode -->
+  <div class="cm-seg" style="flex-shrink:0;">
+    <button type="submit" name="view" value="table" {% if current_view == 'table' %}class="on"{% endif %} onclick="this.form.querySelectorAll('[name=view]').forEach(i=>i.disabled=true); this.disabled=false;">Table</button>
+    <button type="submit" name="view" value="hybrid" {% if current_view == 'hybrid' %}class="on"{% endif %} onclick="this.form.querySelectorAll('[name=view]').forEach(i=>i.disabled=true); this.disabled=false;">Hybrid</button>
+    <button type="submit" name="view" value="grid" {% if current_view == 'grid' %}class="on"{% endif %} onclick="this.form.querySelectorAll('[name=view]').forEach(i=>i.disabled=true); this.disabled=false;">Grid</button>
+    <button type="submit" name="view" value="compact" {% if current_view == 'compact' %}class="on"{% endif %} onclick="this.form.querySelectorAll('[name=view]').forEach(i=>i.disabled=true); this.disabled=false;">Compact</button>
+  </div>
+
+  <!-- Filter rail toggle -->
+  <button type="button" onclick="toggleRail()" class="cm-btn sm{% if filter_rail_open %} primary{% endif %}" style="flex-shrink:0;">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg>
+    Filters
+  </button>
+
+  <!-- Sort -->
+  <select name="sort" class="cm-input cm-select" style="height:30px; font-size:12px;">
+    {% if current_state == 'new' %}
+    <option value="proposed_series" {% if current_sort == 'proposed_series' %}selected{% endif %}>Sort: Series</option>
+    <option value="proposed_number" {% if current_sort == 'proposed_number' %}selected{% endif %}>Sort: Number</option>
+    <option value="proposed_year" {% if current_sort == 'proposed_year' %}selected{% endif %}>Sort: Year</option>
+    {% else %}
+    <option value="series" {% if current_sort == 'series' %}selected{% endif %}>Sort: Series</option>
+    <option value="number" {% if current_sort == 'number' %}selected{% endif %}>Sort: Number</option>
+    <option value="publisher" {% if current_sort == 'publisher' %}selected{% endif %}>Sort: Publisher</option>
+    <option value="year" {% if current_sort == 'year' %}selected{% endif %}>Sort: Year</option>
+    <option value="state" {% if current_sort == 'state' %}selected{% endif %}>Sort: State</option>
+    <option value="format" {% if current_sort == 'format' %}selected{% endif %}>Sort: Format</option>
+    <option value="updated_at" {% if current_sort == 'updated_at' %}selected{% endif %}>Sort: Updated</option>
     {% endif %}
-    {% endfor %}
+  </select>
+  <select name="dir" class="cm-input cm-select" style="height:30px; font-size:12px; width:64px;">
+    <option value="asc" {% if current_dir == 'asc' %}selected{% endif %}>A→Z</option>
+    <option value="desc" {% if current_dir == 'desc' %}selected{% endif %}>Z→A</option>
+  </select>
+
+  <div style="flex:1;"></div>
+
+  <!-- Count -->
+  <span class="cm-chip" style="padding:3px 10px; flex-shrink:0;">
+    <span class="mono tnum">{{ total_count }}</span>
+    <span style="color:var(--cm-fg-3);">comics</span>
+  </span>
+
+  <!-- Columns (table view) -->
+  {% if current_view == 'table' or not current_view %}
+  <div style="position:relative; flex-shrink:0;" id="col-dropdown-wrap">
+    <button type="button" class="cm-btn sm" onclick="document.getElementById('col-dropdown').classList.toggle('hidden')">Columns</button>
+    <div id="col-dropdown" class="hidden" style="position:absolute; right:0; top:100%; margin-top:4px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:14px; width:230px; z-index:20; box-shadow:0 8px 20px rgba(0,0,0,.18);">
+      <div style="font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); margin-bottom:6px;">Columns <span style="font-weight:400; text-transform:none; letter-spacing:0; opacity:.6;">drag to reorder</span></div>
+      <div id="col-list" style="display:flex; flex-direction:column; gap:1px; max-height:280px; overflow-y:auto;">
+        <!-- Active columns first, in current order -->
+        {% for col_id in active_columns %}{% with cfg=all_columns|get_item:col_id %}{% if cfg %}
+        <label class="col-item" draggable="true" data-col-id="{{ col_id }}" style="display:flex; align-items:center; gap:7px; padding:4px 4px; border-radius:4px; cursor:default; font-size:12px; user-select:none;">
+          <span class="col-drag-handle" style="color:var(--cm-fg-3); cursor:grab; font-size:14px; line-height:1; flex-shrink:0;" title="Drag to reorder">⠿</span>
+          <input type="checkbox" name="col" value="{{ col_id }}" class="col-toggle" checked style="accent-color:var(--cm-accent); flex-shrink:0;">
+          <span style="flex:1;">{{ cfg.label }}</span>
+        </label>
+        {% endif %}{% endwith %}{% endfor %}
+        <!-- Inactive columns (alphabetical) -->
+        {% for col_id, cfg in all_columns.items %}{% if col_id not in active_columns %}
+        <label class="col-item" draggable="true" data-col-id="{{ col_id }}" style="display:flex; align-items:center; gap:7px; padding:4px 4px; border-radius:4px; cursor:default; font-size:12px; user-select:none; opacity:.55;">
+          <span class="col-drag-handle" style="color:var(--cm-fg-3); cursor:grab; font-size:14px; line-height:1; flex-shrink:0;" title="Drag to reorder">⠿</span>
+          <input type="checkbox" name="col" value="{{ col_id }}" class="col-toggle" style="accent-color:var(--cm-accent); flex-shrink:0;">
+          <span style="flex:1;">{{ cfg.label }}</span>
+        </label>
+        {% endif %}{% endfor %}
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px; margin-top:10px; padding-top:10px; border-top:1px solid var(--cm-border);">
+        <button type="submit" class="cm-btn sm primary" style="justify-content:center;">Update View</button>
+        <button type="button" class="cm-btn sm ghost" onclick="saveColumnLayout()" style="justify-content:center; font-size:11px;">
+          Save for {% if current_state %}{{ current_state|title }}{% elif current_flag %}{{ flag_label }}{% else %}All{% endif %}
+        </button>
+      </div>
+    </div>
   </div>
   {% endif %}
 
-  <!-- Search, Filter & Sort Bar -->
-  <div class="bg-base-200 rounded-lg p-4">
-    <form method="GET" class="flex flex-wrap gap-3 items-end" id="filter-form">
-      <!-- Preserve state/flag if set -->
-      {% if current_state %}<input type="hidden" name="state" value="{{ current_state }}">{% endif %}
-      {% if current_flag %}<input type="hidden" name="flag" value="{{ current_flag }}">{% endif %}
+  <!-- Run Pipeline -->
+  <button type="button" class="cm-btn sm primary" onclick="runAllPipeline(this)" style="flex-shrink:0;">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+    Run Pipeline
+  </button>
+</form>
 
-      <!-- Search -->
-      <div class="form-control flex-1 min-w-48">
-        <label class="label py-1">
-          <span class="label-text text-xs">Search</span>
-        </label>
-        <input type="text" name="q" value="{{ current_search|default:'' }}"
-               placeholder="{% if current_state == 'new' %}Series, filename... (#N V2 for number/volume){% else %}Series, writer, characters... (#N (YYYY) V2){% endif %}"
-               class="input input-sm input-bordered w-full" />
-      </div>
+<!-- Bulk action bar -->
+<div id="bulk-action-bar" style="display:none; position:sticky; top:0; z-index:5; align-items:center; gap:10px; padding:8px 14px; background:var(--cm-accent-dim); border-bottom:1px solid var(--cm-accent);">
+  <span style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600;">
+    <span class="sel-count mono tnum" style="background:var(--cm-accent); color:#0b0b0b; padding:2px 8px; border-radius:4px; font-weight:700;">0</span>
+    selected
+  </span>
+  <span style="color:var(--cm-fg-3); font-size:12px;">·</span>
+  <button class="cm-btn sm" onclick="bulkRunPipeline(this)">Run Pipeline</button>
+  <button class="cm-btn sm" onclick="bulkRetag(this)">Re-tag</button>
+  <button class="cm-btn sm" onclick="bulkScrape(this)">Scrape</button>
+  <button class="cm-btn sm" onclick="bulkOrganize(this)">Move</button>
+  <div style="flex:1;"></div>
+  <button class="cm-btn sm ghost" onclick="clearSelection()">Clear selection</button>
+  <button class="cm-btn sm" style="color:var(--cm-err);" onclick="confirmBulkDelete()" title="Delete selected">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14H6L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/><path d="M9,6V4h6v2"/></svg>
+  </button>
+</div>
 
-      {% if current_state != 'new' %}
-      <!-- Character Search -->
-      <div class="form-control w-44">
-        <label class="label py-1">
-          <span class="label-text text-xs">Character</span>
-          <label class="label cursor-pointer gap-1 py-0">
-            <span class="label-text text-xs text-base-content/60">Main only</span>
-            <input type="hidden" name="char_main_only" value="0">
-            <input type="checkbox" name="char_main_only" value="1"
-                   class="checkbox checkbox-xs"
-                   {% if current_char_main_only != "0" %}checked{% endif %}>
-          </label>
-        </label>
-        <input type="text" name="char_q" value="{{ current_char_q|default:'' }}"
-               placeholder="Search characters..."
-               class="input input-sm input-bordered w-full" />
-      </div>
-
-      <!-- Publisher Filter -->
-      <div class="form-control w-40">
-        <label class="label py-1">
-          <span class="label-text text-xs">Publisher</span>
-        </label>
-        <select name="publisher" class="select select-sm select-bordered w-full">
-          <option value="">All Publishers</option>
-          {% for pub in publishers %}
-          <option value="{{ pub }}" {% if pub == current_publisher %}selected{% endif %}>{{ pub }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <!-- Format Filter -->
-      <div class="form-control w-32">
-        <label class="label py-1">
-          <span class="label-text text-xs">Format</span>
-        </label>
-        <select name="format" class="select select-sm select-bordered w-full">
-          <option value="">All Formats</option>
-          {% for fmt in formats %}
-          <option value="{{ fmt }}" {% if fmt == current_format %}selected{% endif %}>{{ fmt }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <!-- Medium Filter -->
-      <div class="form-control w-28">
-        <label class="label py-1">
-          <span class="label-text text-xs">Medium</span>
-        </label>
-        <select name="medium" class="select select-sm select-bordered w-full">
-          <option value="">All</option>
-          <option value="digital" {% if current_medium == 'digital' %}selected{% endif %}>Digital</option>
-          <option value="physical" {% if current_medium == 'physical' %}selected{% endif %}>Physical</option>
-        </select>
-      </div>
-      {% endif %}
-
-      <!-- Sort -->
-      <div class="form-control w-32">
-        <label class="label py-1">
-          <span class="label-text text-xs">Sort by</span>
-        </label>
-        <select name="sort" class="select select-sm select-bordered w-full">
-          {% if current_state == 'new' %}
-          <option value="proposed_series" {% if current_sort == 'proposed_series' %}selected{% endif %}>Proposed Series</option>
-          <option value="proposed_number" {% if current_sort == 'proposed_number' %}selected{% endif %}>Proposed #</option>
-          <option value="proposed_year" {% if current_sort == 'proposed_year' %}selected{% endif %}>Year</option>
-          <option value="page_count" {% if current_sort == 'page_count' %}selected{% endif %}>Pages</option>
-          <option value="updated_at" {% if current_sort == 'updated_at' %}selected{% endif %}>Updated</option>
-          {% else %}
-          <option value="series" {% if current_sort == 'series' %}selected{% endif %}>Series</option>
-          <option value="number" {% if current_sort == 'number' %}selected{% endif %}>Number</option>
-          <option value="publisher" {% if current_sort == 'publisher' %}selected{% endif %}>Publisher</option>
-          <option value="year" {% if current_sort == 'year' %}selected{% endif %}>Year</option>
-          <option value="state" {% if current_sort == 'state' %}selected{% endif %}>State</option>
-          <option value="format" {% if current_sort == 'format' %}selected{% endif %}>Format</option>
-          <option value="page_count" {% if current_sort == 'page_count' %}selected{% endif %}>Pages</option>
-          <option value="updated_at" {% if current_sort == 'updated_at' %}selected{% endif %}>Updated</option>
-          {% endif %}
-        </select>
-      </div>
-
-      <!-- Sort Direction -->
-      <div class="form-control w-24">
-        <label class="label py-1">
-          <span class="label-text text-xs">Order</span>
-        </label>
-        <select name="dir" class="select select-sm select-bordered w-full">
-          <option value="asc" {% if current_dir == 'asc' %}selected{% endif %}>A→Z</option>
-          <option value="desc" {% if current_dir == 'desc' %}selected{% endif %}>Z→A</option>
-        </select>
-      </div>
-
-      <!-- Buttons -->
-      <div class="flex gap-2">
-        <button type="submit" class="btn btn-sm btn-primary">Apply</button>
-        
-        <!-- Column Selector -->
-        <div class="dropdown dropdown-end">
-          <div tabindex="0" role="button" class="btn btn-sm btn-outline">Columns</div>
-          <div tabindex="0" class="dropdown-content z-[1] menu p-4 shadow bg-base-200 rounded-box w-64 mt-2">
-            <h3 class="font-bold mb-2">Visible Columns</h3>
-            <div class="grid grid-cols-1 gap-1 max-h-96 overflow-y-auto">
-              {% for col_id, cfg in all_columns.items %}
-              <label class="label cursor-pointer py-1 justify-start gap-3">
-                <input type="checkbox" name="col" value="{{ col_id }}" 
-                       class="checkbox checkbox-sm checkbox-primary col-toggle"
-                       {% if col_id in active_columns %}checked{% endif %}>
-                <span class="label-text">{{ cfg.label }}</span>
-              </label>
-              {% endfor %}
-            </div>
-            <div class="divider my-2"></div>
-            <div class="flex flex-col gap-2">
-              <button type="submit" class="btn btn-xs btn-primary">Update View</button>
-              <button type="button" class="btn btn-xs btn-outline btn-accent" onclick="saveColumnLayout()">
-                Save as Default for {% if current_state %}State: {{ current_state|title }}{% elif current_flag %}{{ flag_label }}{% else %}Global{% endif %}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="btn btn-sm btn-ghost">Reset</a>
-      </div>
-    </form>
-  </div>
-
-  <div class="flex justify-between items-center">
-    <div class="flex items-center gap-3">
-      <h1 class="text-3xl font-bold">Comics</h1>
-      {% if current_state %}
-      <span class="badge badge-lg badge-primary">{{ current_state_label }}</span>
-      {% endif %}
+<!-- Page header: title + state actions -->
+<div style="padding:8px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; border-bottom:1px solid var(--cm-border);">
+  <h2 style="font-size:20px; font-weight:700; margin:0; flex-shrink:0;">Comics</h2>
+  {% if current_state %}<span class="cm-chip {{ current_state|state_chip_class }}"><span class="cm-dot"></span> {{ current_state_label }}</span>{% endif %}
+  {% if current_flag %}<span class="cm-chip warn">{{ flag_label }}</span>{% endif %}
+  {% if current_search %}<span class="cm-chip" style="font-size:10.5px;">"{{ current_search }}"</span>{% endif %}
+  {% if current_publishers %}<span class="cm-chip accent" style="font-size:10.5px;">{{ current_publishers|join:", " }}</span>{% endif %}
+  {% if current_state or current_flag or current_search or current_publishers or current_format or current_year_min or current_year_max %}
+  <a href="/comics/?rail={% if filter_rail_open %}1{% endif %}" class="cm-btn sm ghost" style="font-size:11px; text-decoration:none; padding:2px 8px;">× Clear</a>
+  {% endif %}
+  <div style="flex:1;"></div>
+  {% if current_state == 'new' and comics %}<button type="button" class="cm-btn sm ok" onclick="acceptAllComics(this)">Accept All</button>{% endif %}
+  {% if current_state == 'scrape' and comics or current_flag == 'metadata_mismatch' and comics %}
+  <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; flex-shrink:0;">
+    <input type="checkbox" id="confirm-scrape-checkbox" {% if current_state == 'scrape' %}checked{% endif %} style="accent-color:var(--cm-accent);"> Confirm each
+  </label>
+  <button type="button" class="cm-btn sm" onclick="scrapeAllComics(this)">Scrape All</button>
+  {% endif %}
+  {% if needs_conversion_count > 0 %}<button type="button" class="cm-btn sm" onclick="convertAllComics(this)">Convert CBR ({{ needs_conversion_count }})</button>{% endif %}
+  {% if is_zip_count > 0 %}<button type="button" class="cm-btn sm" onclick="convertAllZip(this)">Rename ZIP ({{ is_zip_count }})</button>{% endif %}
+  {% if current_flag == 'count_mismatch' and comics %}<button type="button" class="cm-btn sm" onclick="fixCountMismatches(this)">Fix Counts</button>{% endif %}
+  {% if current_flag == 'unknown_publisher' and comics %}<button type="button" class="cm-btn sm" onclick="retagFlagged(this, 'unknown_publisher')">Re-tag All</button>{% endif %}
+  {% if current_state == 'tagging' and comics %}<button type="button" class="cm-btn sm" onclick="tagAllComics(this)">Tag All</button>{% endif %}
+  {% if current_state == 'formats' and comics %}<button type="button" class="cm-btn sm" onclick="formatAllComics(this)">Format All</button>{% endif %}
+  {% if current_state == 'deduplicate' and comics %}<button type="button" class="cm-btn sm" onclick="deduplicateAllComics(this)">Deduplicate All</button>{% endif %}
+  {% if current_state == 'move' and comics %}<button type="button" class="cm-btn sm" onclick="organizeAllComics(this)">Organize All</button>{% endif %}
+  {% if current_state == 'write' and comics %}<button type="button" class="cm-btn sm" onclick="writeAllComics(this)">Write All</button>{% endif %}
+  {% if comics %}
+  <div style="position:relative;" id="bulk-dd-wrap">
+    <button type="button" class="cm-btn sm" onclick="document.getElementById('bulk-dd').classList.toggle('hidden')">
+      Bulk Action <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <ul id="bulk-dd" class="hidden" style="position:absolute; right:0; top:100%; margin-top:4px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:6px; min-width:200px; z-index:20; box-shadow:0 8px 20px rgba(0,0,0,.18); list-style:none; margin-block:0; padding-left:0;">
+      <li style="font-size:10.5px; color:var(--cm-fg-3); padding:4px 8px;">On {{ total_count }} filtered comics</li>
+      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('scrape', null, 'Scraping')">Scrape</a></li>
+      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('tag', null, 'Tagging')">Tag / Re-tag</a></li>
+      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('format', null, 'Formatting')">Detect Format</a></li>
+      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('organize', null, 'Organizing')">Organize</a></li>
+      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('force_write', null, 'Force writing')">Force Write</a></li>
       {% if current_flag %}
-      <span class="badge badge-lg badge-warning">{{ flag_label }}</span>
+      <li style="border-top:1px solid var(--cm-border); margin:4px 0; padding:0;"></li>
+      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('accept_flag', '{{ current_flag }}', 'Suppressing flag on')">Suppress "{{ flag_label }}" on all</a></li>
       {% endif %}
-      {% if current_search %}
-      <span class="badge badge-lg badge-secondary">Search: "{{ current_search }}"</span>
-      {% endif %}
-      {% if current_publisher %}
-      <span class="badge badge-lg badge-accent">{{ current_publisher }}</span>
-      {% endif %}
-      {% if current_format %}
-      <span class="badge badge-lg badge-info">{{ current_format }}</span>
-      {% endif %}
-      {% if current_medium %}
-      <span class="badge badge-lg badge-neutral">{{ current_medium }}</span>
-      {% endif %}
-      {% if current_state or current_flag or current_search or current_publisher or current_format or current_medium %}
-      <a href="/comics/" class="btn btn-xs btn-ghost">Clear all</a>
-      {% endif %}
-    </div>
-    <div class="flex items-center gap-2">
-      <span class="badge badge-neutral">{{ total_count }} total</span>
-      {% if current_medium == 'physical' %}
-      <a href="{% url 'physical:import_csv' %}" class="btn btn-sm btn-outline">CSV Import</a>
-      <a href="{% url 'physical:add' %}" class="btn btn-sm btn-primary">+ Add Physical</a>
-      {% endif %}
-      {% if current_state == 'new' and comics %}
-      <button
-        type="button"
-        id="accept-all-btn"
-        class="btn btn-sm btn-success"
-        onclick="acceptAllComics(this)"
-      >
-        Accept All
-      </button>
-      <button
-        type="button"
-        id="run-pipeline-all-btn"
-        class="btn btn-sm btn-primary"
-        onclick="runAllPipeline(this)"
-        title="Run full pipeline on all new comics"
-      >
-        Run Pipeline (All)
-      </button>
-      {% endif %}
-      {% if current_state == 'scrape' and comics or current_flag == 'metadata_mismatch' and comics %}
-      <label class="label cursor-pointer gap-2 mr-2">
-        <span class="label-text text-sm">Confirm each</span>
-        <input type="checkbox" id="confirm-scrape-checkbox" class="checkbox checkbox-sm" {% if current_state == 'scrape' %}checked{% endif %} />
-      </label>
-      <button
-        type="button"
-        id="scrape-all-btn"
-        class="btn btn-sm btn-secondary"
-        onclick="scrapeAllComics(this)"
-      >
-        Scrape All
-      </button>
-      {% endif %}
-      {% if needs_conversion_count > 0 %}
-      <button
-        type="button"
-        id="convert-all-btn"
-        class="btn btn-sm btn-primary"
-        onclick="convertAllComics(this)"
-      >
-        Convert All CBR ({{ needs_conversion_count }})
-      </button>
-      {% endif %}
-      {% if is_zip_count > 0 %}
-      <button
-        type="button"
-        id="convert-all-zip-btn"
-        class="btn btn-sm btn-primary"
-        onclick="convertAllZip(this)"
-      >
-        Rename All ZIP ({{ is_zip_count }})
-      </button>
-      {% endif %}
-{% if current_flag == 'count_mismatch' and comics %}
-      <button
-        type="button"
-        class="btn btn-sm btn-info"
-        onclick="fixCountMismatches(this)"
-      >
-        Fix Counts from CV
-      </button>
-      {% endif %}
-      {% if current_flag == 'unknown_publisher' and comics %}
-      <button
-        type="button"
-        id="retag-flagged-btn"
-        class="btn btn-sm btn-accent"
-        onclick="retagFlagged(this, 'unknown_publisher')"
-      >
-        Re-tag All
-      </button>
-      {% endif %}
-      {% if current_state == 'tagging' and comics %}
-      <button
-        type="button"
-        id="tag-all-btn"
-        class="btn btn-sm btn-accent"
-        onclick="tagAllComics(this)"
-      >
-        Tag All
-      </button>
-      {% endif %}
-      {% if current_state == 'formats' and comics %}
-      <button
-        type="button"
-        id="format-all-btn"
-        class="btn btn-sm btn-info"
-        onclick="formatAllComics(this)"
-      >
-        Format All
-      </button>
-      {% endif %}
-      {% if current_state == 'deduplicate' and comics %}
-      <button
-        type="button"
-        id="deduplicate-all-btn"
-        class="btn btn-sm btn-secondary"
-        onclick="deduplicateAllComics(this)"
-      >
-        Deduplicate All
-      </button>
-      {% endif %}
-      {% if current_state == 'move' and comics %}
-      <button
-        type="button"
-        id="organize-all-btn"
-        class="btn btn-sm btn-info"
-        onclick="organizeAllComics(this)"
-      >
-        Organize All
-      </button>
-      {% endif %}
-      {% if current_state == 'write' and comics %}
-      <button
-        type="button"
-        id="write-all-btn"
-        class="btn btn-sm btn-success"
-        onclick="writeAllComics(this)"
-      >
-        Write All
-      </button>
-      {% endif %}
-      {% if comics %}
-      <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-sm btn-outline gap-1">
-          Bulk Action
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </ul>
+  </div>
+  {% endif %}
+  {% if current_medium == 'physical' %}
+  <a href="{% url 'physical:import_csv' %}" class="cm-btn sm" style="text-decoration:none;">CSV Import</a>
+  <a href="{% url 'physical:add' %}" class="cm-btn sm primary" style="text-decoration:none;">+ Physical</a>
+  {% endif %}
+</div>
+
+<!-- Main: filter rail + list -->
+<div style="display:flex; min-height:0;">
+
+  <!-- Filter rail -->
+  {% if filter_rail_open %}
+  <form method="GET" id="rail-form" style="width:220px; flex-shrink:0; border-right:1px solid var(--cm-border); display:flex; flex-direction:column; max-height:calc(100vh - 140px); position:sticky; top:0; align-self:flex-start;">
+    <input type="hidden" name="view" value="{{ current_view }}">
+    <input type="hidden" name="rail" value="1">
+    {% if current_search %}<input type="hidden" name="q" value="{{ current_search }}">{% endif %}
+    <input type="hidden" name="sort" value="{{ current_sort }}">
+    <input type="hidden" name="dir" value="{{ current_dir }}">
+    <input type="hidden" name="per_page" value="{{ per_page }}">
+    {% for col_id in active_columns %}<input type="hidden" name="col" value="{{ col_id }}">{% endfor %}
+
+    <!-- Scrollable filter sections -->
+    <div style="flex:1; overflow-y:auto; padding:14px 12px; display:flex; flex-direction:column; gap:14px;">
+
+      <!-- Publisher -->
+      <div>
+        <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--cm-fg-3); margin-bottom:6px;">Publisher</div>
+        <div style="display:flex; flex-direction:column; gap:1px;">
+          {% for p in publisher_counts %}
+          <label style="display:flex; align-items:center; justify-content:space-between; padding:3px 6px; border-radius:4px; cursor:pointer; font-size:12px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <span style="display:flex; align-items:center; gap:6px; min-width:0;">
+              <input type="checkbox" name="publisher" value="{{ p.publisher }}" {% if p.publisher in current_publishers %}checked{% endif %} style="accent-color:var(--cm-accent); flex-shrink:0;">
+              <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:128px;">{{ p.publisher }}</span>
+            </span>
+            <span class="mono tnum" style="color:var(--cm-fg-3); font-size:10.5px; flex-shrink:0; margin-left:4px;">{{ p.n }}</span>
+          </label>
+          {% endfor %}
         </div>
-        <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 border border-base-300 rounded-box w-52 z-[10]">
-          <li class="menu-title text-xs opacity-60">Run on {{ total_count }} comics</li>
-          <li><a onclick="runBulkAction('scrape', null, 'Scraping')">Scrape</a></li>
-          <li><a onclick="runBulkAction('tag', null, 'Tagging')">Tag / Re-tag</a></li>
-          <li><a onclick="runBulkAction('format', null, 'Formatting')">Detect Format</a></li>
-          <li><a onclick="runBulkAction('organize', null, 'Organizing')">Organize</a></li>
-          <li><a onclick="runBulkAction('force_write', null, 'Force writing')">Force Write</a></li>
-          {% if current_flag %}
-          <li class="divider my-1"></li>
-          <li><a onclick="runBulkAction('accept_flag', '{{ current_flag }}', 'Suppressing flag on')">Suppress "{{ flag_label }}" on all</a></li>
-          {% endif %}
-        </ul>
+      </div>
+
+      <!-- State -->
+      <div>
+        <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--cm-fg-3); margin-bottom:6px;">State</div>
+        <div style="display:flex; flex-direction:column; gap:1px;">
+          {% for s in state_counts %}
+          <label style="display:flex; align-items:center; justify-content:space-between; padding:3px 6px; border-radius:4px; cursor:pointer; font-size:12px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <span style="display:flex; align-items:center; gap:6px;">
+              <input type="checkbox" name="state" value="{{ s.state }}" {% if s.state == current_state %}checked{% endif %} style="accent-color:var(--cm-accent); flex-shrink:0;">
+              <span class="cm-chip {{ s.state|state_chip_class }}" style="padding:1px 6px; font-size:10.5px;"><span class="cm-dot"></span> {{ s.label }}</span>
+            </span>
+            <span class="mono tnum" style="color:var(--cm-fg-3); font-size:10.5px; flex-shrink:0;">{{ s.count }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Format -->
+      <div>
+        <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--cm-fg-3); margin-bottom:6px;">Format</div>
+        <div style="display:flex; flex-direction:column; gap:1px;">
+          {% for f in format_counts %}
+          <label style="display:flex; align-items:center; justify-content:space-between; padding:3px 6px; border-radius:4px; cursor:pointer; font-size:12px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <span style="display:flex; align-items:center; gap:6px; min-width:0;">
+              <input type="checkbox" name="format" value="{{ f.format }}" {% if f.format == current_format %}checked{% endif %} style="accent-color:var(--cm-accent); flex-shrink:0;">
+              <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px;">{{ f.format }}</span>
+            </span>
+            <span class="mono tnum" style="color:var(--cm-fg-3); font-size:10.5px; flex-shrink:0; margin-left:4px;">{{ f.n }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Flags -->
+      {% if flag_counts %}
+      <div>
+        <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--cm-fg-3); margin-bottom:6px;">Flags</div>
+        <div style="display:flex; flex-direction:column; gap:1px;">
+          {% for f in flag_counts %}
+          <label style="display:flex; align-items:center; justify-content:space-between; padding:3px 6px; border-radius:4px; cursor:pointer; font-size:12px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <span style="display:flex; align-items:center; gap:6px; min-width:0;">
+              <input type="checkbox" name="flag" value="{{ f.key }}" {% if f.key == current_flag %}checked{% endif %} style="accent-color:var(--cm-accent); flex-shrink:0;">
+              <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px;">{{ f.label }}</span>
+            </span>
+            <span class="mono tnum" style="color:var(--cm-fg-3); font-size:10.5px; flex-shrink:0; margin-left:4px;">{{ f.count }}</span>
+          </label>
+          {% endfor %}
+        </div>
       </div>
       {% endif %}
+
+      <!-- Year -->
+      <div>
+        <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--cm-fg-3); margin-bottom:6px;">Year</div>
+        <div style="display:flex; gap:6px;">
+          <input type="text" name="year_min" class="cm-input mono" placeholder="From" value="{{ current_year_min }}" style="flex:1; font-size:11px; height:26px;">
+          <input type="text" name="year_max" class="cm-input mono" placeholder="To" value="{{ current_year_max }}" style="flex:1; font-size:11px; height:26px;">
+        </div>
+      </div>
+
+    </div><!-- end scrollable filters -->
+
+    <!-- Sticky button footer -->
+    <div style="flex-shrink:0; padding:8px 12px; border-top:1px solid var(--cm-border); background:var(--cm-bg-1); box-shadow:0 -4px 12px rgba(0,0,0,.15); display:flex; gap:6px;">
+      <button type="button" onclick="applyRailFilters()" class="cm-btn sm primary" style="flex:1; justify-content:center;">Apply</button>
+      <button type="button" onclick="resetRailFilters()" class="cm-btn sm ghost" style="flex:1; justify-content:center;">Reset</button>
     </div>
-  </div>
+  </form>
+  {% endif %}
+
+  <!-- Scrollable list content -->
+  <div style="flex:1; min-width:0; overflow-x:auto;">
 
   {% if comics %}
-  <!-- Pagination Top -->
+
+  <!-- Pagination top -->
   {% if page_obj.paginator.num_pages > 1 %}
-  <div class="flex justify-between items-center">
-    <div class="text-sm text-base-content/60">
-      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ total_count }}
-    </div>
-    <div class="join">
+  <div style="padding:7px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
+    <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ total_count }}</span></span>
+    <div style="display:flex; gap:3px; align-items:center;">
       {% if page_obj.has_previous %}
-      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page=1" class="join-item btn btn-sm">First</a>
-      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
+      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
+      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
       {% endif %}
       {% for num in page_obj.paginator.page_range %}
         {% if num == page_obj.number %}
-        <button class="join-item btn btn-sm btn-active">{{ num }}</button>
+        <button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
         {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-        <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
+        <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ num }}" class="cm-btn sm ghost" style="text-decoration:none;">{{ num }}</a>
         {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
-        <span class="join-item btn btn-sm btn-disabled">...</span>
+        <span class="mono" style="color:var(--cm-fg-3); font-size:11px; padding:0 4px;">…</span>
         {% endif %}
       {% endfor %}
       {% if page_obj.has_next %}
-      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
-      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
+      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
+      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
       {% endif %}
     </div>
   </div>
   {% endif %}
 
-  <div class="overflow-x-auto">
-    <table class="table table-zebra w-full">
-      <thead>
-        <tr>
-          {% for col_id in active_columns %}
-          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('{{ col_id|get_col_sort }}')">
-            {{ col_id|get_col_label }}
-            {% with sort_field=col_id|get_col_sort %}
-              {% if current_sort == sort_field %}
-                {% if current_dir == 'asc' %}↑{% else %}↓{% endif %}
-              {% endif %}
-            {% endwith %}
-          </th>
-          {% endfor %}
-          <th>Flags</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for comic in comics %}
-        <tr class="hover">
-          {% for col_id in active_columns %}
-          {% if current_state == 'new' and col_id in inline_editable_cols %}
-          <td hx-get="{% url 'core:comic_inline_field' comic.id %}?field={{ col_id }}"
-              hx-trigger="click"
-              hx-target="this"
-              hx-swap="innerHTML"
-              class="cursor-pointer hover:bg-base-300 transition-colors"
-              data-col="{{ col_id }}"
-              title="Click to edit">
-            <span class="text-warning font-medium">{{ comic|get_col_value:col_id|default:"—" }}</span>
-          </td>
-          {% else %}
-          <td data-col="{{ col_id }}" {% if col_id == 'series' or col_id == 'title' %}class="max-w-xs truncate"{% endif %}>
-            {% if col_id == 'series' and comic.state == 'new' %}
-              <span class="text-warning font-medium">{{ comic.proposed_series|default:"-" }}</span>
-              {% if comic.is_physical %}<span class="badge badge-xs badge-neutral ml-1">physical</span>{% endif %}
-            {% elif col_id == 'series' %}
-              {{ comic|get_col_value:col_id|default:"-" }}
-              {% if comic.is_physical and not current_medium %}<span class="badge badge-xs badge-neutral ml-1">physical</span>{% endif %}
-            {% elif col_id == 'number' and comic.state == 'new' %}
-              <span class="text-warning">{{ comic.proposed_number|default:"-" }}</span>
-            {% elif col_id == 'state' %}
-              <span class="badge badge-sm
-                {% if comic.state == 'write' %}badge-success
-                {% elif comic.state == 'new' %}badge-warning
-                {% else %}badge-info{% endif %}">
-                {{ comic.get_state_display }}
-              </span>
-            {% else %}
-              {{ comic|get_col_value:col_id|default:"-" }}
-            {% endif %}
-          </td>
-          {% endif %}
-          {% endfor %}
-          <td>
-            {% if comic.has_flags %}
-            <div class="flex flex-wrap gap-1">
-              {% for flag in comic.flag_list %}
-              <span class="badge badge-xs badge-error" title="{{ flag }}">{{ flag }}</span>
-              {% endfor %}
-            </div>
-            {% endif %}
-          </td>
-          <td class="flex gap-1">
-            <a href="/comics/{{ comic.pk }}/" class="btn btn-xs btn-ghost btn-outline">Info</a>
-            {% if current_flag %}
-            <button
-              hx-post="{% url 'core:accept_flag' comic.pk %}"
-              hx-vals='{"flag": "{{ current_flag }}"}'
-              hx-target="closest tr"
-              hx-swap="outerHTML"
-              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-              class="btn btn-xs btn-ghost text-success"
-              title="Suppress this flag permanently for this comic (does not change workflow state)"
-            >Suppress Flag</button>
-            <button
-              type="button"
-              class="btn btn-xs btn-error btn-outline"
-              onclick="deleteComic('{{ comic.pk }}', this)"
-              title="Delete this comic and its file from disk"
-            >Delete</button>
-            {% endif %}
-            {% if current_flag == 'count_updated' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-success"
-              onclick="forceWriteComic('{{ comic.pk }}', this)"
-              title="Rewrite ComicInfo.xml with updated count"
-            >Rewrite</button>
-            {% endif %}
-            {% if current_flag == 'corrupted_archive' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-warning"
-              onclick="tryRezipComic('{{ comic.pk }}', this)"
-              title="Attempt to recover the corrupted archive"
-            >Try Rezip</button>
-            {% endif %}
-            {% if comic.state == 'new' and current_flag != 'no_series' and current_flag != 'corrupted_archive' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-success"
-              onclick="acceptComic('{{ comic.pk }}', this)"
-            >
-              {% if current_flag %}Add to Workflow{% else %}Accept{% endif %}
-            </button>
-            {% if comic.file_format == 'cbz' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-primary"
-              onclick="runSinglePipeline('{{ comic.pk }}', this)"
-              title="Run full pipeline: accept, scrape, tag, format, deduplicate, organize, write"
-            >
-              Run Pipeline
-            </button>
-            {% endif %}
-            {% endif %}
-            {% if comic.state == 'scrape' or current_flag == 'metadata_mismatch' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-secondary"
-              onclick="scrapeComic('{{ comic.pk }}', this)"
-              {% if comic.flags.scrape_skipped %}data-scrape-skipped="true"{% endif %}
-            >
-              Scrape
-            </button>
-            {% endif %}
-            {% if comic.state == 'scrape' %}
-            <button
-              type="button"
-              id="skip-btn-{{ comic.pk }}"
-              class="btn btn-xs {% if comic.flags.scrape_skipped %}btn-warning{% else %}btn-ghost btn-outline{% endif %}"
-              onclick="toggleSkipComic('{{ comic.pk }}', this)"
-              title="{% if comic.flags.scrape_skipped %}Remove skip flag — include in batch scraping{% else %}Skip this comic in batch scraping{% endif %}"
-            >
-              {% if comic.flags.scrape_skipped %}Un-skip{% else %}Skip{% endif %}
-            </button>
-            {% endif %}
-            {% if comic.flags.needs_conversion %}
-            <button
-              type="button"
-              class="btn btn-xs btn-primary"
-              onclick="convertComic('{{ comic.pk }}', this)"
-            >
-              Convert
-            </button>
-            {% endif %}
-            {% if comic.flags.is_zip %}
-            <button
-              type="button"
-              class="btn btn-xs btn-primary"
-              onclick="convertZipComic('{{ comic.pk }}', this)"
-            >
-              Rename to CBZ
-            </button>
-            {% endif %}
-            {% if comic.state == 'tagging' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-accent"
-              onclick="tagComic('{{ comic.pk }}', this)"
-            >
-              Tag
-            </button>
-            {% endif %}
-            {% if comic.state == 'formats' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-info"
-              onclick="formatComic('{{ comic.pk }}', this)"
-            >
-              Format
-            </button>
-            {% endif %}
-            {% if comic.state == 'move' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-secondary"
-              onclick="organizeComic('{{ comic.pk }}', this)"
-            >
-              Organize
-            </button>
-            {% endif %}
-            {% if comic.state == 'write' %}
-            <button
-              type="button"
-              class="btn btn-xs btn-success"
-              onclick="writeComic('{{ comic.pk }}', this)"
-            >
-              Write
-            </button>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  {% if current_view == 'table' or not current_view %}
+  <!-- TABLE VIEW -->
+  <div style="display:grid; grid-template-columns:28px {% if prefs.show_covers %}40px {% endif %}{% for col_id in active_columns %}1fr {% endfor %}100px 100px; gap:8px; padding:0 14px; height:32px; align-items:center; background:var(--cm-bg-1); border-bottom:1px solid var(--cm-border); position:sticky; top:0; z-index:4; font-size:10.5px; font-weight:600; color:var(--cm-fg-2); letter-spacing:.04em; text-transform:uppercase;">
+    <input type="checkbox" id="select-all" style="accent-color:var(--cm-accent);">
+    {% if prefs.show_covers %}<span></span>{% endif %}
+    {% for col_id in active_columns %}
+    <span style="cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="sortBy('{{ col_id|get_col_sort }}')">
+      {{ col_id|get_col_label }}{% with sf=col_id|get_col_sort %}{% if current_sort == sf %}&nbsp;{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}{% endwith %}
+    </span>
+    {% endfor %}
+    <span>Flags</span>
+    <span>Actions</span>
   </div>
 
-  <!-- Pagination Bottom -->
-  {% if page_obj.paginator.num_pages > 1 %}
-  <div class="flex justify-between items-center">
-    <div class="text-sm text-base-content/60">
-      Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+  {% for comic in comics %}
+  <div class="cm-list-row" data-pk="{{ comic.pk }}"
+       style="display:grid; grid-template-columns:28px {% if prefs.show_covers %}40px {% endif %}{% for col_id in active_columns %}1fr {% endfor %}100px 100px; gap:8px; padding:0 14px; height:{% if prefs.table_density == 'compact' %}32px{% elif prefs.table_density == 'comfy' %}44px{% else %}36px{% endif %}; align-items:center; border-bottom:1px solid var(--cm-border); font-size:12px; cursor:pointer;"
+       onclick="if(event.target.type!=='checkbox'&&!event.target.closest('button,a')) window.location='/comics/{{ comic.pk }}/'">
+    <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
+    {% if prefs.show_covers %}
+    <img src="/comics/{{ comic.pk }}/thumb/" style="width:28px; height:36px; object-fit:cover; border-radius:2px; background:var(--cm-bg-2); display:block;" loading="lazy" onerror="this.style.visibility='hidden'">
+    {% endif %}
+    {% for col_id in active_columns %}
+    {% if current_state == 'new' and col_id in inline_editable_cols %}
+    <div hx-get="{% url 'core:comic_inline_field' comic.id %}?field={{ col_id }}"
+         hx-trigger="click"
+         hx-target="this"
+         hx-swap="innerHTML"
+         style="cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--cm-warn);"
+         onclick="event.stopPropagation()"
+         title="Click to edit">{{ comic|get_col_value:col_id|default:"—" }}</div>
+    {% else %}
+    <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+      {% if col_id == 'series' and comic.state == 'new' %}
+        <span style="color:var(--cm-warn); font-weight:500;">{{ comic.proposed_series|default:"-" }}</span>
+        {% if comic.is_physical %}<span class="cm-chip" style="font-size:9px; padding:0 4px; margin-left:3px;">physical</span>{% endif %}
+      {% elif col_id == 'series' %}
+        <span style="font-weight:500;">{{ comic|get_col_value:col_id|default:"-" }}</span>
+        {% if comic.is_physical and not current_medium %}<span class="cm-chip" style="font-size:9px; padding:0 4px; margin-left:3px;">physical</span>{% endif %}
+      {% elif col_id == 'number' and comic.state == 'new' %}
+        <span style="color:var(--cm-warn);">{{ comic.proposed_number|default:"-" }}</span>
+      {% elif col_id == 'state' %}
+        <span class="cm-chip {{ comic.state|state_chip_class }}"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
+      {% else %}
+        {{ comic|get_col_value:col_id|default:"-" }}
+      {% endif %}
     </div>
-    <div class="join">
+    {% endif %}
+    {% endfor %}
+    <div style="display:flex; flex-wrap:wrap; gap:2px; align-items:center;">
+      {% for flag in comic.flag_list %}<span class="cm-chip err" style="padding:1px 4px; font-size:10px;">{{ flag }}</span>{% endfor %}
+    </div>
+    <div style="display:flex; gap:3px; flex-wrap:nowrap; align-items:center;" onclick="event.stopPropagation()">
+      <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" style="text-decoration:none; font-size:11px; padding:2px 6px;">Info</a>
+      {% if current_flag %}
+      <button hx-post="{% url 'core:accept_flag' comic.pk %}" hx-vals='{"flag": "{{ current_flag }}"}' hx-target="closest .cm-list-row" hx-swap="outerHTML" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' class="cm-btn sm ghost" style="color:var(--cm-ok); font-size:11px; padding:2px 6px;" title="Suppress flag">✓</button>
+      <button type="button" class="cm-btn sm ghost" style="color:var(--cm-err); font-size:11px; padding:2px 6px;" onclick="deleteComic('{{ comic.pk }}', this)">✕</button>
+      {% endif %}
+      {% if comic.state == 'new' and current_flag != 'no_series' and current_flag != 'corrupted_archive' %}
+      <button type="button" class="cm-btn sm ok" style="font-size:11px; padding:2px 6px;" onclick="acceptComic('{{ comic.pk }}', this)">{% if current_flag %}Add{% else %}Accept{% endif %}</button>
+      {% if comic.file_format == 'cbz' %}<button type="button" class="cm-btn sm primary" style="font-size:11px; padding:2px 6px;" onclick="runSinglePipeline('{{ comic.pk }}', this)" title="Run full pipeline">Run</button>{% endif %}
+      {% endif %}
+      {% if comic.state == 'scrape' or current_flag == 'metadata_mismatch' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="scrapeComic('{{ comic.pk }}', this)" {% if comic.flags.scrape_skipped %}data-scrape-skipped="true"{% endif %}>Scrape</button>{% endif %}
+      {% if comic.state == 'scrape' %}<button type="button" id="skip-btn-{{ comic.pk }}" class="cm-btn sm ghost" style="font-size:11px; padding:2px 6px;{% if comic.flags.scrape_skipped %} color:var(--cm-warn);{% endif %}" onclick="toggleSkipComic('{{ comic.pk }}', this)">{% if comic.flags.scrape_skipped %}Un-skip{% else %}Skip{% endif %}</button>{% endif %}
+      {% if comic.flags.needs_conversion %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="convertComic('{{ comic.pk }}', this)">Convert</button>{% endif %}
+      {% if comic.flags.is_zip %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="convertZipComic('{{ comic.pk }}', this)">Rename</button>{% endif %}
+      {% if comic.state == 'tagging' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="tagComic('{{ comic.pk }}', this)">Tag</button>{% endif %}
+      {% if comic.state == 'formats' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="formatComic('{{ comic.pk }}', this)">Format</button>{% endif %}
+      {% if comic.state == 'move' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="organizeComic('{{ comic.pk }}', this)">Organize</button>{% endif %}
+      {% if comic.state == 'write' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="writeComic('{{ comic.pk }}', this)">Write</button>{% endif %}
+      {% if current_flag == 'count_updated' %}<button type="button" class="cm-btn sm ok" style="font-size:11px; padding:2px 6px;" onclick="forceWriteComic('{{ comic.pk }}', this)">Rewrite</button>{% endif %}
+      {% if current_flag == 'corrupted_archive' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px; color:var(--cm-warn);" onclick="tryRezipComic('{{ comic.pk }}', this)">Rezip</button>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% elif current_view == 'hybrid' %}
+  <!-- HYBRID VIEW -->
+  {% for comic in comics %}
+  <div class="cm-list-row" data-pk="{{ comic.pk }}"
+       style="display:grid; grid-template-columns:28px 56px 1fr 140px 160px 110px 90px; gap:14px; padding:10px 14px; align-items:center; border-bottom:1px solid var(--cm-border); cursor:pointer;"
+       onclick="if(event.target.type!=='checkbox'&&!event.target.closest('button,a')) window.location='/comics/{{ comic.pk }}/'">
+    <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
+    <img src="/comics/{{ comic.pk }}/thumb/" style="width:44px; height:66px; object-fit:cover; border-radius:3px; background:var(--cm-bg-2); display:block;" loading="lazy" onerror="this.style.visibility='hidden'">
+    <div style="min-width:0;">
+      <div style="font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+        {{ comic.series|default:comic.proposed_series|default:"—" }}
+        <span class="mono" style="color:var(--cm-fg-3); font-weight:400;">&nbsp;#{{ comic.number|default:comic.proposed_number|default:"?" }}</span>
+      </div>
+      <div style="font-size:11.5px; color:var(--cm-fg-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{% if comic.title %}{{ comic.title }}{% else %}<span style="color:var(--cm-fg-3);">— no title —</span>{% endif %}</div>
+      <div class="mono" style="font-size:10.5px; color:var(--cm-fg-3); margin-top:2px; display:flex; gap:8px;">
+        <span>{{ comic.publisher|default:"—" }}</span><span>·</span><span>{{ comic.format|default:"—" }}</span><span>·</span><span>{{ comic.pages|default:"?" }}p</span>
+      </div>
+    </div>
+    <div>{% if comic.count %}<div style="height:3px; background:var(--cm-bg-3); border-radius:2px; overflow:hidden; margin-bottom:4px;"><div style="height:100%; width:{% widthratio comic.number_sort_key|default:1 comic.count 100 %}%; background:var(--cm-accent); border-radius:2px;"></div></div><span class="mono" style="font-size:10px; color:var(--cm-fg-3);">{{ comic.number|default:"?" }}/{{ comic.count }}</span>{% endif %}</div>
+    <div style="display:flex; flex-wrap:wrap; gap:2px;">{% for flag in comic.flag_list %}<span class="cm-chip err" style="padding:1px 4px; font-size:10px;">{{ flag }}</span>{% endfor %}</div>
+    <span class="cm-chip {{ comic.state|state_chip_class }}" style="justify-self:start;"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
+    <div style="display:flex; gap:4px; justify-content:flex-end;" onclick="event.stopPropagation()">
+      <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" style="text-decoration:none;">Info</a>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% elif current_view == 'grid' %}
+  <!-- GRID VIEW -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:14px; padding:16px;">
+    {% for comic in comics %}
+    <div style="cursor:pointer;" onclick="window.location='/comics/{{ comic.pk }}/'">
+      <div style="position:relative;">
+        <img src="/comics/{{ comic.pk }}/page/0/" style="width:100%; aspect-ratio:2/3; object-fit:cover; border-radius:4px; background:var(--cm-bg-2); display:block;" loading="lazy" onerror="this.style.visibility='hidden'">
+        {% if comic.state != 'done' %}
+        <span class="cm-chip {{ comic.state|state_chip_class }}" style="position:absolute; top:6px; right:6px; padding:1px 5px; font-size:10px;"><span class="cm-dot"></span></span>
+        {% endif %}
+        {% if comic.has_flags %}
+        <span style="position:absolute; top:6px; left:6px; width:16px; height:16px; border-radius:50%; background:var(--cm-warn); color:#0b0b0b; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; line-height:1;">!</span>
+        {% endif %}
+      </div>
+      <div style="margin-top:6px; font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ comic.series|default:comic.proposed_series|default:"—" }}</div>
+      <div class="mono" style="font-size:10.5px; color:var(--cm-fg-3); display:flex; justify-content:space-between;">
+        <span>#{{ comic.number|default:comic.proposed_number|default:"?" }}{% if comic.count %}/{{ comic.count }}{% endif %}</span>
+        <span>{{ comic.year|default:"" }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% elif current_view == 'compact' %}
+  <!-- COMPACT VIEW -->
+  <div style="display:grid; grid-template-columns:28px 1fr 60px 80px 160px 120px 80px; gap:10px; padding:0 14px; height:28px; align-items:center; background:var(--cm-bg-1); border-bottom:1px solid var(--cm-border); position:sticky; top:0; z-index:4; font-size:10.5px; font-weight:600; color:var(--cm-fg-2); letter-spacing:.04em; text-transform:uppercase;">
+    <input type="checkbox" id="select-all" style="accent-color:var(--cm-accent);">
+    <span>Series</span><span style="text-align:right;">#</span><span style="text-align:right;">Year</span><span>Publisher</span><span>State</span><span>Flags</span>
+  </div>
+  {% for comic in comics %}
+  <div class="cm-list-row" data-pk="{{ comic.pk }}"
+       style="display:grid; grid-template-columns:28px 1fr 60px 80px 160px 120px 80px; gap:10px; padding:0 14px; height:28px; align-items:center; border-bottom:1px solid var(--cm-border); font-size:11.5px; cursor:pointer;"
+       onclick="if(event.target.type!=='checkbox') window.location='/comics/{{ comic.pk }}/'">
+    <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
+    <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500;">{{ comic.series|default:comic.proposed_series|default:"—" }}</span>
+    <span class="mono tnum" style="text-align:right; color:var(--cm-fg-2);">{{ comic.number|default:comic.proposed_number|default:"?" }}</span>
+    <span class="mono tnum" style="text-align:right; color:var(--cm-fg-3);">{{ comic.year|default:"" }}</span>
+    <span style="color:var(--cm-fg-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ comic.publisher|default:"—" }}</span>
+    <span class="cm-chip {{ comic.state|state_chip_class }}" style="justify-self:start; padding:1px 6px; font-size:10.5px;"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
+    <div style="display:flex; flex-wrap:wrap; gap:1px;">{% for flag in comic.flag_list %}<span class="cm-chip err" style="padding:0px 3px; font-size:9px;">{{ flag }}</span>{% endfor %}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- Pagination bottom -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div style="padding:10px 16px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
+    <span>Page <span class="mono tnum">{{ page_obj.number }}</span> of <span class="mono tnum">{{ page_obj.paginator.num_pages }}</span></span>
+    <div style="display:flex; gap:3px; align-items:center;">
       {% if page_obj.has_previous %}
-      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page=1" class="join-item btn btn-sm">First</a>
-      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
+      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
+      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
       {% endif %}
       {% for num in page_obj.paginator.page_range %}
         {% if num == page_obj.number %}
-        <button class="join-item btn btn-sm btn-active">{{ num }}</button>
+        <button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
         {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-        <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
+        <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ num }}" class="cm-btn sm ghost" style="text-decoration:none;">{{ num }}</a>
         {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
-        <span class="join-item btn btn-sm btn-disabled">...</span>
+        <span class="mono" style="color:var(--cm-fg-3); font-size:11px; padding:0 4px;">…</span>
         {% endif %}
       {% endfor %}
       {% if page_obj.has_next %}
-      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
-      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
+      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
+      <a href="?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
       {% endif %}
     </div>
   </div>
   {% endif %}
 
   {% else %}
-  <div class="alert alert-info">
+  <!-- Empty state -->
+  <div style="padding:48px 24px; text-align:center; color:var(--cm-fg-3);">
     {% if current_state %}
-    <span>No comics in state "{{ current_state }}".</span>
-    <a href="/comics/" class="link">View all comics</a>
+    <div style="font-size:14px;">No comics in state "{{ current_state }}".</div>
+    <a href="/comics/" style="color:var(--cm-accent); font-size:12px; margin-top:8px; display:inline-block;">View all comics</a>
     {% elif current_flag %}
-    <span>No comics with flag "{{ flag_label }}".</span>
-    <a href="/comics/" class="link">View all comics</a>
+    <div style="font-size:14px;">No comics with flag "{{ flag_label }}".</div>
+    <a href="/comics/" style="color:var(--cm-accent); font-size:12px; margin-top:8px; display:inline-block;">View all comics</a>
     {% else %}
-    <span>No Comics Found</span>
+    <div style="font-size:14px;">No comics found.</div>
     {% endif %}
   </div>
   {% endif %}
-</div>
+
+  </div><!-- end scrollable content -->
+</div><!-- end main flex -->
+
+<!-- Bulk delete modal -->
+<dialog id="bulk-delete-modal" class="modal">
+  <div class="modal-box" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); max-width:380px;">
+    <h3 style="font-weight:700; font-size:16px; margin-bottom:8px;">Delete comics?</h3>
+    <p style="font-size:13px; color:var(--cm-fg-2); margin:0;">Delete <strong id="bulk-delete-count">0</strong> comic(s)? Records are removed from ComicManager — files on disk are not deleted.</p>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
+      <button class="cm-btn sm ghost" onclick="document.getElementById('bulk-delete-modal').close()">Cancel</button>
+      <button class="cm-btn sm" style="color:var(--cm-err); border-color:var(--cm-err);" onclick="executeBulkDelete()">Delete</button>
+    </div>
+  </div>
+  <div class="modal-backdrop" onclick="this.closest('dialog').close()"></div>
+</dialog>
+
 
 <!-- Scrape Confirmation Modal -->
 <dialog id="scrape-modal" class="modal modal-bottom sm:modal-middle">
@@ -909,6 +812,219 @@
 </style>
 
 <script>
+// Rail toggle — uses searchParams.set so rail= never accumulates
+function toggleRail() {
+  const url = new URL(window.location.href);
+  url.searchParams.set('rail', url.searchParams.get('rail') === '1' ? '0' : '1');
+  url.searchParams.delete('page');
+  window.location.href = url.toString();
+}
+
+// Apply rail filters by updating the current URL (preserves col, per_page, sort, etc.)
+function applyRailFilters() {
+  const url = new URL(window.location.href);
+  const rail = document.getElementById('rail-form');
+  if (!rail) return;
+
+  // Reset to page 1
+  url.searchParams.delete('page');
+
+  // Publisher (multi-value)
+  url.searchParams.delete('publisher');
+  rail.querySelectorAll('input[name="publisher"]:checked').forEach(cb => {
+    url.searchParams.append('publisher', cb.value);
+  });
+
+  // State (single)
+  url.searchParams.delete('state');
+  const stateChecked = rail.querySelector('input[name="state"]:checked');
+  if (stateChecked) url.searchParams.set('state', stateChecked.value);
+
+  // Format (single)
+  url.searchParams.delete('format');
+  const fmtChecked = rail.querySelector('input[name="format"]:checked');
+  if (fmtChecked) url.searchParams.set('format', fmtChecked.value);
+
+  // Flag (single)
+  url.searchParams.delete('flag');
+  const flagChecked = rail.querySelector('input[name="flag"]:checked');
+  if (flagChecked) url.searchParams.set('flag', flagChecked.value);
+
+  // Year range
+  const yMin = rail.querySelector('input[name="year_min"]')?.value.trim();
+  const yMax = rail.querySelector('input[name="year_max"]')?.value.trim();
+  if (yMin) url.searchParams.set('year_min', yMin); else url.searchParams.delete('year_min');
+  if (yMax) url.searchParams.set('year_max', yMax); else url.searchParams.delete('year_max');
+
+  window.location.href = url.toString();
+}
+
+// Reset rail filters while keeping other params (col, sort, view, etc.)
+function resetRailFilters() {
+  const url = new URL(window.location.href);
+  ['publisher', 'state', 'format', 'flag', 'year_min', 'year_max', 'page'].forEach(k => url.searchParams.delete(k));
+  window.location.href = url.toString();
+}
+
+// Column drag-and-drop reordering
+(function _initColDrag() {
+  const list = document.getElementById('col-list');
+  if (!list) return;
+
+  let dragSrc = null;
+
+  list.addEventListener('dragstart', e => {
+    dragSrc = e.target.closest('.col-item');
+    if (!dragSrc) return;
+    e.dataTransfer.effectAllowed = 'move';
+    dragSrc.style.opacity = '0.4';
+  });
+
+  list.addEventListener('dragend', e => {
+    const item = e.target.closest('.col-item');
+    if (item) item.style.opacity = '';
+    list.querySelectorAll('.col-item').forEach(el => el.classList.remove('drag-over'));
+  });
+
+  list.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.target.closest('.col-item');
+    if (!target || target === dragSrc) return;
+    list.querySelectorAll('.col-item').forEach(el => el.classList.remove('drag-over'));
+    target.classList.add('drag-over');
+  });
+
+  list.addEventListener('drop', e => {
+    e.preventDefault();
+    const target = e.target.closest('.col-item');
+    if (!target || target === dragSrc || !dragSrc) return;
+    const items = Array.from(list.querySelectorAll('.col-item'));
+    const srcIdx = items.indexOf(dragSrc);
+    const tgtIdx = items.indexOf(target);
+    if (srcIdx < tgtIdx) list.insertBefore(dragSrc, target.nextSibling);
+    else list.insertBefore(dragSrc, target);
+    // Update opacity based on checked state
+    list.querySelectorAll('.col-item').forEach(el => {
+      el.style.opacity = el.querySelector('input[type=checkbox]').checked ? '' : '0.55';
+    });
+  });
+
+  // Toggle opacity when checkbox changes
+  list.addEventListener('change', e => {
+    if (e.target.classList.contains('col-toggle')) {
+      e.target.closest('.col-item').style.opacity = e.target.checked ? '' : '0.55';
+    }
+  });
+
+  // Drag-over highlight style
+  const style = document.createElement('style');
+  style.textContent = '.col-item.drag-over { outline: 1px solid var(--cm-accent); border-radius:4px; }';
+  document.head.appendChild(style);
+
+  // Close dropdown on outside click
+  document.addEventListener('click', e => {
+    const wrap = document.getElementById('col-dropdown-wrap');
+    const dropdown = document.getElementById('col-dropdown');
+    if (wrap && dropdown && !wrap.contains(e.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+})();
+
+// Bulk selection
+(function _initBulkSelection() {
+  const selectedPks = new Set();
+  const bulkBar = document.getElementById('bulk-action-bar');
+
+  function updateBulkBar() {
+    const count = selectedPks.size;
+    if (count > 0) {
+      bulkBar.style.display = 'flex';
+      const badge = bulkBar.querySelector('.sel-count');
+      if (badge) badge.textContent = count;
+    } else {
+      bulkBar.style.display = 'none';
+    }
+  }
+
+  document.querySelectorAll('.row-select').forEach(cb => {
+    cb.addEventListener('change', e => {
+      if (e.target.checked) selectedPks.add(e.target.value);
+      else selectedPks.delete(e.target.value);
+      e.target.closest('.cm-list-row')?.classList.toggle('selected', e.target.checked);
+      updateBulkBar();
+    });
+  });
+
+  const selectAll = document.getElementById('select-all');
+  if (selectAll) {
+    selectAll.addEventListener('change', e => {
+      document.querySelectorAll('.row-select').forEach(cb => {
+        cb.checked = e.target.checked;
+        if (e.target.checked) selectedPks.add(cb.value);
+        else selectedPks.delete(cb.value);
+        cb.closest('.cm-list-row')?.classList.toggle('selected', e.target.checked);
+      });
+      updateBulkBar();
+    });
+  }
+
+  window.clearSelection = function() {
+    selectedPks.clear();
+    document.querySelectorAll('.row-select, #select-all').forEach(cb => cb.checked = false);
+    document.querySelectorAll('.cm-list-row').forEach(r => r.classList.remove('selected'));
+    updateBulkBar();
+  };
+
+  window.confirmBulkDelete = function() {
+    if (!selectedPks.size) return;
+    document.getElementById('bulk-delete-count').textContent = selectedPks.size;
+    document.getElementById('bulk-delete-modal').showModal();
+  };
+
+  window.executeBulkDelete = function() {
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', getCsrfToken());
+    selectedPks.forEach(pk => fd.append('pks', pk));
+    fetch('/comics/bulk-delete/', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => { if (data.deleted !== undefined) window.location.reload(); });
+  };
+
+  function bulkPost(url, extraParams) {
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', getCsrfToken());
+    selectedPks.forEach(pk => fd.append('pks', pk));
+    if (extraParams) Object.entries(extraParams).forEach(([k,v]) => fd.append(k, v));
+    return fetch(url, { method: 'POST', body: fd }).then(r => r.json());
+  }
+
+  window.bulkRunPipeline = function(btn) {
+    if (!selectedPks.size) return;
+    btn.disabled = true;
+    bulkPost('/comics/run-pipeline/', {}).then(() => window.location.reload()).catch(() => { btn.disabled = false; });
+  };
+
+  window.bulkRetag = function(btn) {
+    if (!selectedPks.size) return;
+    btn.disabled = true;
+    bulkPost('/comics/tag-all/', {}).then(() => window.location.reload()).catch(() => { btn.disabled = false; });
+  };
+
+  window.bulkScrape = function(btn) {
+    if (!selectedPks.size) return;
+    btn.disabled = true;
+    bulkPost('/comics/scrape-all/', {}).then(() => window.location.reload()).catch(() => { btn.disabled = false; });
+  };
+
+  window.bulkOrganize = function(btn) {
+    if (!selectedPks.size) return;
+    btn.disabled = true;
+    bulkPost('/comics/organize-all/', {}).then(() => window.location.reload()).catch(() => { btn.disabled = false; });
+  };
+})();
+
 // Force-scrape mode: skip state check for re-scraping mismatched comics
 const isForceScrape = {% if current_flag == 'metadata_mismatch' %}true{% else %}false{% endif %};
 
