@@ -14,4 +14,6 @@ urlpatterns = [
     path("smartlists/<uuid:pk>/export-cbl/", views.smartlist_export_cbl, name="smartlist_export_cbl"),
     path("smartlists/<uuid:pk>/missing/", views.smartlist_missing, name="smartlist_missing"),
     path("smartlists/<uuid:pk>/run-action/", views.smartlist_run_action, name="smartlist_run_action"),
+    path("advance/", views.advance_comics, name="advance_comics"),
+    path("new-comics/", views.new_comics_partial, name="new_comics_partial"),
 ]

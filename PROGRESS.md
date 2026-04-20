@@ -30,6 +30,7 @@
 - [x] [P1.21] Verified: `is_zip` does not block batch scraping. `scrape_all_task` only excludes `scrape_skipped` and inducks-sourced comics — `is_pdf`, `low_page_count`, and `needs_conversion` are not excluded either. ZIP files are valid comic archives and can be scraped for metadata normally; the rename to `.cbz` is a separate step. No change needed.
 - [x] [P1.22] Workflow pipeline step 1 (New) should show an action button for "Convert to CBZ" when any comics in the new state are in CBR or CB7 format — similar to the "Needs Conversion" row in the Review & Maintenance card.
 - [x] [P1.23] Removed the unused `import_convert_cbr` setting. CBR/CB7 files are always flagged `needs_conversion` unconditionally. A future improvement (FI.8) tracks making this configurable.
+- [ ] [P1.24] On `/comics/?state=new` we need a 'Scan for Comics' button next to the other buttons like 'Convert All CBR' and 'Rename All ZIP'.
 
 ### Phase 2: ComicVine Scraping (Comicrack_guide 02 & 03)
 
@@ -323,6 +324,15 @@
 - [x] [FI.2] ComicVine API call budget management. Per-path rolling counters (/search, /volume, /issues, /issue) tracked in Redis and displayed as progress bars in Settings. Budget checked before every call; comics skipped when exhausted rather than errored. Manual search results loaded in batches of 3 with lazy /volume fetching to minimise cost.
 - [x] [FI.3] Resolved by redesigning `try_api_metadata_match` to use a 3-call volume-based strategy: /search returns credits inline via /issue on the final call, so there is no separate budget-gated credits fetch. Full credits are always included or the entire match is skipped.
 - [ ] [FI.8] Add a configurable setting to control whether CBR/CB7 files are flagged `needs_conversion` on import. Currently flagging is unconditional. Implementation: re-introduce a setting (e.g. `import_convert_cbr`), read it in `services.py` and `scan_untagged.py`, and only set the flag when enabled.
+
+## Redesign 
+
+**Goal:** Redesign the UI for nicer look and better usability. 
+
+**Current Status & Tasks:**
+- [ ] [R.1] User never had Kanban selected in settings, as Kanban was never shipped. Remove Kanban fallback to Segments.
+- [ ] [R.2] Segments should be default with optional Flow or None. If None is selected the Workflow pipeline is hidden on the dashboard. 
+
 
 ## Code to Port
 

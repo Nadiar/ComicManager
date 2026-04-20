@@ -272,7 +272,7 @@ class UserPreference(models.Model):
     DENSITY_COMFY   = "comfy"
 
     PIPELINE_SEGMENTS = "segments"
-    PIPELINE_KANBAN   = "kanban"
+    PIPELINE_NEW      = "new"
     PIPELINE_FLOW     = "flow"
 
     nav               = models.CharField(max_length=16, default=NAV_TOPNAV)

@@ -1707,13 +1707,21 @@ def run_full_pipeline(request):
             )
         comic_ids = [str(comic.pk)]
     else:
-        comic_ids = list(
+        qs = (
             Comic.objects.filter(state=Comic.STATE_NEW, file_format="cbz")
             .exclude(proposed_series__isnull=True)
             .exclude(proposed_series="")
-            .values_list("pk", flat=True)
         )
-        comic_ids = [str(pk) for pk in comic_ids]
+        hours = request.POST.get("hours")
+        if hours:
+            from django.utils import timezone
+            from datetime import timedelta
+            try:
+                from_time = timezone.now() - timedelta(hours=int(hours))
+                qs = qs.filter(imported_at__gte=from_time)
+            except (ValueError, TypeError):
+                pass
+        comic_ids = [str(pk) for pk in qs.values_list("pk", flat=True)]
         if not comic_ids:
             return JsonResponse({"success": True, "task_id": None, "total": 0,
                                  "message": "No eligible CBZ comics in new state"})

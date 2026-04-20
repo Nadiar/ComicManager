@@ -55,8 +55,7 @@
           <div class="form-control gap-1">
             <label class="label-text font-medium">Pipeline view</label>
             <select name="dashboard_pipeline" class="select select-bordered select-sm w-full">
-              <option value="segments" {% if prefs.dashboard_pipeline == "segments" %}selected{% endif %}>Segments</option>
-              <option value="kanban"   {% if prefs.dashboard_pipeline == "kanban"   %}selected{% endif %}>Kanban</option>
+              <option value="segments" {% if prefs.dashboard_pipeline != "flow" %}selected{% endif %}>Segments</option>
               <option value="flow"     {% if prefs.dashboard_pipeline == "flow"     %}selected{% endif %}>Flow</option>
             </select>
           </div>

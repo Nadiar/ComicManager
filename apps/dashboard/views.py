@@ -237,6 +237,26 @@ def index(request):
         count_mismatch_count + format_mismatch_count + cv_volume_conflict_count + needs_reformat_count
     )
 
+    # New comics panel (CBZ only, non-empty proposed_series)
+    from apps.core.models import get_setting
+    from django.utils import timezone
+    from datetime import timedelta
+
+    _new_qs = (
+        Comic.objects.filter(state=Comic.STATE_NEW, file_format="cbz", medium=Comic.MEDIUM_DIGITAL)
+        .exclude(proposed_series__isnull=True).exclude(proposed_series="")
+        .order_by("-imported_at")
+    )
+    new_comics = list(_new_qs[:8])
+    new_comics_total = _new_qs.count()
+    new_comics_non_cbz = Comic.objects.filter(
+        state=Comic.STATE_NEW, medium=Comic.MEDIUM_DIGITAL
+    ).exclude(file_format="cbz").count()
+
+    zero_day_hours = int(get_setting("scrape_0day_hours", 24))
+    _0day_cutoff = timezone.now() - timedelta(hours=zero_day_hours)
+    new_comics_0day_count = _new_qs.filter(imported_at__gte=_0day_cutoff).count()
+
     # Smart lists for dashboard
     dashboard_smartlists = []
     for sl in SmartList.objects.filter(show_on_dashboard=True):
@@ -272,7 +292,6 @@ def index(request):
     stats["complete_pct"] = round(stats["written"] / max(stats["total"], 1) * 100)
 
     from apps.scraper.cv_sources import get_cv_source_status
-    from apps.core.models import get_setting
     cv_status = get_cv_source_status()
     hide_zero_maintenance_rows = get_setting("hide_zero_maintenance_rows", False)
 
@@ -294,6 +313,40 @@ def index(request):
         "dashboard_smartlists": dashboard_smartlists,
         "cv_status": cv_status,
         "hide_zero_maintenance_rows": hide_zero_maintenance_rows,
+        "new_comics": new_comics,
+        "new_comics_total": new_comics_total,
+        "new_comics_non_cbz": new_comics_non_cbz,
+        "zero_day_hours": zero_day_hours,
+        "new_comics_0day_count": new_comics_0day_count,
+    })
+
+
+def new_comics_partial(request):
+    """HTMX: load the next page of New comics cards for the dashboard panel."""
+    from apps.core.models import get_setting
+    from django.utils import timezone
+    from datetime import timedelta
+
+    PAGE = 8
+    try:
+        offset = int(request.GET.get("offset", 0))
+    except (ValueError, TypeError):
+        offset = 0
+
+    _new_qs = (
+        Comic.objects.filter(state=Comic.STATE_NEW, file_format="cbz", medium=Comic.MEDIUM_DIGITAL)
+        .exclude(proposed_series__isnull=True).exclude(proposed_series="")
+        .order_by("-imported_at")
+    )
+    comics = list(_new_qs[offset : offset + PAGE])
+    total = _new_qs.count()
+    next_offset = offset + PAGE
+    has_more = next_offset < total
+
+    return render(request, "dashboard/_new_comics_partial.html", {
+        "comics": comics,
+        "next_offset": next_offset,
+        "has_more": has_more,
     })
 
 
@@ -1082,4 +1135,27 @@ def smartlist_run_action(request, pk):
         "task_id": result.id,
         "total": count,
         "message": f"{action_labels.get(action, action)} {count} comics in background",
+    })
+
+
+@require_POST
+def advance_comics(request):
+    """Dispatch a Celery task to advance one or more comics to a target pipeline stage."""
+    _VALID_STAGES = {'scrape', 'tagging', 'formats', 'deduplicate', 'move', 'write', 'done'}
+    comic_ids = request.POST.getlist('comic_ids')
+    to_stage = request.POST.get('to_stage', '')
+
+    if to_stage not in _VALID_STAGES:
+        return JsonResponse({'success': False, 'error': f'Invalid stage: {to_stage}'}, status=400)
+    if not comic_ids:
+        return JsonResponse({'success': False, 'error': 'No comics specified'}, status=400)
+
+    from .tasks import advance_comics_task
+    result = advance_comics_task.delay(comic_ids, to_stage)
+    n = len(comic_ids)
+    return JsonResponse({
+        'success': True,
+        'task_id': result.id,
+        'total': n,
+        'label': f"Advancing {n} comic{'s' if n != 1 else ''} to {to_stage}",
     })
