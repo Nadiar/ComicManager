@@ -332,7 +332,7 @@
 **Current Status & Tasks:**
 - [ ] [R.1] User never had Kanban selected in settings, as Kanban was never shipped. Remove Kanban fallback to Segments.
 - [ ] [R.2] Segments should be default with optional Flow or None. If None is selected the Workflow pipeline is hidden on the dashboard. 
-
+- [ ] [R.3] Flow needs redesigned. The alignment is wrong and the line looks bad. Either disable or fix.
 
 ## Code to Port
 

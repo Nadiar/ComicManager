@@ -67,29 +67,29 @@
   <div class="cm-card" style="overflow:hidden;">
     <div class="cm-card-hd">
       <h3>Workflow Pipeline · Flow</h3>
-      <span style="font-size:11px;color:var(--cm-fg-3);">Coming in a future update</span>
     </div>
-    <div style="padding:36px 28px 20px;background:var(--cm-bg);">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:0;">
+    <div style="padding:28px 28px 0;background:var(--cm-bg);">
+      <!-- circles row: same grid as buttons so columns align -->
+      <div id="flow-nodes" style="display:grid;grid-template-columns:repeat({{ pipeline|length }},1fr);position:relative;height:100px;">
+        <!-- connector line behind circles, from center of col-1 to center of last col -->
+        <div style="position:absolute;top:50%;transform:translateY(-50%);left:calc(50% / {{ pipeline|length }});right:calc(50% / {{ pipeline|length }});height:2px;background:var(--cm-border);z-index:0;pointer-events:none;"></div>
         {% for stage in pipeline %}
-        {% with pending=stage.count|add:0 %}
-        <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;">
-          {% with size=stage.count %}
-          <div style="width:{% if stage.count > 1000 %}90px{% elif stage.count > 100 %}78px{% elif stage.count > 10 %}66px{% else %}54px{% endif %};height:{% if stage.count > 1000 %}90px{% elif stage.count > 100 %}78px{% elif stage.count > 10 %}66px{% else %}54px{% endif %};border-radius:50%;background:{% if stage.state == 'done' %}var(--cm-ok-dim){% elif stage.count > 0 %}var(--cm-accent-dim){% else %}var(--cm-bg-2){% endif %};border:2px solid {% if stage.state == 'done' %}var(--cm-ok){% elif stage.count > 0 %}var(--cm-accent){% else %}var(--cm-border){% endif %};display:flex;align-items:center;justify-content:center;cursor:pointer;{% if stage.count > 0 and stage.state != 'done' %}animation:cm-pulse 2s ease-in-out infinite;{% endif %}"
-               onclick="{% if stage.state == 'deduplicate' %}window.location='/duplicates/'{% elif stage.state == 'formats' %}window.location='/comics/format/'{% else %}window.location='/comics/?state={{ stage.state }}'{% endif %}">
-            <span class="mono tnum" style="font-size:13px;font-weight:700;line-height:1;color:{% if stage.state == 'done' %}var(--cm-ok){% elif stage.count > 0 %}var(--cm-accent){% else %}var(--cm-fg-3){% endif %};">{{ stage.count }}</span>
-          </div>
-          {% endwith %}
-          <div style="text-align:center;">
-            <div style="font-size:10.5px;font-weight:600;">{{ stage.label|slice:"3:" }}</div>
+        <div style="display:flex;align-items:center;justify-content:center;position:relative;z-index:1;">
+          <div class="flow-node"
+               data-count="{{ stage.count }}"
+               data-state="{{ stage.state }}"
+               style="border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s;{% if stage.count > 0 and stage.state != 'done' %}animation:cm-pulse 2s ease-in-out infinite;{% endif %}"
+               onclick="{% if stage.state == 'deduplicate' %}window.location='/duplicates/'{% elif stage.state == 'formats' %}window.location='/comics/format/'{% elif stage.state == 'done' %}window.location='/comics/?state=done'{% else %}window.location='/comics/?state={{ stage.state }}'{% endif %}"
+               onmouseenter="this.style.transform='scale(1.08)'" onmouseleave="this.style.transform=''">
+            <span class="flow-node-count mono tnum" style="font-weight:700;line-height:1;">{{ stage.count }}</span>
           </div>
         </div>
-        {% if not forloop.last %}
-        <div style="flex:1;height:2px;background:var(--cm-border);margin:0 4px;min-width:10px;position:relative;">
-          {% if stage.count > 0 and stage.state != 'done' %}<div class="barstripe" style="position:absolute;inset:0;"></div>{% endif %}
-        </div>
-        {% endif %}
-        {% endwith %}
+        {% endfor %}
+      </div>
+      <!-- labels row: same grid, separate from circles so top:50% on connector is exact -->
+      <div style="display:grid;grid-template-columns:repeat({{ pipeline|length }},1fr);margin-top:6px;padding-bottom:16px;">
+        {% for stage in pipeline %}
+        <div style="text-align:center;font-size:10.5px;font-weight:600;color:var(--cm-fg-2);">{{ stage.label|slice:"3:" }}</div>
         {% endfor %}
       </div>
     </div>
@@ -399,6 +399,38 @@
 </div>
 
 <script>
+(function initFlowNodes() {
+  var nodes = document.querySelectorAll('.flow-node');
+  if (!nodes.length) return;
+  var counts = Array.from(nodes).map(n => parseInt(n.dataset.count, 10) || 0);
+  var maxCount = Math.max.apply(null, counts) || 1;
+  var minPx = 44, maxPx = 88;
+  nodes.forEach(function(node, i) {
+    var c = counts[i];
+    var state = node.dataset.state;
+    var ratio = Math.log(1 + c) / Math.log(1 + maxCount);
+    var px = Math.round(minPx + (maxPx - minPx) * ratio);
+    node.style.width = px + 'px';
+    node.style.height = px + 'px';
+    var fontSize = Math.round(10 + (px - minPx) / (maxPx - minPx) * 6) + 'px';
+    var countEl = node.querySelector('.flow-node-count');
+    if (countEl) countEl.style.fontSize = fontSize;
+    if (state === 'done') {
+      node.style.background = 'var(--cm-ok-dim)';
+      node.style.border = '2px solid var(--cm-ok)';
+      if (countEl) countEl.style.color = 'var(--cm-ok)';
+    } else if (c > 0) {
+      node.style.background = 'var(--cm-accent-dim)';
+      node.style.border = '2px solid var(--cm-accent)';
+      if (countEl) countEl.style.color = 'var(--cm-accent)';
+    } else {
+      node.style.background = 'var(--cm-bg-2)';
+      node.style.border = '2px solid var(--cm-border)';
+      if (countEl) countEl.style.color = 'var(--cm-fg-3)';
+    }
+  });
+})();
+
 function getCsrfToken() {
   return document.querySelector('meta[name="csrf-token"]')?.content ||
          document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
