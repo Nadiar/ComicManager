@@ -3,157 +3,167 @@
 {% block nav_smartlists %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6 max-w-4xl">
-  <div class="flex justify-between items-center">
-    <h1 class="text-3xl font-bold">{% if mode == 'edit' %}Edit{% else %}Create{% endif %} Smart List</h1>
-    <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Back to Lists</a>
+
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border);">
+  <h1 style="font-size:22px; font-weight:700; margin:0;">{% if mode == 'edit' %}Edit{% else %}Create{% endif %} Smart List</h1>
+  <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Lists</a>
+</div>
+
+<style>
+/* Shims for JS-generated DaisyUI elements */
+.select-bordered, .input-bordered, .textarea-bordered {
+  border: 1px solid var(--cm-border);
+  background: var(--cm-bg-1);
+  color: var(--cm-fg-1);
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+  font-size: 12px;
+}
+.select-bordered:focus, .input-bordered:focus { border-color: var(--cm-accent); }
+.select-sm { height: 28px; font-size: 12px; }
+.select-xs { height: 22px; font-size: 11px; padding: 2px 6px; }
+.input-sm { height: 28px; font-size: 12px; }
+.bg-base-100 { background: var(--cm-bg-1) !important; }
+.rounded-lg { border-radius: 6px !important; }
+.p-3 { padding: 10px 12px !important; }
+.space-y-2 > * + * { margin-top: 6px; }
+.btn-xs.btn-error.btn-outline { background: transparent; border: 1px solid var(--cm-err); border-radius: 4px; cursor: pointer; padding: 2px 8px; font-size: 11px; color: var(--cm-err); }
+.btn-xs.btn-ghost { background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-size: 11px; color: var(--cm-fg-2); }
+.btn-xs.btn-ghost:hover { background: var(--cm-bg-2); }
+.ml-auto { margin-left: auto !important; }
+.flex { display: flex !important; }
+.gap-2 { gap: 8px !important; }
+.items-center { align-items: center !important; }
+.flex-1 { flex: 1 !important; }
+.w-48 { width: 180px !important; }
+.w-40 { width: 160px !important; }
+/* OR group container */
+[data-type="group"] {
+  border: 1px solid color-mix(in srgb, var(--cm-accent) 40%, transparent);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--cm-bg-1);
+}
+</style>
+
+<form method="POST" style="padding:16px; display:flex; flex-direction:column; gap:12px; max-width:900px;">
+  {% csrf_token %}
+
+  <!-- Basic Info -->
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Basic Info</div>
+    <div style="display:grid; grid-template-columns:1fr auto; gap:12px; margin-bottom:10px;">
+      <div>
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Name</label>
+        <input type="text" name="name" value="{{ smart_list.name|default:'' }}" class="cm-input" placeholder="e.g., My Batman Collection" required style="width:100%;">
+      </div>
+      <div>
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Icon (optional)</label>
+        <input type="text" name="icon" value="{{ smart_list.icon|default:'' }}" class="cm-input" placeholder="e.g., DC" maxlength="32" style="width:80px;">
+      </div>
+    </div>
+    <div>
+      <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Description (optional)</label>
+      <textarea name="description" class="cm-input" rows="2" placeholder="What does this smart list track?" style="width:100%; resize:vertical;">{{ smart_list.description|default:'' }}</textarea>
+    </div>
   </div>
 
-  <form method="POST" class="space-y-6">
-    {% csrf_token %}
-
-    <!-- Basic Info -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-lg">Basic Info</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Name</span></label>
-            <input type="text" name="name" value="{{ smart_list.name|default:'' }}"
-                   class="input input-bordered" placeholder="e.g., My Batman Collection" required />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Icon (optional)</span></label>
-            <input type="text" name="icon" value="{{ smart_list.icon|default:'' }}"
-                   class="input input-bordered w-24" placeholder="e.g., DC" maxlength="32" />
-          </div>
-        </div>
-        <div class="form-control">
-          <label class="label"><span class="label-text">Description (optional)</span></label>
-          <textarea name="description" class="textarea textarea-bordered" rows="2"
-                    placeholder="What does this smart list track?">{{ smart_list.description|default:'' }}</textarea>
-        </div>
+  <!-- Filters -->
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+      <div style="font-size:15px; font-weight:700;">Filters</div>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="cm-btn sm ghost" onclick="addGroup()">Add OR Group</button>
+        <button type="button" class="cm-btn sm primary" onclick="addLeafRow()">Add Filter</button>
       </div>
     </div>
+    <div id="filter-rows" style="display:flex; flex-direction:column; gap:6px;"></div>
+    <input type="hidden" name="filters_json" id="filters-json" />
+    <p style="font-size:11px; color:var(--cm-fg-3); margin-top:8px;">Top-level filters use AND logic. Use OR groups to match any of several conditions.</p>
+  </div>
 
-    <!-- Filters -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <div class="flex justify-between items-center">
-          <h2 class="card-title text-lg">Filters</h2>
-          <div class="flex gap-2">
-            <button type="button" class="btn btn-sm btn-ghost" onclick="addGroup()">Add OR Group</button>
-            <button type="button" class="btn btn-sm btn-primary" onclick="addLeafRow()">Add Filter</button>
-          </div>
-        </div>
-
-        <div id="filter-rows" class="space-y-2 mt-2">
-          <!-- Populated by JS -->
-        </div>
-
-        <input type="hidden" name="filters_json" id="filters-json" />
-        <p class="text-xs text-base-content/50 mt-2">Top-level filters use AND logic. Use OR groups to match any of several conditions.</p>
+  <!-- ComicVine Volume -->
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:4px;">ComicVine Volume (Missing Issues)</div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:10px;">Link a ComicVine volume to compare your library against and find missing issues.</p>
+    <div>
+      <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Search CV Volume</label>
+      <input type="text" id="cv-search-input" class="cm-input" placeholder="Type a series name to search..."
+             hx-get="{% url 'dashboard:smartlist_cv_search' %}"
+             hx-trigger="keyup changed delay:300ms"
+             hx-target="#cv-search-results"
+             hx-vals='js:{"q": document.getElementById("cv-search-input").value}'
+             autocomplete="off" style="width:100%; max-width:400px;" />
+    </div>
+    <div id="cv-search-results" style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:4px; margin-top:4px; max-height:200px; overflow-y:auto;"></div>
+    <div id="cv-selected" style="{% if not smart_list.comicvine_volume_id %}display:none;{% endif %} margin-top:8px; padding:10px 12px; background:rgba(34,197,94,.08); border:1px solid rgba(34,197,94,.3); border-radius:6px; font-size:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span id="cv-selected-text" style="color:var(--cm-ok);">
+          {% if smart_list.comicvine_volume_id %}{{ smart_list.comicvine_volume_name }} (ID: {{ smart_list.comicvine_volume_id }}){% endif %}
+        </span>
+        <button type="button" class="cm-btn sm ghost" onclick="clearCvVolume()">Clear</button>
       </div>
     </div>
+    <input type="hidden" name="comicvine_volume_id" id="cv-volume-id" value="{{ smart_list.comicvine_volume_id|default:'' }}" />
+    <input type="hidden" name="comicvine_volume_name" id="cv-volume-name" value="{{ smart_list.comicvine_volume_name|default:'' }}" />
+  </div>
 
-    <!-- ComicVine Volume (Missing Issues) -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-lg">ComicVine Volume (Missing Issues)</h2>
-        <p class="text-sm text-base-content/60 mb-3">
-          Link a ComicVine volume to compare your library against and find missing issues.
-        </p>
-
-        <div class="form-control">
-          <label class="label"><span class="label-text">Search CV Volume</span></label>
-          <input type="text" id="cv-search-input"
-                 class="input input-bordered"
-                 placeholder="Type a series name to search..."
-                 hx-get="{% url 'dashboard:smartlist_cv_search' %}"
-                 hx-trigger="keyup changed delay:300ms"
-                 hx-target="#cv-search-results"
-                 hx-vals='js:{"q": document.getElementById("cv-search-input").value}'
-                 autocomplete="off" />
-        </div>
-
-        <div id="cv-search-results" class="bg-base-300 rounded-lg mt-1 max-h-48 overflow-y-auto"></div>
-
-        <!-- Selected volume display -->
-        <div id="cv-selected" class="{% if not smart_list.comicvine_volume_id %}hidden{% endif %} alert alert-success mt-2">
-          <div class="flex justify-between items-center w-full">
-            <span id="cv-selected-text">
-              {% if smart_list.comicvine_volume_id %}
-              {{ smart_list.comicvine_volume_name }} (ID: {{ smart_list.comicvine_volume_id }})
-              {% endif %}
-            </span>
-            <button type="button" class="btn btn-xs btn-ghost" onclick="clearCvVolume()">Clear</button>
-          </div>
-        </div>
-
-        <input type="hidden" name="comicvine_volume_id" id="cv-volume-id"
-               value="{{ smart_list.comicvine_volume_id|default:'' }}" />
-        <input type="hidden" name="comicvine_volume_name" id="cv-volume-name"
-               value="{{ smart_list.comicvine_volume_name|default:'' }}" />
-      </div>
-    </div>
-
-    <!-- Sort & Display -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-lg">Sort & Display</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Sort by</span></label>
-            <select name="sort_field" class="select select-bordered">
-              {% for value, label in sort_options %}
-              <option value="{{ value }}" {% if smart_list.sort_field == value %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Direction</span></label>
-            <select name="sort_direction" class="select select-bordered">
-              <option value="asc" {% if smart_list.sort_direction == 'asc' or not smart_list %}selected{% endif %}>Ascending</option>
-              <option value="desc" {% if smart_list.sort_direction == 'desc' %}selected{% endif %}>Descending</option>
-            </select>
-          </div>
-          <div class="form-control">
-            <label class="label cursor-pointer justify-start gap-3">
-              <input type="checkbox" name="show_on_dashboard" class="checkbox"
-                     {% if smart_list.show_on_dashboard or not smart_list %}checked{% endif %} />
-              <span class="label-text">Show on Dashboard</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="divider">Visible Columns</div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {% for col_id, cfg in all_columns.items %}
-          <label class="label cursor-pointer justify-start gap-3 py-1">
-            <input type="checkbox" name="columns" value="{{ col_id }}" class="checkbox checkbox-sm"
-                   {% if col_id in smart_list.columns or not smart_list and col_id in default_columns %}checked{% endif %} />
-            <span class="label-text text-sm">{{ cfg.label }}</span>
-          </label>
+  <!-- Sort & Display -->
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Sort & Display</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:12px; margin-bottom:12px; align-items:end;">
+      <div>
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Sort by</label>
+        <select name="sort_field" class="cm-input" style="height:30px; font-size:12px; width:100%;">
+          {% for value, label in sort_options %}
+          <option value="{{ value }}" {% if smart_list.sort_field == value %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
-        </div>
-        <p class="text-xs text-base-content/50 mt-2">If no columns are selected, the default set will be used.</p>
+        </select>
+      </div>
+      <div>
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Direction</label>
+        <select name="sort_direction" class="cm-input" style="height:30px; font-size:12px; width:100%;">
+          <option value="asc" {% if smart_list.sort_direction == 'asc' or not smart_list %}selected{% endif %}>Ascending</option>
+          <option value="desc" {% if smart_list.sort_direction == 'desc' %}selected{% endif %}>Descending</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer; padding-bottom:4px;">
+          <input type="checkbox" name="show_on_dashboard" {% if smart_list.show_on_dashboard or not smart_list %}checked{% endif %} style="accent-color:var(--cm-accent); width:14px; height:14px;">
+          Show on Dashboard
+        </label>
       </div>
     </div>
-
-    <!-- Actions -->
-    <div class="flex gap-2 justify-end">
-      {% if mode == 'edit' %}
-      <form method="POST" action="{% url 'dashboard:smartlist_delete' smart_list.pk %}" class="inline">
-        {% csrf_token %}
-        <button type="button" class="btn btn-error btn-outline"
-                onclick="showConfirm('Delete this smart list?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
-      </form>
-      {% endif %}
-      <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Cancel</a>
-      <button type="submit" class="btn btn-primary">{% if mode == 'edit' %}Save Changes{% else %}Create Smart List{% endif %}</button>
+    <div style="border-top:1px solid var(--cm-border); padding-top:12px;">
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:8px;">Visible Columns</div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:4px;">
+        {% for col_id, cfg in all_columns.items %}
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; padding:3px 0;">
+          <input type="checkbox" name="columns" value="{{ col_id }}" style="accent-color:var(--cm-accent); width:13px; height:13px;"
+                 {% if col_id in smart_list.columns or not smart_list and col_id in default_columns %}checked{% endif %} />
+          {{ cfg.label }}
+        </label>
+        {% endfor %}
+      </div>
+      <p style="font-size:11px; color:var(--cm-fg-3); margin-top:6px;">If no columns are selected, the default set will be used.</p>
     </div>
-  </form>
-</div>
+  </div>
+
+  <!-- Submit -->
+  <div style="display:flex; gap:8px; justify-content:flex-end;">
+    {% if mode == 'edit' %}
+    <form method="POST" action="{% url 'dashboard:smartlist_delete' smart_list.pk %}" class="inline">
+      {% csrf_token %}
+      <button type="button" class="cm-btn sm ghost" style="color:var(--cm-err); border-color:var(--cm-err);"
+              onclick="showConfirm('Delete this smart list?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
+    </form>
+    {% endif %}
+    <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" style="text-decoration:none;">Cancel</a>
+    <button type="submit" class="cm-btn sm primary">{% if mode == 'edit' %}Save Changes{% else %}Create Smart List{% endif %}</button>
+  </div>
+</form>
 
 <script>
 const fieldOptions = [
@@ -168,9 +178,10 @@ const lookupOptions = [
   {% endfor %}
 ];
 
-function buildSelect(options, selected, extraClass) {
+function buildSelect(options, selected, extraStyle) {
   const sel = document.createElement('select');
-  sel.className = extraClass;
+  sel.className = 'select-bordered';
+  sel.style.cssText = extraStyle || '';
   options.forEach(opt => {
     const o = document.createElement('option');
     o.value = opt.value;
@@ -184,24 +195,25 @@ function buildSelect(options, selected, extraClass) {
 function createLeafRow(field = '', lookup = 'exact', value = '') {
   const row = document.createElement('div');
   row.dataset.type = 'leaf';
-  row.className = 'flex gap-2 items-center';
+  row.style.cssText = 'display:flex; gap:8px; align-items:center;';
 
-  const fieldSel = buildSelect(fieldOptions, field, 'select select-sm select-bordered w-48');
+  const fieldSel = buildSelect(fieldOptions, field, 'height:28px; font-size:12px; width:190px;');
   fieldSel.dataset.role = 'field';
 
-  const lookupSel = buildSelect(lookupOptions, lookup, 'select select-sm select-bordered w-40');
+  const lookupSel = buildSelect(lookupOptions, lookup, 'height:28px; font-size:12px; width:150px;');
   lookupSel.dataset.role = 'lookup';
 
   const valueInput = document.createElement('input');
   valueInput.type = 'text';
   valueInput.dataset.role = 'value';
-  valueInput.className = 'input input-sm input-bordered flex-1';
+  valueInput.className = 'input-bordered';
+  valueInput.style.cssText = 'flex:1; height:28px; font-size:12px;';
   valueInput.placeholder = 'Value...';
   valueInput.value = value;
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'btn btn-xs btn-error btn-outline';
+  removeBtn.className = 'btn-xs btn-error btn-outline';
   removeBtn.textContent = 'Remove';
   removeBtn.onclick = () => row.remove();
 
@@ -215,18 +227,17 @@ function createLeafRow(field = '', lookup = 'exact', value = '') {
 function createGroup(mode = 'or') {
   const div = document.createElement('div');
   div.dataset.type = 'group';
-  div.className = 'border border-primary/40 rounded-lg p-3 space-y-2 bg-base-100';
 
   const header = document.createElement('div');
-  header.className = 'flex items-center gap-2';
+  header.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
 
   const label = document.createElement('span');
-  label.className = 'text-xs font-semibold text-primary uppercase';
+  label.style.cssText = 'font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent);';
   label.textContent = 'Group:';
 
   const modeSel = document.createElement('select');
   modeSel.dataset.role = 'mode';
-  modeSel.className = 'select select-xs select-bordered';
+  modeSel.className = 'select-bordered select-xs';
   [['or', 'Match ANY (OR)'], ['and', 'Match ALL (AND)']].forEach(([val, lbl]) => {
     const o = document.createElement('option');
     o.value = val;
@@ -237,7 +248,7 @@ function createGroup(mode = 'or') {
 
   const removeGroupBtn = document.createElement('button');
   removeGroupBtn.type = 'button';
-  removeGroupBtn.className = 'btn btn-xs btn-error btn-outline ml-auto';
+  removeGroupBtn.className = 'btn-xs btn-error btn-outline ml-auto';
   removeGroupBtn.textContent = 'Remove Group';
   removeGroupBtn.onclick = () => div.remove();
 
@@ -247,12 +258,13 @@ function createGroup(mode = 'or') {
 
   const rows = document.createElement('div');
   rows.dataset.role = 'group-rows';
-  rows.className = 'space-y-2';
+  rows.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
 
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
-  addBtn.className = 'btn btn-xs btn-ghost';
+  addBtn.className = 'btn-xs btn-ghost';
   addBtn.textContent = '+ Add filter';
+  addBtn.style.cssText = 'margin-top:6px; align-self:flex-start;';
   addBtn.onclick = () => rows.appendChild(createLeafRow());
 
   div.appendChild(header);
@@ -300,7 +312,6 @@ function serializeFilters() {
   return result;
 }
 
-// Serialize filters to JSON on form submit
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelector('form[method="POST"]').addEventListener('submit', function() {
     document.getElementById('filters-json').value = JSON.stringify(serializeFilters());
@@ -309,24 +320,20 @@ document.addEventListener('DOMContentLoaded', function() {
   {% if smart_list.filters %}
   const existingFilters = {{ smart_list.filters|safe }};
   existingFilters.forEach(f => {
-    if (f.mode !== undefined) {
-      addGroup(f.mode, f.filters || []);
-    } else {
-      addLeafRow(f.field, f.lookup, f.value);
-    }
+    if (f.mode !== undefined) addGroup(f.mode, f.filters || []);
+    else addLeafRow(f.field, f.lookup, f.value);
   });
   {% else %}
   addLeafRow();
   {% endif %}
 });
 
-// CV Volume selection
 function selectCvVolume(id, name, year, publisher) {
   document.getElementById('cv-volume-id').value = id;
   const displayName = name + (year ? ` (${year})` : '') + ` - ${publisher}`;
   document.getElementById('cv-volume-name').value = displayName;
   document.getElementById('cv-selected-text').textContent = displayName + ' (ID: ' + id + ')';
-  document.getElementById('cv-selected').classList.remove('hidden');
+  document.getElementById('cv-selected').style.display = '';
   document.getElementById('cv-search-results').innerHTML = '';
   document.getElementById('cv-search-input').value = '';
 }
@@ -334,7 +341,7 @@ function selectCvVolume(id, name, year, publisher) {
 function clearCvVolume() {
   document.getElementById('cv-volume-id').value = '';
   document.getElementById('cv-volume-name').value = '';
-  document.getElementById('cv-selected').classList.add('hidden');
+  document.getElementById('cv-selected').style.display = 'none';
 }
 </script>
 {% endblock %}

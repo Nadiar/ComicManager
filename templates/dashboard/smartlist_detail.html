@@ -4,391 +4,285 @@
 {% block nav_smartlists %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-4">
-  <!-- Header -->
-  <div class="flex justify-between items-start">
-    <div>
-      <h1 class="text-3xl font-bold">
-        {% if smart_list.icon %}{{ smart_list.icon }} {% endif %}
-        {{ smart_list.name }}
-      </h1>
-      {% if smart_list.description %}
-      <p class="text-base-content/60 mt-1">{{ smart_list.description }}</p>
-      {% endif %}
-    </div>
-    <div class="flex gap-2">
-      <!-- Bulk Actions Dropdown -->
-      <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-secondary btn-sm">
-          Actions
-          <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-          </svg>
-        </div>
-        <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-10 w-52 p-2 shadow-lg border border-base-300">
-          <li class="menu-title"><span>Run on all {{ comic_count }} comics</span></li>
-          <li>
-            <button onclick="runSmartListAction('tag')">
-              <span class="badge badge-xs badge-accent">1</span> Re-tag All
-            </button>
-          </li>
-          <li>
-            <button onclick="runSmartListAction('format')">
-              <span class="badge badge-xs badge-info">2</span> Re-format All
-            </button>
-          </li>
-          <li>
-            <button onclick="runSmartListAction('organize')">
-              <span class="badge badge-xs badge-warning">3</span> Re-organize All
-            </button>
-          </li>
-          <li>
-            <button onclick="runSmartListAction('write')">
-              <span class="badge badge-xs badge-success">4</span> Write All
-            </button>
-          </li>
-        </ul>
-      </div>
-      {% if smart_list.has_cv_volume %}
-      <a href="{% url 'dashboard:smartlist_missing' smart_list.pk %}" class="btn btn-warning btn-outline btn-sm">View Missing Issues</a>
-      {% endif %}
-      <a href="{% url 'dashboard:smartlist_export_cbl' smart_list.pk %}" class="btn btn-ghost btn-sm">Download CBL</a>
-      <a href="{% url 'dashboard:smartlist_edit' smart_list.pk %}" class="btn btn-ghost btn-sm">Edit</a>
-      <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost btn-sm">Back to Lists</a>
-    </div>
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+  <div>
+    <h1 style="font-size:22px; font-weight:700; margin:0;">
+      {% if smart_list.icon %}<span style="margin-right:6px;">{{ smart_list.icon }}</span>{% endif %}
+      {{ smart_list.name }}
+    </h1>
+    {% if smart_list.description %}
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;">{{ smart_list.description }}</p>
+    {% endif %}
   </div>
-
-  <!-- Progress Bar (hidden by default) -->
-  <div id="action-progress" class="hidden">
-    <div class="card bg-base-200">
-      <div class="card-body py-3">
-        <div class="flex justify-between items-center mb-2">
-          <span class="font-semibold" id="progress-label">Processing...</span>
-          <span class="text-sm" id="progress-count">0 / 0</span>
-        </div>
-        <progress id="progress-bar" class="progress progress-primary w-full" value="0" max="100"></progress>
-        <div id="progress-errors" class="mt-2 text-sm text-error hidden"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CV Volume completion bar -->
-  {% if completion_data %}
-  <div class="card bg-base-200">
-    <div class="card-body py-3">
-      <div class="flex justify-between items-center">
-        <div>
-          <span class="font-semibold">{{ smart_list.comicvine_volume_name }}</span>
-          <span class="text-sm text-base-content/60 ml-2">
-            {{ completion_data.owned }} owned / {{ completion_data.missing }} missing / {{ completion_data.total }} total
-          </span>
-        </div>
-        <span class="text-lg font-bold {% if completion_data.completion == 100 %}text-success{% elif completion_data.completion >= 75 %}text-info{% else %}text-warning{% endif %}">
-          {{ completion_data.completion }}%
-        </span>
-      </div>
-      <progress class="progress progress-success w-full" value="{{ completion_data.completion }}" max="100"></progress>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Results count + column toggle -->
-  <div class="flex items-center justify-between gap-2">
-    <span class="badge badge-neutral">{{ comic_count }} comics</span>
-    <div class="dropdown dropdown-end">
-      <div tabindex="0" role="button" class="btn btn-sm btn-outline">Columns</div>
-      <div tabindex="0" class="dropdown-content z-[1] p-4 shadow bg-base-200 rounded-box w-64 mt-2">
-        <h3 class="font-bold mb-2">Visible Columns</h3>
-        <div class="grid grid-cols-1 gap-1 max-h-96 overflow-y-auto">
-          {% for col_id, cfg in all_columns.items %}
-          <label class="label cursor-pointer py-1 justify-start gap-3">
-            <input type="checkbox" value="{{ col_id }}"
-                   class="checkbox checkbox-sm checkbox-primary sl-col-toggle"
-                   {% if col_id in active_columns %}checked{% endif %}>
-            <span class="label-text">{{ cfg.label }}</span>
-          </label>
-          {% endfor %}
-        </div>
-        <div class="divider my-2"></div>
-        <button type="button" class="btn btn-xs btn-primary w-full" onclick="applyColumnToggle()">Update View</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Comics table -->
-  {% if comics %}
-  <!-- Pagination Top -->
-  {% if page_obj.paginator.num_pages > 1 %}
-  <div class="flex justify-between items-center">
-    <div class="text-sm text-base-content/60">
-      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ comic_count }}
-    </div>
-    <div class="join">
-      {% if page_obj.has_previous %}
-      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="join-item btn btn-sm">First</a>
-      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
-      {% endif %}
-      {% for num in page_obj.paginator.page_range %}
-        {% if num == page_obj.number %}
-        <button class="join-item btn btn-sm btn-active">{{ num }}</button>
-        {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-        <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
-        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
-        <span class="join-item btn btn-sm btn-disabled">...</span>
-        {% endif %}
-      {% endfor %}
-      {% if page_obj.has_next %}
-      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
-      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  <div class="overflow-x-auto">
-    <table class="table table-zebra w-full">
-      <thead>
-        <tr>
-          {% for col_id in active_columns %}
-          <th class="cursor-pointer hover:bg-base-200" onclick="sortBy('{{ col_id|get_col_sort }}')">
-            {{ col_id|get_col_label }}
-            {% with sort_field=col_id|get_col_sort %}
-              {% if current_sort == sort_field %}
-                {% if current_dir == 'asc' %}↑{% else %}↓{% endif %}
-              {% endif %}
-            {% endwith %}
-          </th>
-          {% endfor %}
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for comic in comics %}
-        <tr class="hover">
-          {% for col_id in active_columns %}
-          <td {% if col_id == 'series' or col_id == 'title' %}class="max-w-xs truncate"{% endif %}>
-            {% if col_id == 'state' %}
-              <span class="badge badge-sm
-                {% if comic.state == 'write' %}badge-success
-                {% elif comic.state == 'new' %}badge-warning
-                {% else %}badge-info{% endif %}">
-                {{ comic.get_state_display }}
-              </span>
-            {% else %}
-              {{ comic|get_col_value:col_id|default:"-" }}
-            {% endif %}
-          </td>
-          {% endfor %}
-          <td>
-            <a href="/comics/{{ comic.pk }}/" class="btn btn-xs btn-ghost btn-outline">Info</a>
-          </td>
-        </tr>
+  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    <!-- Actions dropdown -->
+    <div style="position:relative;" id="sl-actions-wrap">
+      <button type="button" class="cm-btn sm primary" onclick="document.getElementById('sl-actions-dd').classList.toggle('hidden')" style="display:flex; align-items:center; gap:4px;">
+        Actions
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"/></svg>
+      </button>
+      <div id="sl-actions-dd" class="hidden" style="position:absolute; right:0; top:100%; margin-top:4px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:6px; width:200px; z-index:20; box-shadow:0 8px 20px rgba(0,0,0,.18);">
+        <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); padding:4px 8px 6px;">Run on all {{ comic_count }} comics</div>
+        {% for key, label in actions %}
+        <button onclick="runSmartListAction('{{ key }}')" style="display:block; width:100%; text-align:left; padding:6px 10px; font-size:12px; border-radius:4px; background:none; border:none; color:var(--cm-fg-1); cursor:pointer;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">{{ label }}</button>
+        {% empty %}
+        <button onclick="runSmartListAction('tag')" style="display:block; width:100%; text-align:left; padding:6px 10px; font-size:12px; border-radius:4px; background:none; border:none; color:var(--cm-fg-1); cursor:pointer;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">Re-tag All</button>
+        <button onclick="runSmartListAction('format')" style="display:block; width:100%; text-align:left; padding:6px 10px; font-size:12px; border-radius:4px; background:none; border:none; color:var(--cm-fg-1); cursor:pointer;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">Re-format All</button>
+        <button onclick="runSmartListAction('organize')" style="display:block; width:100%; text-align:left; padding:6px 10px; font-size:12px; border-radius:4px; background:none; border:none; color:var(--cm-fg-1); cursor:pointer;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">Re-organize All</button>
+        <button onclick="runSmartListAction('write')" style="display:block; width:100%; text-align:left; padding:6px 10px; font-size:12px; border-radius:4px; background:none; border:none; color:var(--cm-fg-1); cursor:pointer;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">Write All</button>
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Pagination Bottom -->
-  {% if page_obj.paginator.num_pages > 1 %}
-  <div class="flex justify-between items-center">
-    <div class="text-sm text-base-content/60">
-      Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+      </div>
     </div>
-    <div class="join">
-      {% if page_obj.has_previous %}
-      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="join-item btn btn-sm">First</a>
-      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="join-item btn btn-sm">Prev</a>
-      {% endif %}
-      {% for num in page_obj.paginator.page_range %}
-        {% if num == page_obj.number %}
-        <button class="join-item btn btn-sm btn-active">{{ num }}</button>
-        {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
-        <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="join-item btn btn-sm">{{ num }}</a>
-        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
-        <span class="join-item btn btn-sm btn-disabled">...</span>
-        {% endif %}
-      {% endfor %}
-      {% if page_obj.has_next %}
-      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="join-item btn btn-sm">Next</a>
-      <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="join-item btn btn-sm">Last</a>
-      {% endif %}
-    </div>
+    {% if smart_list.has_cv_volume %}
+    <a href="{% url 'dashboard:smartlist_missing' smart_list.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Missing Issues</a>
+    {% endif %}
+    <a href="{% url 'dashboard:smartlist_export_cbl' smart_list.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Download CBL</a>
+    <a href="{% url 'dashboard:smartlist_edit' smart_list.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Edit</a>
+    <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Lists</a>
   </div>
-  {% endif %}
-
-  {% else %}
-  <div class="alert alert-info">
-    <span>No comics match this smart list's filters.</span>
-  </div>
-  {% endif %}
 </div>
+
+<!-- Task progress bar (hidden by default) -->
+<div id="action-progress" style="display:none; padding:10px 16px; border-bottom:1px solid var(--cm-border); background:var(--cm-bg-2);">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px;">
+    <span style="font-weight:600;" id="progress-label">Processing...</span>
+    <span style="color:var(--cm-fg-3);" id="progress-count">0 / 0</span>
+  </div>
+  <div style="background:var(--cm-bg-1); border-radius:3px; height:5px; overflow:hidden;">
+    <div id="progress-bar-fill" style="height:100%; background:var(--cm-accent); width:0%; transition:width .3s;"></div>
+  </div>
+  <div id="progress-errors" style="display:none; font-size:11px; color:var(--cm-err); margin-top:4px;"></div>
+</div>
+
+<!-- CV completion bar -->
+{% if completion_data %}
+<div style="padding:12px 16px; border-bottom:1px solid var(--cm-border); display:flex; align-items:center; gap:16px;">
+  <div style="flex:1; min-width:0;">
+    <div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:12px;">
+      <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ smart_list.comicvine_volume_name }}</span>
+      <span style="color:var(--cm-fg-3); flex-shrink:0; margin-left:8px;" class="mono tnum">{{ completion_data.owned }} / {{ completion_data.total }}</span>
+    </div>
+    <div style="background:var(--cm-bg-2); border-radius:3px; height:5px; overflow:hidden;">
+      <div style="height:100%; background:var(--cm-ok); width:{{ completion_data.completion }}%;"></div>
+    </div>
+  </div>
+  <span style="font-size:20px; font-weight:700; flex-shrink:0;
+    {% if completion_data.completion == 100 %}color:var(--cm-ok){% elif completion_data.completion >= 75 %}color:var(--cm-info){% else %}color:var(--cm-warn){% endif %}">
+    {{ completion_data.completion }}%
+  </span>
+</div>
+{% endif %}
+
+<!-- Count + columns -->
+<div style="padding:8px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border);">
+  <span class="cm-chip mono tnum">{{ comic_count }} comics</span>
+  <div style="position:relative;" id="sl-col-wrap">
+    <button type="button" class="cm-btn sm ghost" onclick="document.getElementById('sl-col-dd').classList.toggle('hidden')">Columns</button>
+    <div id="sl-col-dd" class="hidden" style="position:absolute; right:0; top:100%; margin-top:4px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:12px; width:200px; z-index:20; box-shadow:0 8px 20px rgba(0,0,0,.18);">
+      <div style="display:flex; flex-direction:column; gap:2px; max-height:240px; overflow-y:auto; margin-bottom:10px;">
+        {% for col_id, cfg in all_columns.items %}
+        <label style="display:flex; align-items:center; gap:8px; padding:3px 4px; cursor:pointer; font-size:12px;">
+          <input type="checkbox" value="{{ col_id }}" class="sl-col-toggle" {% if col_id in active_columns %}checked{% endif %} style="accent-color:var(--cm-accent);">
+          {{ cfg.label }}
+        </label>
+        {% endfor %}
+      </div>
+      <button type="button" onclick="applyColumnToggle()" class="cm-btn sm primary" style="width:100%; justify-content:center;">Update View</button>
+    </div>
+  </div>
+</div>
+
+{% if comics %}
+<!-- Pagination top -->
+{% if page_obj.paginator.num_pages > 1 %}
+<div style="padding:7px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
+  <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ comic_count }}</span></span>
+  <div style="display:flex; gap:3px;">
+    {% if page_obj.has_previous %}
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
+    {% endif %}
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}<button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
+      {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}<a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="cm-btn sm ghost" style="text-decoration:none;">{{ num }}</a>
+      {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}<span style="color:var(--cm-fg-3); padding:0 4px;" class="mono">…</span>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Table -->
+<div style="overflow-x:auto;">
+  <table style="width:100%; border-collapse:collapse; font-size:12px;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1); position:sticky; top:0; z-index:3;">
+        {% for col_id in active_columns %}
+        <th style="padding:8px 12px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); text-align:left; white-space:nowrap; cursor:pointer;" onclick="sortBy('{{ col_id|get_col_sort }}')">
+          {{ col_id|get_col_label }}
+          {% with sort_field=col_id|get_col_sort %}{% if current_sort == sort_field %}{% if current_dir == 'asc' %} ↑{% else %} ↓{% endif %}{% endif %}{% endwith %}
+        </th>
+        {% endfor %}
+        <th style="padding:8px 12px; width:60px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for comic in comics %}
+      <tr style="border-bottom:1px solid var(--cm-border); cursor:pointer;" onclick="if(event.target.tagName!=='A') window.location='/comics/{{ comic.pk }}/';" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+        {% for col_id in active_columns %}
+        <td style="padding:8px 12px; {% if col_id == 'series' or col_id == 'title' %}max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;{% endif %}">
+          {% if col_id == 'state' %}
+          <span class="cm-chip {{ comic.state|state_chip_class }}" style="font-size:10.5px;"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
+          {% else %}
+          {{ comic|get_col_value:col_id|default:"—" }}
+          {% endif %}
+        </td>
+        {% endfor %}
+        <td style="padding:6px 12px; text-align:right;">
+          <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" style="text-decoration:none; font-size:11px;" onclick="event.stopPropagation()">Info</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination bottom -->
+{% if page_obj.paginator.num_pages > 1 %}
+<div style="padding:7px 16px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
+  <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  <div style="display:flex; gap:3px;">
+    {% if page_obj.has_previous %}
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
+    {% endif %}
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}<button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
+      {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}<a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="cm-btn sm ghost" style="text-decoration:none;">{{ num }}</a>
+      {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}<span style="color:var(--cm-fg-3); padding:0 4px;" class="mono">…</span>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+<div style="padding:48px 16px; text-align:center; color:var(--cm-fg-3); font-size:14px;">No comics match this smart list's filters.</div>
+{% endif %}
 
 <script>
 const smartListPk = '{{ smart_list.pk }}';
 const csrfToken = '{{ csrf_token }}';
-const actionLabels = {
-  tag: 'Re-tagging',
-  format: 'Re-formatting',
-  organize: 'Re-organizing',
-  write: 'Writing',
-};
-
+const actionLabels = { tag: 'Re-tagging', format: 'Re-formatting', organize: 'Re-organizing', write: 'Writing' };
 let pollInterval = null;
+
+// Close dropdowns on outside click
+document.addEventListener('click', e => {
+  ['sl-actions-wrap','sl-col-wrap'].forEach(id => {
+    const wrap = document.getElementById(id);
+    const dd = wrap?.querySelector('[id$="-dd"]') || wrap?.querySelector('[id$="-actions-dd"]');
+    if (wrap && !wrap.contains(e.target)) {
+      wrap.querySelectorAll('[id]').forEach(el => { if(el !== wrap) el.classList.add('hidden'); });
+    }
+  });
+});
+
+function setProgressBar(pct) {
+  document.getElementById('progress-bar-fill').style.width = pct + '%';
+}
 
 function runSmartListAction(action) {
   const label = actionLabels[action] || action;
-  showConfirm(`${label} all {{ comic_count }} comics in this smart list?`, async () => {
-  // Close dropdown
   document.activeElement.blur();
-
-  if (window.isTaskActive && window.isTaskActive()) {
-    if (window.enqueueAction) {
-      const queueUrl = `{% url 'dashboard:smartlist_run_action' smart_list.pk %}`;
-      window.enqueueAction(
-        async () => {
-          const r = await fetch(queueUrl, {
-            method: 'POST',
-            headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `action=${action}`,
+  document.getElementById('sl-actions-dd').classList.add('hidden');
+  showConfirm(`${label} all {{ comic_count }} comics in this smart list?`, async () => {
+    if (window.isTaskActive && window.isTaskActive()) {
+      if (window.enqueueAction) {
+        window.enqueueAction(async () => {
+          const r = await fetch(`{% url 'dashboard:smartlist_run_action' smart_list.pk %}`, {
+            method: 'POST', headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' }, body: `action=${action}`,
           });
           return r.json();
-        },
-        label + ' comics',
-        null
-      );
-    }
-    return;
-  }
-
-  try {
-    const resp = await fetch(`{% url 'dashboard:smartlist_run_action' smart_list.pk %}`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrfToken,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `action=${action}`,
-    });
-    const data = await resp.json();
-
-    if (resp.status === 409) {
-      // Already running — resume polling
-      startPolling(data.task_id, label);
-      if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id, label + ' comics');
+        }, label + ' comics', null);
       }
       return;
     }
-
-    if (!data.success) {
-      showMsgToast('Error: ' + (data.error || 'Unknown'), 'error');
-      return;
-    }
-
-    if (!data.task_id) {
-      // Completed synchronously (0 comics)
-      showMsgToast(data.message || 'Done', 'info');
-      return;
-    }
-
-    startPolling(data.task_id, label);
-
-    // Also trigger the global toast so progress persists across page navigation
-    if (window.startTaskPolling) {
-      window.startTaskPolling(data.task_id, label + ' comics');
-    }
-  } catch (err) {
-    showMsgToast('Network error: ' + err.message, 'error');
-  }
+    try {
+      const resp = await fetch(`{% url 'dashboard:smartlist_run_action' smart_list.pk %}`, {
+        method: 'POST', headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' }, body: `action=${action}`,
+      });
+      const data = await resp.json();
+      if (resp.status === 409) { startPolling(data.task_id, label); if (window.startTaskPolling) window.startTaskPolling(data.task_id, label + ' comics'); return; }
+      if (!data.success) { showMsgToast('Error: ' + (data.error || 'Unknown'), 'error'); return; }
+      if (!data.task_id) { showMsgToast(data.message || 'Done', 'info'); return; }
+      startPolling(data.task_id, label);
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, label + ' comics');
+    } catch (err) { showMsgToast('Network error: ' + err.message, 'error'); }
   });
 }
 
 function startPolling(taskId, label) {
   const progressDiv = document.getElementById('action-progress');
-  const progressLabel = document.getElementById('progress-label');
-  const progressCount = document.getElementById('progress-count');
-  const progressBar = document.getElementById('progress-bar');
-  const progressErrors = document.getElementById('progress-errors');
-
-  progressDiv.classList.remove('hidden');
-  progressLabel.textContent = label + '...';
-  progressCount.textContent = '0 / 0';
-  progressBar.value = 0;
-  progressErrors.classList.add('hidden');
-
+  progressDiv.style.display = 'block';
+  document.getElementById('progress-label').textContent = label + '...';
+  document.getElementById('progress-count').textContent = '0 / 0';
+  setProgressBar(0);
+  document.getElementById('progress-errors').style.display = 'none';
   if (pollInterval) clearInterval(pollInterval);
-
   pollInterval = setInterval(async () => {
     try {
       const resp = await fetch(`/comics/task-progress/${taskId}/`);
       const data = await resp.json();
-
       if (data.state === 'PROGRESS') {
-        const current = data.current || 0;
-        const total = data.total || 1;
-        const pct = Math.round((current / total) * 100);
-        progressBar.value = pct;
-        progressCount.textContent = `${current} / ${total}`;
-        if (data.errors && data.errors.length > 0) {
-          progressErrors.classList.remove('hidden');
-          progressErrors.textContent = `${data.errors.length} error(s): ${data.errors[data.errors.length - 1]}`;
-        }
+        const pct = Math.round(((data.current||0) / (data.total||1)) * 100);
+        setProgressBar(pct);
+        document.getElementById('progress-count').textContent = `${data.current||0} / ${data.total||1}`;
+        if (data.errors?.length) { document.getElementById('progress-errors').style.display='block'; document.getElementById('progress-errors').textContent = data.errors[data.errors.length-1]; }
       } else if (data.state === 'SUCCESS') {
-        clearInterval(pollInterval);
-        pollInterval = null;
+        clearInterval(pollInterval); pollInterval = null;
         const r = data.result || {};
-        progressBar.value = 100;
-        progressLabel.textContent = `Done! ${r.success_count || 0} of ${r.total || 0} succeeded`;
-        progressCount.textContent = '';
-        if (r.errors && r.errors.length > 0) {
-          progressErrors.classList.remove('hidden');
-          progressErrors.textContent = r.errors.join('; ');
-        }
+        setProgressBar(100);
+        document.getElementById('progress-label').textContent = `Done! ${r.success_count||0} of ${r.total||0} succeeded`;
+        document.getElementById('progress-count').textContent = '';
         setTimeout(() => location.reload(), 1500);
       } else if (data.state === 'FAILURE') {
-        clearInterval(pollInterval);
-        pollInterval = null;
-        progressLabel.textContent = 'Failed';
-        progressBar.classList.remove('progress-primary');
-        progressBar.classList.add('progress-error');
-        progressErrors.classList.remove('hidden');
-        progressErrors.textContent = data.error || 'Unknown error';
+        clearInterval(pollInterval); pollInterval = null;
+        document.getElementById('progress-label').textContent = 'Failed';
+        document.getElementById('progress-bar-fill').style.background = 'var(--cm-err)';
+        document.getElementById('progress-errors').style.display = 'block';
+        document.getElementById('progress-errors').textContent = data.error || 'Unknown error';
       }
-    } catch (err) {
-      // Network error — keep polling
-    }
+    } catch {}
   }, 2000);
 }
 
-// Auto-resume polling on page load if there's an active task
 (function() {
   const activeTaskId = '{{ active_smartlist_action_task_id }}';
-  if (activeTaskId) {
-    startPolling(activeTaskId, 'Processing');
-    // Global toast auto-starts from base.html via active_smartlist_action_task_id
-  }
+  if (activeTaskId) startPolling(activeTaskId, 'Processing');
 })();
 
 function sortBy(field) {
   const url = new URL(window.location.href);
-  const currentSort = url.searchParams.get('sort') || '{{ smart_list.sort_field|default:"series" }}';
-  const currentDir = url.searchParams.get('dir') || '{{ smart_list.sort_direction|default:"asc" }}';
-  if (currentSort === field) {
-    url.searchParams.set('dir', currentDir === 'asc' ? 'desc' : 'asc');
-  } else {
-    url.searchParams.set('sort', field);
-    url.searchParams.set('dir', 'asc');
-  }
+  const cur = url.searchParams.get('sort') || '{{ smart_list.sort_field|default:"series" }}';
+  const dir = url.searchParams.get('dir') || '{{ smart_list.sort_direction|default:"asc" }}';
+  url.searchParams.set('sort', field);
+  url.searchParams.set('dir', cur === field && dir === 'asc' ? 'desc' : 'asc');
   url.searchParams.delete('page');
   window.location.href = url.toString();
 }
 
 function applyColumnToggle() {
   const checked = [...document.querySelectorAll('.sl-col-toggle:checked')].map(cb => cb.value);
-  if (checked.length === 0) {
-    showMsgToast('Select at least one column', 'info');
-    return;
-  }
+  if (!checked.length) { showMsgToast('Select at least one column', 'info'); return; }
   const url = new URL(window.location.href);
   url.searchParams.delete('col');
   checked.forEach(c => url.searchParams.append('col', c));

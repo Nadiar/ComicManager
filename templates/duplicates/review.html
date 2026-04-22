@@ -1,253 +1,164 @@
 {% extends "base.html" %}
-{% block title %}Duplicate Review - ComicManager{% endblock %}
+{% block title %}Duplicate Review — ComicManager{% endblock %}
 {% block nav_comics %}{% endblock %}
 
 {% block content %}
-<div class="space-y-6" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
-  <!-- Header -->
-  <div class="flex justify-between items-center">
-    <div>
-      <h1 class="text-3xl font-bold">Duplicate Review</h1>
-      <p class="text-base-content/70">
-        {{ total_pending }} duplicate group{{ total_pending|pluralize }} pending review
-      </p>
-    </div>
-    <div class="flex gap-2">
-      <a href="{% url 'duplicates:history' %}" class="btn btn-ghost btn-sm">View History</a>
-      <button
-        id="scan-all-btn"
-        class="btn btn-secondary btn-sm"
-        onclick="scanAll(this)"
-        title="Scan ALL comics regardless of state (catches existing duplicates)"
-      >
-        Scan All Comics
-      </button>
-      <button
-        id="detect-btn"
-        class="btn btn-primary btn-sm"
-        onclick="runDetection(this)"
-      >
-        Run Detection
-      </button>
-    </div>
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+  <div>
+    <h1 style="font-size:22px; font-weight:700; margin:0;">Duplicate Review</h1>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;">{{ total_pending }} duplicate group{{ total_pending|pluralize }} pending review</p>
   </div>
-
-  <!-- Stats -->
-  <div class="stats shadow bg-base-200 w-full">
-    <div class="stat">
-      <div class="stat-title">Pending Groups</div>
-      <div class="stat-value text-warning">{{ stats.pending_groups }}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-title">Resolved</div>
-      <div class="stat-value text-success">{{ stats.resolved_groups }}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-title">Intentional</div>
-      <div class="stat-value text-info">{{ stats.intentional_groups }}</div>
-    </div>
-    <div class="stat">
-      <div class="stat-title">Add Formats Comics</div>
-      <div class="stat-value">{{ stats.formatted_comics }}</div>
-      <div class="stat-desc">Awaiting detection</div>
-    </div>
-    <div class="stat">
-      <div class="stat-title">Deduplicate</div>
-      <div class="stat-value text-success">{{ stats.deduplicated_comics }}</div>
-    </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="{% url 'duplicates:history' %}" class="cm-btn sm ghost" style="text-decoration:none;">View History</a>
+    <button id="scan-all-btn" class="cm-btn sm ghost" onclick="scanAll(this)" title="Scan ALL comics regardless of state">Scan All Comics</button>
+    <button id="detect-btn" class="cm-btn sm primary" onclick="runDetection(this)">Run Detection</button>
   </div>
+</div>
 
-  <!-- Method filter tabs -->
-  <div class="flex gap-1 flex-wrap">
-    {% for label, key in method_tabs %}
-    <a href="?method={{ key }}"
-       class="btn btn-sm {% if method_filter == key %}btn-primary{% else %}btn-ghost btn-outline{% endif %}">
-      {{ label }}
-      {% with count=method_counts|default_if_none:0 %}
-      {% if key == "all" and method_counts.all %}
-      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.all }}</span>
-      {% elif key == "cv_id" and method_counts.cv_id %}
-      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.cv_id }}</span>
-      {% elif key == "metadata" and method_counts.metadata %}
-      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.metadata }}</span>
-      {% elif key == "phash" and method_counts.phash %}
-      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.phash }}</span>
-      {% elif key == "filename" and method_counts.filename %}
-      <span class="badge badge-sm {% if method_filter == key %}badge-neutral{% else %}badge-warning{% endif %} ml-1">{{ method_counts.filename }}</span>
-      {% endif %}
-      {% endwith %}
-    </a>
-    {% endfor %}
+<!-- Stats -->
+<div style="padding:12px 16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; border-bottom:1px solid var(--cm-border);">
+  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Pending</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-warn); margin-top:2px;" class="mono tnum">{{ stats.pending_groups }}</div>
   </div>
+  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Resolved</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ stats.resolved_groups }}</div>
+  </div>
+  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Intentional</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-info); margin-top:2px;" class="mono tnum">{{ stats.intentional_groups }}</div>
+  </div>
+  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Add Formats</div>
+    <div style="font-size:26px; font-weight:700; margin-top:2px;" class="mono tnum">{{ stats.formatted_comics }}</div>
+    <div style="font-size:10px; color:var(--cm-fg-3); margin-top:1px;">awaiting detection</div>
+  </div>
+  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Deduplicated</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ stats.deduplicated_comics }}</div>
+  </div>
+</div>
 
-  <!-- Help foldout -->
-  <details class="collapse collapse-arrow bg-info/15 border border-info/30 rounded-box">
-    <summary class="collapse-title text-sm font-medium py-2 min-h-0 text-info">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline h-4 w-4 mr-1 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+<!-- Method filter tabs -->
+<div style="padding:10px 16px; display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--cm-border);">
+  {% for label, key in method_tabs %}
+  <a href="?method={{ key }}" class="cm-btn sm {% if method_filter == key %}primary{% else %}ghost{% endif %}" style="text-decoration:none; display:flex; align-items:center; gap:5px;">
+    {{ label }}
+    {% if key == "all" and method_counts.all %}<span class="cm-chip {% if method_filter == key %}{% else %}warn{% endif %}" style="font-size:10px; padding:1px 5px;">{{ method_counts.all }}</span>
+    {% elif key == "cv_id" and method_counts.cv_id %}<span class="cm-chip {% if method_filter != key %}warn{% endif %}" style="font-size:10px; padding:1px 5px;">{{ method_counts.cv_id }}</span>
+    {% elif key == "metadata" and method_counts.metadata %}<span class="cm-chip {% if method_filter != key %}warn{% endif %}" style="font-size:10px; padding:1px 5px;">{{ method_counts.metadata }}</span>
+    {% elif key == "phash" and method_counts.phash %}<span class="cm-chip {% if method_filter != key %}warn{% endif %}" style="font-size:10px; padding:1px 5px;">{{ method_counts.phash }}</span>
+    {% elif key == "filename" and method_counts.filename %}<span class="cm-chip {% if method_filter != key %}warn{% endif %}" style="font-size:10px; padding:1px 5px;">{{ method_counts.filename }}</span>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+<!-- Help foldout -->
+<div style="margin:12px 16px 0;">
+  <details style="background:rgba(59,130,246,.07); border:1px solid rgba(59,130,246,.25); border-radius:6px; padding:0;">
+    <summary style="padding:10px 14px; cursor:pointer; font-size:12px; font-weight:600; color:var(--cm-info); user-select:none; list-style:none; display:flex; align-items:center; gap:6px;">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
       How does detection and resolution work?
     </summary>
-    <div class="collapse-content text-sm text-base-content/80 space-y-4">
-
+    <div style="padding:0 14px 14px; font-size:12px; color:var(--cm-fg-2); display:flex; flex-direction:column; gap:10px;">
       <div>
-        <p class="font-semibold mb-1">Actions</p>
-        <ul class="space-y-0.5">
+        <p style="font-weight:600; margin:0 0 4px;">Actions</p>
+        <ul style="margin:0; padding-left:16px; display:flex; flex-direction:column; gap:2px;">
           <li><strong>Keep &amp; Del Rest</strong>: keeps this comic and permanently deletes all others in the group.</li>
-          <li><strong>Keep</strong>: advances this comic. If only one other comic remains pending, it is auto-kept too and the group resolves. To explicitly discard others, use Del or Re-Q on them first.</li>
+          <li><strong>Keep</strong>: advances this comic. If only one other comic remains pending, it is auto-kept too and the group resolves.</li>
           <li><strong>Re-Q</strong>: removes from this group and sends back to Imported for re-scraping.</li>
           <li><strong>Del</strong>: permanently deletes this comic's file and record from disk.</li>
-          <li><strong>Keep All</strong>: marks all comics as intentional. Use this for false positives.</li>
+          <li><strong>Keep All</strong>: marks all comics as intentional. Use for false positives.</li>
         </ul>
       </div>
-
       <div>
-        <p class="font-semibold mb-1">Detection methods</p>
-        <dl class="space-y-2">
-          <div>
-            <dt class="inline"><span class="badge badge-sm badge-outline mr-1">CV ID</span></dt>
-            <dd class="inline">Two comics share the same ComicVine issue ID. Most reliable — both were scraped to the exact same CV issue. One digital + one physical of the same issue is never flagged.</dd>
-          </div>
-          <div>
-            <dt class="inline"><span class="badge badge-sm badge-outline mr-1">Series / Number</span></dt>
-            <dd class="inline">Same series name, issue number, and volume year. Catches unscraped duplicates. Skipped if page counts differ by more than 3x (prevents TPBs matching single issues) or if it's a single digital + physical pair.</dd>
-          </div>
-          <div>
-            <dt class="inline"><span class="badge badge-sm badge-outline mr-1">Cover Hash</span></dt>
-            <dd class="inline">Cover images compared by pHash Hamming distance (default threshold: 5 bits, adjustable under Settings &rsaquo; Deduplication). Distance 0 = identical. The Distance column shows how similar each cover is to the group anchor.</dd>
-          </div>
-          <div>
-            <dt class="inline"><span class="badge badge-sm badge-outline mr-1">Filename</span></dt>
-            <dd class="inline">OS-generated duplicate files where the OS appended a suffix: <code>file_1.cbz</code> / <code>file (1).cbz</code>. At least one file in the group must carry the suffix.</dd>
-          </div>
-        </dl>
+        <p style="font-weight:600; margin:0 0 4px;">Detection methods</p>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div><span class="cm-chip" style="font-size:10.5px; margin-right:6px;">CV ID</span>Two comics share the same ComicVine issue ID.</div>
+          <div><span class="cm-chip" style="font-size:10.5px; margin-right:6px;">Series / Number</span>Same series name, issue number, and volume year.</div>
+          <div><span class="cm-chip" style="font-size:10.5px; margin-right:6px;">Cover Hash</span>Cover images compared by pHash Hamming distance. Distance 0 = identical.</div>
+          <div><span class="cm-chip" style="font-size:10.5px; margin-right:6px;">Filename</span>OS-generated duplicate files with appended suffix.</div>
+        </div>
       </div>
-
     </div>
   </details>
+</div>
 
-  <!-- Duplicate groups -->
+<!-- Duplicate groups -->
+<div style="padding:12px 16px; display:flex; flex-direction:column; gap:10px;">
   {% if groups %}
-  <div class="space-y-4">
-    {% for group in groups %}
-    {% include "duplicates/partials/group_card.html" with group=group %}
-    {% endfor %}
-  </div>
+  {% for group in groups %}
+  {% include "duplicates/partials/group_card.html" with group=group %}
+  {% endfor %}
   {% else %}
-  <div class="alert alert-info">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-    </svg>
-    <span>
-      {% if method_filter == "all" %}
-      No pending duplicate groups.
-      {% if stats.formatted_comics > 0 %}
-      Click "Run Detection" to scan {{ stats.formatted_comics }} formatted comic{{ stats.formatted_comics|pluralize }} for duplicates.
-      {% else %}
-      No comics in 'formatted' state to scan.
-      {% endif %}
-      {% else %}
-      No pending groups for this detection method.
-      {% endif %}
-    </span>
+  <div style="padding:48px 0; text-align:center; color:var(--cm-fg-3); font-size:14px;">
+    {% if method_filter == "all" %}
+    No pending duplicate groups.
+    {% if stats.formatted_comics > 0 %}Click "Run Detection" to scan {{ stats.formatted_comics }} formatted comic{{ stats.formatted_comics|pluralize }}.{% endif %}
+    {% else %}No pending groups for this detection method.{% endif %}
   </div>
   {% endif %}
+</div>
 
 </div>
 
-<!-- Lightbox Modal -->
+<!-- Cover lightbox -->
 <dialog id="cover-lightbox" class="modal">
-  <div class="modal-box max-w-3xl p-2 bg-base-300">
+  <div class="modal-box max-w-3xl p-2" style="background:var(--cm-bg-1); border:1px solid var(--cm-border);">
     <form method="dialog">
       <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-10">✕</button>
     </form>
-    <h3 class="font-bold text-lg mb-2 px-2" id="lightbox-title"></h3>
-    <img id="lightbox-image" src="" alt="Cover" class="w-full h-auto rounded" />
+    <h3 style="font-weight:700; font-size:14px; margin:0 0 8px; padding:0 8px;" id="lightbox-title"></h3>
+    <img id="lightbox-image" src="" alt="Cover" style="width:100%; height:auto; border-radius:4px;" />
   </div>
-  <form method="dialog" class="modal-backdrop">
-    <button>close</button>
-  </form>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
 <script>
-// Cover lightbox - use event delegation for HTMX compatibility
 document.addEventListener('click', function(e) {
   if (e.target.classList.contains('cover-thumb')) {
-    const src = e.target.dataset.fullSrc;
-    const title = e.target.dataset.title;
-    const modal = document.getElementById('cover-lightbox');
-    document.getElementById('lightbox-image').src = src;
-    document.getElementById('lightbox-title').textContent = title;
-    modal.showModal();
+    document.getElementById('lightbox-image').src = e.target.dataset.fullSrc;
+    document.getElementById('lightbox-title').textContent = e.target.dataset.title;
+    document.getElementById('cover-lightbox').showModal();
   }
 });
 
 function getCsrfToken() {
-  return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
-         document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1] ||
-         '{{ csrf_token }}';
+  return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '{{ csrf_token }}';
 }
 
 function runDetection(btn) {
   showConfirm('Run duplicate detection on all formatted comics?', async () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Detecting...';
-
-  try {
-    const resp = await fetch('{% url "duplicates:detect" %}', {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': getCsrfToken(),
-      },
-    });
-    const data = await resp.json();
-
-    if (data.success) {
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-success');
-      btn.innerHTML = `Done! ${data.groups_created} groups, ${data.advanced} advanced`;
-      setTimeout(() => location.reload(), 1500);
-    } else {
-      btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
-      btn.disabled = false;
-    }
-  } catch (err) {
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.disabled = false;
-  }
+    btn.disabled = true;
+    btn.textContent = 'Detecting...';
+    try {
+      const resp = await fetch('{% url "duplicates:detect" %}', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+      const data = await resp.json();
+      if (data.success) {
+        btn.textContent = `Done! ${data.groups_created} groups, ${data.advanced} advanced`;
+        setTimeout(() => location.reload(), 1500);
+      } else { btn.textContent = 'Error'; btn.disabled = false; }
+    } catch { btn.textContent = 'Error'; btn.disabled = false; }
   });
 }
 
 function scanAll(btn) {
-  showConfirm('Scan ALL digital comics for duplicates regardless of state? This catches existing duplicates that already passed through the workflow.', async () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Scanning...';
-
-  try {
-    const resp = await fetch('{% url "duplicates:scan_all" %}', {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': getCsrfToken(),
-      },
-    });
-    const data = await resp.json();
-
-    if (data.success) {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-success');
-      btn.innerHTML = `Found ${data.groups_created} groups (CV:${data.by_cv_id}, Meta:${data.by_metadata}, Hash:${data.by_phash}, File:${data.by_filename || 0})`;
-      setTimeout(() => location.reload(), 2000);
-    } else {
-      btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
-      btn.disabled = false;
-    }
-  } catch (err) {
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.disabled = false;
-  }
+  showConfirm('Scan ALL digital comics for duplicates regardless of state?', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    try {
+      const resp = await fetch('{% url "duplicates:scan_all" %}', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+      const data = await resp.json();
+      if (data.success) {
+        btn.textContent = `Found ${data.groups_created} groups`;
+        setTimeout(() => location.reload(), 2000);
+      } else { btn.textContent = 'Error'; btn.disabled = false; }
+    } catch { btn.textContent = 'Error'; btn.disabled = false; }
   });
 }
 </script>

@@ -3,132 +3,104 @@
 {% block nav_audit %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
 
 {% if unavailable %}
-  <!-- Data source unavailable -->
-  <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
-    <div>
-      <h1 class="text-3xl font-bold">Series Audit</h1>
-    </div>
-    <div class="flex gap-2">
-      {% if comic %}
-        <a href="{% url 'core:detail' comic.pk %}" class="btn btn-ghost">Back to Comic</a>
-      {% endif %}
-      <a href="{% url 'core:character_audit_search' %}" class="btn btn-ghost">Audit Search</a>
-    </div>
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border);">
+  <h1 style="font-size:22px; font-weight:700; margin:0;">Series Audit</h1>
+  <div style="display:flex; gap:8px;">
+    {% if comic %}<a href="{% url 'core:detail' comic.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Comic</a>{% endif %}
+    <a href="{% url 'core:character_audit_search' %}" class="cm-btn sm ghost" style="text-decoration:none;">Audit Search</a>
   </div>
-  <div class="alert alert-warning">
-    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-    </svg>
-    <div>
-      <div class="font-bold">Series Audit unavailable</div>
-      <div class="text-sm">{{ unavailable_reason }}</div>
-      <div class="text-sm mt-1">Provide <code class="font-mono">./data/comicvine.db</code> or <code class="font-mono">./data/latest.mcl</code> and restart the app.</div>
-    </div>
-  </div>
+</div>
+<div style="margin:20px 16px; padding:14px 16px; background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.3); border-radius:8px; font-size:13px;">
+  <div style="font-weight:700; color:var(--cm-warn); margin-bottom:4px;">Series Audit unavailable</div>
+  <div style="color:var(--cm-fg-2);">{{ unavailable_reason }}</div>
+  <div style="color:var(--cm-fg-3); margin-top:6px; font-size:12px;">Provide <code style="font-family:monospace;">./data/comicvine.db</code> or <code style="font-family:monospace;">./data/latest.mcl</code> and restart the app.</div>
+</div>
 
 {% else %}
-  <!-- Header -->
-  <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
-    <div>
-      <h1 class="text-3xl font-bold">{{ data.volume_info.name }}{% if data.volume_info.start_year %} ({{ data.volume_info.start_year }}){% endif %}</h1>
-      <div class="flex gap-2 mt-2">
-        {% if data.volume_info.publisher %}
-        <span class="badge badge-lg">{{ data.volume_info.publisher }}</span>
-        {% endif %}
-        <span class="badge badge-lg badge-outline">{{ data.total_count }} issues</span>
-        <span class="badge badge-lg badge-success">{{ data.owned_count }} owned</span>
-        <span class="badge badge-lg badge-error badge-outline">{{ data.missing_count }} missing</span>
-      </div>
-    </div>
-    <div class="flex gap-2">
-      {% if comic %}
-        <a href="{% url 'core:detail' comic.pk %}" class="btn btn-ghost">Back to Comic</a>
-      {% endif %}
-      <a href="{% url 'core:character_audit_search' %}" class="btn btn-ghost">Audit Search</a>
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+  <div>
+    <h1 style="font-size:22px; font-weight:700; margin:0;">
+      {{ data.volume_info.name }}{% if data.volume_info.start_year %} <span style="color:var(--cm-fg-3); font-weight:400;">({{ data.volume_info.start_year }})</span>{% endif %}
+    </h1>
+    <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+      {% if data.volume_info.publisher %}<span class="cm-chip" style="font-size:11px;">{{ data.volume_info.publisher }}</span>{% endif %}
+      <span class="cm-chip" style="font-size:11px;" class="mono tnum">{{ data.total_count }} issues</span>
+      <span class="cm-chip ok" style="font-size:11px;" class="mono tnum">{{ data.owned_count }} owned</span>
+      <span class="cm-chip err" style="font-size:11px;" class="mono tnum">{{ data.missing_count }} missing</span>
     </div>
   </div>
-
-  <!-- Progress bar -->
-  <div class="w-full bg-base-300 rounded-full h-4 overflow-hidden">
-    <div class="h-full rounded-full transition-all
-      {% if data.completion >= 90 %}bg-success{% elif data.completion >= 70 %}bg-info{% elif data.completion >= 30 %}bg-warning{% else %}bg-error{% endif %}"
-      style="width: {{ data.completion }}%">
-    </div>
+  <div style="display:flex; gap:8px; flex-shrink:0;">
+    {% if comic %}<a href="{% url 'core:detail' comic.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Comic</a>{% endif %}
+    <a href="{% url 'core:character_audit_search' %}" class="cm-btn sm ghost" style="text-decoration:none;">Audit Search</a>
   </div>
-  <p class="text-sm text-base-content/60 -mt-4 text-right">{{ data.completion }}% complete</p>
-
-  <!-- Issue Grid -->
-  <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-    {% for issue in data.all_issues %}
-    {% if issue.comic_pk %}
-    {# Owned issue — link to comic detail, show local cover #}
-    <a href="{% url 'core:detail' issue.comic_pk %}" class="card card-compact bg-base-200 hover:ring-2 hover:ring-success transition-all group">
-      <figure class="px-2 pt-2">
-        <img src="{% url 'core:cover' issue.comic_pk %}"
-             alt="#{{ issue.issue_number }}"
-             class="rounded shadow-md w-full h-auto"
-             loading="lazy"
-             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-        <div class="hidden bg-success/20 rounded w-full aspect-[2/3] items-center justify-center">
-          <span class="text-4xl text-success">&#10003;</span>
-        </div>
-      </figure>
-      <div class="card-body p-2 gap-0">
-        <div class="flex items-center justify-between">
-          <span class="font-semibold text-sm">#{{ issue.issue_number }}</span>
-          <span class="badge badge-success badge-xs">owned</span>
-        </div>
-        {% if issue.title %}
-        <p class="text-xs text-base-content/60 truncate">{{ issue.title }}</p>
-        {% endif %}
-      </div>
-    </a>
-    {% else %}
-    {# Missing issue — show CV cover or placeholder, link to ComicVine #}
-    <div class="card card-compact bg-base-200 opacity-60 hover:opacity-100 transition-all">
-      {% if issue.site_detail_url %}
-      <a href="{{ issue.site_detail_url }}" target="_blank" rel="noopener">
-      {% endif %}
-      <figure class="px-2 pt-2 relative">
-        {% if issue.cover_url %}
-        <img src="{% url 'core:cv_cover' issue.issue_id %}?url={{ issue.cover_url|urlencode }}"
-             alt="#{{ issue.issue_number }}"
-             class="rounded shadow-md w-full h-auto grayscale"
-             loading="lazy"
-             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-        <div class="hidden bg-base-300 rounded w-full aspect-[2/3] items-center justify-center">
-          <span class="text-4xl text-error">&#10005;</span>
-        </div>
-        {% else %}
-        <div class="bg-base-300 rounded w-full aspect-[2/3] flex items-center justify-center">
-          <span class="text-4xl text-error">&#10005;</span>
-        </div>
-        {% endif %}
-        <div class="absolute top-3 right-3">
-          <span class="badge badge-error badge-sm">missing</span>
-        </div>
-      </figure>
-      <div class="card-body p-2 gap-0">
-        <span class="font-semibold text-sm">#{{ issue.issue_number }}</span>
-        {% if issue.title %}
-        <p class="text-xs text-base-content/60 truncate">{{ issue.title }}</p>
-        {% endif %}
-      </div>
-      {% if issue.site_detail_url %}
-      </a>
-      {% endif %}
-    </div>
-    {% endif %}
-    {% endfor %}
-  </div>
-
-  {% if data.source == "mcl" %}
-  <p class="text-xs text-base-content/50">Data from latest.mcl — cover images not available without comicvine.db.</p>
-  {% endif %}
-
-{% endif %}{# end unavailable/data block #}
 </div>
+
+<!-- Progress bar -->
+<div style="padding:12px 16px; border-bottom:1px solid var(--cm-border);">
+  <div style="background:var(--cm-bg-2); border-radius:4px; height:8px; overflow:hidden;">
+    <div style="height:100%; border-radius:4px; transition:width .3s;
+      {% if data.completion >= 90 %}background:var(--cm-ok){% elif data.completion >= 70 %}background:var(--cm-info){% elif data.completion >= 30 %}background:var(--cm-warn){% else %}background:var(--cm-err){% endif %};
+      width:{{ data.completion }}%;"></div>
+  </div>
+  <div style="text-align:right; font-size:11px; color:var(--cm-fg-3); margin-top:4px;" class="mono tnum">{{ data.completion }}% complete</div>
+</div>
+
+<!-- Issue grid -->
+<div style="padding:16px; display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px;">
+  {% for issue in data.all_issues %}
+  {% if issue.comic_pk %}
+  <a href="{% url 'core:detail' issue.comic_pk %}" style="display:block; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; overflow:hidden; text-decoration:none; transition:border-color .15s;" onmouseenter="this.style.borderColor='var(--cm-ok)'" onmouseleave="this.style.borderColor='var(--cm-border)'">
+    <div style="padding:4px;">
+      <img src="{% url 'core:cover' issue.comic_pk %}"
+           alt="#{{ issue.issue_number }}"
+           style="width:100%; border-radius:3px; display:block;"
+           loading="lazy"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      <div style="display:none; background:rgba(34,197,94,.1); border-radius:3px; aspect-ratio:2/3; align-items:center; justify-content:center; font-size:24px; color:var(--cm-ok);">✓</div>
+    </div>
+    <div style="padding:4px 6px 6px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:4px;">
+        <span style="font-size:12px; font-weight:600;" class="mono tnum">#{{ issue.issue_number }}</span>
+        <span class="cm-chip ok" style="font-size:9px; padding:1px 4px;">owned</span>
+      </div>
+      {% if issue.title %}<p style="font-size:10.5px; color:var(--cm-fg-3); margin:2px 0 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ issue.title }}</p>{% endif %}
+    </div>
+  </a>
+  {% else %}
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; overflow:hidden; opacity:.55; transition:opacity .15s;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='.55'">
+    {% if issue.site_detail_url %}<a href="{{ issue.site_detail_url }}" target="_blank" rel="noopener" style="display:block; text-decoration:none; color:inherit;">{% endif %}
+    <div style="padding:4px; position:relative;">
+      {% if issue.cover_url %}
+      <img src="{% url 'core:cv_cover' issue.issue_id %}?url={{ issue.cover_url|urlencode }}"
+           alt="#{{ issue.issue_number }}"
+           style="width:100%; border-radius:3px; display:block; filter:grayscale(1);"
+           loading="lazy"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      <div style="display:none; background:var(--cm-bg-2); border-radius:3px; aspect-ratio:2/3; align-items:center; justify-content:center; font-size:24px; color:var(--cm-err);">✕</div>
+      {% else %}
+      <div style="background:var(--cm-bg-2); border-radius:3px; aspect-ratio:2/3; display:flex; align-items:center; justify-content:center; font-size:24px; color:var(--cm-err);">✕</div>
+      {% endif %}
+      <div style="position:absolute; top:7px; right:7px;">
+        <span class="cm-chip err" style="font-size:9px; padding:1px 4px;">missing</span>
+      </div>
+    </div>
+    <div style="padding:4px 6px 6px;">
+      <span style="font-size:12px; font-weight:600;" class="mono tnum">#{{ issue.issue_number }}</span>
+      {% if issue.title %}<p style="font-size:10.5px; color:var(--cm-fg-3); margin:2px 0 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ issue.title }}</p>{% endif %}
+    </div>
+    {% if issue.site_detail_url %}</a>{% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+{% if data.source == "mcl" %}
+<p style="padding:0 16px 16px; font-size:11px; color:var(--cm-fg-3);">Data from latest.mcl — cover images not available without comicvine.db.</p>
+{% endif %}
+
+{% endif %}
 {% endblock %}

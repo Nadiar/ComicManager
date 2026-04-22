@@ -1,151 +1,153 @@
 {% extends "base.html" %}
-
-{% block title %}{{ action }} Ruleset - DataManager{% endblock %}
+{% block title %}{{ action }} Ruleset — Tagging Rules — ComicManager{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-  <div class="text-sm breadcrumbs mb-2">
-    <ul>
-      <li><a href="{% url 'tagging:ruleset_list' %}">Rulesets</a></li>
-      <li>{{ action }} Ruleset</li>
-    </ul>
+
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border);">
+  <div>
+    <div style="font-size:11px; color:var(--cm-fg-3); margin-bottom:2px;">
+      <a href="{% url 'tagging:ruleset_list' %}" style="color:var(--cm-fg-3); text-decoration:none;">Rulesets</a> / {{ action }}
+    </div>
+    <h1 style="font-size:22px; font-weight:700; margin:0;">{{ action }} Ruleset</h1>
   </div>
-  <h1 class="text-2xl font-bold">{{ action }} Ruleset</h1>
+  <a href="{% url 'tagging:ruleset_list' %}" class="cm-btn sm ghost" style="text-decoration:none;">Cancel</a>
 </div>
 
-<form method="post" class="space-y-6">
+<style>
+/* Shims for JS-generated DaisyUI elements */
+.select-bordered, .input-bordered, .textarea-bordered {
+  border: 1px solid var(--cm-border);
+  background: var(--cm-bg-1);
+  color: var(--cm-fg-1);
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+  font-size: 12px;
+}
+.select-bordered:focus, .input-bordered:focus { border-color: var(--cm-accent); }
+.select-sm, .input-sm { height: 28px; font-size: 12px; }
+.bg-base-300 { background: var(--cm-bg-2) !important; }
+.rounded-lg { border-radius: 6px !important; }
+.p-3 { padding: 10px 12px !important; }
+.btn-ghost.btn-sm.btn-square, .btn-ghost.btn-sm { background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; padding: 4px 8px; font-size: 12px; color: var(--cm-fg-2); }
+.text-error { color: var(--cm-err) !important; }
+.btn-ghost.btn-sm.btn-square { width: 28px; height: 28px; padding: 0; text-align: center; }
+.flex { display: flex !important; }
+.flex-wrap { flex-wrap: wrap !important; }
+.gap-2 { gap: 8px !important; }
+.items-center { align-items: center !important; }
+.flex-1 { flex: 1 !important; }
+.min-w-48 { min-width: 180px !important; }
+.w-40 { width: 160px !important; }
+</style>
+
+<form method="post" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
   {% csrf_token %}
 
   <!-- Basic Info -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">Basic Information</h2>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Name *</span>
-          </label>
-          <input type="text" name="name" value="{{ ruleset.name|default:'' }}" required class="input input-bordered" placeholder="e.g., Green Lantern">
-        </div>
-
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Group Path</span>
-          </label>
-          <input type="text" name="group_path" value="{{ ruleset.group_path|default:'' }}" class="input input-bordered" placeholder="e.g., DC Series Groups/Cosmic/OA">
-        </div>
-
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Mode</span>
-          </label>
-          <select name="mode" class="select select-bordered">
-            {% for value, label in mode_choices %}
-            <option value="{{ value }}" {% if ruleset.mode == value %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Priority</span>
-          </label>
-          <input type="number" name="priority" value="{{ ruleset.priority|default:0 }}" class="input input-bordered" placeholder="0">
-          <label class="label">
-            <span class="label-text-alt">Lower = evaluated earlier</span>
-          </label>
-        </div>
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Basic Information</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div>
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Name *</label>
+        <input type="text" name="name" value="{{ ruleset.name|default:'' }}" required class="cm-input" placeholder="e.g., Green Lantern" style="width:100%;">
       </div>
-
-      <div class="form-control">
-        <label class="label">
-          <span class="label-text">Comment</span>
-        </label>
-        <textarea name="comment" rows="2" class="textarea textarea-bordered" placeholder="Optional notes about this ruleset">{{ ruleset.comment|default:'' }}</textarea>
+      <div>
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Group Path</label>
+        <input type="text" name="group_path" value="{{ ruleset.group_path|default:'' }}" class="cm-input" placeholder="e.g., DC Series Groups/Cosmic/OA" style="width:100%;">
       </div>
-
-      <div class="form-control">
-        <label class="label cursor-pointer justify-start gap-4">
-          <input type="checkbox" name="is_enabled" class="checkbox checkbox-primary" {% if ruleset.is_enabled or not ruleset %}checked{% endif %}>
-          <span class="label-text">Enabled</span>
-        </label>
+      <div>
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Mode</label>
+        <select name="mode" class="cm-input" style="height:30px; font-size:12px; width:100%;">
+          {% for value, label in mode_choices %}
+          <option value="{{ value }}" {% if ruleset.mode == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
       </div>
+      <div>
+        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Priority</label>
+        <input type="number" name="priority" value="{{ ruleset.priority|default:0 }}" class="cm-input" placeholder="0" style="width:100%;">
+        <div style="font-size:11px; color:var(--cm-fg-3); margin-top:3px;">Lower = evaluated earlier</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;">
+      <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Comment</label>
+      <textarea name="comment" rows="2" class="cm-input" placeholder="Optional notes about this ruleset" style="width:100%; resize:vertical;">{{ ruleset.comment|default:'' }}</textarea>
+    </div>
+    <div style="margin-top:10px;">
+      <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer;">
+        <input type="checkbox" name="is_enabled" {% if ruleset.is_enabled or not ruleset %}checked{% endif %} style="accent-color:var(--cm-accent); width:14px; height:14px;">
+        Enabled
+      </label>
     </div>
   </div>
 
   <!-- Rules -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <div class="flex justify-between items-center">
-        <h2 class="card-title">Rules (Conditions)</h2>
-        <button type="button" onclick="addRule()" class="btn btn-sm btn-outline">Add Rule</button>
-      </div>
-      <p class="text-sm text-base-content/70">Define conditions that must match for this ruleset to apply.</p>
-
-      <div id="rules-container" class="space-y-3 mt-4">
-        {% if ruleset.rules %}
-          {% for rule in ruleset.rules %}
-          <div class="rule-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg">
-            <select name="rule_field_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
-              <option value="">Select field...</option>
-              {% for field in field_options %}
-              <option value="{{ field }}" {% if rule.field == field %}selected{% endif %}>{{ field }}</option>
-              {% endfor %}
-            </select>
-            <select name="rule_modifier_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
-              <option value="">Select modifier...</option>
-              {% for mod in rule_modifier_options %}
-              <option value="{{ mod }}" {% if rule.modifier == mod %}selected{% endif %}>{{ mod }}</option>
-              {% endfor %}
-            </select>
-            <input type="text" name="rule_value_{{ forloop.counter0 }}" value="{{ rule.value }}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value (use || for multiple)">
-            <button type="button" onclick="this.closest('.rule-row').remove()" class="btn btn-ghost btn-sm btn-square text-error">×</button>
-          </div>
-          {% endfor %}
-        {% endif %}
-      </div>
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+      <div style="font-size:15px; font-weight:700;">Rules (Conditions)</div>
+      <button type="button" onclick="addRule()" class="cm-btn sm ghost">Add Rule</button>
+    </div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:10px;">Define conditions that must match for this ruleset to apply.</p>
+    <div id="rules-container" style="display:flex; flex-direction:column; gap:8px;">
+      {% if ruleset.rules %}
+        {% for rule in ruleset.rules %}
+        <div class="rule-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg">
+          <select name="rule_field_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+            <option value="">Select field...</option>
+            {% for field in field_options %}
+            <option value="{{ field }}" {% if rule.field == field %}selected{% endif %}>{{ field }}</option>
+            {% endfor %}
+          </select>
+          <select name="rule_modifier_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+            <option value="">Select modifier...</option>
+            {% for mod in rule_modifier_options %}
+            <option value="{{ mod }}" {% if rule.modifier == mod %}selected{% endif %}>{{ mod }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" name="rule_value_{{ forloop.counter0 }}" value="{{ rule.value }}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value (use || for multiple)">
+          <button type="button" onclick="this.closest('.rule-row').remove()" class="btn-ghost btn-sm btn-square text-error">×</button>
+        </div>
+        {% endfor %}
+      {% endif %}
     </div>
   </div>
 
   <!-- Actions -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <div class="flex justify-between items-center">
-        <h2 class="card-title">Actions</h2>
-        <button type="button" onclick="addAction()" class="btn btn-sm btn-outline">Add Action</button>
-      </div>
-      <p class="text-sm text-base-content/70">Define changes to apply when rules match.</p>
-
-      <div id="actions-container" class="space-y-3 mt-4">
-        {% if ruleset.actions %}
-          {% for action in ruleset.actions %}
-          <div class="action-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg">
-            <select name="action_field_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
-              <option value="">Select field...</option>
-              {% for field in field_options %}
-              <option value="{{ field }}" {% if action.field == field %}selected{% endif %}>{{ field }}</option>
-              {% endfor %}
-            </select>
-            <select name="action_modifier_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
-              <option value="">Select modifier...</option>
-              {% for mod in action_modifier_options %}
-              <option value="{{ mod }}" {% if action.modifier == mod %}selected{% endif %}>{{ mod }}</option>
-              {% endfor %}
-            </select>
-            <input type="text" name="action_value_{{ forloop.counter0 }}" value="{{ action.value }}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value">
-            <button type="button" onclick="this.closest('.action-row').remove()" class="btn btn-ghost btn-sm btn-square text-error">×</button>
-          </div>
-          {% endfor %}
-        {% endif %}
-      </div>
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+      <div style="font-size:15px; font-weight:700;">Actions</div>
+      <button type="button" onclick="addAction()" class="cm-btn sm ghost">Add Action</button>
+    </div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:10px;">Define changes to apply when rules match.</p>
+    <div id="actions-container" style="display:flex; flex-direction:column; gap:8px;">
+      {% if ruleset.actions %}
+        {% for action in ruleset.actions %}
+        <div class="action-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg">
+          <select name="action_field_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+            <option value="">Select field...</option>
+            {% for field in field_options %}
+            <option value="{{ field }}" {% if action.field == field %}selected{% endif %}>{{ field }}</option>
+            {% endfor %}
+          </select>
+          <select name="action_modifier_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+            <option value="">Select modifier...</option>
+            {% for mod in action_modifier_options %}
+            <option value="{{ mod }}" {% if action.modifier == mod %}selected{% endif %}>{{ mod }}</option>
+            {% endfor %}
+          </select>
+          <input type="text" name="action_value_{{ forloop.counter0 }}" value="{{ action.value }}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value">
+          <button type="button" onclick="this.closest('.action-row').remove()" class="btn-ghost btn-sm btn-square text-error">×</button>
+        </div>
+        {% endfor %}
+      {% endif %}
     </div>
   </div>
 
-  <!-- Submit -->
-  <div class="flex justify-end gap-2">
-    <a href="{% url 'tagging:ruleset_list' %}" class="btn btn-ghost">Cancel</a>
-    <button type="submit" class="btn btn-primary">Save Ruleset</button>
+  <div style="display:flex; justify-content:flex-end; gap:8px;">
+    <a href="{% url 'tagging:ruleset_list' %}" class="cm-btn sm ghost" style="text-decoration:none;">Cancel</a>
+    <button type="submit" class="cm-btn sm primary">Save Ruleset</button>
   </div>
 </form>
 
@@ -171,7 +173,7 @@ function addRule() {
       ${ruleModifierOptions.map(m => `<option value="${m}">${m}</option>`).join('')}
     </select>
     <input type="text" name="rule_value_${ruleIndex}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value (use || for multiple)">
-    <button type="button" onclick="this.closest('.rule-row').remove()" class="btn btn-ghost btn-sm btn-square text-error">×</button>
+    <button type="button" onclick="this.closest('.rule-row').remove()" class="btn-ghost btn-sm btn-square text-error">×</button>
   `;
   container.appendChild(row);
   ruleIndex++;
@@ -191,7 +193,7 @@ function addAction() {
       ${actionModifierOptions.map(m => `<option value="${m}">${m}</option>`).join('')}
     </select>
     <input type="text" name="action_value_${actionIndex}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value">
-    <button type="button" onclick="this.closest('.action-row').remove()" class="btn btn-ghost btn-sm btn-square text-error">×</button>
+    <button type="button" onclick="this.closest('.action-row').remove()" class="btn-ghost btn-sm btn-square text-error">×</button>
   `;
   container.appendChild(row);
   actionIndex++;

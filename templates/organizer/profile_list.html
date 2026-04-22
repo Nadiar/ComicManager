@@ -3,166 +3,139 @@
 {% block nav_organizer %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
 
-  <div class="flex justify-between items-center">
-    <h1 class="text-3xl font-bold">File Organizer Profiles</h1>
-    <div class="flex gap-2">
-      <a href="{% url 'organizer:import' %}" class="btn btn-outline">Import .lop</a>
-      {% if profiles %}<a href="{% url 'organizer:export' %}" class="btn btn-outline">Export .lop</a>{% endif %}
-      <a href="{% url 'organizer:profile_create' %}" class="btn btn-primary">New Profile</a>
-    </div>
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+  <h1 style="font-size:22px; font-weight:700; margin:0;">File Organizer Profiles</h1>
+  <div style="display:flex; gap:8px;">
+    <a href="{% url 'organizer:import' %}" class="cm-btn sm ghost" style="text-decoration:none;">Import .lop</a>
+    {% if profiles %}<a href="{% url 'organizer:export' %}" class="cm-btn sm ghost" style="text-decoration:none;">Export .lop</a>{% endif %}
+    <a href="{% url 'organizer:profile_create' %}" class="cm-btn sm primary" style="text-decoration:none;">New Profile</a>
   </div>
-
-  <!-- Stats -->
-  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Total Profiles</div>
-      <div class="stat-value text-primary">{{ stats.total_profiles }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Enabled</div>
-      <div class="stat-value text-success">{{ stats.enabled_profiles }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Pending</div>
-      <div class="stat-value text-warning">{{ stats.pending_organization }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Organized</div>
-      <div class="stat-value text-info">{{ stats.already_organized }}</div>
-    </div>
-  </div>
-
-  <!-- Profiles Table -->
-  {% if profiles %}
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">Profiles (by priority order)</h2>
-      <p class="text-sm text-base-content/60">
-        Comics are matched against profiles in priority order. The first matching profile determines the destination path.
-      </p>
-
-      <div class="overflow-x-auto mt-4">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th class="w-8"></th>
-              <th class="w-16">Priority</th>
-              <th>Name</th>
-              <th>Folder Template</th>
-              <th class="w-24 text-center">Rules</th>
-              <th class="w-24 text-center">Status</th>
-              <th class="w-32">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="profiles-tbody">
-            {% for profile in profiles %}
-            <tr class="{% if not profile.is_enabled %}opacity-50{% endif %}" data-pk="{{ profile.pk }}" draggable="true">
-              <td class="drag-handle cursor-grab text-base-content/30 hover:text-base-content/70 select-none text-lg px-2">⠿</td>
-              <td class="font-mono text-sm priority-cell">{{ profile.priority }}</td>
-              <td>
-                <a href="{% url 'organizer:profile_detail' profile.pk %}" class="link link-hover font-medium">
-                  {{ profile.name }}
-                </a>
-              </td>
-              <td class="font-mono text-xs text-base-content/70 max-w-xs truncate" title="{{ profile.folder_template }}">
-                {{ profile.folder_template|truncatechars:60 }}
-              </td>
-              <td class="text-center">
-                {% with profile.exclude_rules.rules|length as rule_count %}
-                {% if rule_count %}
-                <span class="badge badge-sm badge-outline">{{ rule_count }}</span>
-                {% else %}
-                <span class="text-base-content/40">-</span>
-                {% endif %}
-                {% endwith %}
-              </td>
-              <td class="text-center">
-                {% if profile.is_enabled %}
-                <span class="badge badge-success badge-sm">Enabled</span>
-                {% else %}
-                <span class="badge badge-ghost badge-sm">Disabled</span>
-                {% endif %}
-              </td>
-              <td>
-                <div class="flex gap-1">
-                  <a href="{% url 'organizer:profile_edit' profile.pk %}" class="btn btn-xs btn-ghost">Edit</a>
-                  <button
-                    onclick="toggleProfile({{ profile.pk }}, this)"
-                    class="btn btn-xs btn-ghost"
-                  >
-                    {% if profile.is_enabled %}Disable{% else %}Enable{% endif %}
-                  </button>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-  {% else %}
-  <div class="alert alert-info">
-    <span>No organizer profiles found. Import a .lop file or create a new profile to get started.</span>
-  </div>
-  {% endif %}
-
 </div>
+
+<!-- Stats -->
+<div style="padding:12px 16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; border-bottom:1px solid var(--cm-border);">
+  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Total Profiles</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-accent); margin-top:2px;" class="mono tnum">{{ stats.total_profiles }}</div>
+  </div>
+  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Enabled</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ stats.enabled_profiles }}</div>
+  </div>
+  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Pending</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-warn); margin-top:2px;" class="mono tnum">{{ stats.pending_organization }}</div>
+  </div>
+  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Organized</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-info); margin-top:2px;" class="mono tnum">{{ stats.already_organized }}</div>
+  </div>
+</div>
+
+{% if profiles %}
+<!-- Profiles Table -->
+<div style="padding:16px;">
+  <div style="font-size:12px; color:var(--cm-fg-3); margin-bottom:10px;">Comics are matched against profiles in priority order. The first matching profile determines the destination path.</div>
+  <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1);">
+          <th style="padding:8px 12px; width:24px;"></th>
+          <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:60px;">Priority</th>
+          <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Name</th>
+          <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Folder Template</th>
+          <th style="padding:8px 12px; text-align:center; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:70px;">Rules</th>
+          <th style="padding:8px 12px; text-align:center; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:80px;">Status</th>
+          <th style="padding:8px 12px; width:120px;"></th>
+        </tr>
+      </thead>
+      <tbody id="profiles-tbody">
+        {% for profile in profiles %}
+        <tr style="border-bottom:1px solid var(--cm-border); {% if not profile.is_enabled %}opacity:.5;{% endif %}" data-pk="{{ profile.pk }}" draggable="true">
+          <td style="padding:8px 12px; color:var(--cm-fg-3); cursor:grab; user-select:none; font-size:14px;" class="drag-handle">⠿</td>
+          <td style="padding:8px 12px;" class="mono tnum priority-cell">{{ profile.priority }}</td>
+          <td style="padding:8px 12px; font-weight:500;">
+            <a href="{% url 'organizer:profile_detail' profile.pk %}" style="color:var(--cm-accent);">{{ profile.name }}</a>
+          </td>
+          <td style="padding:8px 12px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            <code style="font-size:10.5px; color:var(--cm-fg-2);" title="{{ profile.folder_template }}">{{ profile.folder_template|truncatechars:60 }}</code>
+          </td>
+          <td style="padding:8px 12px; text-align:center;">
+            {% with profile.exclude_rules.rules|length as rule_count %}
+            {% if rule_count %}
+            <span class="cm-chip" style="font-size:10.5px;" class="mono tnum">{{ rule_count }}</span>
+            {% else %}
+            <span style="color:var(--cm-fg-3);">—</span>
+            {% endif %}
+            {% endwith %}
+          </td>
+          <td style="padding:8px 12px; text-align:center;">
+            {% if profile.is_enabled %}
+            <span class="cm-chip ok" style="font-size:10.5px;">Enabled</span>
+            {% else %}
+            <span class="cm-chip" style="font-size:10.5px;">Disabled</span>
+            {% endif %}
+          </td>
+          <td style="padding:8px 12px;">
+            <div style="display:flex; gap:4px;">
+              <a href="{% url 'organizer:profile_edit' profile.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Edit</a>
+              <button onclick="toggleProfile({{ profile.pk }}, this)" class="cm-btn sm ghost">
+                {% if profile.is_enabled %}Disable{% else %}Enable{% endif %}
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div style="padding:48px 16px; text-align:center; color:var(--cm-fg-3); font-size:14px;">
+  No organizer profiles found.
+  <a href="{% url 'organizer:import' %}" style="color:var(--cm-accent); margin-left:4px;">Import a .lop file</a> or
+  <a href="{% url 'organizer:profile_create' %}" style="color:var(--cm-accent); margin-left:4px;">create a new profile</a>.
+</div>
+{% endif %}
 
 <script>
 function getCsrfToken() {
-  const name = 'csrftoken';
-  const cookies = document.cookie.split(';');
-  for (let cookie of cookies) {
-    const [key, value] = cookie.trim().split('=');
-    if (key === name) return value;
-  }
-  return '';
+  return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
 }
 
 function toggleProfile(pk, btn) {
   btn.disabled = true;
-
   fetch(`/organizer/profiles/${pk}/toggle/`, {
     method: 'POST',
     headers: { 'X-CSRFToken': getCsrfToken() }
   })
-  .then(response => response.json())
+  .then(r => r.json())
   .then(data => {
-    if (data.success) {
-      location.reload();
-    } else {
-      btn.disabled = false;
-      showMsgToast(data.error || 'Failed to toggle profile', 'error');
-    }
+    if (data.success) location.reload();
+    else { btn.disabled = false; showMsgToast(data.error || 'Failed', 'error'); }
   })
-  .catch(err => {
-    btn.disabled = false;
-    showMsgToast('Error: ' + err, 'error');
-  });
+  .catch(() => { btn.disabled = false; });
 }
 
-// ---- Drag-and-drop reordering ----
 (function () {
   const tbody = document.getElementById('profiles-tbody');
   if (!tbody) return;
-
   let dragSrc = null;
 
   tbody.addEventListener('dragstart', e => {
     const row = e.target.closest('tr');
     if (!row) return;
     dragSrc = row;
-    row.classList.add('opacity-40');
+    row.style.opacity = '.4';
     e.dataTransfer.effectAllowed = 'move';
   });
 
   tbody.addEventListener('dragend', e => {
     const row = e.target.closest('tr');
-    if (row) row.classList.remove('opacity-40');
-    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
+    if (row) row.style.opacity = '';
+    tbody.querySelectorAll('tr').forEach(r => r.style.borderTop = '');
     dragSrc = null;
   });
 
@@ -170,31 +143,22 @@ function toggleProfile(pk, btn) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const row = e.target.closest('tr');
-    if (!row || row === dragSrc) return;
-    tbody.querySelectorAll('tr').forEach(r => r.classList.remove('drag-over'));
-    row.classList.add('drag-over');
+    tbody.querySelectorAll('tr').forEach(r => r.style.borderTop = '');
+    if (row && row !== dragSrc) row.style.borderTop = '2px solid var(--cm-accent)';
   });
 
   tbody.addEventListener('dragleave', e => {
     const row = e.target.closest('tr');
-    if (row) row.classList.remove('drag-over');
+    if (row) row.style.borderTop = '';
   });
 
   tbody.addEventListener('drop', e => {
     e.preventDefault();
     const target = e.target.closest('tr');
     if (!target || target === dragSrc) return;
-
-    // Insert before or after based on cursor position within row
     const rect = target.getBoundingClientRect();
-    const after = e.clientY > rect.top + rect.height / 2;
-    if (after) {
-      target.after(dragSrc);
-    } else {
-      target.before(dragSrc);
-    }
-
-    // Re-number priority cells and save
+    if (e.clientY > rect.top + rect.height / 2) target.after(dragSrc);
+    else target.before(dragSrc);
     const rows = [...tbody.querySelectorAll('tr')];
     rows.forEach((r, i) => {
       const cell = r.querySelector('.priority-cell');
@@ -207,23 +171,12 @@ function toggleProfile(pk, btn) {
     const order = rows.map(r => parseInt(r.dataset.pk, 10));
     fetch('/organizer/profiles/reorder/', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRFToken': getCsrfToken(),
-      },
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
       body: JSON.stringify({ order }),
     })
     .then(r => r.json())
-    .then(data => {
-      if (!data.success) showMsgToast(data.error || 'Reorder failed', 'error');
-    })
-    .catch(err => showMsgToast('Error: ' + err, 'error'));
+    .then(data => { if (!data.success) showMsgToast(data.error || 'Reorder failed', 'error'); });
   }
 })();
 </script>
-
-<style>
-#profiles-tbody tr.drag-over td { border-top: 2px solid oklch(var(--p)); }
-#profiles-tbody tr { transition: opacity 0.15s; }
-</style>
 {% endblock %}
