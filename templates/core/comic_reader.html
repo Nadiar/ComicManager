@@ -3,81 +3,77 @@
 {% block nav_comics %}active{% endblock %}
 
 {% block content %}
-<div class="flex flex-col h-[calc(100vh-4rem)]">
-  <!-- Reader toolbar -->
-  <div class="flex items-center gap-3 px-4 py-2 bg-base-200 border-b border-base-300 flex-shrink-0">
-    <a href="{% url 'core:detail' comic.pk %}" class="btn btn-ghost btn-sm">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-      </svg>
+<div style="display:flex; flex-direction:column; height:calc(100vh - 4rem);">
+
+  <!-- Toolbar -->
+  <div style="display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--cm-bg-1); border-bottom:1px solid var(--cm-border); flex-shrink:0; flex-wrap:wrap;">
+    <a href="{% url 'core:detail' comic.pk %}" class="cm-btn sm ghost" style="text-decoration:none; display:flex; align-items:center; gap:4px; flex-shrink:0;">
+      <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
       Back
     </a>
-    <span class="text-sm font-medium truncate flex-1">{{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}{% if comic.title %} — {{ comic.title }}{% endif %}</span>
-    <div class="flex items-center gap-2">
-      <button onclick="prevPage()" class="btn btn-ghost btn-sm" id="btn-prev" title="Previous page (←)">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-        </svg>
+
+    <span style="font-size:13px; font-weight:500; color:var(--cm-fg-1); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+      {{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}{% if comic.title %} — {{ comic.title }}{% endif %}
+    </span>
+
+    <!-- Page navigation -->
+    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+      <button onclick="prevPage()" class="cm-icon-btn" id="btn-prev" title="Previous page (←)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
       </button>
-      <span class="text-sm tabular-nums">
+      <span class="mono tnum" style="font-size:12px; color:var(--cm-fg-2); padding:0 4px; min-width:52px; text-align:center;">
         <span id="page-num">1</span> / <span id="page-total">{{ page_count }}</span>
       </span>
-      <button onclick="nextPage()" class="btn btn-ghost btn-sm" id="btn-next" title="Next page (→)">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-        </svg>
+      <button onclick="nextPage()" class="cm-icon-btn" id="btn-next" title="Next page (→)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
       </button>
     </div>
-    <div class="flex items-center gap-1">
-      <button onclick="zoomOut()" class="btn btn-ghost btn-sm" title="Zoom out (-)">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
-        </svg>
+
+    <!-- Zoom controls -->
+    <div style="display:flex; align-items:center; gap:4px; flex-shrink:0;">
+      <button onclick="zoomOut()" class="cm-icon-btn" title="Zoom out (-)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
       </button>
-      <span class="text-sm tabular-nums w-12 text-center" id="zoom-label">100%</span>
-      <button onclick="zoomIn()" class="btn btn-ghost btn-sm" title="Zoom in (+)">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-        </svg>
+      <span class="mono tnum" style="font-size:12px; color:var(--cm-fg-2); width:44px; text-align:center;" id="zoom-label">100%</span>
+      <button onclick="zoomIn()" class="cm-icon-btn" title="Zoom in (+)">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
       </button>
-      <button onclick="resetZoom()" class="btn btn-ghost btn-sm text-xs" title="Reset zoom (0)">Fit</button>
+      <button onclick="resetZoom()" class="cm-btn sm ghost" style="font-size:11px;" title="Reset zoom (0)">Fit</button>
     </div>
   </div>
 
   <!-- Page viewer -->
-  <div class="flex-1 overflow-hidden bg-base-300 relative" id="viewer-container"
-       style="cursor: grab;">
-    <div id="pan-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;">
-      <div id="transform-layer" style="transform-origin: center center;">
+  <div style="flex:1; overflow:hidden; background:var(--cm-bg); position:relative; cursor:grab;" id="viewer-container">
+    <div id="pan-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+      <div id="transform-layer" style="transform-origin:center center;">
         <img id="page-img"
              src="/comics/{{ comic.pk }}/page/0/"
              alt="Page 1"
-             style="max-width: none; display: block; user-select: none;"
+             style="max-width:none; display:block; user-select:none;"
              draggable="false"
              onload="onImageLoad()" />
       </div>
     </div>
-    <div id="loading-indicator" class="absolute inset-0 flex items-center justify-center pointer-events-none" style="display:none!important">
+    <div id="loading-indicator" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; display:none!important;">
       <span class="loading loading-spinner loading-lg"></span>
     </div>
   </div>
 
-  <!-- Page strip (thumbnails) -->
-  <div class="flex-shrink-0 bg-base-200 border-t border-base-300 overflow-x-auto" style="height: 72px;">
-    <div class="flex gap-1 p-1 h-full items-center" id="thumb-strip">
+  <!-- Thumbnail strip -->
+  <div style="flex-shrink:0; height:76px; background:var(--cm-bg-1); border-top:1px solid var(--cm-border); overflow-x:auto;">
+    <div style="display:flex; gap:4px; padding:4px; height:100%; align-items:center;" id="thumb-strip">
       {% for i in page_range %}
-      <button class="flex-shrink-0 thumb-btn {% if i == 0 %}ring-2 ring-primary{% endif %}"
-              data-page="{{ i }}"
-              onclick="goToPage({{ i }})"
-              title="Page {{ i|add:1 }}">
+      <button class="thumb-btn" data-page="{{ i }}" onclick="goToPage({{ i }})" title="Page {{ i|add:1 }}"
+              style="flex-shrink:0; background:none; border:2px solid {% if i == 0 %}var(--cm-accent){% else %}transparent{% endif %}; border-radius:4px; padding:2px; cursor:pointer; transition:border-color .1s;">
         <img src="/comics/{{ comic.pk }}/page/{{ i }}/"
              alt="Page {{ i|add:1 }}"
-             class="h-14 w-auto rounded object-contain bg-base-300"
+             style="height:56px; width:auto; border-radius:3px; display:block;"
              loading="lazy" />
       </button>
       {% endfor %}
     </div>
   </div>
+
 </div>
 
 <script>
@@ -87,7 +83,6 @@ let currentPage = 0;
 let scale = 1.0;
 let fitScale = 1.0;
 
-// Pan state
 let isPanning = false;
 let panStartX = 0, panStartY = 0;
 let translateX = 0, translateY = 0;
@@ -132,19 +127,15 @@ function goToPage(n) {
   img.src = `/comics/${COMIC_PK}/page/${n}/`;
   img.alt = `Page ${n + 1}`;
 
-  // Reset pan, recalculate fit
   translateX = 0;
   translateY = 0;
   scale = fitScale;
   applyTransform();
 
-  // Update thumbnail highlights
   document.querySelectorAll(".thumb-btn").forEach(btn => {
-    btn.classList.toggle("ring-2", parseInt(btn.dataset.page) === n);
-    btn.classList.toggle("ring-primary", parseInt(btn.dataset.page) === n);
+    btn.style.borderColor = parseInt(btn.dataset.page) === n ? 'var(--cm-accent)' : 'transparent';
   });
 
-  // Scroll thumb into view
   const thumb = document.querySelector(`.thumb-btn[data-page="${n}"]`);
   if (thumb) thumb.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
 }
@@ -156,7 +147,6 @@ function zoomIn()  { scale = Math.min(scale * 1.25, fitScale * 8); applyTransfor
 function zoomOut() { scale = Math.max(scale / 1.25, fitScale * 0.25); applyTransform(); }
 function resetZoom() { scale = fitScale; translateX = 0; translateY = 0; applyTransform(); }
 
-// Keyboard navigation
 document.addEventListener("keydown", e => {
   if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); nextPage(); }
   else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); prevPage(); }
@@ -165,7 +155,6 @@ document.addEventListener("keydown", e => {
   else if (e.key === "0") resetZoom();
 });
 
-// Mouse wheel: scroll to pan, Ctrl+wheel to zoom
 container.addEventListener("wheel", e => {
   e.preventDefault();
   if (e.ctrlKey || e.metaKey) {
@@ -178,7 +167,6 @@ container.addEventListener("wheel", e => {
   }
 }, { passive: false });
 
-// Pan (click + drag)
 container.addEventListener("mousedown", e => {
   if (e.button !== 0) return;
   isPanning = true;
@@ -197,9 +185,7 @@ document.addEventListener("mouseup", () => {
   container.style.cursor = "grab";
 });
 
-// Touch support (pinch-to-zoom + pan)
 let lastTouchDist = null;
-let lastTouchMid = null;
 
 container.addEventListener("touchstart", e => {
   if (e.touches.length === 1) {
@@ -209,7 +195,6 @@ container.addEventListener("touchstart", e => {
   } else if (e.touches.length === 2) {
     isPanning = false;
     lastTouchDist = getTouchDist(e.touches);
-    lastTouchMid = getTouchMid(e.touches);
   }
 }, { passive: true });
 
@@ -236,17 +221,9 @@ function getTouchDist(touches) {
   const dy = touches[0].clientY - touches[1].clientY;
   return Math.sqrt(dx * dx + dy * dy);
 }
-function getTouchMid(touches) {
-  return {
-    x: (touches[0].clientX + touches[1].clientX) / 2,
-    y: (touches[0].clientY + touches[1].clientY) / 2,
-  };
-}
 
-// Initialize fit on page load
 window.addEventListener("resize", () => { computeFitScale(); scale = fitScale; translateX = 0; translateY = 0; applyTransform(); });
 
-// If image already cached and loaded before onload fires
 if (img.complete && img.naturalWidth) onImageLoad();
 </script>
 {% endblock %}

@@ -1003,7 +1003,27 @@ function resetRailFilters() {
   window.bulkRunPipeline = function(btn) {
     if (!selectedPks.size) return;
     btn.disabled = true;
-    bulkPost('/comics/run-pipeline/', {}).then(() => window.location.reload()).catch(() => { btn.disabled = false; });
+    const origText = btn.textContent;
+    btn.textContent = 'Starting...';
+    bulkPost('/comics/run-pipeline/', {})
+      .then(function(data) {
+        if (!data.success) {
+          btn.disabled = false;
+          btn.textContent = origText;
+          window.showQuickToast(data.error || 'Failed to start pipeline', 'error');
+          return;
+        }
+        if (!data.task_id) {
+          btn.disabled = false;
+          btn.textContent = origText;
+          window.showQuickToast('No eligible new comics in selection', 'info');
+          return;
+        }
+        btn.textContent = 'Running...';
+        if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Running pipeline (' + (data.total || selectedPks.size) + ' comics)');
+        _pollPipelineCompletion(data.task_id, btn);
+      })
+      .catch(function() { btn.disabled = false; btn.textContent = origText; });
   };
 
   window.bulkRetag = function(btn) {

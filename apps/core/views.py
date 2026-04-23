@@ -1757,6 +1757,7 @@ def run_full_pipeline(request):
         )
 
     comic_id = request.POST.get("comic_id")
+    pks = request.POST.getlist("pks")
     if comic_id:
         comic = get_object_or_404(Comic, pk=comic_id)
         if comic.state != Comic.STATE_NEW:
@@ -1770,6 +1771,11 @@ def run_full_pipeline(request):
                 status=400,
             )
         comic_ids = [str(comic.pk)]
+    elif pks:
+        qs = Comic.objects.filter(pk__in=pks, state=Comic.STATE_NEW, file_format="cbz")
+        comic_ids = [str(pk) for pk in qs.values_list("pk", flat=True)]
+        if not comic_ids:
+            return JsonResponse({"success": False, "error": "None of the selected comics are eligible (must be in New state, CBZ format)"}, status=400)
     else:
         qs = (
             Comic.objects.filter(state=Comic.STATE_NEW, file_format="cbz")

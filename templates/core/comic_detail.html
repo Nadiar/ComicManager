@@ -3,500 +3,452 @@
 {% block nav_comics %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-  <!-- Header -->
-  <div class="flex justify-between items-start">
-    <div class="flex gap-5 items-start">
-      {% if has_cover %}
-      <div class="flex-shrink-0 cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/cover/', 'Cover')">
-        <img src="/comics/{{ comic.pk }}/cover/" alt="Cover" class="w-32 h-auto rounded-lg shadow-lg hover:ring-2 hover:ring-primary transition-all" />
-      </div>
-      {% elif comic.is_physical %}
-      <div class="flex-shrink-0 w-32 h-44 rounded-lg bg-base-300 flex items-center justify-center text-base-content/30 text-xs text-center cursor-pointer" onclick="document.getElementById('upload-cover-modal').showModal()">
-        <span>No Cover<br>Click to Upload</span>
-      </div>
-      {% endif %}
-      <div>
-        <h1 class="text-3xl font-bold">{{ comic.series|default:"Unknown Series" }} #{{ comic.number|default:"?" }}</h1>
-        {% if comic.title %}
-        <p class="text-lg text-base-content/70 mt-1">{{ comic.title }}</p>
-        {% endif %}
-        <div class="flex gap-2 mt-2">
-          <span class="badge badge-lg {% if comic.state == 'write' %}badge-success{% elif comic.state == 'new' %}badge-warning{% else %}badge-info{% endif %}">
-            {{ comic.get_state_display }}
-          </span>
-          <span class="badge badge-lg badge-outline">{{ comic.medium }}</span>
-          {% if comic.publisher %}
-          <span class="badge badge-lg">{{ comic.publisher }}</span>
-          {% endif %}
-        </div>
-      </div>
+<style>
+._dd-item {
+  display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+  padding: 6px 10px; font-size: 12px; border-radius: 4px;
+  background: none; border: none; color: var(--cm-fg-1); cursor: pointer;
+}
+</style>
+
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+  <div style="display:flex; gap:16px; align-items:flex-start;">
+    {% if has_cover %}
+    <div style="flex-shrink:0; cursor:pointer;" onclick="openImageModal('/comics/{{ comic.pk }}/cover/', 'Cover')">
+      <img src="/comics/{{ comic.pk }}/cover/" alt="Cover"
+           style="width:96px; height:auto; border-radius:6px; box-shadow:0 4px 12px rgba(0,0,0,.4); border:1px solid var(--cm-border);" />
     </div>
-    <div class="flex gap-2">
-      {% if comic.is_digital and comic.file_path %}
-      <a href="{% url 'core:reader' comic.pk %}" class="btn btn-primary btn-sm" title="Open browser reader">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-        </svg>
-        Read
-      </a>
-      <a href="{% url 'core:download' comic.pk %}" class="btn btn-ghost btn-sm" title="Download file">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-        </svg>
-        Download
-      </a>
+    {% elif comic.is_physical %}
+    <div style="flex-shrink:0; width:96px; height:136px; border-radius:6px; background:var(--cm-bg-3); border:1px solid var(--cm-border); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:var(--cm-fg-3); text-align:center; line-height:1.4;"
+         onclick="document.getElementById('upload-cover-modal').showModal()">
+      No Cover<br>Click to Upload
+    </div>
+    {% endif %}
+    <div>
+      <h1 style="font-size:22px; font-weight:700; margin:0; line-height:1.25;">{{ comic.series|default:"Unknown Series" }} #{{ comic.number|default:"?" }}</h1>
+      {% if comic.title %}
+      <p style="font-size:14px; color:var(--cm-fg-2); margin:4px 0 0;">{{ comic.title }}</p>
       {% endif %}
-      <!-- Actions Dropdown -->
-      <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-secondary">
-          Actions
-          <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-          </svg>
-        </div>
-        <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-10 w-52 p-2 shadow-lg border border-base-300">
-          <li class="menu-title"><span>Workflow Actions</span></li>
-          <li>
-            <button onclick="openScrapeModal()">
-              <span class="badge badge-xs badge-secondary">1</span> Re-scrape
-            </button>
-          </li>
-          <li>
-            <button id="btn-toggle-skip" onclick="toggleScrapeSkip()" class="{% if comic.flags.scrape_skipped %}text-warning{% endif %}">
-              {% if comic.flags.scrape_skipped %}Un-skip Scraping{% else %}Skip Scraping{% endif %}
-            </button>
-          </li>
-          <li>
-            <button onclick="runAction('tag')" id="action-tag">
-              <span class="badge badge-xs badge-accent">2</span> Re-tag
-            </button>
-          </li>
-          <li>
-            <button onclick="runAction('format')" id="action-format">
-              <span class="badge badge-xs badge-info">3</span> Re-format
-            </button>
-          </li>
-          {% if comic.is_digital %}
-          <li>
-            <button onclick="runAction('organize')" id="action-organize">
-              <span class="badge badge-xs badge-warning">4</span> Re-organize
-            </button>
-          </li>
-          <li>
-            <button onclick="runAction('write')" id="action-write">
-              <span class="badge badge-xs badge-success">5</span> Write to File
-            </button>
-          </li>
-          {% endif %}
-          <li class="menu-title mt-2"><span>Other</span></li>
-          {% if comic.is_digital and comic.file_path %}
-          <li>
-            <button onclick="refreshFileInfo()" id="action-refresh-file-info">
-              Refresh File Info
-            </button>
-          </li>
-          {% endif %}
-          {% if comic.is_digital and comic.custom_values.scrape_source != "inducks" %}
-          <li>
-            <button onclick="runAction('refresh-credits')" id="action-refresh-credits">
-              Refresh Credits from CV
-            </button>
-          </li>
-          <li>
-            <button onclick="runAction('search-alt-covers')" id="action-search-alt-covers">
-              Search Alt Covers
-            </button>
-          </li>
-          <li>
-            <button onclick="openCvCompareModal()" id="action-cv-compare">
-              Compare All Sources
-            </button>
-          </li>
-          {% endif %}
-          {% if comic.is_physical %}
-          <li>
-            <button onclick="document.getElementById('upload-cover-modal').showModal()">
-              Upload Cover
-            </button>
-          </li>
-          {% endif %}
-          {% if comic.is_digital and comic.file_path %}
-          <li>
-            <button onclick="openPageManager()" id="action-manage-pages">
-              Manage Pages
-            </button>
-          </li>
-          {% endif %}
-          <li>
-            <a href="{% url 'core:export_json' comic.pk %}">
-              Export as JSON
-            </a>
-          </li>
-          <li class="menu-title mt-2"><span class="text-error">Danger Zone</span></li>
-          <li>
-            <button onclick="deleteComic()" id="action-delete" class="text-error hover:bg-error hover:text-error-content">
-              Delete Comic
-            </button>
-          </li>
-        </ul>
+      <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+        <span class="cm-chip {% if comic.state == 'write' or comic.state == 'written' %}ok{% elif comic.state == 'new' %}warn{% else %}info{% endif %}">
+          {{ comic.get_state_display }}
+        </span>
+        <span class="cm-chip">{{ comic.medium }}</span>
+        {% if comic.publisher %}
+        <span class="cm-chip accent">{{ comic.publisher }}</span>
+        {% endif %}
       </div>
-      <a href="/comics/{{ comic.pk }}/edit/" class="btn btn-primary">Edit</a>
-      <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="btn btn-ghost">Back to List</a>
     </div>
   </div>
 
-  {% if comic.flags.corrupted_archive %}
-  <!-- Corrupted Archive Alert -->
-  <div class="alert alert-error" id="corrupted-alert">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-    </svg>
-    <div class="flex-1">
-      <p class="font-semibold">Corrupted archive</p>
-      <p class="text-sm">This CBZ file cannot be opened. It may be truncated or corrupted.</p>
-      <p class="text-sm mt-1">
-        Try rezipping to recover any readable entries, or delete it and re-import a working copy.
-      </p>
-    </div>
-    <div class="flex gap-2">
-      <button id="btn-rezip" class="btn btn-sm btn-warning" onclick="tryRezip()">
-        Try Rezip
+  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+    {% if comic.is_digital and comic.file_path %}
+    <a href="{% url 'core:reader' comic.pk %}" class="cm-btn sm primary" style="text-decoration:none; display:flex; align-items:center; gap:4px;" title="Open browser reader">
+      <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+      Read
+    </a>
+    <a href="{% url 'core:download' comic.pk %}" class="cm-btn sm ghost" style="text-decoration:none; display:flex; align-items:center; gap:4px;" title="Download file">
+      <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Download
+    </a>
+    {% endif %}
+
+    <!-- Actions Dropdown -->
+    <div style="position:relative;" id="actions-wrap">
+      <button type="button" class="cm-btn sm" onclick="document.getElementById('actions-dd').classList.toggle('hidden')" style="display:flex; align-items:center; gap:4px;">
+        Actions
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6,9 12,15 18,9"/></svg>
       </button>
-      <button class="btn btn-sm btn-error btn-outline" onclick="deleteComic()">
-        Delete
-      </button>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if alt_cover_range %}
-  <!-- Variant Covers Gallery -->
-  <div class="card bg-base-200 shadow-sm border border-base-300">
-    <div class="card-body p-4">
-      <h2 class="card-title text-sm opacity-70 mb-2">Variant Covers</h2>
-      <div class="flex flex-wrap gap-4">
-        <div class="group relative cursor-pointer" onclick="openGallery(0, 'variants')">
-          <img src="/comics/{{ comic.pk }}/cover/" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Local Cover" />
-          <div class="text-[10px] text-center mt-1 opacity-50">Local Cover</div>
-        </div>
-        {% for page_num in alt_cover_range %}
-        <div class="group relative cursor-pointer" onclick="openGallery({{ forloop.counter }}, 'variants')">
-          <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}" />
-          <div class="text-[10px] text-center mt-1 opacity-50">{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}</div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if physical_covers %}
-  <!-- Physical Variant Covers -->
-  <div class="card bg-base-200 shadow-sm border border-base-300">
-    <div class="card-body p-4">
-      <h2 class="card-title text-sm opacity-70 mb-2">Variant Covers</h2>
-      <div class="flex flex-wrap gap-4">
-        {% for cover in physical_covers %}
-        <div class="flex flex-col items-center gap-1">
-          <div class="cursor-pointer" onclick="openImageModal('{{ cover.proxy_url }}', 'Cover')">
-            <img src="{{ cover.proxy_url }}"
-                 class="w-20 h-auto rounded border shadow-sm hover:ring-2 hover:ring-primary transition-all {% if cover.is_main %}ring-2 ring-success border-success{% else %}border-base-300{% endif %}"
-                 alt="Variant Cover" />
-          </div>
-          {% if cover.is_main %}
-          <div class="text-[10px] text-success font-semibold">Main Cover</div>
-          {% else %}
-          <button class="btn btn-xs btn-success"
-                  onclick="setMainCover('{{ cover.original_url|escapejs }}')">
-            Set Main
-          </button>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if show_series_completion and comic.custom_values.scrape_source != "inducks" %}
-  <!-- Series Completion (lazy-loaded via HTMX) -->
-  <div hx-get="{% url 'core:series_completion' comic.pk %}" hx-trigger="load" hx-swap="outerHTML">
-    <div class="flex justify-center py-4">
-      <span class="loading loading-dots loading-sm"></span>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if comic.state == 'move' or comic.state == 'write' %}
-  {% if reorganize_preview %}
-  <!-- Re-organize Preview -->
-  <div class="alert {% if reorganize_preview.would_move %}alert-info{% else %}alert-success{% endif %}">
-    <div class="flex-1">
-      <p class="font-semibold">
-        {% if reorganize_preview.would_move %}
-        Path Change Preview (Profile: {{ reorganize_preview.selected_profile }})
-        {% else %}
-        File is in correct location (Profile: {{ reorganize_preview.selected_profile }})
+      <div id="actions-dd" class="hidden" style="position:absolute; right:0; top:100%; margin-top:4px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:6px; width:220px; z-index:30; box-shadow:0 8px 20px rgba(0,0,0,.26);">
+        <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); padding:4px 8px 6px;">Workflow Actions</div>
+        <button onclick="openScrapeModal()" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          <span class="cm-chip accent" style="font-size:10px; padding:1px 5px;">1</span> Re-scrape
+        </button>
+        <button id="btn-toggle-skip" onclick="toggleScrapeSkip()" class="_dd-item" style="{% if comic.flags.scrape_skipped %}color:var(--cm-warn);{% endif %}" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          {% if comic.flags.scrape_skipped %}Un-skip Scraping{% else %}Skip Scraping{% endif %}
+        </button>
+        <button onclick="runAction('tag')" id="action-tag" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          <span class="cm-chip" style="font-size:10px; padding:1px 5px;">2</span> Re-tag
+        </button>
+        <button onclick="runAction('format')" id="action-format" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          <span class="cm-chip info" style="font-size:10px; padding:1px 5px;">3</span> Re-format
+        </button>
+        {% if comic.is_digital %}
+        <button onclick="runAction('organize')" id="action-organize" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          <span class="cm-chip warn" style="font-size:10px; padding:1px 5px;">4</span> Re-organize
+        </button>
+        <button onclick="runAction('write')" id="action-write" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          <span class="cm-chip ok" style="font-size:10px; padding:1px 5px;">5</span> Write to File
+        </button>
         {% endif %}
-      </p>
-      {% if reorganize_preview.would_move %}
-      <p class="text-sm mt-1">
-        <span class="text-base-content/60">Current:</span> <code class="text-xs">{{ reorganize_preview.old_path }}</code>
-      </p>
-      <p class="text-sm">
-        <span class="text-base-content/60">Target:</span> <code class="text-xs">{{ reorganize_preview.new_path }}</code>
-      </p>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-  {% endif %}
-
-  {% if comic.is_digital and comparison %}
-  <!-- Metadata Comparison Table (Digital comics only) -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title text-xl mb-4">Metadata Comparison</h2>
-      <p class="text-sm text-base-content/60 mb-4">
-        Comparing database values with ComicInfo.xml from the file.
-        {% if not xml_data %}
-        <span class="text-warning">No ComicInfo.xml found in file.</span>
+        <div style="height:1px; background:var(--cm-border); margin:4px 2px;"></div>
+        <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); padding:4px 8px 6px;">Other</div>
+        {% if comic.is_digital and comic.file_path %}
+        <button onclick="refreshFileInfo()" id="action-refresh-file-info" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          Refresh File Info
+        </button>
         {% endif %}
-      </p>
-
-      <div class="overflow-x-auto">
-        <table class="table table-zebra">
-          <thead>
-            <tr>
-              <th>Field</th>
-              <th>Database</th>
-              <th>ComicInfo.xml</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in comparison %}
-            <tr class="{% if item.status == 'differ' %}bg-warning/10{% elif item.status == 'db_only' %}bg-info/10{% elif item.status == 'xml_only' %}bg-error/10{% endif %}">
-              <td class="font-medium">{{ item.label }}</td>
-              <td class="max-w-xs">
-                {% if item.db_value %}
-                <span class="whitespace-pre-wrap {% if item.status == 'differ' %}text-warning{% endif %}">{{ item.db_value }}</span>
-                {% else %}
-                <span class="text-base-content/30">-</span>
-                {% endif %}
-              </td>
-              <td class="max-w-xs">
-                {% if item.xml_value %}
-                <span class="whitespace-pre-wrap {% if item.status == 'differ' %}text-warning{% endif %}">{{ item.xml_value }}</span>
-                {% else %}
-                <span class="text-base-content/30">-</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if item.status == 'match' %}
-                <span class="badge badge-success badge-sm">Match</span>
-                {% elif item.status == 'differ' %}
-                <span class="badge badge-warning badge-sm">Different</span>
-                {% elif item.status == 'db_only' %}
-                <span class="badge badge-info badge-sm">DB Only</span>
-                {% elif item.status == 'xml_only' %}
-                <span class="badge badge-error badge-sm">XML Only</span>
-                {% else %}
-                <span class="badge badge-ghost badge-sm">Empty</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if comic.is_physical or not comparison %}
-  <!-- Simple Field Display (Physical comics or when no comparison) -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title text-xl mb-4">Comic Metadata</h2>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <!-- Core Info -->
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Core Info</h3>
-          <div><span class="text-base-content/60">Series:</span> {{ comic.series|default:"-" }}</div>
-          <div><span class="text-base-content/60">Number:</span> {{ comic.number|default:"-" }}</div>
-          <div><span class="text-base-content/60">Title:</span> {{ comic.title|default:"-" }}</div>
-          <div><span class="text-base-content/60">Volume:</span> {{ comic.volume|default:"-" }}</div>
-          <div><span class="text-base-content/60">Count:</span> {{ comic.count|default:"-" }}</div>
-        </div>
-
-        <!-- Publication -->
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Publication</h3>
-          <div><span class="text-base-content/60">Publisher:</span> {{ comic.publisher|default:"-" }}</div>
-          <div><span class="text-base-content/60">Year:</span> {{ comic.year|default:"-" }}</div>
-          <div><span class="text-base-content/60">Month:</span> {{ comic.month|default:"-" }}</div>
-          <div><span class="text-base-content/60">Day:</span> {{ comic.day|default:"-" }}</div>
-          <div><span class="text-base-content/60">Format:</span> {{ comic.format|default:"-" }}</div>
-        </div>
-
-        <!-- Classification -->
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Classification</h3>
-          <div><span class="text-base-content/60">Genre:</span> {{ comic.genre|default:"-" }}</div>
-          <div><span class="text-base-content/60">Series Group:</span> {{ comic.series_group|default:"-" }}</div>
-          <div><span class="text-base-content/60">Main Character:</span> {{ comic.main_character_or_team|default:"-" }}</div>
-          {% if comic.is_physical %}
-          <div><span class="text-base-content/60">Storage Location:</span> {{ comic.storage_location|default:"-" }}</div>
-          {% endif %}
-        </div>
-      </div>
-
-      {% if comic.summary %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Summary</h3>
-        <p class="text-sm">{{ comic.summary }}</p>
-      </div>
-      {% endif %}
-
-      <!-- Credits -->
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Credits</h3>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-sm">
-          {% if comic.writer %}<div><span class="text-base-content/60">Writer:</span> {{ comic.writer }}</div>{% endif %}
-          {% if comic.penciller %}<div><span class="text-base-content/60">Penciller:</span> {{ comic.penciller }}</div>{% endif %}
-          {% if comic.inker %}<div><span class="text-base-content/60">Inker:</span> {{ comic.inker }}</div>{% endif %}
-          {% if comic.colorist %}<div><span class="text-base-content/60">Colorist:</span> {{ comic.colorist }}</div>{% endif %}
-          {% if comic.letterer %}<div><span class="text-base-content/60">Letterer:</span> {{ comic.letterer }}</div>{% endif %}
-          {% if comic.cover_artist %}<div><span class="text-base-content/60">Cover Artist:</span> {{ comic.cover_artist }}</div>{% endif %}
-          {% if comic.editor %}<div><span class="text-base-content/60">Editor:</span> {{ comic.editor }}</div>{% endif %}
-        </div>
-      </div>
-
-      {% if comic.characters %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Characters</h3>
-        <p class="text-sm">{{ comic.characters }}</p>
-      </div>
-      {% endif %}
-
-      {% if comic.teams %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Teams</h3>
-        <p class="text-sm">{{ comic.teams }}</p>
-      </div>
-      {% endif %}
-
-      {% if comic.locations %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Locations</h3>
-        <p class="text-sm">{{ comic.locations }}</p>
-      </div>
-      {% endif %}
-
-      {% if comic.tags %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Tags</h3>
-        <p class="text-sm">{{ comic.tags }}</p>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- File & System Info -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title text-xl mb-4">File & System Info</h2>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">File Details</h3>
-          {% if comic.file_path %}
-          <div><span class="text-base-content/60">Path:</span> <code class="text-xs">{{ comic.file_path }}</code></div>
-          {% else %}
-          <div><span class="text-base-content/60">Path:</span> <span class="text-warning">No file (physical comic)</span></div>
-          {% endif %}
-          <div><span class="text-base-content/60">Format:</span> {{ comic.file_format|default:"-" }}</div>
-          <div><span class="text-base-content/60">Size:</span> {% if comic.file_size %}{{ comic.file_size|filesizeformat }}{% else %}-{% endif %}</div>
-          <div><span class="text-base-content/60">Pages:</span> {{ comic.page_count|default:"-" }}</div>
-        </div>
-
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">System Info</h3>
-          <div><span class="text-base-content/60">ID:</span> <code class="text-xs">{{ comic.pk }}</code></div>
-          <div><span class="text-base-content/60">State:</span> {{ comic.state }}</div>
-          <div><span class="text-base-content/60">Medium:</span> {{ comic.medium }}</div>
-          <div><span class="text-base-content/60">Imported:</span> {{ comic.imported_at|date:"Y-m-d H:i" }}</div>
-          <div><span class="text-base-content/60">Updated:</span> {{ comic.updated_at|date:"Y-m-d H:i" }}</div>
-          <div><span class="text-base-content/60">Last Written:</span> {% if comic.last_written %}{{ comic.last_written|date:"Y-m-d H:i:s" }}{% else %}-{% endif %}</div>
-        </div>
-
-        {% if comic.phash or comic.ahash %}
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Cover Hashes</h3>
-          {% if comic.phash %}<div><span class="text-base-content/60">pHash:</span> <code class="text-xs">{{ comic.phash }}</code></div>{% endif %}
-          {% if comic.ahash %}<div><span class="text-base-content/60">aHash:</span> <code class="text-xs">{{ comic.ahash }}</code></div>{% endif %}
-        </div>
+        {% if comic.is_digital and comic.custom_values.scrape_source != "inducks" %}
+        <button onclick="runAction('refresh-credits')" id="action-refresh-credits" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          Refresh Credits from CV
+        </button>
+        <button onclick="runAction('search-alt-covers')" id="action-search-alt-covers" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          Search Alt Covers
+        </button>
+        <button onclick="openCvCompareModal()" id="action-cv-compare" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          Compare All Sources
+        </button>
         {% endif %}
-
-        {% if display_custom_values %}
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Custom Values</h3>
-          {% for key, value in display_custom_values.items %}
-          <div><span class="text-base-content/60">{{ key }}:</span> {{ value }}</div>
-          {% endfor %}
-        </div>
+        {% if comic.is_physical %}
+        <button onclick="document.getElementById('upload-cover-modal').showModal()" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          Upload Cover
+        </button>
         {% endif %}
-      </div>
-
-      {% if comic.has_flags %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Flags</h3>
-        <div class="flex flex-wrap gap-2">
-          {% for flag in comic.flag_list %}
-          <span class="badge badge-warning">{{ flag }}</span>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      {% if comic.accepted_flags %}
-      <div class="mt-3">
-        <h3 class="font-semibold text-base-content/50 mb-2 text-sm">Accepted (suppressed)</h3>
-        <div class="flex flex-wrap gap-2" id="accepted-flags-list">
-          {% for flag_name, _ in comic.accepted_flags.items %}
-          <div class="badge badge-ghost gap-1" id="accepted-flag-{{ flag_name }}">
-            {{ flag_name }}
-            <button
-              hx-post="{% url 'core:unaccept_flag' comic.pk %}"
-              hx-vals='{"flag": "{{ flag_name }}"}'
-              hx-target="#accepted-flag-{{ flag_name }}"
-              hx-swap="outerHTML"
-              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-              class="ml-1 opacity-60 hover:opacity-100 cursor-pointer"
-              title="Un-accept — allow detection to re-flag this"
-            >&#x2715;</button>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      {% if comic.web %}
-      <div class="mt-4">
-        <a href="{{ comic.web }}" target="_blank" class="btn btn-sm btn-outline">
-          View on ComicVine
+        {% if comic.is_digital and comic.file_path %}
+        <button onclick="openPageManager()" id="action-manage-pages" class="_dd-item" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          Manage Pages
+        </button>
+        {% endif %}
+        <a href="{% url 'core:export_json' comic.pk %}" class="_dd-item" style="text-decoration:none; color:inherit;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          Export as JSON
         </a>
+        <div style="height:1px; background:var(--cm-border); margin:4px 2px;"></div>
+        <button onclick="deleteComic()" id="action-delete" class="_dd-item" style="color:var(--cm-err);" onmouseenter="this.style.background='var(--cm-err-dim)'" onmouseleave="this.style.background=''">
+          Delete Comic
+        </button>
       </div>
-      {% endif %}
     </div>
+
+    <a href="/comics/{{ comic.pk }}/edit/" class="cm-btn sm primary" style="text-decoration:none;">Edit</a>
+    <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="cm-btn sm ghost" style="text-decoration:none;">Back</a>
   </div>
 </div>
 
-<!-- Scrape Preview Modal -->
+<!-- Body -->
+<div style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+
+{% if comic.flags.corrupted_archive %}
+<!-- Corrupted Archive Alert -->
+<div id="corrupted-alert" style="background:var(--cm-err-dim); border:1px solid var(--cm-err); border-radius:8px; padding:14px 16px; display:flex; align-items:flex-start; gap:12px;">
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="flex-shrink:0; color:var(--cm-err); margin-top:1px;">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+  </svg>
+  <div style="flex:1; min-width:0;">
+    <div style="font-weight:600; color:var(--cm-err); margin-bottom:4px; font-size:13px;">Corrupted archive</div>
+    <div style="font-size:12px; color:var(--cm-fg-2);">This CBZ file cannot be opened. It may be truncated or corrupted.</div>
+    <div style="font-size:12px; color:var(--cm-fg-2); margin-top:3px;">Try rezipping to recover any readable entries, or delete it and re-import a working copy.</div>
+  </div>
+  <div style="display:flex; gap:8px; flex-shrink:0;">
+    <button id="btn-rezip" class="cm-btn sm" style="border-color:var(--cm-warn); color:var(--cm-warn);" onclick="tryRezip()">Try Rezip</button>
+    <button class="cm-btn sm" style="border-color:var(--cm-err); color:var(--cm-err);" onclick="deleteComic()">Delete</button>
+  </div>
+</div>
+{% endif %}
+
+{% if alt_cover_range %}
+<!-- Variant Covers Gallery -->
+<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:14px 16px;">
+  <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:10px;">Variant Covers</div>
+  <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;">
+    <div style="cursor:pointer; text-align:center;" onclick="openGallery(0, 'variants')">
+      <img src="/comics/{{ comic.pk }}/cover/" style="width:64px; height:auto; border-radius:4px; border:1px solid var(--cm-border); box-shadow:0 2px 6px rgba(0,0,0,.3);" alt="Local Cover" />
+      <div style="font-size:10px; color:var(--cm-fg-3); margin-top:4px;">Local Cover</div>
+    </div>
+    {% for page_num in alt_cover_range %}
+    <div style="cursor:pointer; text-align:center;" onclick="openGallery({{ forloop.counter }}, 'variants')">
+      <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}" style="width:64px; height:auto; border-radius:4px; border:1px solid var(--cm-border); box-shadow:0 2px 6px rgba(0,0,0,.3);" alt="{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}" />
+      <div style="font-size:10px; color:var(--cm-fg-3); margin-top:4px;">{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if physical_covers %}
+<!-- Physical Variant Covers -->
+<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:14px 16px;">
+  <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:10px;">Variant Covers</div>
+  <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;">
+    {% for cover in physical_covers %}
+    <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+      <div style="cursor:pointer;" onclick="openImageModal('{{ cover.proxy_url }}', 'Cover')">
+        <img src="{{ cover.proxy_url }}"
+             style="width:64px; height:auto; border-radius:4px; box-shadow:0 2px 6px rgba(0,0,0,.3); border:{% if cover.is_main %}2px solid var(--cm-ok){% else %}1px solid var(--cm-border){% endif %};"
+             alt="Variant Cover" />
+      </div>
+      {% if cover.is_main %}
+      <span class="cm-chip ok" style="font-size:10px;">Main Cover</span>
+      {% else %}
+      <button class="cm-btn sm ok" onclick="setMainCover('{{ cover.original_url|escapejs }}')">Set Main</button>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if show_series_completion and comic.custom_values.scrape_source != "inducks" %}
+<!-- Series Completion (lazy-loaded via HTMX) -->
+<div hx-get="{% url 'core:series_completion' comic.pk %}" hx-trigger="load" hx-swap="outerHTML">
+  <div style="display:flex; justify-content:center; padding:16px;">
+    <span class="loading loading-dots loading-sm"></span>
+  </div>
+</div>
+{% endif %}
+
+{% if comic.state == 'move' or comic.state == 'write' %}
+{% if reorganize_preview %}
+<!-- Re-organize Preview -->
+<div style="border-radius:8px; padding:14px 16px; border:1px solid {% if reorganize_preview.would_move %}var(--cm-info){% else %}var(--cm-ok){% endif %}; background:{% if reorganize_preview.would_move %}var(--cm-info-dim){% else %}var(--cm-ok-dim){% endif %};">
+  <div style="font-weight:600; font-size:13px; margin-bottom:6px; color:{% if reorganize_preview.would_move %}var(--cm-info){% else %}var(--cm-ok){% endif %};">
+    {% if reorganize_preview.would_move %}
+    Path Change Preview (Profile: {{ reorganize_preview.selected_profile }})
+    {% else %}
+    File is in correct location (Profile: {{ reorganize_preview.selected_profile }})
+    {% endif %}
+  </div>
+  {% if reorganize_preview.would_move %}
+  <div style="font-size:12px; color:var(--cm-fg-2); margin-bottom:3px;">
+    <span style="color:var(--cm-fg-3);">Current:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ reorganize_preview.old_path }}</code>
+  </div>
+  <div style="font-size:12px; color:var(--cm-fg-2);">
+    <span style="color:var(--cm-fg-3);">Target:</span> <code style="font-size:11px; color:var(--cm-ok);">{{ reorganize_preview.new_path }}</code>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endif %}
+
+{% if comic.is_digital and comparison %}
+<!-- Metadata Comparison Table -->
+<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div style="font-size:15px; font-weight:700; margin-bottom:6px;">Metadata Comparison</div>
+  <div style="font-size:12px; color:var(--cm-fg-3); margin-bottom:12px;">
+    Comparing database values with ComicInfo.xml from the file.
+    {% if not xml_data %}<span style="color:var(--cm-warn);">No ComicInfo.xml found in file.</span>{% endif %}
+  </div>
+  <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--cm-border);">
+          <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em;">Field</th>
+          <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em;">Database</th>
+          <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em;">ComicInfo.xml</th>
+          <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em;">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in comparison %}
+        <tr style="border-bottom:1px solid var(--cm-border); {% if item.status == 'differ' %}background:var(--cm-warn-dim);{% elif item.status == 'db_only' %}background:var(--cm-info-dim);{% elif item.status == 'xml_only' %}background:var(--cm-err-dim);{% endif %}">
+          <td style="padding:6px 10px; font-weight:600; color:var(--cm-fg-1);">{{ item.label }}</td>
+          <td style="padding:6px 10px; max-width:260px;">
+            {% if item.db_value %}<span style="white-space:pre-wrap; color:{% if item.status == 'differ' %}var(--cm-warn){% else %}var(--cm-fg-1){% endif %};">{{ item.db_value }}</span>{% else %}<span style="color:var(--cm-fg-3);">-</span>{% endif %}
+          </td>
+          <td style="padding:6px 10px; max-width:260px;">
+            {% if item.xml_value %}<span style="white-space:pre-wrap; color:{% if item.status == 'differ' %}var(--cm-warn){% else %}var(--cm-fg-1){% endif %};">{{ item.xml_value }}</span>{% else %}<span style="color:var(--cm-fg-3);">-</span>{% endif %}
+          </td>
+          <td style="padding:6px 10px;">
+            {% if item.status == 'match' %}<span class="cm-chip ok" style="font-size:10px;">Match</span>
+            {% elif item.status == 'differ' %}<span class="cm-chip warn" style="font-size:10px;">Different</span>
+            {% elif item.status == 'db_only' %}<span class="cm-chip info" style="font-size:10px;">DB Only</span>
+            {% elif item.status == 'xml_only' %}<span class="cm-chip err" style="font-size:10px;">XML Only</span>
+            {% else %}<span class="cm-chip" style="font-size:10px;">Empty</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if comic.is_physical or not comparison %}
+<!-- Comic Metadata -->
+<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div style="font-size:15px; font-weight:700; margin-bottom:14px;">Comic Metadata</div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px;">
+    <div>
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Core Info</div>
+      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+        <div><span style="color:var(--cm-fg-3);">Series:</span> <span style="color:var(--cm-fg-1);">{{ comic.series|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Number:</span> <span style="color:var(--cm-fg-1);">{{ comic.number|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Title:</span> <span style="color:var(--cm-fg-1);">{{ comic.title|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Volume:</span> <span style="color:var(--cm-fg-1);">{{ comic.volume|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Count:</span> <span style="color:var(--cm-fg-1);">{{ comic.count|default:"-" }}</span></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Publication</div>
+      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+        <div><span style="color:var(--cm-fg-3);">Publisher:</span> <span style="color:var(--cm-fg-1);">{{ comic.publisher|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Year:</span> <span style="color:var(--cm-fg-1);">{{ comic.year|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Month:</span> <span style="color:var(--cm-fg-1);">{{ comic.month|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Day:</span> <span style="color:var(--cm-fg-1);">{{ comic.day|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Format:</span> <span style="color:var(--cm-fg-1);">{{ comic.format|default:"-" }}</span></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Classification</div>
+      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+        <div><span style="color:var(--cm-fg-3);">Genre:</span> <span style="color:var(--cm-fg-1);">{{ comic.genre|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Series Group:</span> <span style="color:var(--cm-fg-1);">{{ comic.series_group|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Main Character:</span> <span style="color:var(--cm-fg-1);">{{ comic.main_character_or_team|default:"-" }}</span></div>
+        {% if comic.is_physical %}
+        <div><span style="color:var(--cm-fg-3);">Storage Location:</span> <span style="color:var(--cm-fg-1);">{{ comic.storage_location|default:"-" }}</span></div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if comic.summary %}
+  <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:6px;">Summary</div>
+    <p style="font-size:13px; color:var(--cm-fg-1); line-height:1.6; margin:0;">{{ comic.summary }}</p>
+  </div>
+  {% endif %}
+
+  {% if comic.writer or comic.penciller or comic.inker or comic.colorist or comic.letterer or comic.cover_artist or comic.editor %}
+  <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Credits</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:5px; font-size:12px;">
+      {% if comic.writer %}<div><span style="color:var(--cm-fg-3);">Writer:</span> <span style="color:var(--cm-fg-1);">{{ comic.writer }}</span></div>{% endif %}
+      {% if comic.penciller %}<div><span style="color:var(--cm-fg-3);">Penciller:</span> <span style="color:var(--cm-fg-1);">{{ comic.penciller }}</span></div>{% endif %}
+      {% if comic.inker %}<div><span style="color:var(--cm-fg-3);">Inker:</span> <span style="color:var(--cm-fg-1);">{{ comic.inker }}</span></div>{% endif %}
+      {% if comic.colorist %}<div><span style="color:var(--cm-fg-3);">Colorist:</span> <span style="color:var(--cm-fg-1);">{{ comic.colorist }}</span></div>{% endif %}
+      {% if comic.letterer %}<div><span style="color:var(--cm-fg-3);">Letterer:</span> <span style="color:var(--cm-fg-1);">{{ comic.letterer }}</span></div>{% endif %}
+      {% if comic.cover_artist %}<div><span style="color:var(--cm-fg-3);">Cover Artist:</span> <span style="color:var(--cm-fg-1);">{{ comic.cover_artist }}</span></div>{% endif %}
+      {% if comic.editor %}<div><span style="color:var(--cm-fg-3);">Editor:</span> <span style="color:var(--cm-fg-1);">{{ comic.editor }}</span></div>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if comic.characters %}
+  <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:6px;">Characters</div>
+    <p style="font-size:13px; color:var(--cm-fg-1); margin:0;">{{ comic.characters }}</p>
+  </div>
+  {% endif %}
+
+  {% if comic.teams %}
+  <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:6px;">Teams</div>
+    <p style="font-size:13px; color:var(--cm-fg-1); margin:0;">{{ comic.teams }}</p>
+  </div>
+  {% endif %}
+
+  {% if comic.locations %}
+  <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:6px;">Locations</div>
+    <p style="font-size:13px; color:var(--cm-fg-1); margin:0;">{{ comic.locations }}</p>
+  </div>
+  {% endif %}
+
+  {% if comic.tags %}
+  <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:6px;">Tags</div>
+    <p style="font-size:13px; color:var(--cm-fg-1); margin:0;">{{ comic.tags }}</p>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- File & System Info -->
+<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div style="font-size:15px; font-weight:700; margin-bottom:14px;">File &amp; System Info</div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px;">
+    <div>
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">File Details</div>
+      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+        {% if comic.file_path %}
+        <div><span style="color:var(--cm-fg-3);">Path:</span> <code style="font-size:11px; color:var(--cm-fg-1); word-break:break-all;">{{ comic.file_path }}</code></div>
+        {% else %}
+        <div><span style="color:var(--cm-fg-3);">Path:</span> <span style="color:var(--cm-warn);">No file (physical comic)</span></div>
+        {% endif %}
+        <div><span style="color:var(--cm-fg-3);">Format:</span> <span style="color:var(--cm-fg-1);">{{ comic.file_format|default:"-" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Size:</span> <span style="color:var(--cm-fg-1);">{% if comic.file_size %}{{ comic.file_size|filesizeformat }}{% else %}-{% endif %}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Pages:</span> <span style="color:var(--cm-fg-1);">{{ comic.page_count|default:"-" }}</span></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">System Info</div>
+      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+        <div><span style="color:var(--cm-fg-3);">ID:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.pk }}</code></div>
+        <div><span style="color:var(--cm-fg-3);">State:</span> <span style="color:var(--cm-fg-1);">{{ comic.state }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Medium:</span> <span style="color:var(--cm-fg-1);">{{ comic.medium }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Imported:</span> <span class="mono tnum" style="color:var(--cm-fg-1);">{{ comic.imported_at|date:"Y-m-d H:i" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Updated:</span> <span class="mono tnum" style="color:var(--cm-fg-1);">{{ comic.updated_at|date:"Y-m-d H:i" }}</span></div>
+        <div><span style="color:var(--cm-fg-3);">Last Written:</span> <span class="mono tnum" style="color:var(--cm-fg-1);">{% if comic.last_written %}{{ comic.last_written|date:"Y-m-d H:i:s" }}{% else %}-{% endif %}</span></div>
+      </div>
+    </div>
+
+    {% if comic.phash or comic.ahash %}
+    <div>
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Cover Hashes</div>
+      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+        {% if comic.phash %}<div><span style="color:var(--cm-fg-3);">pHash:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.phash }}</code></div>{% endif %}
+        {% if comic.ahash %}<div><span style="color:var(--cm-fg-3);">aHash:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.ahash }}</code></div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if display_custom_values %}
+    <div>
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Custom Values</div>
+      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+        {% for key, value in display_custom_values.items %}
+        <div><span style="color:var(--cm-fg-3);">{{ key }}:</span> <span style="color:var(--cm-fg-1);">{{ value }}</span></div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if comic.has_flags %}
+  <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Flags</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+      {% for flag in comic.flag_list %}
+      <span class="cm-chip warn">{{ flag }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if comic.accepted_flags %}
+  <div style="margin-top:10px;">
+    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Accepted (suppressed)</div>
+    <div style="display:flex; flex-wrap:wrap; gap:6px;" id="accepted-flags-list">
+      {% for flag_name, _ in comic.accepted_flags.items %}
+      <div class="cm-chip" id="accepted-flag-{{ flag_name }}" style="display:inline-flex; align-items:center; gap:4px;">
+        {{ flag_name }}
+        <button
+          hx-post="{% url 'core:unaccept_flag' comic.pk %}"
+          hx-vals='{"flag": "{{ flag_name }}"}'
+          hx-target="#accepted-flag-{{ flag_name }}"
+          hx-swap="outerHTML"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+          style="background:none; border:none; cursor:pointer; color:var(--cm-fg-3); font-size:11px; padding:0 0 0 2px; line-height:1;"
+          title="Un-accept — allow detection to re-flag this"
+        >&#x2715;</button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if comic.web %}
+  <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+    <a href="{{ comic.web }}" target="_blank" class="cm-btn sm ghost" style="text-decoration:none;">View on ComicVine</a>
+  </div>
+  {% endif %}
+</div>
+
+</div><!-- /body -->
+
+<!-- Scrape Preview Modal (RD.14) -->
 <dialog id="scrape-modal" class="modal">
   <div class="modal-box max-w-6xl max-h-[90vh]">
     <form method="dialog">
@@ -600,45 +552,40 @@
   </form>
 </dialog>
 
-<!-- Tagging Results Modal -->
+<!-- Tagging Results Modal (RD.13) -->
 <dialog id="tag-result-modal" class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box max-w-2xl">
-    <h3 class="font-bold text-lg mb-4">
-      Tagging Results: <span id="tag-modal-comic-title"></span>
+  <div class="modal-box max-w-2xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:20px;">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 14px;">
+      Tagging Results: <span id="tag-modal-comic-title" style="color:var(--cm-fg-2);"></span>
     </h3>
 
     <div id="tag-modal-content">
-      <!-- Summary -->
-      <div id="tag-modal-summary" class="mb-4">
-        <div class="flex gap-4 text-sm">
-          <div class="stat bg-base-200 rounded-box p-3">
-            <div class="stat-title text-xs">Matched Rules</div>
-            <div class="stat-value text-lg text-primary" id="tag-matched-count">0</div>
-          </div>
-          <div class="stat bg-base-200 rounded-box p-3">
-            <div class="stat-title text-xs">Changes Made</div>
-            <div class="stat-value text-lg text-success" id="tag-changes-count">0</div>
-          </div>
+      <div id="tag-modal-summary" style="display:flex; gap:12px; margin-bottom:14px;">
+        <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 14px; min-width:100px;">
+          <div style="font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Matched Rules</div>
+          <div style="font-size:22px; font-weight:700; color:var(--cm-accent);" id="tag-matched-count">0</div>
+        </div>
+        <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 14px; min-width:100px;">
+          <div style="font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Changes Made</div>
+          <div style="font-size:22px; font-weight:700; color:var(--cm-ok);" id="tag-changes-count">0</div>
         </div>
       </div>
 
-      <!-- Matched Rulesets -->
-      <div id="tag-rulesets-section" class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">Matched Rulesets</h4>
-        <div id="tag-rulesets-list" class="flex flex-wrap gap-2"></div>
+      <div id="tag-rulesets-section" style="margin-bottom:12px;">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Matched Rulesets</div>
+        <div id="tag-rulesets-list" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
       </div>
 
-      <!-- Changes Table -->
       <div id="tag-changes-section">
-        <h4 class="font-semibold text-sm mb-2">Field Changes</h4>
-        <div class="overflow-x-auto">
-          <table class="table table-sm table-zebra">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Field Changes</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
             <thead>
-              <tr>
-                <th>Field</th>
-                <th>Action</th>
-                <th>Value</th>
-                <th>By Rule</th>
+              <tr style="border-bottom:1px solid var(--cm-border);">
+                <th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">Field</th>
+                <th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">Action</th>
+                <th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">Value</th>
+                <th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">By Rule</th>
               </tr>
             </thead>
             <tbody id="tag-changes-table"></tbody>
@@ -646,15 +593,14 @@
         </div>
       </div>
 
-      <!-- No matches message -->
-      <div id="tag-no-matches" class="alert alert-info hidden">
-        <span>No matching rulesets found. Comic state was advanced to "tagged".</span>
+      <div id="tag-no-matches" style="display:none; background:var(--cm-info-dim); border:1px solid var(--cm-info); border-radius:6px; padding:10px 14px; font-size:13px; color:var(--cm-info);">
+        No matching rulesets found. Comic state was advanced to "tagged".
       </div>
     </div>
 
-    <div class="modal-action">
+    <div style="display:flex; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--cm-border);">
       <form method="dialog">
-        <button class="btn btn-primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
+        <button class="cm-btn sm primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
       </form>
     </div>
   </div>
@@ -663,43 +609,40 @@
   </form>
 </dialog>
 
-<!-- Format Detection Results Modal -->
+<!-- Format Detection Results Modal (RD.13) -->
 <dialog id="format-result-modal" class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box max-w-xl">
-    <h3 class="font-bold text-lg mb-4">
-      Format Detection: <span id="format-modal-comic-title"></span>
+  <div class="modal-box max-w-xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:20px;">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 14px;">
+      Format Detection: <span id="format-modal-comic-title" style="color:var(--cm-fg-2);"></span>
     </h3>
 
     <div id="format-modal-content">
-      <!-- Source text checked -->
-      <div class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">Text Analyzed</h4>
-        <div class="bg-base-200 p-3 rounded-lg text-sm">
-          <div><span class="text-base-content/60">Series:</span> <span id="format-series" class="font-medium"></span></div>
-          <div><span class="text-base-content/60">Title:</span> <span id="format-title" class="font-medium"></span></div>
-          <div><span class="text-base-content/60">Issue Count:</span> <span id="format-count" class="font-medium"></span></div>
-          <div><span class="text-base-content/60">Page Count:</span> <span id="format-page-count" class="font-medium"></span></div>
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Text Analyzed</div>
+        <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 12px; font-size:12px;">
+          <div style="margin-bottom:3px;"><span style="color:var(--cm-fg-3);">Series:</span> <span id="format-series" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
+          <div style="margin-bottom:3px;"><span style="color:var(--cm-fg-3);">Title:</span> <span id="format-title" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
+          <div style="margin-bottom:3px;"><span style="color:var(--cm-fg-3);">Issue Count:</span> <span id="format-count" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
+          <div><span style="color:var(--cm-fg-3);">Page Count:</span> <span id="format-page-count" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
         </div>
       </div>
 
-      <!-- Result -->
-      <div class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">Result</h4>
-        <div id="format-result-box" class="alert">
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Result</div>
+        <div id="format-result-box" style="border-radius:6px; padding:10px 14px; border:1px solid var(--cm-border);">
           <span id="format-result-text"></span>
         </div>
       </div>
 
-      <!-- Patterns checked -->
       <div>
-        <h4 class="font-semibold text-sm mb-2">Patterns Checked</h4>
-        <div class="grid grid-cols-2 gap-2" id="format-patterns-list"></div>
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Patterns Checked</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;" id="format-patterns-list"></div>
       </div>
     </div>
 
-    <div class="modal-action">
+    <div style="display:flex; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--cm-border);">
       <form method="dialog">
-        <button class="btn btn-primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
+        <button class="cm-btn sm primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
       </form>
     </div>
   </div>
@@ -708,46 +651,41 @@
   </form>
 </dialog>
 
-<!-- Organize Results Modal -->
+<!-- Organize Results Modal (RD.13) -->
 <dialog id="organize-result-modal" class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box max-w-2xl">
-    <h3 class="font-bold text-lg mb-4">
-      Organization Results: <span id="organize-modal-comic-title"></span>
+  <div class="modal-box max-w-2xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:20px;">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 14px;">
+      Organization Results: <span id="organize-modal-comic-title" style="color:var(--cm-fg-2);"></span>
     </h3>
 
     <div id="organize-modal-content">
-      <!-- Profile Used -->
-      <div class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">Profile Used</h4>
-        <div class="bg-base-200 p-3 rounded-lg">
-          <span id="organize-profile" class="font-medium text-primary"></span>
-        </div>
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Profile Used</div>
+        <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 12px; font-size:13px; color:var(--cm-accent); font-weight:600;" id="organize-profile"></div>
       </div>
 
-      <!-- Paths -->
-      <div class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">File Paths</h4>
-        <div class="bg-base-200 p-3 rounded-lg text-sm space-y-2">
-          <div>
-            <span class="text-base-content/60">From:</span>
-            <div id="organize-old-path" class="font-mono text-xs break-all mt-1"></div>
+      <div style="margin-bottom:12px;">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">File Paths</div>
+        <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 12px; font-size:12px;">
+          <div style="margin-bottom:6px;">
+            <span style="color:var(--cm-fg-3);">From:</span>
+            <div id="organize-old-path" style="font-family:monospace; font-size:11px; color:var(--cm-fg-1); word-break:break-all; margin-top:2px;"></div>
           </div>
           <div>
-            <span class="text-base-content/60">To:</span>
-            <div id="organize-new-path" class="font-mono text-xs break-all mt-1 text-success"></div>
+            <span style="color:var(--cm-fg-3);">To:</span>
+            <div id="organize-new-path" style="font-family:monospace; font-size:11px; color:var(--cm-ok); word-break:break-all; margin-top:2px;"></div>
           </div>
         </div>
       </div>
 
-      <!-- Result -->
-      <div id="organize-result-box" class="alert">
+      <div id="organize-result-box" style="border-radius:6px; padding:10px 14px; border:1px solid var(--cm-border);">
         <span id="organize-result-text"></span>
       </div>
     </div>
 
-    <div class="modal-action">
+    <div style="display:flex; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--cm-border);">
       <form method="dialog">
-        <button class="btn btn-primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
+        <button class="cm-btn sm primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
       </form>
     </div>
   </div>
@@ -756,54 +694,55 @@
   </form>
 </dialog>
 
-<!-- Compare All Sources Modal -->
+<!-- Compare All Sources Modal (RD.15) -->
 <dialog id="cv-compare-modal" class="modal">
-  <div class="modal-box max-w-7xl">
-    <form method="dialog">
-      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&#x2715;</button>
-    </form>
-    <h3 class="font-bold text-lg mb-4">Metadata Comparison &mdash; All Sources</h3>
-
-    <div id="cv-compare-loading" class="flex items-center justify-center py-8">
-      <span class="loading loading-spinner loading-lg"></span>
-      <span class="ml-2">Fetching from all sources...</span>
+  <div class="modal-box max-w-7xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:0; max-height:90vh; display:flex; flex-direction:column;">
+    <!-- Header -->
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--cm-border); flex-shrink:0;">
+      <h3 style="font-size:15px; font-weight:700; margin:0;">Metadata Comparison — All Sources</h3>
+      <form method="dialog">
+        <button style="background:none; border:none; cursor:pointer; color:var(--cm-fg-3); font-size:16px; line-height:1; padding:2px 4px;" onmouseenter="this.style.color='var(--cm-fg)'" onmouseleave="this.style.color='var(--cm-fg-3)'">&#x2715;</button>
+      </form>
     </div>
 
-    <div id="cv-compare-error" class="alert alert-error hidden">
+    <!-- Loading -->
+    <div id="cv-compare-loading" style="display:flex; align-items:center; justify-content:center; padding:48px; gap:10px; color:var(--cm-fg-2);">
+      <span class="loading loading-spinner loading-lg"></span>
+      <span style="font-size:13px;">Fetching from all sources...</span>
+    </div>
+
+    <!-- Error -->
+    <div id="cv-compare-error" style="display:none; margin:16px; background:var(--cm-err-dim); border:1px solid var(--cm-err); border-radius:6px; padding:10px 14px; font-size:13px; color:var(--cm-err);">
       <span id="cv-compare-error-text"></span>
     </div>
 
-    <div id="cv-compare-content" class="hidden">
-      <!-- Source badges -->
-      <div id="cv-compare-sources" class="flex flex-wrap gap-2 mb-4"></div>
-
-      <!-- Common fields table -->
-      <div class="overflow-x-auto">
-        <table class="table table-zebra table-sm">
+    <!-- Content -->
+    <div id="cv-compare-content" style="display:none; flex:1; overflow-y:auto; padding:14px 16px;">
+      <div id="cv-compare-sources" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;"></div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
           <thead>
-            <tr>
-              <th class="w-36">Field</th>
-              <th>Database</th>
-              <th id="col-xml">ComicInfo.xml</th>
-              <th id="col-cv-local">comicvine.db</th>
-              <th id="col-cv-api">CV API</th>
-              <th class="w-24">Status</th>
+            <tr style="border-bottom:2px solid var(--cm-border);">
+              <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; width:130px;">Field</th>
+              <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Database</th>
+              <th id="col-xml" style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">ComicInfo.xml</th>
+              <th id="col-cv-local" style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">comicvine.db</th>
+              <th id="col-cv-api" style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">CV API</th>
+              <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; width:90px;">Status</th>
             </tr>
           </thead>
           <tbody id="cv-compare-common-body"></tbody>
         </table>
       </div>
-
-      <!-- Extra fields section -->
-      <div id="cv-compare-extras-section" class="hidden mt-6">
-        <h4 class="font-semibold text-sm mb-2">Source-Specific Fields</h4>
-        <div class="overflow-x-auto">
-          <table class="table table-zebra table-sm">
+      <div id="cv-compare-extras-section" style="display:none; margin-top:20px;">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:8px;">Source-Specific Fields</div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%; border-collapse:collapse; font-size:12px;">
             <thead>
-              <tr>
-                <th class="w-36">Field</th>
-                <th>Source</th>
-                <th>Value</th>
+              <tr style="border-bottom:2px solid var(--cm-border);">
+                <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; width:130px;">Field</th>
+                <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Source</th>
+                <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Value</th>
               </tr>
             </thead>
             <tbody id="cv-compare-extras-body"></tbody>
@@ -812,9 +751,10 @@
       </div>
     </div>
 
-    <div class="modal-action">
+    <!-- Footer -->
+    <div style="display:flex; justify-content:flex-end; padding:12px 16px; border-top:1px solid var(--cm-border); flex-shrink:0;">
       <form method="dialog">
-        <button class="btn btn-ghost">Close</button>
+        <button class="cm-btn sm ghost">Close</button>
       </form>
     </div>
   </div>
@@ -826,66 +766,70 @@
 {% if comic.is_physical %}
 <!-- Upload Cover Modal -->
 <dialog id="upload-cover-modal" class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box max-w-sm">
+  <div class="modal-box max-w-sm" style="background:var(--cm-bg-1); border:1px solid var(--cm-border);">
     <form method="dialog">
       <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&#x2715;</button>
     </form>
-    <h3 class="font-bold text-lg mb-4">Upload Cover Image</h3>
-    <div id="upload-cover-error" class="alert alert-error hidden mb-3">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 14px;">Upload Cover Image</h3>
+    <div id="upload-cover-error" style="display:none; background:var(--cm-err-dim); border:1px solid var(--cm-err); border-radius:6px; padding:8px 12px; font-size:12px; color:var(--cm-err); margin-bottom:10px;">
       <span id="upload-cover-error-text"></span>
     </div>
-    <div class="space-y-3">
+    <div style="display:flex; flex-direction:column; gap:10px;">
       <input type="file" id="upload-cover-file" accept="image/*" class="file-input file-input-bordered w-full" />
-      <p class="text-xs text-base-content/50">JPEG, PNG, GIF, or WebP. Will be converted to JPEG.</p>
+      <p style="font-size:11px; color:var(--cm-fg-3);">JPEG, PNG, GIF, or WebP. Will be converted to JPEG.</p>
     </div>
-    <div class="modal-action">
-      <button type="button" class="btn btn-primary" onclick="uploadCover()">Upload</button>
-      <form method="dialog"><button class="btn btn-ghost">Cancel</button></form>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+      <button type="button" class="cm-btn sm primary" onclick="uploadCover()">Upload</button>
+      <form method="dialog"><button class="cm-btn sm ghost">Cancel</button></form>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 {% endif %}
 
-<!-- Page Manager Modal -->
+<!-- Page Manager Modal (RD.16) -->
 <dialog id="page-manager-modal" class="modal">
-  <div class="modal-box max-w-4xl">
-    <form method="dialog">
-      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&#x2715;</button>
-    </form>
-    <h3 class="font-bold text-lg mb-1">Manage Pages</h3>
-    <p class="text-xs text-base-content/50 mb-3">Drag to reorder &bull; &#x2715; to delete &bull; changes saved together</p>
+  <div class="modal-box max-w-4xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:0; max-height:90vh; display:flex; flex-direction:column;">
+    <!-- Header -->
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--cm-border); flex-shrink:0;">
+      <div>
+        <div style="font-size:15px; font-weight:700;">Manage Pages</div>
+        <div style="font-size:11px; color:var(--cm-fg-3); margin-top:2px;">Drag to reorder &bull; &#x2715; to delete &bull; changes saved together</div>
+      </div>
+      <form method="dialog">
+        <button style="background:none; border:none; cursor:pointer; color:var(--cm-fg-3); font-size:16px; line-height:1; padding:2px 4px;" onmouseenter="this.style.color='var(--cm-fg)'" onmouseleave="this.style.color='var(--cm-fg-3)'">&#x2715;</button>
+      </form>
+    </div>
 
-    <div id="pm-error" class="alert alert-error hidden mb-3">
+    <!-- Error -->
+    <div id="pm-error" style="display:none; margin:10px 16px 0; background:var(--cm-err-dim); border:1px solid var(--cm-err); border-radius:6px; padding:8px 12px; font-size:12px; color:var(--cm-err);">
       <span id="pm-error-text"></span>
     </div>
 
     <!-- Loading -->
-    <div id="pm-loading" class="flex items-center justify-center py-12">
+    <div id="pm-loading" style="display:flex; align-items:center; justify-content:center; padding:48px;">
       <span class="loading loading-spinner loading-md"></span>
     </div>
 
-    <!-- Scrollable thumbnail grid -->
-    <div id="pm-grid" class="flex flex-wrap gap-2 overflow-y-auto max-h-[60vh] p-1" style="display:none!important">
-      <!-- Thumbnails injected by JS -->
+    <!-- Thumbnail grid -->
+    <div id="pm-grid" class="flex flex-wrap gap-2 overflow-y-auto p-3" style="display:none!important; flex:1;">
     </div>
 
-    <!-- Upload section -->
-    <div id="pm-upload-section" class="border-t border-base-300 pt-3 mt-3 flex items-center gap-3" style="display:none">
-      <span class="text-sm font-medium shrink-0">Add page:</span>
-      <label class="btn btn-sm btn-accent gap-2 cursor-pointer">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        Choose Image
-        <input type="file" id="pm-upload-file" accept="image/*" class="hidden" onchange="pmAddPage(this)" />
-      </label>
-      <span class="text-xs text-base-content/50">Added to beginning — drag to reposition</span>
-    </div>
-
-    <div class="modal-action mt-3">
-      <button type="button" id="pm-apply-btn" class="btn btn-primary" onclick="pmApplyChanges()" disabled>Save Changes</button>
-      <form method="dialog">
-        <button class="btn btn-ghost">Cancel</button>
-      </form>
+    <!-- Upload + footer -->
+    <div style="border-top:1px solid var(--cm-border); padding:10px 16px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; flex-wrap:wrap; gap:8px;">
+      <div id="pm-upload-section" style="display:none; align-items:center; gap:8px;">
+        <span style="font-size:12px; font-weight:500; color:var(--cm-fg-2);">Add page:</span>
+        <label class="cm-btn sm" style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Choose Image
+          <input type="file" id="pm-upload-file" accept="image/*" style="display:none;" onchange="pmAddPage(this)" />
+        </label>
+        <span style="font-size:11px; color:var(--cm-fg-3);">Added to beginning — drag to reposition</span>
+      </div>
+      <div style="display:flex; gap:8px; margin-left:auto;">
+        <button type="button" id="pm-apply-btn" class="cm-btn sm primary" onclick="pmApplyChanges()" disabled>Save Changes</button>
+        <form method="dialog"><button class="cm-btn sm ghost">Cancel</button></form>
+      </div>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">
@@ -896,6 +840,13 @@
 <script>
 const comicPk = '{{ comic.pk }}';
 const csrfToken = '{{ csrf_token }}';
+
+// Close actions dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('actions-wrap');
+  const dd = document.getElementById('actions-dd');
+  if (wrap && dd && !wrap.contains(e.target)) dd.classList.add('hidden');
+});
 
 // Action endpoints mapping
 const actionEndpoints = {
@@ -943,13 +894,13 @@ function setMainCover(coverUrl) {
 
 function openGallery(index, context) {
   let items = [];
-  
+
   if (context === 'variants') {
     items.push({ url: '/comics/{{ comic.pk }}/cover/', caption: 'Local Cover' });
     {% for page_num in alt_cover_range %}
-    items.push({ 
-      url: '/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}', 
-      caption: '{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}' 
+    items.push({
+      url: '/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}',
+      caption: '{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}'
     });
     {% endfor %}
   } else if (context === 'pagemanager') {
@@ -971,22 +922,18 @@ function openImageModal(url, caption) {
 
 // ── Scrape modal functions ───────────────────────────────────────────────────
 
-// Scrape modal functions
 function openScrapeModal() {
   const modal = document.getElementById('scrape-modal');
   const matchesDiv = document.getElementById('modal-matches');
   const loadingDiv = document.getElementById('modal-loading');
   const errorDiv = document.getElementById('modal-error');
 
-  // Close dropdown
   document.activeElement.blur();
 
-  // Reset modal state
   matchesDiv.innerHTML = '';
   loadingDiv.classList.remove('hidden');
   errorDiv.classList.add('hidden');
 
-  // Reset API search section
   const apiSection = document.getElementById('api-search-section');
   apiSection.classList.add('hidden');
   document.getElementById('api-no-local').classList.add('hidden');
@@ -994,7 +941,6 @@ function openScrapeModal() {
   document.getElementById('api-search-loading').classList.add('hidden');
   document.getElementById('api-search-error').classList.add('hidden');
 
-  // Reset Inducks search section
   const inducksMatches = document.getElementById('inducks-matches');
   if (inducksMatches) {
     inducksMatches.innerHTML = '';
@@ -1004,7 +950,6 @@ function openScrapeModal() {
 
   modal.showModal();
 
-  // Fetch preview matches with force=1 to skip state check
   fetch(`/comics/${comicPk}/scrape/preview/?force=1`)
     .then(response => response.json())
     .then(data => {
@@ -1016,12 +961,10 @@ function openScrapeModal() {
         return;
       }
 
-      // Show API search section and pre-fill search input
       apiSection.classList.remove('hidden');
       const apiInput = document.getElementById('api-search-input');
       apiInput.value = `${data.comic.series || ''} ${data.comic.number || ''}`.trim();
 
-      // Show Inducks search section and pre-fill
       const inducksSection = document.getElementById('inducks-search-section');
       if (inducksSection) inducksSection.classList.remove('hidden');
       const inducksInput = document.getElementById('inducks-search-input');
@@ -1035,7 +978,6 @@ function openScrapeModal() {
         return;
       }
 
-      // Render match cards
       data.matches.forEach((match, idx) => {
         const card = document.createElement('div');
         card.className = `card bg-base-300 cursor-pointer hover:ring-2 hover:ring-primary transition-all border border-base-content/10 ${match.recommended ? 'ring-2 ring-success' : ''}`;
@@ -1074,7 +1016,6 @@ function openScrapeModal() {
 async function selectMatch(issueId, source, issuecode, storycode) {
   const modal = document.getElementById('scrape-modal');
 
-  // Show loading state on all match cards across all sections
   document.querySelectorAll('#modal-matches .card, #api-matches .card, #inducks-matches .card').forEach(card => {
     card.classList.add('opacity-50', 'pointer-events-none');
   });
@@ -1203,7 +1144,6 @@ function _showDetailApiResultBatch() {
 
   _detailApiShownCount += batch.length;
 
-  // Fetch volume info for unique volume IDs in this batch
   const newVolumeIds = [...new Set(batch.map(m => m.volume_id).filter(Boolean))];
   if (newVolumeIds.length) {
     fetch(`/comics/scrape/volume-batch/?vids=${newVolumeIds.join(',')}`)
@@ -1231,12 +1171,8 @@ function _showDetailApiResultBatch() {
   }
 }
 
-// Allow Enter key in API search input
 document.getElementById('api-search-input')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    searchApi();
-  }
+  if (e.key === 'Enter') { e.preventDefault(); searchApi(); }
 });
 
 // ── Inducks search ──────────────────────────────────────────────────────────
@@ -1348,16 +1284,10 @@ function matchStoryDirect() {
 }
 
 document.getElementById('inducks-search-input')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    searchInducks();
-  }
+  if (e.key === 'Enter') { e.preventDefault(); searchInducks(); }
 });
 document.getElementById('inducks-storycode-input')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    searchInducks('storycode');
-  }
+  if (e.key === 'Enter') { e.preventDefault(); searchInducks('storycode'); }
 });
 {% endif %}
 
@@ -1367,49 +1297,44 @@ function openCvCompareModal() {
   const error = document.getElementById('cv-compare-error');
   const content = document.getElementById('cv-compare-content');
 
-  // Close dropdown
   document.activeElement.blur();
 
-  // Reset state
-  loading.classList.remove('hidden');
-  error.classList.add('hidden');
-  content.classList.add('hidden');
+  loading.style.display = 'flex';
+  error.style.display = 'none';
+  content.style.display = 'none';
   document.getElementById('cv-compare-common-body').innerHTML = '';
   document.getElementById('cv-compare-extras-body').innerHTML = '';
-  document.getElementById('cv-compare-extras-section').classList.add('hidden');
+  document.getElementById('cv-compare-extras-section').style.display = 'none';
 
   modal.showModal();
 
   fetch(`/comics/${comicPk}/cv-compare/`)
     .then(r => r.json())
     .then(data => {
-      loading.classList.add('hidden');
+      loading.style.display = 'none';
 
       if (!data.success) {
-        error.classList.remove('hidden');
+        error.style.display = '';
         document.getElementById('cv-compare-error-text').textContent = data.error;
         return;
       }
 
-      content.classList.remove('hidden');
+      content.style.display = '';
       const sources = data.sources;
 
-      // Source badges
       const badgesDiv = document.getElementById('cv-compare-sources');
       badgesDiv.innerHTML = `
-        <span class="badge badge-success badge-sm">Database</span>
-        <span class="badge ${sources.xml ? 'badge-success' : 'badge-ghost'} badge-sm">ComicInfo.xml ${sources.xml ? '' : '(not found)'}</span>
-        <span class="badge ${sources.cv_local ? 'badge-success' : 'badge-ghost'} badge-sm">comicvine.db ${sources.cv_local ? '' : '(not found)'}</span>
-        <span class="badge ${sources.cv_api ? 'badge-success' : (sources.api_skipped_reason && sources.api_skipped_reason.includes('Rate') ? 'badge-warning' : 'badge-ghost')} badge-sm">CV API ${sources.cv_api ? '' : `(${sources.api_skipped_reason || 'skipped'})`}</span>
-        <span class="badge badge-outline badge-sm">CV Issue #${data.cv_issue_id}</span>
+        <span class="cm-chip ok" style="font-size:11px;">Database</span>
+        <span class="cm-chip ${sources.xml ? 'ok' : ''}" style="font-size:11px;">ComicInfo.xml ${sources.xml ? '' : '(not found)'}</span>
+        <span class="cm-chip ${sources.cv_local ? 'ok' : ''}" style="font-size:11px;">comicvine.db ${sources.cv_local ? '' : '(not found)'}</span>
+        <span class="cm-chip ${sources.cv_api ? 'ok' : (sources.api_skipped_reason && sources.api_skipped_reason.includes('Rate') ? 'warn' : '')}" style="font-size:11px;">CV API ${sources.cv_api ? '' : `(${sources.api_skipped_reason || 'skipped'})`}</span>
+        <span class="cm-chip accent" style="font-size:11px;">CV Issue #${data.cv_issue_id}</span>
       `;
 
-      // Hide unavailable columns
       document.getElementById('col-xml').classList.toggle('hidden', !sources.xml);
       document.getElementById('col-cv-local').classList.toggle('hidden', !sources.cv_local);
       document.getElementById('col-cv-api').classList.toggle('hidden', !sources.cv_api);
 
-      // Common fields table
       const tbody = document.getElementById('cv-compare-common-body');
       const fmtVal = (v) => {
         if (v == null || !String(v).trim()) return '<span class="text-base-content/30">-</span>';
@@ -1418,51 +1343,53 @@ function openCvCompareModal() {
 
       data.common.forEach(item => {
         const tr = document.createElement('tr');
-        const statusClass = item.status === 'differ' ? 'bg-warning/10' : '';
-        tr.className = statusClass;
+        tr.style.borderBottom = '1px solid var(--cm-border)';
+        if (item.status === 'differ') tr.style.background = 'var(--cm-warn-dim)';
 
         let statusBadge;
-        if (item.status === 'match') statusBadge = '<span class="badge badge-success badge-sm">Match</span>';
-        else if (item.status === 'differ') statusBadge = '<span class="badge badge-warning badge-sm">Different</span>';
-        else statusBadge = '<span class="badge badge-ghost badge-sm">Empty</span>';
+        if (item.status === 'match') statusBadge = '<span class="cm-chip ok" style="font-size:10px;">Match</span>';
+        else if (item.status === 'differ') statusBadge = '<span class="cm-chip warn" style="font-size:10px;">Different</span>';
+        else statusBadge = '<span class="cm-chip" style="font-size:10px;">Empty</span>';
 
+        const tdStyle = 'padding:6px 10px; max-width:220px;';
         tr.innerHTML = `
-          <td class="font-medium text-sm">${escapeHtml(item.label)}</td>
-          <td class="max-w-xs">${fmtVal(item.db)}</td>
-          ${sources.xml ? `<td class="max-w-xs">${fmtVal(item.xml)}</td>` : ''}
-          ${sources.cv_local ? `<td class="max-w-xs">${fmtVal(item.cv_local)}</td>` : ''}
-          ${sources.cv_api ? `<td class="max-w-xs">${fmtVal(item.cv_api)}</td>` : ''}
-          <td>${statusBadge}</td>
+          <td style="${tdStyle} font-weight:600; color:var(--cm-fg-1);">${escapeHtml(item.label)}</td>
+          <td style="${tdStyle}">${fmtVal(item.db)}</td>
+          ${sources.xml ? `<td style="${tdStyle}">${fmtVal(item.xml)}</td>` : ''}
+          ${sources.cv_local ? `<td style="${tdStyle}">${fmtVal(item.cv_local)}</td>` : ''}
+          ${sources.cv_api ? `<td style="${tdStyle}">${fmtVal(item.cv_api)}</td>` : ''}
+          <td style="padding:6px 10px;">${statusBadge}</td>
         `;
         tbody.appendChild(tr);
       });
 
-      // Extra fields
       if (data.extras && data.extras.length > 0) {
-        document.getElementById('cv-compare-extras-section').classList.remove('hidden');
+        document.getElementById('cv-compare-extras-section').style.display = '';
         const extrasBody = document.getElementById('cv-compare-extras-body');
         const sourceLabels = {db: 'Database', xml: 'ComicInfo.xml', cv_local: 'comicvine.db', cv_api: 'CV API'};
-        const sourceBadges = {db: 'badge-info', xml: 'badge-primary', cv_local: 'badge-secondary', cv_api: 'badge-accent'};
+        const sourceChips = {db: 'info', xml: 'violet', cv_local: 'accent', cv_api: 'ok'};
 
         data.extras.forEach(item => {
           const tr = document.createElement('tr');
+          tr.style.borderBottom = '1px solid var(--cm-border)';
           tr.innerHTML = `
-            <td class="font-medium text-sm">${escapeHtml(item.label)}</td>
-            <td><span class="badge badge-sm ${sourceBadges[item.source] || 'badge-ghost'}">${sourceLabels[item.source] || item.source}</span></td>
-            <td class="max-w-md text-xs whitespace-pre-wrap">${escapeHtml(String(item.value))}</td>
+            <td style="padding:6px 10px; font-weight:600; color:var(--cm-fg-1);">${escapeHtml(item.label)}</td>
+            <td style="padding:6px 10px;"><span class="cm-chip ${sourceChips[item.source] || ''}" style="font-size:10px;">${sourceLabels[item.source] || item.source}</span></td>
+            <td style="padding:6px 10px; max-width:320px; font-size:11px; color:var(--cm-fg-1); white-space:pre-wrap; word-break:break-word;">${escapeHtml(String(item.value))}</td>
           `;
           extrasBody.appendChild(tr);
         });
       }
     })
     .catch(err => {
-      loading.classList.add('hidden');
-      error.classList.remove('hidden');
+      loading.style.display = 'none';
+      error.style.display = '';
       document.getElementById('cv-compare-error-text').textContent = 'Error: ' + err.message;
     });
 }
 
 function escapeHtml(text) {
+  if (!text) return '';
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
@@ -1485,7 +1412,7 @@ async function refreshFileInfo() {
       if (Object.keys(data.updated).length > 0) {
         window.location.reload();
       } else {
-        btn.innerHTML = '<span class="text-success">Up to date</span>';
+        btn.innerHTML = '<span style="color:var(--cm-ok);">Up to date</span>';
         setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
       }
     } else {
@@ -1515,9 +1442,7 @@ async function tryRezip() {
 
     if (data.success) {
       document.getElementById('corrupted-alert').remove();
-      if (window.showQuickToast) {
-        window.showQuickToast(data.message || 'File recovered successfully.');
-      }
+      if (window.showQuickToast) window.showQuickToast(data.message || 'File recovered successfully.');
       setTimeout(() => location.reload(), 1000);
     } else {
       btn.textContent = originalText;
@@ -1547,11 +1472,11 @@ async function toggleScrapeSkip() {
     if (data.success) {
       if (data.skipped) {
         btn.textContent = 'Un-skip Scraping';
-        btn.classList.add('text-warning');
+        btn.style.color = 'var(--cm-warn)';
         if (window.showQuickToast) window.showQuickToast('Comic marked as skipped for batch scraping.');
       } else {
         btn.textContent = 'Skip Scraping';
-        btn.classList.remove('text-warning');
+        btn.style.color = '';
         if (window.showQuickToast) window.showQuickToast('Comic un-skipped — will be included in batch scraping.');
       }
     } else {
@@ -1572,7 +1497,6 @@ async function runAction(action) {
   btn.innerHTML = `<span class="loading loading-spinner loading-xs"></span> ${actionLabels[action] || 'Processing...'}`;
   btn.disabled = true;
 
-  // Close the dropdown
   document.activeElement.blur();
 
   const comicTitle = '{{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}';
@@ -1589,15 +1513,11 @@ async function runAction(action) {
     const data = await response.json();
 
     if (data.task_id) {
-      // Async task (e.g. search-alt-covers downloads images in background)
-      btn.innerHTML = '<span class="text-info">Running...</span>';
-      if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id, actionLabels[action] || 'Processing');
-      }
+      btn.innerHTML = '<span style="color:var(--cm-info);">Running...</span>';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, actionLabels[action] || 'Processing');
     } else if (data.success) {
-      btn.innerHTML = '<span class="text-success">Done!</span>';
+      btn.innerHTML = '<span style="color:var(--cm-ok);">Done!</span>';
 
-      // Show result modal for actions that have one
       if (action === 'tag') {
         showTagResultModal(comicTitle, data);
       } else if (action === 'format') {
@@ -1605,7 +1525,6 @@ async function runAction(action) {
       } else if (action === 'organize') {
         showOrganizeResultModal(comicTitle, data);
       } else {
-        // For write, refresh-credits, etc. — show toast then reload
         if (window.showQuickToast) {
           window.showQuickToast(data.message || 'Done!');
         } else {
@@ -1613,43 +1532,27 @@ async function runAction(action) {
         }
       }
     } else {
-      btn.innerHTML = '<span class="text-error">Error</span>';
+      btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>';
       showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
-      setTimeout(() => {
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
-      }, 2000);
+      setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; }, 2000);
     }
   } catch (err) {
-    btn.innerHTML = '<span class="text-error">Error</span>';
+    btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>';
     showMsgToast('Network error: ' + err.message, 'error');
-    setTimeout(() => {
-      btn.innerHTML = originalHtml;
-      btn.disabled = false;
-    }, 2000);
+    setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; }, 2000);
   }
 }
 
-// Helper: escape HTML
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// Helper: badge class for tag action type
 function getActionBadgeClass(action) {
   switch (action) {
-    case 'SetValue': return 'badge-success';
-    case 'Add': return 'badge-info';
-    case 'Remove': return 'badge-warning';
-    case 'Replace': return 'badge-secondary';
-    default: return 'badge-ghost';
+    case 'SetValue': return 'ok';
+    case 'Add': return 'info';
+    case 'Remove': return 'warn';
+    case 'Replace': return 'violet';
+    default: return '';
   }
 }
 
-// Show tagging results modal
 function showTagResultModal(comicTitle, data) {
   const modal = document.getElementById('tag-result-modal');
   document.getElementById('tag-modal-comic-title').textContent = comicTitle;
@@ -1664,37 +1567,36 @@ function showTagResultModal(comicTitle, data) {
   const noMatchesDiv = document.getElementById('tag-no-matches');
 
   if (matchedCount === 0) {
-    rulesetsSection.classList.add('hidden');
-    changesSection.classList.add('hidden');
-    noMatchesDiv.classList.remove('hidden');
+    rulesetsSection.style.display = 'none';
+    changesSection.style.display = 'none';
+    noMatchesDiv.style.display = '';
   } else {
-    rulesetsSection.classList.remove('hidden');
-    changesSection.classList.remove('hidden');
-    noMatchesDiv.classList.add('hidden');
+    rulesetsSection.style.display = '';
+    changesSection.style.display = '';
+    noMatchesDiv.style.display = 'none';
 
     document.getElementById('tag-rulesets-list').innerHTML = data.matched_rulesets.map(name =>
-      `<span class="badge badge-primary badge-outline">${escapeHtml(name)}</span>`
+      `<span class="cm-chip accent" style="font-size:11px;">${escapeHtml(name)}</span>`
     ).join('');
 
     const changesTable = document.getElementById('tag-changes-table');
     if (changesCount > 0) {
       changesTable.innerHTML = data.changes.map(change => `
-        <tr>
-          <td class="font-medium">${escapeHtml(change.field)}</td>
-          <td><span class="badge badge-sm ${getActionBadgeClass(change.modifier)}">${escapeHtml(change.modifier)}</span></td>
-          <td class="max-w-xs truncate" title="${escapeHtml(change.new_value || '')}">${escapeHtml(change.new_value || '')}</td>
-          <td class="text-xs text-base-content/60">${escapeHtml(change.ruleset_name || '')}</td>
+        <tr style="border-bottom:1px solid var(--cm-border);">
+          <td style="padding:5px 8px; font-weight:600; color:var(--cm-fg-1);">${escapeHtml(change.field)}</td>
+          <td style="padding:5px 8px;"><span class="cm-chip ${getActionBadgeClass(change.modifier)}" style="font-size:10px;">${escapeHtml(change.modifier)}</span></td>
+          <td style="padding:5px 8px; max-width:200px; overflow:hidden; text-overflow:ellipsis; color:var(--cm-fg-1);" title="${escapeHtml(change.new_value || '')}">${escapeHtml(change.new_value || '')}</td>
+          <td style="padding:5px 8px; font-size:11px; color:var(--cm-fg-3);">${escapeHtml(change.ruleset_name || '')}</td>
         </tr>
       `).join('');
     } else {
-      changesTable.innerHTML = '<tr><td colspan="4" class="text-center text-base-content/50">No field changes (rules matched but no modifications needed)</td></tr>';
+      changesTable.innerHTML = `<tr><td colspan="4" style="padding:10px 8px; text-align:center; color:var(--cm-fg-3);">No field changes (rules matched but no modifications needed)</td></tr>`;
     }
   }
 
   modal.showModal();
 }
 
-// Show format detection results modal
 function showFormatResultModal(comicTitle, data) {
   const modal = document.getElementById('format-result-modal');
   document.getElementById('format-modal-comic-title').textContent = comicTitle;
@@ -1707,22 +1609,26 @@ function showFormatResultModal(comicTitle, data) {
   const resultText = document.getElementById('format-result-text');
 
   if (data.detected_format) {
-    resultBox.className = 'alert alert-success';
+    resultBox.style.background = 'var(--cm-ok-dim)';
+    resultBox.style.borderColor = 'var(--cm-ok)';
+    resultBox.style.color = 'var(--cm-ok)';
     if (data.format_changed) {
       resultText.innerHTML = `Format detected: <strong>${escapeHtml(data.detected_format)}</strong>`;
     } else {
       resultText.innerHTML = `Format already set to: <strong>${escapeHtml(data.new_format)}</strong>`;
     }
   } else {
-    resultBox.className = 'alert alert-info';
+    resultBox.style.background = 'var(--cm-info-dim)';
+    resultBox.style.borderColor = 'var(--cm-info)';
+    resultBox.style.color = 'var(--cm-info)';
     resultText.textContent = 'No format pattern matched. State advanced to "formatted".';
   }
 
   const patternsList = document.getElementById('format-patterns-list');
   if (data.patterns_checked) {
     patternsList.innerHTML = data.patterns_checked.map(p => `
-      <div class="flex items-center gap-2 text-sm ${p.matched ? 'text-success font-medium' : 'text-base-content/50'}">
-        <span class="${p.matched ? 'text-success' : 'text-base-content/30'}">${p.matched ? '✓' : '○'}</span>
+      <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:${p.matched ? 'var(--cm-ok)' : 'var(--cm-fg-3)'}; font-weight:${p.matched ? '600' : '400'};">
+        <span style="flex-shrink:0;">${p.matched ? '✓' : '○'}</span>
         <span>${escapeHtml(p.pattern)}</span>
       </div>
     `).join('');
@@ -1731,7 +1637,6 @@ function showFormatResultModal(comicTitle, data) {
   modal.showModal();
 }
 
-// Show organize results modal
 function showOrganizeResultModal(comicTitle, data) {
   const modal = document.getElementById('organize-result-modal');
   document.getElementById('organize-modal-comic-title').textContent = comicTitle;
@@ -1743,10 +1648,14 @@ function showOrganizeResultModal(comicTitle, data) {
   const resultText = document.getElementById('organize-result-text');
 
   if (data.moved) {
-    resultBox.className = 'alert alert-success';
+    resultBox.style.background = 'var(--cm-ok-dim)';
+    resultBox.style.borderColor = 'var(--cm-ok)';
+    resultBox.style.color = 'var(--cm-ok)';
     resultText.textContent = 'File moved to library location.';
   } else {
-    resultBox.className = 'alert alert-info';
+    resultBox.style.background = 'var(--cm-info-dim)';
+    resultBox.style.borderColor = 'var(--cm-info)';
+    resultBox.style.color = 'var(--cm-info)';
     resultText.textContent = data.message || 'File already in correct location.';
   }
 
@@ -1766,7 +1675,6 @@ function deleteComic() {
   btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Deleting...';
   btn.disabled = true;
 
-  // Close the dropdown
   document.activeElement.blur();
 
   try {
@@ -1781,26 +1689,17 @@ function deleteComic() {
     const data = await response.json();
 
     if (data.success) {
-      btn.innerHTML = '<span class="text-success">Deleted!</span>';
-      // Redirect to comic list after deletion
-      setTimeout(() => {
-        window.location.href = '/comics/';
-      }, 500);
+      btn.innerHTML = '<span style="color:var(--cm-ok);">Deleted!</span>';
+      setTimeout(() => { window.location.href = '/comics/'; }, 500);
     } else {
-      btn.innerHTML = '<span class="text-error">Error</span>';
+      btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>';
       showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
-      setTimeout(() => {
-        btn.innerHTML = 'Delete Comic';
-        btn.disabled = false;
-      }, 2000);
+      setTimeout(() => { btn.innerHTML = 'Delete Comic'; btn.disabled = false; }, 2000);
     }
   } catch (err) {
-    btn.innerHTML = '<span class="text-error">Error</span>';
+    btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>';
     showMsgToast('Network error: ' + err.message, 'error');
-    setTimeout(() => {
-      btn.innerHTML = 'Delete Comic';
-      btn.disabled = false;
-    }, 2000);
+    setTimeout(() => { btn.innerHTML = 'Delete Comic'; btn.disabled = false; }, 2000);
   }
   }, 'Delete', true);
 }
@@ -1825,49 +1724,20 @@ async function reorganizeComic(pk) {
     if (data.success) {
       if (data.moved) {
         btn.textContent = 'Moved!';
-        btn.classList.remove('btn-warning');
-        btn.classList.add('btn-success');
-        // Reload page to show updated path
         setTimeout(() => location.reload(), 1000);
       } else {
         btn.textContent = 'Already correct';
-        btn.classList.remove('btn-warning');
-        btn.classList.add('btn-info');
       }
     } else {
       btn.textContent = 'Error';
-      btn.classList.remove('btn-warning');
-      btn.classList.add('btn-error');
       showMsgToast('Error: ' + data.error, 'error');
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.classList.remove('btn-error');
-        btn.classList.add('btn-warning');
-        btn.disabled = false;
-      }, 2000);
+      setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
     }
   } catch (err) {
     btn.textContent = 'Error';
-    btn.classList.remove('btn-warning');
-    btn.classList.add('btn-error');
     showMsgToast('Network error: ' + err.message, 'error');
-    setTimeout(() => {
-      btn.textContent = originalText;
-      btn.classList.remove('btn-error');
-      btn.classList.add('btn-warning');
-      btn.disabled = false;
-    }, 2000);
+    setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
   }
-}
-
-function openImageModal(src, caption) {
-  const modal = document.getElementById('image-modal');
-  const img = document.getElementById('modal-full-img');
-  const cap = document.getElementById('modal-img-caption');
-
-  img.src = src;
-  cap.textContent = caption;
-  modal.showModal();
 }
 
 async function uploadCover() {
@@ -1876,12 +1746,12 @@ async function uploadCover() {
   const errorText = document.getElementById('upload-cover-error-text');
 
   if (!fileInput.files.length) {
-    errorDiv.classList.remove('hidden');
+    errorDiv.style.display = '';
     errorText.textContent = 'Please select a file.';
     return;
   }
 
-  errorDiv.classList.add('hidden');
+  errorDiv.style.display = 'none';
 
   const formData = new FormData();
   formData.append('cover', fileInput.files[0]);
@@ -1898,11 +1768,11 @@ async function uploadCover() {
       if (window.showQuickToast) window.showQuickToast('Cover uploaded successfully.');
       setTimeout(() => location.reload(), 800);
     } else {
-      errorDiv.classList.remove('hidden');
+      errorDiv.style.display = '';
       errorText.textContent = data.error || 'Upload failed.';
     }
   } catch (e) {
-    errorDiv.classList.remove('hidden');
+    errorDiv.style.display = '';
     errorText.textContent = 'Network error: ' + e.message;
   }
 }
@@ -1911,7 +1781,7 @@ async function uploadCover() {
 
 let pmSortable = null;
 let pmUploadCounter = 0;
-let pmPendingUploads = new Map();  // uploadKey → File
+let pmPendingUploads = new Map();
 let pmHasChanges = false;
 
 function openPageManager() {
@@ -1931,12 +1801,10 @@ function pmMakeThumb(imgSrc, labelText, dataset, isNew) {
   Object.assign(item.dataset, dataset);
 
   const border = isNew ? 'border-2 border-success' : 'border border-base-300';
-  
-  // Create image element separately to attach listener
+
   const imgWrapper = document.createElement('div');
   imgWrapper.className = 'relative group cursor-pointer';
   imgWrapper.onclick = (e) => {
-    // Only open if not currently dragging and not clicking delete
     if (item.dataset.deleted === 'true') return;
     const thumbs = Array.from(document.querySelectorAll('#pm-grid .pm-thumb:not([data-deleted="true"])'));
     const idx = thumbs.indexOf(item);
@@ -1953,14 +1821,14 @@ function pmMakeThumb(imgSrc, labelText, dataset, isNew) {
     ${isNew ? '<span class="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-success text-success-content rounded-b font-bold">NEW</span>' : ''}
     <div class="pm-deleted-overlay absolute inset-0 bg-error/40 rounded hidden pointer-events-none"></div>
   `;
-  
+
   item.appendChild(imgWrapper);
-  
+
   const label = document.createElement('div');
   label.className = 'text-[10px] text-center mt-0.5 opacity-50 leading-none';
   label.textContent = labelText;
   item.appendChild(label);
-  
+
   return item;
 }
 
@@ -2093,7 +1961,6 @@ async function pmApplyChanges() {
       throw new Error(d.error || `HTTP ${resp.status}`);
     }
 
-    // Revoke object URLs before reload
     for (const el of allThumbs) {
       if (el.dataset.objectUrl) URL.revokeObjectURL(el.dataset.objectUrl);
     }
@@ -2106,5 +1973,7 @@ async function pmApplyChanges() {
     btn.textContent = 'Save Changes';
   }
 }
+
 </script>
+
 {% endblock %}

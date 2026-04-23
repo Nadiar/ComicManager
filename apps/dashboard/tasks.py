@@ -650,7 +650,7 @@ def run_full_pipeline_task(self, comic_ids: list):
 
     self.update_state(
         state="PROGRESS",
-        meta={"current": 0, "total": total, "processed": 0, "errors": []},
+        meta={"current": 0, "total": total, "processed": 0, "errors": [], "label": "Running pipeline"},
     )
 
     scraper = ComicVineScraper()
