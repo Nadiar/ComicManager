@@ -3,270 +3,316 @@
 {% block nav_comics %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<style>
+  .edit-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--cm-fg-3);
+    margin-bottom: 4px;
+  }
+  .edit-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .edit-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .edit-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  @media (max-width: 900px) {
+    .edit-grid-3, .edit-grid-4 { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .edit-grid-2, .edit-grid-3, .edit-grid-4 { grid-template-columns: 1fr; }
+  }
+  .edit-section {
+    background: var(--cm-bg-1);
+    border: 1px solid var(--cm-border);
+    border-radius: 8px;
+    padding: 18px 20px;
+  }
+  .edit-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--cm-fg-1);
+    margin: 0 0 16px;
+  }
+  .edit-field { display: flex; flex-direction: column; }
+  .cm-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--cm-bg-2);
+    border: 1px solid var(--cm-border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--cm-fg-2);
+    user-select: none;
+  }
+  .cm-checkbox-row input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--cm-ok);
+    flex-shrink: 0;
+  }
+  .cm-checkbox-err input[type="checkbox"] { accent-color: var(--cm-err); }
+</style>
+
+<div style="display:flex; flex-direction:column; gap:20px; max-width:1100px;">
+
   <!-- Header -->
-  <div class="flex justify-between items-start">
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
     <div>
-      <h1 class="text-3xl font-bold">Edit: {{ comic.series|default:"Unknown Series" }} #{{ comic.number|default:"?" }}</h1>
+      <h1 style="font-size:22px; font-weight:700; color:var(--cm-fg-1); margin:0 0 4px;">
+        Edit: {{ comic.series|default:"Unknown Series" }} #{{ comic.number|default:"?" }}
+      </h1>
       {% if comic.title %}
-      <p class="text-lg text-base-content/70 mt-1">{{ comic.title }}</p>
+      <p style="font-size:14px; color:var(--cm-fg-2); margin:0 0 8px;">{{ comic.title }}</p>
       {% endif %}
-      <div class="flex gap-2 mt-2">
-        <span class="badge badge-lg badge-outline">{{ comic.medium }}</span>
-      </div>
+      <span class="cm-chip">{{ comic.medium }}</span>
     </div>
-    <div class="flex gap-2">
-      <a href="/comics/{{ comic.pk }}/" class="btn btn-ghost">Cancel</a>
-    </div>
+    <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" style="text-decoration:none; flex-shrink:0;">Cancel</a>
   </div>
 
-  <form method="POST" class="space-y-6">
+  <form method="POST" style="display:flex; flex-direction:column; gap:20px;">
     {% csrf_token %}
 
     <!-- Core Info -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-4">Core Info</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Series</span></label>
-            <input type="text" name="series" value="{{ comic.series|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Number</span></label>
-            <input type="text" name="number" value="{{ comic.number|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Title</span></label>
-            <input type="text" name="title" value="{{ comic.title|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Volume (Year)</span></label>
-            <input type="number" name="volume" value="{{ comic.volume|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Count (Total Issues)</span></label>
-            <input type="number" name="count" value="{{ comic.count|default:'' }}" class="input input-bordered" />
-          </div>
+    <div class="edit-section">
+      <h2 class="edit-section-title">Core Info</h2>
+      <div class="edit-grid-3">
+        <div class="edit-field">
+          <label class="edit-label" for="id_series">Series</label>
+          <input type="text" id="id_series" name="series" value="{{ comic.series|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_number">Number</label>
+          <input type="text" id="id_number" name="number" value="{{ comic.number|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_title">Title</label>
+          <input type="text" id="id_title" name="title" value="{{ comic.title|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_volume">Volume (Year)</label>
+          <input type="number" id="id_volume" name="volume" value="{{ comic.volume|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_count">Count (Total Issues)</label>
+          <input type="number" id="id_count" name="count" value="{{ comic.count|default:'' }}" class="cm-input" />
         </div>
       </div>
     </div>
 
     <!-- Publication -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-4">Publication</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Publisher</span></label>
-            <input type="text" name="publisher" value="{{ comic.publisher|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Year</span></label>
-            <input type="number" name="year" value="{{ comic.year|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Month</span></label>
-            <input type="number" name="month" value="{{ comic.month|default:'' }}" min="1" max="12" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Day</span></label>
-            <input type="number" name="day" value="{{ comic.day|default:'' }}" min="1" max="31" class="input input-bordered" />
-          </div>
+    <div class="edit-section">
+      <h2 class="edit-section-title">Publication</h2>
+      <div class="edit-grid-4">
+        <div class="edit-field">
+          <label class="edit-label" for="id_publisher">Publisher</label>
+          <input type="text" id="id_publisher" name="publisher" value="{{ comic.publisher|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_year">Year</label>
+          <input type="number" id="id_year" name="year" value="{{ comic.year|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_month">Month</label>
+          <input type="number" id="id_month" name="month" value="{{ comic.month|default:'' }}" min="1" max="12" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_day">Day</label>
+          <input type="number" id="id_day" name="day" value="{{ comic.day|default:'' }}" min="1" max="31" class="cm-input" />
         </div>
       </div>
     </div>
 
     <!-- Classification -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-4">Classification</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Format</span></label>
-            <input type="text" name="format" value="{{ comic.format|default:'' }}" class="input input-bordered" placeholder="e.g. TPB, Annual, One-Shot" />
-          </div>
-          <div class="form-control justify-end">
-            <label class="label cursor-pointer gap-2">
-              <span class="label-text">Format confirmed (skip auto-detect)</span>
-              <input type="checkbox" name="format_ok" class="checkbox checkbox-success" {% if comic.format_ok %}checked{% endif %} />
-            </label>
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Genre</span></label>
-            <input type="text" name="genre" value="{{ comic.genre|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Series Group</span></label>
-            <input type="text" name="series_group" value="{{ comic.series_group|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Main Character/Team</span></label>
-            <input type="text" name="main_character_or_team" value="{{ comic.main_character_or_team|default:'' }}" class="input input-bordered" />
-          </div>
+    <div class="edit-section">
+      <h2 class="edit-section-title">Classification</h2>
+      <div class="edit-grid-4" style="align-items:end;">
+        <div class="edit-field">
+          <label class="edit-label" for="id_format">Format</label>
+          <input type="text" id="id_format" name="format" value="{{ comic.format|default:'' }}" class="cm-input" placeholder="e.g. TPB, Annual, One-Shot" />
+        </div>
+        <div class="edit-field" style="justify-content:flex-end;">
+          <label class="cm-checkbox-row" style="margin-top:auto;">
+            <input type="checkbox" name="format_ok" {% if comic.format_ok %}checked{% endif %} />
+            Format confirmed (skip auto-detect)
+          </label>
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_genre">Genre</label>
+          <input type="text" id="id_genre" name="genre" value="{{ comic.genre|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_series_group">Series Group</label>
+          <input type="text" id="id_series_group" name="series_group" value="{{ comic.series_group|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_main_char">Main Character/Team</label>
+          <input type="text" id="id_main_char" name="main_character_or_team" value="{{ comic.main_character_or_team|default:'' }}" class="cm-input" />
         </div>
       </div>
     </div>
 
     <!-- Summary & Notes -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-4">Summary & Notes</h2>
-        <div class="space-y-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Summary</span></label>
-            <textarea name="summary" class="textarea textarea-bordered h-32">{{ comic.summary|default:'' }}</textarea>
+    <div class="edit-section">
+      <h2 class="edit-section-title">Summary &amp; Notes</h2>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        <div class="edit-field">
+          <label class="edit-label" for="id_summary">Summary</label>
+          <textarea id="id_summary" name="summary" class="cm-input" style="height:120px; resize:vertical;">{{ comic.summary|default:'' }}</textarea>
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_notes">Notes</label>
+          <textarea id="id_notes" name="notes" class="cm-input" style="height:80px; resize:vertical;">{{ comic.notes|default:'' }}</textarea>
+        </div>
+        {% if comic.is_physical %}
+        <div class="edit-field">
+          <label class="edit-label" for="id_storage">Storage Location</label>
+          <input type="text" id="id_storage" name="storage_location" value="{{ comic.storage_location|default:'' }}" class="cm-input" placeholder="e.g. Box 3, Longbox 7, Shelf A" />
+        </div>
+        {% endif %}
+        <div class="edit-grid-2">
+          <div class="edit-field">
+            <label class="edit-label" for="id_characters">Characters (comma-separated)</label>
+            <textarea id="id_characters" name="characters" class="cm-input" style="height:72px; resize:vertical;">{{ comic.characters|default:'' }}</textarea>
           </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Notes</span></label>
-            <textarea name="notes" class="textarea textarea-bordered h-24">{{ comic.notes|default:'' }}</textarea>
+          <div class="edit-field">
+            <label class="edit-label" for="id_teams">Teams (comma-separated)</label>
+            <textarea id="id_teams" name="teams" class="cm-input" style="height:72px; resize:vertical;">{{ comic.teams|default:'' }}</textarea>
           </div>
-          {% if comic.is_physical %}
-          <div class="form-control">
-            <label class="label"><span class="label-text">Storage Location</span></label>
-            <input type="text" name="storage_location" value="{{ comic.storage_location|default:'' }}" class="input input-bordered" placeholder="e.g. Box 3, Longbox 7, Shelf A" />
+          <div class="edit-field">
+            <label class="edit-label" for="id_locations">Locations (comma-separated)</label>
+            <textarea id="id_locations" name="locations" class="cm-input" style="height:72px; resize:vertical;">{{ comic.locations|default:'' }}</textarea>
           </div>
-          {% endif %}
-          <div class="form-control">
-            <label class="label"><span class="label-text">Characters (comma-separated)</span></label>
-            <textarea name="characters" class="textarea textarea-bordered">{{ comic.characters|default:'' }}</textarea>
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Teams (comma-separated)</span></label>
-            <textarea name="teams" class="textarea textarea-bordered">{{ comic.teams|default:'' }}</textarea>
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Locations (comma-separated)</span></label>
-            <textarea name="locations" class="textarea textarea-bordered">{{ comic.locations|default:'' }}</textarea>
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Tags (comma-separated)</span></label>
-            <textarea name="tags" class="textarea textarea-bordered">{{ comic.tags|default:'' }}</textarea>
+          <div class="edit-field">
+            <label class="edit-label" for="id_tags">Tags (comma-separated)</label>
+            <textarea id="id_tags" name="tags" class="cm-input" style="height:72px; resize:vertical;">{{ comic.tags|default:'' }}</textarea>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Credits -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-4">Credits</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Writer</span></label>
-            <input type="text" name="writer" value="{{ comic.writer|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Penciller</span></label>
-            <input type="text" name="penciller" value="{{ comic.penciller|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Inker</span></label>
-            <input type="text" name="inker" value="{{ comic.inker|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Colorist</span></label>
-            <input type="text" name="colorist" value="{{ comic.colorist|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Letterer</span></label>
-            <input type="text" name="letterer" value="{{ comic.letterer|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Cover Artist</span></label>
-            <input type="text" name="cover_artist" value="{{ comic.cover_artist|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Editor</span></label>
-            <input type="text" name="editor" value="{{ comic.editor|default:'' }}" class="input input-bordered" />
-          </div>
+    <div class="edit-section">
+      <h2 class="edit-section-title">Credits</h2>
+      <div class="edit-grid-3">
+        <div class="edit-field">
+          <label class="edit-label" for="id_writer">Writer</label>
+          <input type="text" id="id_writer" name="writer" value="{{ comic.writer|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_penciller">Penciller</label>
+          <input type="text" id="id_penciller" name="penciller" value="{{ comic.penciller|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_inker">Inker</label>
+          <input type="text" id="id_inker" name="inker" value="{{ comic.inker|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_colorist">Colorist</label>
+          <input type="text" id="id_colorist" name="colorist" value="{{ comic.colorist|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_letterer">Letterer</label>
+          <input type="text" id="id_letterer" name="letterer" value="{{ comic.letterer|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_cover_artist">Cover Artist</label>
+          <input type="text" id="id_cover_artist" name="cover_artist" value="{{ comic.cover_artist|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_editor">Editor</label>
+          <input type="text" id="id_editor" name="editor" value="{{ comic.editor|default:'' }}" class="cm-input" />
         </div>
       </div>
     </div>
 
     <!-- Other -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-4">Other</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Web URL</span></label>
-            <input type="url" name="web" value="{{ comic.web|default:'' }}" class="input input-bordered" />
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Scan Information</span></label>
-            <input type="text" name="scan_information" value="{{ comic.scan_information|default:'' }}" class="input input-bordered" />
-          </div>
+    <div class="edit-section">
+      <h2 class="edit-section-title">Other</h2>
+      <div class="edit-grid-2">
+        <div class="edit-field">
+          <label class="edit-label" for="id_web">Web URL</label>
+          <input type="url" id="id_web" name="web" value="{{ comic.web|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
+          <label class="edit-label" for="id_scan_info">Scan Information</label>
+          <input type="text" id="id_scan_info" name="scan_information" value="{{ comic.scan_information|default:'' }}" class="cm-input" />
         </div>
       </div>
     </div>
 
     <!-- Custom Values -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-4">Custom Values</h2>
-        <div id="custom-values-list" class="space-y-2">
-          {% for kv in custom_values_list %}
-          <div class="flex gap-2 items-center custom-value-row">
-            <input type="hidden" name="cv_key_{{ forloop.counter0 }}" value="{{ kv.0 }}" />
-            <span class="input input-bordered w-48 flex items-center text-sm opacity-70">{{ kv.0 }}</span>
-            <input type="text" name="cv_val_{{ forloop.counter0 }}" value="{{ kv.1 }}" class="input input-bordered flex-1" />
-            <label class="flex items-center gap-1 text-sm text-error cursor-pointer">
-              <input type="checkbox" name="cv_delete_{{ forloop.counter0 }}" class="checkbox checkbox-error checkbox-sm" onchange="this.closest('.custom-value-row').classList.toggle('opacity-40', this.checked)" />
-              Delete
-            </label>
-          </div>
-          {% empty %}
-          <p class="text-sm opacity-50">No custom values.</p>
-          {% endfor %}
+    <div class="edit-section">
+      <h2 class="edit-section-title">Custom Values</h2>
+      <div id="custom-values-list" style="display:flex; flex-direction:column; gap:8px;">
+        {% for kv in custom_values_list %}
+        <div class="custom-value-row" style="display:flex; gap:8px; align-items:center;">
+          <input type="hidden" name="cv_key_{{ forloop.counter0 }}" value="{{ kv.0 }}" />
+          <span style="display:flex; align-items:center; width:192px; flex-shrink:0; padding:7px 10px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; font-size:13px; color:var(--cm-fg-3);">{{ kv.0 }}</span>
+          <input type="text" name="cv_val_{{ forloop.counter0 }}" value="{{ kv.1 }}" class="cm-input" style="flex:1;" />
+          <label class="cm-checkbox-row cm-checkbox-err" style="flex-shrink:0; white-space:nowrap; font-size:12px;" title="Delete on save">
+            <input type="checkbox" name="cv_delete_{{ forloop.counter0 }}" onchange="this.closest('.custom-value-row').style.opacity = this.checked ? '0.4' : '1'" />
+            Delete
+          </label>
         </div>
-        <div class="divider text-xs">Add new</div>
-        <div id="new-cv-rows" class="space-y-2"></div>
-        <button type="button" class="btn btn-sm btn-ghost mt-2" onclick="addCustomValueRow()">+ Add custom value</button>
+        {% empty %}
+        <p style="font-size:13px; color:var(--cm-fg-3);">No custom values.</p>
+        {% endfor %}
       </div>
+
+      <div style="display:flex; align-items:center; gap:10px; margin:14px 0 10px;">
+        <hr style="flex:1; border:none; border-top:1px solid var(--cm-border);" />
+        <span style="font-size:11px; color:var(--cm-fg-3); text-transform:uppercase; letter-spacing:.04em;">Add new</span>
+        <hr style="flex:1; border:none; border-top:1px solid var(--cm-border);" />
+      </div>
+
+      <div id="new-cv-rows" style="display:flex; flex-direction:column; gap:8px;"></div>
+      <button type="button" class="cm-btn sm ghost" style="margin-top:10px;" onclick="addCustomValueRow()">+ Add custom value</button>
     </div>
 
-    <!-- Flags -->
+    <!-- Active Flags -->
     {% if active_flags %}
-    <div class="card bg-base-200 border border-error/30">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-1">Active Flags</h2>
-        <p class="text-sm opacity-60 mb-4">Check a flag to clear it when you save.</p>
-        <div class="flex flex-wrap gap-3">
-          {% for flag_key, flag_label in active_flags %}
-          <label class="flex items-center gap-2 cursor-pointer select-none">
-            <input type="checkbox" name="clear_flag" value="{{ flag_key }}" class="checkbox checkbox-error checkbox-sm" />
-            <span class="badge badge-error badge-outline">{{ flag_label }}</span>
-          </label>
-          {% endfor %}
-        </div>
+    <div class="edit-section" style="border-color:color-mix(in srgb, var(--cm-err) 30%, var(--cm-border));">
+      <h2 class="edit-section-title">Active Flags</h2>
+      <p style="font-size:12px; color:var(--cm-fg-3); margin:-8px 0 14px;">Check a flag to clear it when you save.</p>
+      <div style="display:flex; flex-wrap:wrap; gap:10px;">
+        {% for flag_key, flag_label in active_flags %}
+        <label class="cm-checkbox-row cm-checkbox-err" style="flex-shrink:0;">
+          <input type="checkbox" name="clear_flag" value="{{ flag_key }}" />
+          <span class="cm-chip err">{{ flag_label }}</span>
+        </label>
+        {% endfor %}
       </div>
     </div>
     {% endif %}
 
     <!-- State -->
-    <div class="card bg-base-200 border border-warning/30">
-      <div class="card-body">
-        <h2 class="card-title text-xl mb-1">State <span class="badge badge-warning badge-sm ml-2">Advanced</span></h2>
-        <p class="text-sm opacity-60 mb-4">Changing state manually can break the pipeline workflow. Use with caution.</p>
-        <div class="form-control w-48">
-          <label class="label"><span class="label-text">Workflow State</span></label>
-          <select name="state" class="select select-bordered select-warning">
-            {% for value, label in state_choices %}
-            <option value="{{ value }}" {% if comic.state == value %}selected{% endif %}>{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
+    <div class="edit-section" style="border-color:color-mix(in srgb, var(--cm-warn) 30%, var(--cm-border));">
+      <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:6px;">
+        <h2 class="edit-section-title" style="margin:0;">State</h2>
+        <span class="cm-chip warn" style="font-size:10px;">Advanced</span>
+      </div>
+      <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">Changing state manually can break the pipeline workflow. Use with caution.</p>
+      <div class="edit-field" style="max-width:200px;">
+        <label class="edit-label" for="id_state">Workflow State</label>
+        <select id="id_state" name="state" class="cm-input">
+          {% for value, label in state_choices %}
+          <option value="{{ value }}" {% if comic.state == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
       </div>
     </div>
 
     <!-- Submit -->
-    <div class="flex justify-end gap-2">
-      <a href="/comics/{{ comic.pk }}/" class="btn btn-ghost">Cancel</a>
+    <div style="display:flex; justify-content:flex-end; gap:8px; padding-bottom:24px;">
+      <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" style="text-decoration:none;">Cancel</a>
       {% if comic.is_digital and comic.file_path %}
-      <button type="submit" name="write_xml" value="1" class="btn btn-outline btn-secondary">Save + Write XML</button>
+      <button type="submit" name="write_xml" value="1" class="cm-btn sm">Save + Write XML</button>
       {% endif %}
-      <button type="submit" class="btn btn-primary">Save to DB</button>
+      <button type="submit" class="cm-btn sm primary">Save to DB</button>
     </div>
   </form>
 </div>
@@ -276,11 +322,13 @@ let newCvCount = 0;
 function addCustomValueRow() {
   const container = document.getElementById('new-cv-rows');
   const row = document.createElement('div');
-  row.className = 'flex gap-2 items-center';
+  row.style.cssText = 'display:flex; gap:8px; align-items:center;';
   row.innerHTML = `
-    <input type="text" name="new_cv_key_${newCvCount}" placeholder="Key" class="input input-bordered w-48" />
-    <input type="text" name="new_cv_val_${newCvCount}" placeholder="Value" class="input input-bordered flex-1" />
-    <button type="button" class="btn btn-sm btn-ghost text-error" onclick="this.parentElement.remove()">✕</button>
+    <input type="text" name="new_cv_key_${newCvCount}" placeholder="Key" class="cm-input" style="width:192px; flex-shrink:0;" />
+    <input type="text" name="new_cv_val_${newCvCount}" placeholder="Value" class="cm-input" style="flex:1;" />
+    <button type="button" class="cm-icon-btn" style="color:var(--cm-err); flex-shrink:0;" onclick="this.parentElement.remove()" title="Remove">
+      <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
   `;
   container.appendChild(row);
   newCvCount++;

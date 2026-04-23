@@ -58,6 +58,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.core.context_processors.active_tasks",
                 "apps.core.context_processors.user_preferences",
+                "apps.core.context_processors.scraper_settings",
             ],
         },
     },
