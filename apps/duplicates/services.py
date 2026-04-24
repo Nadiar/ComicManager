@@ -362,6 +362,66 @@ def _create_duplicate_group(
 # ============================================================================
 
 
+def run_duplicate_detection_for_comics(comic_pks: list) -> dict:
+    """
+    Run duplicate detection for a specific set of comics.
+    Each comic is checked against the full library; clean comics advance to organized state.
+    """
+    candidates = list(Comic.objects.filter(
+        pk__in=comic_pks,
+        state=Comic.STATE_DEDUPLICATED,
+        duplicate_group__isnull=True,
+    ))
+
+    if not candidates:
+        return {"success": True, "message": "No eligible comics to process", "total_comics": 0, "groups_created": 0, "advanced": 0}
+
+    candidate_pks = set(c.pk for c in candidates)
+
+    library_comics = list(Comic.objects.filter(
+        duplicate_group__isnull=True,
+    ).exclude(
+        state=Comic.STATE_DEDUPLICATED,
+    ).exclude(pk__in=candidate_pks))
+
+    comparison_pool = candidates + library_comics
+
+    cv_groups = detect_duplicates_by_cv_id(comparison_pool)
+    meta_groups = detect_duplicates_by_metadata(comparison_pool)
+    phash_groups = detect_duplicates_by_phash(comparison_pool)
+    filename_groups = detect_duplicates_by_filename(comparison_pool)
+
+    all_groups = cv_groups + meta_groups + phash_groups + filename_groups
+
+    candidates_with_groups = set()
+    for group in all_groups:
+        for membership in group.memberships.all():
+            if membership.comic_id in candidate_pks:
+                candidates_with_groups.add(membership.comic_id)
+
+    from apps.core.audit import log_batch_entry
+
+    advanced = 0
+    for comic in candidates:
+        if comic.pk not in candidates_with_groups:
+            state_before = comic.state
+            comic.state = Comic.STATE_ORGANIZED
+            comic.save(update_fields=["state"])
+            advanced += 1
+            log_batch_entry(
+                "deduplicate_selected", comic, state_before, Comic.STATE_ORGANIZED,
+                {"state": [state_before, Comic.STATE_ORGANIZED]},
+            )
+
+    return {
+        "success": True,
+        "message": f"Detection complete: {len(all_groups)} duplicate groups found",
+        "total_comics": len(candidates),
+        "groups_created": len(all_groups),
+        "advanced": advanced,
+    }
+
+
 def run_duplicate_detection() -> dict:
     """
     Run full duplicate detection on formatted comics.

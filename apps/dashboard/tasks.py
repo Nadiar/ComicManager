@@ -159,7 +159,7 @@ def _run_tag(comic):
     if comic.state != state_before:
         changes["state"] = [state_before, comic.state]
 
-    log_batch_entry("tag_all", comic, state_before, comic.state, changes)
+    log_batch_entry("tag_all", comic, state_before, comic.state, changes or {"processed": [None, True]})
 
 
 def _run_format(comic):
@@ -176,7 +176,7 @@ def _run_format(comic):
     if comic.state != state_before:
         changes["state"] = [state_before, comic.state]
 
-    log_batch_entry("format_all", comic, state_before, comic.state, changes)
+    log_batch_entry("format_all", comic, state_before, comic.state, changes or {"processed": [None, True]})
 
 
 def _run_organize(comic):

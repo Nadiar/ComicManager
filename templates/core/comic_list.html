@@ -2,11 +2,13 @@
 {% load comic_extras %}
 {% block title %}Comics{% if current_state %} ({{ current_state }}){% endif %}{% if current_flag %} ({{ flag_label }}){% endif %} — ComicManager{% endblock %}
 {% block nav_comics %}active{% endblock %}
+{% block main_class %}p-0 flex flex-col flex-1 min-h-0 overflow-hidden{% endblock %}
 
 {% block content %}
 <style>
 .cm-list-row:hover { background: var(--cm-bg-2); }
 .cm-list-row.selected { background: var(--cm-accent-dim) !important; }
+._dd-item { display:flex; align-items:center; gap:6px; width:100%; text-align:left; padding:6px 10px; font-size:12px; border-radius:4px; background:none; border:none; color:var(--cm-fg-1); cursor:pointer; }
 </style>
 
 <!-- Toolbar -->
@@ -108,22 +110,6 @@
 </form>
 
 <!-- Bulk action bar -->
-<div id="bulk-action-bar" style="display:none; position:sticky; top:0; z-index:5; align-items:center; gap:10px; padding:8px 14px; background:var(--cm-accent-dim); border-bottom:1px solid var(--cm-accent);">
-  <span style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600;">
-    <span class="sel-count mono tnum" style="background:var(--cm-accent); color:#0b0b0b; padding:2px 8px; border-radius:4px; font-weight:700;">0</span>
-    selected
-  </span>
-  <span style="color:var(--cm-fg-3); font-size:12px;">·</span>
-  <button class="cm-btn sm" onclick="bulkRunPipeline(this)">Run Pipeline</button>
-  <button class="cm-btn sm" onclick="bulkRetag(this)">Re-tag</button>
-  <button class="cm-btn sm" onclick="bulkScrape(this)">Scrape</button>
-  <button class="cm-btn sm" onclick="bulkOrganize(this)">Move</button>
-  <div style="flex:1;"></div>
-  <button class="cm-btn sm ghost" onclick="clearSelection()">Clear selection</button>
-  <button class="cm-btn sm" style="color:var(--cm-err);" onclick="confirmBulkDelete()" title="Delete selected">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14H6L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/><path d="M9,6V4h6v2"/></svg>
-  </button>
-</div>
 
 <!-- Page header: title + state actions -->
 <div style="padding:8px 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; border-bottom:1px solid var(--cm-border);">
@@ -178,11 +164,11 @@
 </div>
 
 <!-- Main: filter rail + list -->
-<div style="display:flex; min-height:0;">
+<div style="display:flex; flex:1; min-height:0; overflow:hidden;">
 
   <!-- Filter rail -->
   {% if filter_rail_open %}
-  <form method="GET" id="rail-form" style="width:220px; flex-shrink:0; border-right:1px solid var(--cm-border); display:flex; flex-direction:column; max-height:calc(100vh - 140px); position:sticky; top:0; align-self:flex-start;">
+  <form method="GET" id="rail-form" style="width:220px; flex-shrink:0; border-right:1px solid var(--cm-border); display:flex; flex-direction:column; height:100%; overflow:hidden;">
     <input type="hidden" name="view" value="{{ current_view }}">
     <input type="hidden" name="rail" value="1">
     {% if current_search %}<input type="hidden" name="q" value="{{ current_search }}">{% endif %}
@@ -280,7 +266,7 @@
   {% endif %}
 
   <!-- Scrollable list content -->
-  <div style="flex:1; min-width:0; overflow-x:auto;">
+  <div style="flex:1; min-width:0; overflow-x:auto; overflow-y:auto;">
 
   {% if comics %}
 
@@ -390,7 +376,7 @@
   <!-- HYBRID VIEW -->
   {% for comic in comics %}
   <div class="cm-list-row" data-pk="{{ comic.pk }}"
-       style="display:grid; grid-template-columns:28px 56px 1fr 140px 160px 110px 90px; gap:14px; padding:10px 14px; align-items:center; border-bottom:1px solid var(--cm-border); cursor:pointer;"
+       style="display:grid; grid-template-columns:28px 56px 1fr 140px 160px 110px 64px; gap:14px; padding:10px 14px; align-items:center; border-bottom:1px solid var(--cm-border); cursor:pointer;"
        onclick="if(event.target.type!=='checkbox'&&!event.target.closest('button,a')) window.location='/comics/{{ comic.pk }}/'">
     <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
     <img src="/comics/{{ comic.pk }}/thumb/" style="width:44px; height:66px; object-fit:cover; border-radius:3px; background:var(--cm-bg-2); display:block;" loading="lazy" onerror="this.style.visibility='hidden'">
@@ -401,14 +387,37 @@
       </div>
       <div style="font-size:11.5px; color:var(--cm-fg-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{% if comic.title %}{{ comic.title }}{% else %}<span style="color:var(--cm-fg-3);">— no title —</span>{% endif %}</div>
       <div class="mono" style="font-size:10.5px; color:var(--cm-fg-3); margin-top:2px; display:flex; gap:8px;">
-        <span>{{ comic.publisher|default:"—" }}</span><span>·</span><span>{{ comic.format|default:"—" }}</span><span>·</span><span>{{ comic.pages|default:"?" }}p</span>
+        <span>{{ comic.publisher|default:"—" }}</span><span>·</span><span>{{ comic.format|default:"—" }}</span><span>·</span><span>{{ comic.pages|default:"?" }}p</span>{% if comic.file_size %}<span>·</span><span>{{ comic.file_size|filesizeformat }}</span>{% endif %}
       </div>
     </div>
-    <div>{% if comic.count %}<div style="height:3px; background:var(--cm-bg-3); border-radius:2px; overflow:hidden; margin-bottom:4px;"><div style="height:100%; width:{% widthratio comic.number_sort_key|default:1 comic.count 100 %}%; background:var(--cm-accent); border-radius:2px;"></div></div><span class="mono" style="font-size:10px; color:var(--cm-fg-3);">{{ comic.number|default:"?" }}/{{ comic.count }}</span>{% endif %}</div>
+    <div>{% if comic.count %}<div style="height:3px; background:var(--cm-bg-3); border-radius:2px; overflow:hidden; margin-bottom:4px;"><div style="height:100%; width:{% widthratio comic.number_sort_key|default:1 comic.count 100 %}%; background:var(--cm-accent); border-radius:2px;"></div></div><span class="mono" style="font-size:10px; color:var(--cm-fg-3);">{{ comic.number|default:"?" }}/{{ comic.count }} in series</span>{% endif %}</div>
     <div style="display:flex; flex-wrap:wrap; gap:2px;">{% for flag in comic.flag_list %}<span class="cm-chip err" style="padding:1px 4px; font-size:10px;">{{ flag }}</span>{% endfor %}</div>
     <span class="cm-chip {{ comic.state|state_chip_class }}" style="justify-self:start;"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
-    <div style="display:flex; gap:4px; justify-content:flex-end;" onclick="event.stopPropagation()">
-      <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" style="text-decoration:none;">Info</a>
+    <div style="display:flex; gap:4px; justify-content:flex-end; position:relative;" onclick="event.stopPropagation()">
+      <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" style="text-decoration:none; padding:3px 6px;" title="Open detail">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+      <div style="position:relative;">
+        <button class="cm-btn sm ghost" style="padding:3px 6px;" title="More actions"
+                onclick="toggleHybridMenu(this)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+        </button>
+        <div class="hybrid-row-menu hidden" style="position:absolute; right:0; top:100%; margin-top:4px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:4px; width:160px; z-index:50; box-shadow:0 8px 20px rgba(0,0,0,.26);">
+          <a href="{% url 'core:reader' comic.pk %}" class="_dd-item" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Read
+          </a>
+          <a href="{% url 'core:download' comic.pk %}" class="_dd-item" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download
+          </a>
+          <a href="/comics/{{ comic.pk }}/edit/" class="_dd-item" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit
+          </a>
+          <div style="border-top:1px solid var(--cm-border); margin:3px 0;"></div>
+          <button class="_dd-item" style="width:100%; text-align:left; display:flex; align-items:center; gap:8px;" onclick="openScrapeModal('{{ comic.pk }}')" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Re-scrape
+          </button>
+        </div>
+      </div>
     </div>
   </div>
   {% endfor %}
@@ -500,6 +509,27 @@
 
   </div><!-- end scrollable content -->
 </div><!-- end main flex -->
+
+<!-- Permanent bulk action bar - flex-shrink:0 at the bottom of the main column -->
+<div id="bulk-action-bar" style="flex-shrink:0; z-index:5; display:flex; align-items:center; gap:8px; padding:7px 14px; background:var(--cm-bg-1); border-top:1px solid var(--cm-border); flex-wrap:wrap;">
+  <span style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; flex-shrink:0;">
+    <span class="sel-count mono tnum" style="background:var(--cm-bg-3); color:var(--cm-fg-2); padding:1px 7px; border-radius:4px; font-weight:700; min-width:20px; text-align:center;">0</span>
+    <span style="color:var(--cm-fg-3);">selected</span>
+  </span>
+  <span style="color:var(--cm-border); font-size:12px; flex-shrink:0;">|</span>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkRunPipeline(this)" disabled>Run Pipeline</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkScrape(this)" disabled>Scrape</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkRetag(this)" disabled>Tag</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkFormat(this)" disabled>Format</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkDeduplicate(this)" disabled>Deduplicate</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkOrganize(this)" disabled>Move File(s)</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkWrite(this)" disabled>Write</button>
+  <div style="flex:1;"></div>
+  <button class="cm-btn sm ghost bulk-action-btn" onclick="clearSelection()" disabled>Clear</button>
+  <button class="cm-btn sm bulk-action-btn" style="color:var(--cm-err);" onclick="confirmBulkDelete()" disabled title="Delete selected">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14H6L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/><path d="M9,6V4h6v2"/></svg>
+  </button>
+</div>
 
 <!-- Bulk delete modal -->
 <dialog id="bulk-delete-modal" class="modal">
@@ -826,6 +856,17 @@ function resetRailFilters() {
   });
 })();
 
+function toggleHybridMenu(btn) {
+  const menu = btn.nextElementSibling;
+  document.querySelectorAll('.hybrid-row-menu').forEach(m => { if (m !== menu) m.classList.add('hidden'); });
+  menu.classList.toggle('hidden');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.hybrid-row-menu') && !e.target.closest('[onclick*="toggleHybridMenu"]')) {
+    document.querySelectorAll('.hybrid-row-menu').forEach(m => m.classList.add('hidden'));
+  }
+});
+
 // Bulk selection
 (function _initBulkSelection() {
   const selectedPks = new Set();
@@ -833,13 +874,13 @@ function resetRailFilters() {
 
   function updateBulkBar() {
     const count = selectedPks.size;
-    if (count > 0) {
-      bulkBar.style.display = 'flex';
-      const badge = bulkBar.querySelector('.sel-count');
-      if (badge) badge.textContent = count;
-    } else {
-      bulkBar.style.display = 'none';
+    const badge = bulkBar.querySelector('.sel-count');
+    if (badge) {
+      badge.textContent = count;
+      badge.style.background = count > 0 ? 'var(--cm-accent)' : 'var(--cm-bg-3)';
+      badge.style.color = count > 0 ? '#0b0b0b' : 'var(--cm-fg-2)';
     }
+    bulkBar.querySelectorAll('.bulk-action-btn').forEach(btn => { btn.disabled = count === 0; });
   }
 
   document.querySelectorAll('.row-select').forEach(cb => {
@@ -920,22 +961,47 @@ function resetRailFilters() {
       .catch(function() { btn.disabled = false; btn.textContent = origText; });
   };
 
-  window.bulkRetag = function(btn) {
+  function _bulkActionPks(btn, action, label) {
     if (!selectedPks.size) return;
     btn.disabled = true;
-    bulkPost('/comics/tag-all/', {}).then(() => window.location.reload()).catch(() => { btn.disabled = false; });
-  };
+    const origText = btn.textContent;
+    btn.textContent = 'Starting...';
+    bulkPost('/comics/bulk-action-pks/', {action: action})
+      .then(function(data) {
+        if (!data.success) {
+          btn.disabled = false;
+          btn.textContent = origText;
+          if (window.showQuickToast) window.showQuickToast(data.error || 'Failed to start', 'error');
+          return;
+        }
+        btn.textContent = 'Running...';
+        if (window.startTaskPolling) window.startTaskPolling(data.task_id, label + ' ' + data.total + ' comics');
+      })
+      .catch(() => { btn.disabled = false; btn.textContent = origText; });
+  }
 
-  window.bulkScrape = function(btn) {
-    if (!selectedPks.size) return;
-    btn.disabled = true;
-    bulkPost('/comics/scrape-all/', {}).then(() => window.location.reload()).catch(() => { btn.disabled = false; });
-  };
+  window.bulkScrape    = function(btn) { _bulkActionPks(btn, 'scrape',   'Scraping');   };
+  window.bulkRetag     = function(btn) { _bulkActionPks(btn, 'tag',      'Tagging');    };
+  window.bulkFormat    = function(btn) { _bulkActionPks(btn, 'format',   'Formatting'); };
+  window.bulkOrganize  = function(btn) { _bulkActionPks(btn, 'organize', 'Organizing'); };
+  window.bulkWrite     = function(btn) { _bulkActionPks(btn, 'write',    'Writing');    };
 
-  window.bulkOrganize = function(btn) {
+  window.bulkDeduplicate = function(btn) {
     if (!selectedPks.size) return;
     btn.disabled = true;
-    bulkPost('/comics/organize-all/', {}).then(() => window.location.reload()).catch(() => { btn.disabled = false; });
+    const origText = btn.textContent;
+    btn.textContent = 'Deduplicating...';
+    bulkPost('/comics/deduplicate-selected/', {})
+      .then(function(data) {
+        if (!data.success) {
+          btn.disabled = false;
+          btn.textContent = origText;
+          return;
+        }
+        btn.textContent = 'Done (' + data.advanced + ' advanced)';
+        setTimeout(() => window.location.reload(), 1500);
+      })
+      .catch(() => { btn.disabled = false; btn.textContent = origText; });
   };
 })();
 

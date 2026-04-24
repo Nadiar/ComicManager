@@ -62,6 +62,7 @@ WORKFLOW_STATES = [
     ("deduplicate", "Deduplicate"),
     ("move",        "Move Files"),
     ("write",       "Write to CBZ"),
+    ("done",        "Done"),
 ]
 
 
@@ -2731,6 +2732,22 @@ def deduplicate_all_comics(request):
 
 
 @require_POST
+def deduplicate_selected_comics(request):
+    """
+    Run duplicate detection on a specific set of comics (by POSTed pks).
+    Comics with no duplicates found advance to the organized state.
+    """
+    from apps.duplicates.services import run_duplicate_detection_for_comics
+
+    pks = request.POST.getlist("pks")
+    if not pks:
+        return JsonResponse({"success": False, "error": "No comics selected"}, status=400)
+
+    result = run_duplicate_detection_for_comics(pks)
+    return JsonResponse(result)
+
+
+@require_POST
 def organize_comic(request, pk):
     """
     Organize a single comic - move file to library location.
@@ -4036,6 +4053,49 @@ def bulk_delete_comics(request):
         return JsonResponse({"error": "No comics selected"}, status=400)
     deleted, _ = Comic.objects.filter(pk__in=pks).delete()
     return JsonResponse({"deleted": deleted})
+
+
+def bulk_action_from_pks(request):
+    """
+    Run a bulk action on an explicit set of comic PKs (posted as 'pks').
+    Dispatches bulk_action_task and returns a task_id for progress polling.
+    """
+    from celery.result import AsyncResult
+    from .tasks import bulk_action_task
+
+    VALID_ACTIONS = ("scrape", "tag", "format", "organize", "write", "force_write")
+    action = request.POST.get("action", "").strip()
+    if action not in VALID_ACTIONS:
+        return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
+
+    pks = request.POST.getlist("pks")
+    if not pks:
+        return JsonResponse({"success": False, "error": "No comics selected"}, status=400)
+
+    comic_ids = [str(pk) for pk in Comic.objects.filter(pk__in=pks).values_list("pk", flat=True)]
+    if not comic_ids:
+        return JsonResponse({"success": True, "total": 0, "message": "No matching comics"})
+
+    active = request.session.get("active_task_id")
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+
+    result = bulk_action_task.delay(comic_ids, action)
+    request.session["active_task_id"] = result.id
+
+    action_labels = {
+        "scrape": "Scraping", "tag": "Tagging", "format": "Formatting",
+        "organize": "Organizing", "write": "Writing", "force_write": "Force writing",
+    }
+    label = action_labels.get(action, action.title())
+    request.session["active_task_label"] = f"{label} {len(comic_ids)} comics"
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": len(comic_ids),
+        "message": f"{label} {len(comic_ids)} comics in background",
+    })
 
 
 def bulk_action_from_filter(request):

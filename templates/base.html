@@ -189,7 +189,7 @@
     {% endif %}
 
     <!-- Main content -->
-    <main class="p-6">
+    <main class="{% block main_class %}p-6{% endblock %}">
       {% block content %}{% endblock %}
     </main>
 
@@ -419,7 +419,6 @@
     async function processNextAction() {
       if (actionQueue.length === 0) {
         showDismiss();
-        setTimeout(function() { window.dismissTaskToast(); }, 5000);
         return;
       }
       var next = actionQueue.shift();
@@ -620,7 +619,6 @@
               setTimeout(processNextAction, 800);
             } else {
               showDismiss();
-              setTimeout(function() { window.dismissTaskToast(); }, 5000);
             }
 
           } else if (data.state === 'FAILURE') {
@@ -737,7 +735,6 @@
               setTimeout(processNextAction, 800);
             } else {
               showDismiss();
-              setTimeout(function() { window.dismissTaskToast(); }, 5000);
             }
           } else if (msg.state === 'FAILURE') {
             markTaskDone(activeTaskId);
