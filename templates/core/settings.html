@@ -55,8 +55,9 @@
         <div style="display:flex; flex-direction:column; gap:4px;">
           <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Pipeline view</label>
           <select name="dashboard_pipeline" class="cm-input" style="font-size:13px;">
-            <option value="segments" {% if prefs.dashboard_pipeline != "flow" %}selected{% endif %}>Segments</option>
+            <option value="segments" {% if prefs.dashboard_pipeline != "flow" and prefs.dashboard_pipeline != "none" %}selected{% endif %}>Segments</option>
             <option value="flow"     {% if prefs.dashboard_pipeline == "flow" %}selected{% endif %}>Flow</option>
+            <option value="none"     {% if prefs.dashboard_pipeline == "none" %}selected{% endif %}>None (hide pipeline)</option>
           </select>
         </div>
 

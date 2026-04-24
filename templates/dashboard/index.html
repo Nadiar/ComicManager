@@ -9,8 +9,9 @@
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
     <h1 style="margin:0;font-size:22px;font-weight:700;letter-spacing:-0.01em;">Dashboard</h1>
     <div class="cm-seg">
-      <button onclick="setPipelineVariant('segments')" class="{% if prefs.dashboard_pipeline != 'flow' %}on{% endif %}">Segments</button>
-      <button onclick="setPipelineVariant('flow')"     class="{% if prefs.dashboard_pipeline == 'flow'     %}on{% endif %}">Flow</button>
+      <button onclick="setPipelineVariant('segments')" class="{% if prefs.dashboard_pipeline != 'flow' and prefs.dashboard_pipeline != 'none' %}on{% endif %}">Segments</button>
+      <button onclick="setPipelineVariant('flow')"     class="{% if prefs.dashboard_pipeline == 'flow' %}on{% endif %}">Flow</button>
+      <button onclick="setPipelineVariant('none')"     class="{% if prefs.dashboard_pipeline == 'none' %}on{% endif %}">None</button>
     </div>
   </div>
 
@@ -123,7 +124,7 @@
     </div>
   </div>
 
-  {% else %}
+  {% elif prefs.dashboard_pipeline != 'none' %}
 
   <!-- Segments (default) -->
   <div class="cm-card" style="overflow:hidden;">
