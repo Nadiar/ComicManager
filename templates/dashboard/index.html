@@ -69,13 +69,13 @@
     <div class="cm-card-hd">
       <h3>Workflow Pipeline · Flow</h3>
     </div>
-    <div style="padding:28px 28px 0;background:var(--cm-bg);">
+    <div style="padding-top:20px;background:var(--cm-bg);">
       <!-- circles row: same grid as buttons so columns align -->
       <div id="flow-nodes" style="display:grid;grid-template-columns:repeat({{ pipeline|length }},1fr);position:relative;height:100px;">
-        <!-- connector line behind circles, from center of col-1 to center of last col -->
+        <!-- connector line behind circles -->
         <div style="position:absolute;top:50%;transform:translateY(-50%);left:calc(50% / {{ pipeline|length }});right:calc(50% / {{ pipeline|length }});height:2px;background:var(--cm-border);z-index:0;pointer-events:none;"></div>
         {% for stage in pipeline %}
-        <div style="display:flex;align-items:center;justify-content:center;position:relative;z-index:1;">
+        <div style="display:flex;align-items:center;justify-content:center;position:relative;z-index:1;isolation:isolate;">
           <div class="flow-node"
                data-count="{{ stage.count }}"
                data-state="{{ stage.state }}"
@@ -417,11 +417,11 @@
     var countEl = node.querySelector('.flow-node-count');
     if (countEl) countEl.style.fontSize = fontSize;
     if (state === 'done') {
-      node.style.background = 'var(--cm-ok-dim)';
+      node.style.background = 'var(--cm-bg-1)';
       node.style.border = '2px solid var(--cm-ok)';
       if (countEl) countEl.style.color = 'var(--cm-ok)';
     } else if (c > 0) {
-      node.style.background = 'var(--cm-accent-dim)';
+      node.style.background = 'var(--cm-bg-1)';
       node.style.border = '2px solid var(--cm-accent)';
       if (countEl) countEl.style.color = 'var(--cm-accent)';
     } else {

@@ -332,9 +332,9 @@
 **Goal:** Redesign the UI for nicer look and better usability. 
 
 **Current Status & Tasks:**
-- [ ] [RD.1] User never had Kanban selected in settings, as Kanban was never shipped. Remove Kanban fallback to Segments.
-- [ ] [RD.2] Segments should be default with optional Flow or None. If None is selected the Workflow pipeline is hidden on the dashboard. 
-- [ ] [RD.3] Flow needs redesigned. The alignment is wrong and the line looks bad. Either disable or fix.
+- [x] [RD.1] User never had Kanban selected in settings, as Kanban was never shipped. Remove Kanban fallback to Segments.
+- [x] [RD.2] Segments should be default with optional Flow or None. If None is selected the Workflow pipeline is hidden on the dashboard. 
+- [x] [RD.3] Flow needs redesigned. The alignment is wrong and the line looks bad. Either disable or fix.
 - [ ] [RD.4] Add accent style color choice to settings.
 - [x] [RD.5] `/comics/` list page
 - [x] [RD.6] Dashboard

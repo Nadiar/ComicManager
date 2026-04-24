@@ -204,3 +204,4 @@ Comicrack_guide/*
 PROGRESS.md
 download*.sh*
 *.db
+.vscode/
