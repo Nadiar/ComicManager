@@ -1138,24 +1138,3 @@ def smartlist_run_action(request, pk):
     })
 
 
-@require_POST
-def advance_comics(request):
-    """Dispatch a Celery task to advance one or more comics to a target pipeline stage."""
-    _VALID_STAGES = {'scrape', 'tagging', 'formats', 'deduplicate', 'move', 'write', 'done'}
-    comic_ids = request.POST.getlist('comic_ids')
-    to_stage = request.POST.get('to_stage', '')
-
-    if to_stage not in _VALID_STAGES:
-        return JsonResponse({'success': False, 'error': f'Invalid stage: {to_stage}'}, status=400)
-    if not comic_ids:
-        return JsonResponse({'success': False, 'error': 'No comics specified'}, status=400)
-
-    from .tasks import advance_comics_task
-    result = advance_comics_task.delay(comic_ids, to_stage)
-    n = len(comic_ids)
-    return JsonResponse({
-        'success': True,
-        'task_id': result.id,
-        'total': n,
-        'label': f"Advancing {n} comic{'s' if n != 1 else ''} to {to_stage}",
-    })
