@@ -223,6 +223,8 @@
 - [x] [UI.25] Review whether zero-count rows in the Review & Maintenance card (both Active and Maintenance tabs) should be hidden entirely, or kept visible as permanent status indicators. Resolved via Appearance setting: "Hide zero-count maintenance rows".
 - [x] [UI.23] Dashboard Review Queue and re-organize/stale widgets consolidated into a single "Review & Maintenance" card with Active and Maintenance tabs. Active tab shows existing review queue; Maintenance tab shows Duplicates, Needs Re-organize, Stale Metadata, and Missing ComicInfo.xml rows with counts and action buttons. Tab auto-selects based on which count is non-zero.
 - [x] [UI.24] Duplicate review page gains method filter tabs (All / CV ID / Series-Number / Cover Hash / Filename). Clicking a tab filters the groups list and shows the count per method on each tab button.
+- [ ] [UI.25] Remove up/down arrows on integer input fields on the edit comic page. 
+- [ ] [UI.26] Thumb in row on comics should show in full (non-thumb size) lightbox when clicked. Other parts of the row should behave as normal. 
 
 ## Major Issues / Bugs
 
@@ -268,7 +270,7 @@
 - [x] [BUG.36] `scrape_all` excludes comics with empty `custom_values` due to JSONField NULL behaviour in PostgreSQL `exclude`. Fixed by using `filter` with negated Q objects instead of `exclude` on JSONField lookups.
 - [x] [BUG.37] On the comic detail page, the "Write to file" action under Actions does not advance the comic state after writing. The comic remains in the "Write to CBZ" state instead of moving to the written state.
 - [x] [BUG.38] Run Path Audit progress bar does not stretch to fill the full width of its container box.
-
+- [ ] [BUG.39] New, Scrape, Tagging, Move Files, Write to CBZ all live at `/comics/?state=X`. Since active detection uses `request.path`, all five match `/comics/` and highlight the "Comics" item instead of the individual workflow step. Fix: pass the active state name via a template context variable and compare against `request.GET.state` in the sidebar.
 
 
 ## I.N.D.U.C.K.S. Integration
@@ -330,9 +332,28 @@
 **Goal:** Redesign the UI for nicer look and better usability. 
 
 **Current Status & Tasks:**
-- [ ] [R.1] User never had Kanban selected in settings, as Kanban was never shipped. Remove Kanban fallback to Segments.
-- [ ] [R.2] Segments should be default with optional Flow or None. If None is selected the Workflow pipeline is hidden on the dashboard. 
-- [ ] [R.3] Flow needs redesigned. The alignment is wrong and the line looks bad. Either disable or fix.
+- [ ] [RD.1] User never had Kanban selected in settings, as Kanban was never shipped. Remove Kanban fallback to Segments.
+- [ ] [RD.2] Segments should be default with optional Flow or None. If None is selected the Workflow pipeline is hidden on the dashboard. 
+- [ ] [RD.3] Flow needs redesigned. The alignment is wrong and the line looks bad. Either disable or fix.
+- [ ] [RD.4] Add accent style color choice to settings.
+- [x] [RD.5] `/comics/` list page
+- [x] [RD.6] Dashboard
+- [x] [RD.7] Series Audit (`/comics/series-audit/volume/<id>/`)
+- [x] [RD.8] Series Audit Search (`/comics/series-audit/search/`)
+- [x] [RD.9] Format Review
+- [x] [RD.10] Duplicate Review
+- [x] [RD.11] Path Audit
+- [x] [RD.12] Smart Lists index
+- [x] [RD.13] Smart Lists detail dropdown
+- [x] [RD.14] Organizer profile list/detail/form
+- [x] [RD.15] Tagging ruleset list/detail/form
+- [x] [RD.16] Smart List form
+- [x] [RD.17] Comic detail page (`/comics/<uuid>/`)
+- [x] [RD.18] Scrape modal
+- [x] [RD.19] Compare All Sources modal
+- [x] [RD.20] Manage Pages modal
+- [x] [RD.21] Comic edit page (`/comics/<uuid>/edit/`)
+- [x] [RD.22] Comic reader (`/comics/<uuid>/read/`)
 
 ## Code to Port
 
