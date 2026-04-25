@@ -319,7 +319,8 @@ def comic_list(request):
     query_params.pop("page", None)
     query_string = query_params.urlencode()
 
-    return render(request, "core/comic_list.html", {
+    template = "core/partials/comic_list_results.html" if request.htmx else "core/comic_list.html"
+    return render(request, template, {
         "comics": page_obj,
         "page_obj": page_obj,
         "total_count": paginator.count,
