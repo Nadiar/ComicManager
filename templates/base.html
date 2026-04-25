@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark" data-mood="{{ prefs.mood }}" data-density="{{ prefs.table_density }}">
+<html lang="en" data-theme="dark" data-mood="{{ prefs.mood }}" data-density="{{ prefs.table_density }}" data-contrast="{% if prefs.high_contrast %}high{% endif %}" data-oled="{% if prefs.oled %}1{% endif %}"{% if prefs.custom_colors %} style="{{ prefs.custom_colors_as_css }}"{% endif %}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">

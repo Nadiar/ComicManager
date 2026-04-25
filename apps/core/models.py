@@ -263,9 +263,10 @@ class UserPreference(models.Model):
     NAV_TOPNAV  = "topnav"
     NAV_SIDEBAR = "sidebar"
 
-    MOOD_WARM = "warm"
-    MOOD_COOL = "cool"
-    MOOD_OLED = "oled"
+    MOOD_WARM   = "warm"
+    MOOD_COOL   = "cool"
+    MOOD_FOREST = "forest"
+    MOOD_ROSE   = "rose"
 
     DENSITY_COMPACT = "compact"
     DENSITY_DEFAULT = "default"
@@ -275,11 +276,22 @@ class UserPreference(models.Model):
     PIPELINE_NEW      = "new"
     PIPELINE_FLOW     = "flow"
 
-    nav               = models.CharField(max_length=16, default=NAV_TOPNAV)
-    mood              = models.CharField(max_length=16, default=MOOD_WARM)
-    table_density     = models.CharField(max_length=16, default=DENSITY_DEFAULT)
-    show_covers       = models.BooleanField(default=True)
+    COLOR_VAR_MAP = {
+        "accent": "--cm-accent",
+        "bg":     "--cm-bg",
+        "bg1":    "--cm-bg-1",
+        "fg":     "--cm-fg",
+        "fg1":    "--cm-fg-1",
+    }
+
+    nav                = models.CharField(max_length=16, default=NAV_TOPNAV)
+    mood               = models.CharField(max_length=16, default=MOOD_WARM)
+    table_density      = models.CharField(max_length=16, default=DENSITY_DEFAULT)
+    show_covers        = models.BooleanField(default=True)
     dashboard_pipeline = models.CharField(max_length=16, default=PIPELINE_SEGMENTS)
+    high_contrast      = models.BooleanField(default=False)
+    oled               = models.BooleanField(default=False)
+    custom_colors      = models.JSONField(default=dict, blank=True)
 
     class Meta:
         verbose_name = "User Preference"
@@ -288,3 +300,12 @@ class UserPreference(models.Model):
     def get(cls):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+    @property
+    def custom_colors_as_css(self):
+        parts = []
+        for key, var in self.COLOR_VAR_MAP.items():
+            val = self.custom_colors.get(key, "")
+            if val:
+                parts.append(f"{var}: {val};")
+        return " ".join(parts)

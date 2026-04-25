@@ -55,14 +55,48 @@ html[data-mood="cool"] {
   --cm-accent-fg:  oklch(0.18 0.04 220);
 }
 
-/* OLED mood */
-html[data-mood="oled"] {
+/* Forest mood */
+html[data-mood="forest"] {
+  --cm-bg:         oklch(0.14 0.012 145);
+  --cm-bg-1:       oklch(0.17 0.014 145);
+  --cm-bg-2:       oklch(0.21 0.016 145);
+  --cm-bg-3:       oklch(0.25 0.018 145);
+  --cm-border:     oklch(0.30 0.020 145);
+  --cm-border-2:   oklch(0.36 0.022 145);
+  --cm-accent:     oklch(0.78 0.18 145);
+  --cm-accent-dim: oklch(0.78 0.18 145 / 0.15);
+  --cm-accent-fg:  oklch(0.16 0.05 145);
+}
+
+/* Rose mood */
+html[data-mood="rose"] {
+  --cm-bg:         oklch(0.15 0.010 355);
+  --cm-bg-1:       oklch(0.18 0.012 355);
+  --cm-bg-2:       oklch(0.22 0.015 355);
+  --cm-bg-3:       oklch(0.26 0.018 355);
+  --cm-border:     oklch(0.30 0.020 355);
+  --cm-border-2:   oklch(0.36 0.022 355);
+  --cm-accent:     oklch(0.82 0.18 355);
+  --cm-accent-dim: oklch(0.82 0.18 355 / 0.15);
+  --cm-accent-fg:  oklch(0.18 0.04 355);
+}
+
+/* OLED — pure black backgrounds, stacks on top of any theme */
+html[data-oled="1"] {
   --cm-bg:         oklch(0.04 0 0);
-  --cm-bg-1:       oklch(0.09 0.003 60);
-  --cm-bg-2:       oklch(0.13 0.005 60);
-  --cm-bg-3:       oklch(0.18 0.006 60);
-  --cm-border:     oklch(0.25 0.008 60);
-  --cm-border-2:   oklch(0.32 0.009 60);
+  --cm-bg-1:       oklch(0.09 0 0);
+  --cm-bg-2:       oklch(0.13 0 0);
+  --cm-bg-3:       oklch(0.18 0 0);
+  --cm-border:     oklch(0.24 0 0);
+  --cm-border-2:   oklch(0.30 0 0);
+}
+
+/* High contrast — stacks on top of any mood */
+html[data-contrast="high"] {
+  --cm-fg:   oklch(0.99 0.002 80);
+  --cm-fg-1: oklch(0.92 0.004 80);
+  --cm-fg-2: oklch(0.76 0.006 80);
+  --cm-fg-3: oklch(0.60 0.007 80);
 }
 
 /* Density */

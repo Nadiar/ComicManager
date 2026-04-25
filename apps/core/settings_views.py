@@ -8,6 +8,22 @@ from django.views.decorators.http import require_POST
 from .models import Setting, UserPreference
 
 
+MOOD_SWATCHES = [
+    ("warm",   "Warm",   "#c8861a"),
+    ("cool",   "Cool",   "#22d3ee"),
+    ("forest", "Forest", "#4ade80"),
+    ("rose",   "Rose",   "#f472b6"),
+]
+
+COLOR_PICKER_DEFS = [
+    ("accent", "Accent"),
+    ("bg",     "Background"),
+    ("bg1",    "Card BG"),
+    ("fg",     "Primary text"),
+    ("fg1",    "Secondary text"),
+]
+
+
 def settings_index(request):
     settings = Setting.objects.all()
     # Group them for the template
@@ -20,6 +36,10 @@ def settings_index(request):
     cv_status = get_cv_source_status()
     api_remaining = get_api_calls_remaining()
 
+    prefs = UserPreference.get()
+    custom = prefs.custom_colors or {}
+    color_pickers = [(key, label, custom.get(key, "")) for key, label in COLOR_PICKER_DEFS]
+
     return render(request, "core/settings.html", {
         "grouped": grouped,
         "cv_status": cv_status,
@@ -28,6 +48,8 @@ def settings_index(request):
         "api_budget_limit": CV_API_BUDGET_LIMIT,
         "api_calls_per_path": get_api_calls_per_path(),
         "scrape_api_fallback": get_setting("scrape_api_fallback", False),
+        "mood_swatches": MOOD_SWATCHES,
+        "color_pickers": color_pickers,
     })
 
 
@@ -52,6 +74,22 @@ def update_preferences(request):
         if field in request.POST:
             setattr(prefs, field, request.POST[field])
     prefs.show_covers = "show_covers" in request.POST
+    prefs.high_contrast = "high_contrast" in request.POST
+    prefs.oled = "oled" in request.POST
+
+    if request.POST.get("clear_custom_colors"):
+        prefs.custom_colors = {}
+    else:
+        custom = dict(prefs.custom_colors or {})
+        for key in UserPreference.COLOR_VAR_MAP:
+            if f"enable_color_{key}" in request.POST:
+                val = request.POST.get(f"custom_color_{key}", "").strip()
+                if val:
+                    custom[key] = val
+            else:
+                custom.pop(key, None)
+        prefs.custom_colors = custom
+
     prefs.save()
     return HttpResponse(status=204)
 

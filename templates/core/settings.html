@@ -34,13 +34,17 @@
           </select>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:4px;">
-          <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Accent mood</label>
-          <select name="mood" class="cm-input" style="font-size:13px;">
-            <option value="warm" {% if prefs.mood == "warm" %}selected{% endif %}>Warm (amber)</option>
-            <option value="cool" {% if prefs.mood == "cool" %}selected{% endif %}>Cool (cyan)</option>
-            <option value="oled" {% if prefs.mood == "oled" %}selected{% endif %}>OLED (black)</option>
-          </select>
+        <div style="display:flex; flex-direction:column; gap:6px; grid-column:1/-1;">
+          <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Theme</label>
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            {% for val, label, swatch in mood_swatches %}
+            <label style="display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:6px; border:1px solid {% if prefs.mood == val %}var(--cm-accent){% else %}var(--cm-border){% endif %}; cursor:pointer; background:var(--cm-bg-2); user-select:none;">
+              <input type="radio" name="mood" value="{{ val }}" {% if prefs.mood == val %}checked{% endif %} style="display:none;">
+              <span style="width:10px; height:10px; border-radius:50%; background:{{ swatch }}; flex-shrink:0; display:inline-block;"></span>
+              <span style="font-size:12px; color:var(--cm-fg-1);">{{ label }}</span>
+            </label>
+            {% endfor %}
+          </div>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:4px;">
@@ -66,6 +70,51 @@
           <input type="checkbox" id="show_covers_toggle" name="show_covers"
                  style="width:16px; height:16px; accent-color:var(--cm-accent); cursor:pointer;"
                  {% if prefs.show_covers %}checked{% endif %}>
+        </div>
+
+        <div style="grid-column:1/-1; display:flex; gap:10px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:200px; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px;">
+            <div>
+              <label style="font-size:13px; color:var(--cm-fg-2); cursor:pointer;" for="oled_toggle">OLED black</label>
+              <p style="font-size:11px; color:var(--cm-fg-3); margin:2px 0 0;">Pure black backgrounds for OLED screens</p>
+            </div>
+            <input type="checkbox" id="oled_toggle" name="oled"
+                   style="width:16px; height:16px; accent-color:var(--cm-accent); cursor:pointer;"
+                   {% if prefs.oled %}checked{% endif %}>
+          </div>
+          <div style="flex:1; min-width:200px; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px;">
+            <div>
+              <label style="font-size:13px; color:var(--cm-fg-2); cursor:pointer;" for="high_contrast_toggle">High contrast text</label>
+              <p style="font-size:11px; color:var(--cm-fg-3); margin:2px 0 0;">Boosts text brightness for low-light environments</p>
+            </div>
+            <input type="checkbox" id="high_contrast_toggle" name="high_contrast"
+                   style="width:16px; height:16px; accent-color:var(--cm-accent); cursor:pointer;"
+                   {% if prefs.high_contrast %}checked{% endif %}>
+          </div>
+        </div>
+
+        <div style="grid-column:1/-1; display:flex; flex-direction:column; gap:8px; padding-top:4px; border-top:1px solid var(--cm-border);">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">
+              Custom Colors <span style="text-transform:none; font-weight:400;">— overrides preset per slot</span>
+            </label>
+            <button type="submit" name="clear_custom_colors" value="1" class="cm-btn sm ghost" style="font-size:11px;">Reset all</button>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:14px;">
+            {% for key, label, cur_hex in color_pickers %}
+            <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+              <label style="position:relative; display:block; cursor:pointer;" title="Check to enable custom {{ label|lower }}">
+                <input type="checkbox" name="enable_color_{{ key }}" {% if cur_hex %}checked{% endif %}
+                       style="position:absolute; top:2px; right:2px; width:11px; height:11px; accent-color:var(--cm-accent); z-index:1; cursor:pointer;">
+                <input type="color" name="custom_color_{{ key }}"
+                       value="{% if cur_hex %}{{ cur_hex }}{% else %}#888888{% endif %}"
+                       style="width:42px; height:34px; border:1px solid var(--cm-border); border-radius:6px; background:var(--cm-bg-2); cursor:pointer; padding:3px; display:block;">
+              </label>
+              <span style="font-size:10px; color:var(--cm-fg-3);">{{ label }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <p style="font-size:11px; color:var(--cm-fg-3); margin:0;">Check the box on a swatch to enable that override. Uncheck to revert to the active theme.</p>
         </div>
 
       </div>
