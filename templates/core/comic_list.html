@@ -16,6 +16,7 @@
   {% if current_state %}<input type="hidden" name="state" value="{{ current_state }}">{% endif %}
   {% if current_flag %}<input type="hidden" name="flag" value="{{ current_flag }}">{% endif %}
   {% if filter_rail_open %}<input type="hidden" name="rail" value="1">{% endif %}
+  <input type="hidden" name="view" value="{{ current_view|default:'table' }}" id="form-view-hidden">
 
   <!-- Search -->
   <div style="position:relative; flex:0 0 300px;">
@@ -68,8 +69,8 @@
     <span style="color:var(--cm-fg-3);">comics</span>
   </span>
 
-  <!-- Columns (table view) -->
-  {% if current_view == 'table' or not current_view %}
+  <!-- Columns (table and compact view) -->
+  {% if current_view == 'table' or current_view == 'compact' or not current_view %}
   <div style="position:relative; flex-shrink:0;" id="col-dropdown-wrap">
     <button type="button" class="cm-btn sm" onclick="document.getElementById('col-dropdown').classList.toggle('hidden')">Columns</button>
     <div id="col-dropdown" class="hidden" style="position:absolute; right:0; top:100%; margin-top:4px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:14px; width:230px; z-index:20; box-shadow:0 8px 20px rgba(0,0,0,.18);">
@@ -447,21 +448,37 @@
 
   {% elif current_view == 'compact' %}
   <!-- COMPACT VIEW -->
-  <div style="display:grid; grid-template-columns:28px 1fr 60px 80px 160px 120px 80px; gap:10px; padding:0 14px; height:28px; align-items:center; background:var(--cm-bg-1); border-bottom:1px solid var(--cm-border); position:sticky; top:0; z-index:4; font-size:10.5px; font-weight:600; color:var(--cm-fg-2); letter-spacing:.04em; text-transform:uppercase;">
+  <div style="display:grid; grid-template-columns:28px {% for col_id in active_columns %}1fr {% endfor %}80px; gap:6px; padding:0 14px; height:26px; align-items:center; background:var(--cm-bg-1); border-bottom:1px solid var(--cm-border); position:sticky; top:0; z-index:4; font-size:10px; font-weight:600; color:var(--cm-fg-2); letter-spacing:.04em; text-transform:uppercase;">
     <input type="checkbox" id="select-all" style="accent-color:var(--cm-accent);">
-    <span>Series</span><span style="text-align:right;">#</span><span style="text-align:right;">Year</span><span>Publisher</span><span>State</span><span>Flags</span>
+    {% for col_id in active_columns %}
+    <span style="cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="sortBy('{{ col_id|get_col_sort }}')">
+      {{ col_id|get_col_label }}{% with sf=col_id|get_col_sort %}{% if current_sort == sf %}&nbsp;{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}{% endwith %}
+    </span>
+    {% endfor %}
+    <span>Flags</span>
   </div>
   {% for comic in comics %}
   <div class="cm-list-row" data-pk="{{ comic.pk }}"
-       style="display:grid; grid-template-columns:28px 1fr 60px 80px 160px 120px 80px; gap:10px; padding:0 14px; height:28px; align-items:center; border-bottom:1px solid var(--cm-border); font-size:11.5px; cursor:pointer;"
-       onclick="if(event.target.type!=='checkbox') window.location='/comics/{{ comic.pk }}/'">
+       style="display:grid; grid-template-columns:28px {% for col_id in active_columns %}1fr {% endfor %}80px; gap:6px; padding:0 14px; height:26px; align-items:center; border-bottom:1px solid var(--cm-border); font-size:11.5px; cursor:pointer;"
+       onclick="if(event.target.type!=='checkbox'&&!event.target.closest('button,a')) window.location='/comics/{{ comic.pk }}/'">
     <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
-    <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500;">{{ comic.series|default:comic.proposed_series|default:"—" }}</span>
-    <span class="mono tnum" style="text-align:right; color:var(--cm-fg-2);">{{ comic.number|default:comic.proposed_number|default:"?" }}</span>
-    <span class="mono tnum" style="text-align:right; color:var(--cm-fg-3);">{{ comic.year|default:"" }}</span>
-    <span style="color:var(--cm-fg-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ comic.publisher|default:"—" }}</span>
-    <span class="cm-chip {{ comic.state|state_chip_class }}" style="justify-self:start; padding:1px 6px; font-size:10.5px;"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
-    <div style="display:flex; flex-wrap:wrap; gap:1px;">{% for flag in comic.flag_list %}<span class="cm-chip err" style="padding:0px 3px; font-size:9px;">{{ flag }}</span>{% endfor %}</div>
+    {% for col_id in active_columns %}
+    <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11.5px;">
+      {% if col_id == 'series' and comic.state == 'new' %}
+        <span style="color:var(--cm-warn); font-weight:500;">{{ comic.proposed_series|default:"-" }}</span>
+      {% elif col_id == 'series' %}
+        <span style="font-weight:500;">{{ comic|get_col_value:col_id|default:"-" }}</span>
+        {% if comic.is_physical and not current_medium %}<span class="cm-chip" style="font-size:9px; padding:0 3px; margin-left:2px;">physical</span>{% endif %}
+      {% elif col_id == 'number' and comic.state == 'new' %}
+        <span style="color:var(--cm-warn);" class="mono tnum">{{ comic.proposed_number|default:"-" }}</span>
+      {% elif col_id == 'state' %}
+        <span class="cm-chip {{ comic.state|state_chip_class }}" style="padding:1px 5px; font-size:10px;"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
+      {% else %}
+        <span class="{% if col_id == 'number' or col_id == 'year' or col_id == 'pages' or col_id == 'count' %}mono tnum{% endif %}">{{ comic|get_col_value:col_id|default:"-" }}</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <div style="display:flex; flex-wrap:wrap; gap:1px;">{% for flag in comic.flag_list %}<span class="cm-chip err" style="padding:0 3px; font-size:9px;">{{ flag }}</span>{% endfor %}</div>
   </div>
   {% endfor %}
   {% endif %}
