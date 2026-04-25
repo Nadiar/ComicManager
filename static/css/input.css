@@ -225,6 +225,9 @@ html, body {
   min-width: 0;
 }
 .cm-input:focus { border-color: var(--cm-accent); box-shadow: 0 0 0 3px var(--cm-accent-dim); }
+.cm-input[type="number"]::-webkit-inner-spin-button,
+.cm-input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.cm-input[type="number"] { -moz-appearance: textfield; }
 
 /* ── Table rows ────────────────────────────────────────────────────────────── */
 .cm-row {
@@ -501,12 +504,13 @@ html, body {
 .cm-sidebar.collapsed .cm-sb-item {
   padding: 0;
   justify-content: center;
+  gap: 0;
 }
 .cm-sb-item-label {
   flex: 1;
   transition: opacity .12s;
 }
-.cm-sidebar.collapsed .cm-sb-item-label { opacity: 0; width: 0; overflow: hidden; }
+.cm-sidebar.collapsed .cm-sb-item-label { opacity: 0; flex: 0 0 0; width: 0; min-width: 0; max-width: 0; overflow: hidden; }
 
 .cm-sb-icon {
   width: 15px;

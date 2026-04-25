@@ -250,7 +250,7 @@
         <!-- Gallery Row -->
         <div class="flex items-center gap-4 px-12">
           <!-- Prev Arrow -->
-          <button id="gallery-prev" class="btn btn-circle btn-lg bg-black/30 hover:bg-black/60 text-white border-none hidden sm:flex shrink-0 items-center justify-center" onclick="galleryPrev(event)">❮</button>
+          <button id="gallery-prev" class="btn btn-circle btn-lg bg-black/30 hover:bg-black/60 text-white border-none hidden shrink-0 items-center justify-center" onclick="galleryPrev(event)">❮</button>
 
           <!-- Image Container -->
           <div class="relative group">
@@ -263,7 +263,7 @@
           </div>
 
           <!-- Next Arrow -->
-          <button id="gallery-next" class="btn btn-circle btn-lg bg-black/30 hover:bg-black/60 text-white border-none hidden sm:flex shrink-0 items-center justify-center" onclick="galleryNext(event)">❯</button>
+          <button id="gallery-next" class="btn btn-circle btn-lg bg-black/30 hover:bg-black/60 text-white border-none hidden shrink-0 items-center justify-center" onclick="galleryNext(event)">❯</button>
         </div>
 
         <!-- Caption & Counter -->
@@ -354,13 +354,13 @@
       
       if (currentGallery.length > 1) {
         counter.textContent = (currentGalleryIndex + 1) + ' / ' + currentGallery.length;
-        counter.classList.remove('hidden');
-        prevBtn.classList.remove('hidden');
-        nextBtn.classList.remove('hidden');
+        counter.style.display = '';
+        prevBtn.style.display = 'flex';
+        nextBtn.style.display = 'flex';
       } else {
-        counter.classList.add('hidden');
-        prevBtn.classList.add('hidden');
-        nextBtn.classList.add('hidden');
+        counter.style.display = 'none';
+        prevBtn.style.display = 'none';
+        nextBtn.style.display = 'none';
       }
     }
 

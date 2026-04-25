@@ -54,7 +54,7 @@
 - [x] [P2.13] Implement metadata-only matching for physical comics. (See P2.9.)
 - [x] [P2.14] If flag=scrape_skipped but manually scraping is done and confirmed, the flag should be cleared. `apply_cv_match` and `apply_inducks_match` both call `comic.remove_flag("scrape_skipped")` on successful match confirmation.
 - [x] [P2.15] Workflow pipeline step 2 (Scrape) should show two separate counts: all scrapeable comics (excluding scrape_skipped) and skipped comics. The "Scrape All" action button should be disabled (or hidden) when all remaining comics in that state have `scrape_skipped=True`.
-- [ ] [P2.16] The "0Day window (hours)" setting (`scrape_0day_hours`) exists in Settings but appears to never be read anywhere. Originally intended to put recently-added comics into a 0Day priority queue. Verify whether it is used; if not, either implement the 0Day queue logic or remove the setting.
+- [x] [P2.16] Verified: `scrape_0day_hours` IS read in `apps/dashboard/views.py` to calculate `new_comics_0day_count`, which powers the "Last Xh (N)" button on the dashboard New Comics card. Clicking it runs the pipeline only on comics imported within that window. Not a Celery priority queue, but the setting is actively used.
 
 
 ### Phase 3: Issue Count (Comicrack_guide 04 - Add Count)
@@ -225,9 +225,9 @@
 - [x] [UI.25] Review whether zero-count rows in the Review & Maintenance card (both Active and Maintenance tabs) should be hidden entirely, or kept visible as permanent status indicators. Resolved via Appearance setting: "Hide zero-count maintenance rows".
 - [x] [UI.23] Dashboard Review Queue and re-organize/stale widgets consolidated into a single "Review & Maintenance" card with Active and Maintenance tabs. Active tab shows existing review queue; Maintenance tab shows Duplicates, Needs Re-organize, Stale Metadata, and Missing ComicInfo.xml rows with counts and action buttons. Tab auto-selects based on which count is non-zero.
 - [x] [UI.24] Duplicate review page gains method filter tabs (All / CV ID / Series-Number / Cover Hash / Filename). Clicking a tab filters the groups list and shows the count per method on each tab button.
-- [ ] [UI.25] Remove up/down arrows on integer input fields on the edit comic page. 
-- [ ] [UI.26] Thumb in row on comics should show in full (non-thumb size) lightbox when clicked. Other parts of the row should behave as normal. 
-- [ ] [UI.27] Icons in sidebar when collapsed are not centeret. 
+- [x] [UI.25] Remove up/down arrows on integer input fields on the edit comic page. 
+- [x] [UI.26] Thumb in row on comics should show in full (non-thumb size) lightbox when clicked. Other parts of the row should behave as normal. 
+- [x] [UI.27] Icons in sidebar when collapsed are not centeret. 
 
 ## Major Issues / Bugs
 

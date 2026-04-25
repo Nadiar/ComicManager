@@ -317,7 +317,7 @@
        onclick="if(event.target.type!=='checkbox'&&!event.target.closest('button,a')) window.location='/comics/{{ comic.pk }}/'">
     <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
     {% if prefs.show_covers %}
-    <img src="/comics/{{ comic.pk }}/thumb/" style="width:28px; height:36px; object-fit:cover; border-radius:2px; background:var(--cm-bg-2); display:block;" loading="lazy" onerror="this.style.visibility='hidden'">
+    <img src="/comics/{{ comic.pk }}/thumb/" style="width:28px; height:36px; object-fit:cover; border-radius:2px; background:var(--cm-bg-2); display:block; cursor:zoom-in;" loading="lazy" onerror="this.style.visibility='hidden'" onclick="event.stopPropagation(); openLightbox([{url:'/comics/{{ comic.pk }}/cover/', caption:'{{ comic.series|default:comic.proposed_series|escapejs }} #{{ comic.number|default:comic.proposed_number|escapejs }}'}], 0);">
     {% endif %}
     {% for col_id in active_columns %}
     {% if current_state == 'new' and col_id in inline_editable_cols %}
@@ -380,7 +380,7 @@
        style="display:grid; grid-template-columns:28px 56px 1fr 140px 160px 110px 64px; gap:14px; padding:10px 14px; align-items:center; border-bottom:1px solid var(--cm-border); cursor:pointer;"
        onclick="if(event.target.type!=='checkbox'&&!event.target.closest('button,a')) window.location='/comics/{{ comic.pk }}/'">
     <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
-    <img src="/comics/{{ comic.pk }}/thumb/" style="width:44px; height:66px; object-fit:cover; border-radius:3px; background:var(--cm-bg-2); display:block;" loading="lazy" onerror="this.style.visibility='hidden'">
+    <img src="/comics/{{ comic.pk }}/thumb/" style="width:44px; height:66px; object-fit:cover; border-radius:3px; background:var(--cm-bg-2); display:block; cursor:zoom-in;" loading="lazy" onerror="this.style.visibility='hidden'" onclick="event.stopPropagation(); openLightbox([{url:'/comics/{{ comic.pk }}/cover/', caption:'{{ comic.series|default:comic.proposed_series|escapejs }} #{{ comic.number|default:comic.proposed_number|escapejs }}'}], 0);">
     <div style="min-width:0;">
       <div style="font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
         {{ comic.series|default:comic.proposed_series|default:"—" }}
