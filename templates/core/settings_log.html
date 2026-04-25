@@ -3,101 +3,121 @@
 {% block nav_settings %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
-  <div class="flex items-center justify-between">
-    <h1 class="text-3xl font-bold">Batch Audit Log</h1>
-    <a href="{% url 'settings:index' %}" class="btn btn-ghost btn-sm">Back to Settings</a>
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+  <div>
+    <h1 style="font-size:22px; font-weight:700; margin:0;">Batch Audit Log</h1>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;" class="mono tnum">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} total</p>
   </div>
+  <a href="{% url 'settings:index' %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Settings</a>
+</div>
 
-  <!-- Action filter tabs -->
-  <div class="tabs tabs-bordered">
-    <a href="{% url 'settings:log' %}"
-       class="tab {% if not action_filter %}tab-active{% endif %}">
-      All
-    </a>
-    {% for action in actions %}
-    <a href="{% url 'settings:log' %}?action={{ action }}"
-       class="tab {% if action_filter == action %}tab-active{% endif %}">
-      {% if action == 'scrape_all' %}Scrape
-      {% elif action == 'tag_all' %}Tag
-      {% elif action == 'format_all' %}Format
-      {% elif action == 'audit_metadata' %}Audit
-      {% elif action == 'organize_error' %}Organize Errors
-      {% elif action == 'write_error' %}Write Errors
-      {% else %}{{ action }}{% endif %}
-    </a>
-    {% endfor %}
+<!-- Action filter tabs -->
+<div style="padding:10px 16px; display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--cm-border);">
+  <a href="{% url 'settings:log' %}" class="cm-btn sm {% if not action_filter %}primary{% else %}ghost{% endif %}" style="text-decoration:none;">All</a>
+  {% for action in actions %}
+  <a href="{% url 'settings:log' %}?action={{ action }}"
+     class="cm-btn sm {% if action_filter == action %}primary{% else %}ghost{% endif %}"
+     style="text-decoration:none;">
+    {% if action == 'scrape_all' %}Scrape
+    {% elif action == 'tag_all' %}Tag
+    {% elif action == 'format_all' %}Format
+    {% elif action == 'audit_metadata' %}Audit
+    {% elif action == 'organize_error' %}Organize Errors
+    {% elif action == 'write_error' %}Write Errors
+    {% else %}{{ action }}{% endif %}
+  </a>
+  {% endfor %}
+</div>
+
+{% if page_obj %}
+
+<!-- Pagination top -->
+{% if page_obj.paginator.num_pages > 1 %}
+<div style="padding:7px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
+  <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ total_count }}</span></span>
+  <div style="display:flex; gap:3px;">
+    {% if page_obj.has_previous %}
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
+    {% endif %}
+    <span class="cm-btn sm primary" style="cursor:default;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
+    {% endif %}
   </div>
+</div>
+{% endif %}
 
-  <p class="text-sm text-base-content/60">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} total</p>
-
-  {% if page_obj %}
-  <div class="overflow-x-auto">
-    <table class="table table-zebra w-full text-sm">
-      <thead>
-        <tr>
-          <th>Timestamp</th>
-          <th>Action</th>
-          <th>Comic</th>
-          <th>Changes</th>
-          <th></th>
-          <th>Send back</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for entry in page_obj %}
-        <tr id="log-row-{{ forloop.counter }}">
-          <td class="whitespace-nowrap font-mono text-xs text-base-content/60">
-            {{ entry.timestamp|slice:":19" }}
-          </td>
-          <td>
-            <span class="badge badge-sm
-              {% if entry.action == 'scrape_all' %}badge-secondary
-              {% elif entry.action == 'tag_all' %}badge-accent
-              {% elif entry.action == 'format_all' %}badge-info
-              {% elif entry.action == 'audit_metadata' %}badge-warning
-              {% elif entry.action == 'organize_error' or entry.action == 'write_error' %}badge-error
-              {% else %}badge-neutral{% endif %}">
-              {{ entry.action }}
-            </span>
-          </td>
-          <td class="max-w-xs truncate">{{ entry.name }}</td>
-          <td class="text-xs">
-            {% for key, pair in entry.changes.items %}
-            <span class="block">
-              <span class="font-medium">{{ key }}:</span>
-              <span class="opacity-60">{{ pair.0|default:"null" }}</span>
-              &rarr;
-              <span class="text-success">{{ pair.1|default:"null" }}</span>
-            </span>
-            {% empty %}
-            <span class="opacity-40">no changes</span>
-            {% endfor %}
-          </td>
-          <td>
-            <a href="{% url 'core:detail' entry.uuid %}"
-               target="_blank"
-               class="btn btn-xs btn-ghost"
-               title="{{ entry.uuid }}">
-              Info
-            </a>
-          </td>
-          <td>
-            {% if entry.action == 'scrape_all' %}
+<!-- Table -->
+<div style="overflow-x:auto;">
+  <table style="width:100%; border-collapse:collapse; font-size:12px;">
+    <thead>
+      <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1); position:sticky; top:0; z-index:3;">
+        <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); white-space:nowrap;">Timestamp</th>
+        <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Action</th>
+        <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Comic</th>
+        <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Changes</th>
+        <th style="padding:7px 10px;"></th>
+        <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Rollback</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in page_obj %}
+      <tr id="log-row-{{ forloop.counter }}" style="border-bottom:1px solid var(--cm-border);">
+        <td style="padding:7px 10px; white-space:nowrap; font-family:monospace; font-size:11px; color:var(--cm-fg-3);">
+          {{ entry.timestamp|slice:":19" }}
+        </td>
+        <td style="padding:7px 10px;">
+          <span style="border-radius:4px; padding:2px 7px; font-size:10px; font-weight:600; white-space:nowrap;
+            {% if entry.action == 'scrape_all' %}background:rgba(168,85,247,.12); color:#a855f7; border:1px solid rgba(168,85,247,.25);
+            {% elif entry.action == 'tag_all' %}background:rgba(20,184,166,.12); color:#14b8a6; border:1px solid rgba(20,184,166,.25);
+            {% elif entry.action == 'format_all' %}background:rgba(59,130,246,.12); color:var(--cm-info); border:1px solid rgba(59,130,246,.25);
+            {% elif entry.action == 'audit_metadata' %}background:rgba(234,179,8,.12); color:var(--cm-warn); border:1px solid rgba(234,179,8,.25);
+            {% elif entry.action == 'organize_error' or entry.action == 'write_error' %}background:rgba(239,68,68,.12); color:var(--cm-err); border:1px solid rgba(239,68,68,.25);
+            {% else %}background:var(--cm-bg-2); color:var(--cm-fg-2); border:1px solid var(--cm-border);
+            {% endif %}">
+            {{ entry.action }}
+          </span>
+        </td>
+        <td style="padding:7px 10px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ entry.name }}</td>
+        <td style="padding:7px 10px; font-size:11px; max-width:280px;">
+          {% for key, pair in entry.changes.items %}
+          <div style="display:flex; gap:4px; align-items:baseline; flex-wrap:wrap; margin-bottom:2px;">
+            <span style="font-weight:600;">{{ key }}:</span>
+            <span style="color:var(--cm-fg-3);">{{ pair.0|default:"null" }}</span>
+            <span style="color:var(--cm-fg-3);">&rarr;</span>
+            <span style="color:var(--cm-ok);">{{ pair.1|default:"null" }}</span>
+          </div>
+          {% empty %}
+          <span style="color:var(--cm-fg-3);">no changes</span>
+          {% endfor %}
+        </td>
+        <td style="padding:7px 10px;">
+          <a href="{% url 'core:detail' entry.uuid %}"
+             target="_blank"
+             class="cm-btn sm ghost"
+             style="text-decoration:none;"
+             title="{{ entry.uuid }}">
+            Info
+          </a>
+        </td>
+        <td style="padding:7px 10px;">
+          {% if entry.action == 'scrape_all' %}
             {% if entry.changes.result %}
-            {# Failed scrape (no_match or error) — send back to phase 1 New #}
-            <button class="btn btn-xs btn-warning"
+            <button class="cm-btn sm" style="color:var(--cm-warn); border-color:var(--cm-warn);"
                     hx-post="{% url 'core:comic_rollback' entry.uuid %}"
                     hx-vals='{"to_state": "new"}'
                     hx-target="#log-row-{{ forloop.counter }}"
                     hx-swap="outerHTML"
                     hx-confirm="Reset this comic back to New (phase 1)?">
-              To new
+              To New
             </button>
             {% else %}
-            {# Successful scrape — undo by sending back to scrape #}
-            <button class="btn btn-xs btn-warning"
+            <button class="cm-btn sm" style="color:var(--cm-warn); border-color:var(--cm-warn);"
                     hx-post="{% url 'core:comic_rollback' entry.uuid %}"
                     hx-vals='{"to_state": "scrape"}'
                     hx-target="#log-row-{{ forloop.counter }}"
@@ -106,64 +126,61 @@
               To Scrape
             </button>
             {% endif %}
-            {% elif entry.action == 'tag_all' %}
-            <button class="btn btn-xs btn-warning"
-                    hx-post="{% url 'core:comic_rollback' entry.uuid %}"
-                    hx-vals='{"to_state": "count"}'
-                    hx-target="#log-row-{{ forloop.counter }}"
-                    hx-swap="outerHTML"
-                    hx-confirm="Reset this comic to 'count' and clear tagging data?">
-              To Count
-            </button>
-            {% elif entry.action == 'format_all' %}
-            <button class="btn btn-xs btn-warning"
-                    hx-post="{% url 'core:comic_rollback' entry.uuid %}"
-                    hx-vals='{"to_state": "tagging"}'
-                    hx-target="#log-row-{{ forloop.counter }}"
-                    hx-swap="outerHTML"
-                    hx-confirm="Reset this comic to 'tagging' and clear format?">
-              To Tagging
-            </button>
-            {% elif entry.action == 'audit_metadata' %}
-            {# Mismatched metadata — send back to scraping phase #}
-            <button class="btn btn-xs btn-warning"
-                    hx-post="{% url 'core:comic_rollback' entry.uuid %}"
-                    hx-vals='{"to_state": "scrape"}'
-                    hx-target="#log-row-{{ forloop.counter }}"
-                    hx-swap="outerHTML"
-                    hx-confirm="Reset this comic to 'Scrape' phase? Clears mismatch flag and match data.">
-              To Scrape
-            </button>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+          {% elif entry.action == 'tag_all' %}
+          <button class="cm-btn sm" style="color:var(--cm-warn); border-color:var(--cm-warn);"
+                  hx-post="{% url 'core:comic_rollback' entry.uuid %}"
+                  hx-vals='{"to_state": "count"}'
+                  hx-target="#log-row-{{ forloop.counter }}"
+                  hx-swap="outerHTML"
+                  hx-confirm="Reset this comic to 'count' and clear tagging data?">
+            To Count
+          </button>
+          {% elif entry.action == 'format_all' %}
+          <button class="cm-btn sm" style="color:var(--cm-warn); border-color:var(--cm-warn);"
+                  hx-post="{% url 'core:comic_rollback' entry.uuid %}"
+                  hx-vals='{"to_state": "tagging"}'
+                  hx-target="#log-row-{{ forloop.counter }}"
+                  hx-swap="outerHTML"
+                  hx-confirm="Reset this comic to 'tagging' and clear format?">
+            To Tagging
+          </button>
+          {% elif entry.action == 'audit_metadata' %}
+          <button class="cm-btn sm" style="color:var(--cm-warn); border-color:var(--cm-warn);"
+                  hx-post="{% url 'core:comic_rollback' entry.uuid %}"
+                  hx-vals='{"to_state": "scrape"}'
+                  hx-target="#log-row-{{ forloop.counter }}"
+                  hx-swap="outerHTML"
+                  hx-confirm="Reset this comic to 'Scrape' phase? Clears mismatch flag and match data.">
+            To Scrape
+          </button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 
-  <!-- Pagination -->
-  {% if page_obj.paginator.num_pages > 1 %}
-  <div class="flex justify-center">
-    <div class="join">
-      {% if page_obj.has_previous %}
-      <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}"
-         class="join-item btn btn-sm">Prev</a>
-      {% endif %}
-      <span class="join-item btn btn-sm btn-active">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-      {% if page_obj.has_next %}
-      <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}"
-         class="join-item btn btn-sm">Next</a>
-      {% endif %}
-    </div>
-  </div>
+<!-- Pagination bottom -->
+{% if page_obj.paginator.num_pages > 1 %}
+<div style="padding:10px 16px; display:flex; justify-content:center; gap:3px; border-top:1px solid var(--cm-border);">
+  {% if page_obj.has_previous %}
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
   {% endif %}
+  <span class="cm-btn sm primary" style="cursor:default;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
+  {% endif %}
+</div>
+{% endif %}
 
-  {% else %}
-  <div class="alert">
-    <span>No log entries found{% if action_filter %} for action "{{ action_filter }}"{% endif %}.</span>
-  </div>
-  {% endif %}
+{% else %}
+<div style="padding:48px 16px; text-align:center; color:var(--cm-fg-3); font-size:13px;">
+  No log entries found{% if action_filter %} for action "{{ action_filter }}"{% endif %}.
+</div>
+{% endif %}
 
 </div>
 {% endblock %}

@@ -3,144 +3,139 @@
 {% block nav_scraper %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-  <div class="flex justify-between items-center">
-    <h1 class="text-3xl font-bold">Scraper</h1>
-    <div class="flex gap-2">
-      <span class="badge badge-warning">{{ stats.new }} new</span>
-      <span class="badge badge-success">{{ stats.scraped }} scraped</span>
+<div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+  <div>
+    <h1 style="font-size:22px; font-weight:700; margin:0;">Scraper</h1>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;">Test scraper matching without making changes</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <span style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:4px 10px; font-size:12px; font-weight:600; color:var(--cm-warn);" class="mono tnum">{{ stats.new }} new</span>
+    <span style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:4px 10px; font-size:12px; font-weight:600; color:var(--cm-ok);" class="mono tnum">{{ stats.scraped }} scraped</span>
+  </div>
+</div>
+
+<!-- Dry Run Controls -->
+<div style="padding:14px 16px; border-bottom:1px solid var(--cm-border); background:var(--cm-bg-2);">
+  <div style="font-size:13px; font-weight:600; margin-bottom:10px;">Dry Run Options</div>
+  <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end;">
+    <div>
+      <div style="font-size:11px; font-weight:600; color:var(--cm-fg-3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;">Limit</div>
+      <select id="scrape-limit" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:5px; padding:5px 8px; font-size:13px; color:var(--cm-fg-1);">
+        <option value="2" selected>2</option>
+        <option value="5">5</option>
+        <option value="10">10</option>
+        <option value="25">25</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:11px; font-weight:600; color:var(--cm-fg-3); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;">Max Hash Distance</div>
+      <select id="scrape-distance" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:5px; padding:5px 8px; font-size:13px; color:var(--cm-fg-1);">
+        <option value="5">5</option>
+        <option value="8">8</option>
+        <option value="10" selected>10</option>
+        <option value="12">12</option>
+        <option value="15">15</option>
+      </select>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <button type="button" class="cm-btn sm primary" onclick="runDryRun(this)">Run Dry Run</button>
+      <span id="loading" style="display:none; width:16px; height:16px; border:2px solid var(--cm-border); border-top-color:var(--cm-accent); border-radius:50%; animation:spin .7s linear infinite;"></span>
     </div>
   </div>
+</div>
 
-  <!-- Controls -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">Test Scraper (Dry Run)</h2>
-      <p class="text-sm text-base-content/60">
-        Run the scraper in dry-run mode to test matching without making changes.
-      </p>
+<!-- Output -->
+<div style="padding:14px 16px; border-bottom:1px solid var(--cm-border);">
+  <div style="font-size:13px; font-weight:600; margin-bottom:10px;">Output</div>
+  <div id="output" style="min-height:100px; max-height:60vh; overflow-y:auto; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:14px; font-size:12px; font-family:monospace;">
+    <div style="color:var(--cm-fg-3); text-align:center; padding:24px 0;">Click "Run Dry Run" to test the scraper</div>
+  </div>
+</div>
 
-      <div class="flex flex-wrap gap-4 items-end mt-4">
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Limit</span>
-          </label>
-          <select id="scrape-limit" class="select select-bordered select-sm w-24">
-            <option value="2" selected>2</option>
-            <option value="5">5</option>
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-          </select>
-        </div>
+<!-- Comics to Scrape -->
+<div style="padding:14px 16px;">
+  <div style="font-size:13px; font-weight:600; margin-bottom:10px;">
+    Comics to Scrape
+    <span style="font-weight:400; color:var(--cm-fg-3); margin-left:6px;" class="mono tnum">{{ comics|length }}</span>
+  </div>
 
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Max Hash Distance</span>
-          </label>
-          <select id="scrape-distance" class="select select-bordered select-sm w-24">
-            <option value="5">5</option>
-            <option value="8">8</option>
-            <option value="10" selected>10</option>
-            <option value="12">12</option>
-            <option value="15">15</option>
-          </select>
-        </div>
+  {% if comics %}
+  <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1);">
+          <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); white-space:nowrap;">Series</th>
+          <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); white-space:nowrap;">#</th>
+          <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); white-space:nowrap;">Year</th>
+          <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">File</th>
+          <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Flags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for comic in comics %}
+        <tr style="border-bottom:1px solid var(--cm-border);">
+          <td style="padding:7px 10px; font-weight:500;">{{ comic.proposed_series|default:"—" }}</td>
+          <td style="padding:7px 10px;" class="mono tnum">{{ comic.proposed_number|default:"—" }}</td>
+          <td style="padding:7px 10px; color:var(--cm-fg-3);" class="mono tnum">{{ comic.proposed_year|default:"—" }}</td>
+          <td style="padding:7px 10px; color:var(--cm-fg-3); max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:monospace; font-size:11px;">{{ comic.file_path }}</td>
+          <td style="padding:7px 10px;">
+            {% if comic.has_flags %}
+            <div style="display:flex; flex-wrap:wrap; gap:3px;">
+              {% for flag in comic.flag_list %}
+              <span style="background:rgba(239,68,68,.12); color:var(--cm-err); border:1px solid rgba(239,68,68,.25); border-radius:4px; padding:1px 5px; font-size:10px; font-weight:600;">{{ flag }}</span>
+              {% endfor %}
+            </div>
+            {% else %}
+            <span style="color:var(--cm-fg-3); font-size:11px;">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="padding:32px 16px; text-align:center; color:var(--cm-fg-3); font-size:13px;">
+    No comics to scrape. All comics are already processed or none have been imported.
+  </div>
+  {% endif %}
+</div>
 
-        <button
-          type="button"
-          class="btn btn-primary"
-          onclick="runDryRun()"
-        >
-          Run Dry Run
-        </button>
+</div>
 
-        <span id="loading" class="loading loading-spinner loading-md hidden"></span>
-      </div>
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
 
 <script>
-function runDryRun() {
+function runDryRun(btn) {
   const limit = document.getElementById('scrape-limit').value;
   const distance = document.getElementById('scrape-distance').value;
   const output = document.getElementById('output');
   const loading = document.getElementById('loading');
 
-  loading.classList.remove('hidden');
-  output.innerHTML = '<div class="text-base-content/50">Loading...</div>';
+  btn.disabled = true;
+  loading.style.display = 'inline-block';
+  output.innerHTML = '<div style="color:var(--cm-fg-3);">Loading...</div>';
 
   fetch(`/scraper/dry-run/?limit=${limit}&max_distance=${distance}`)
     .then(response => response.text())
     .then(html => {
       output.innerHTML = html;
-      loading.classList.add('hidden');
+      btn.disabled = false;
+      loading.style.display = 'none';
     })
     .catch(err => {
-      output.innerHTML = '<div class="text-error">Error: ' + err + '</div>';
-      loading.classList.add('hidden');
+      output.innerHTML = '<div style="color:var(--cm-err);">Error: ' + err + '</div>';
+      btn.disabled = false;
+      loading.style.display = 'none';
     });
 }
 </script>
-    </div>
-  </div>
-
-  <!-- Output -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">Output</h2>
-      <div id="output" class="min-h-[200px] max-h-[70vh] overflow-y-auto bg-base-300 rounded-lg p-4">
-        <div class="text-base-content/50 text-center py-8">
-          Click "Run Dry Run" to test the scraper
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Comics to scrape -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">Comics to Scrape ({{ comics|length }})</h2>
-
-      {% if comics %}
-      <div class="overflow-x-auto">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Series</th>
-              <th>#</th>
-              <th>Year</th>
-              <th>File</th>
-              <th>Flags</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for comic in comics %}
-            <tr class="hover">
-              <td class="font-medium">{{ comic.proposed_series|default:"-" }}</td>
-              <td>{{ comic.proposed_number|default:"-" }}</td>
-              <td>{{ comic.proposed_year|default:"-" }}</td>
-              <td class="text-xs text-base-content/50 max-w-xs truncate">{{ comic.file_path }}</td>
-              <td>
-                {% if comic.has_flags %}
-                <div class="flex flex-wrap gap-1">
-                  {% for flag in comic.flag_list %}
-                  <span class="badge badge-xs badge-error">{{ flag }}</span>
-                  {% endfor %}
-                </div>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="alert alert-info">
-        <span>No comics to scrape. All comics are already processed or none have been imported.</span>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-</div>
 
 {% endblock %}
