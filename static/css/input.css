@@ -394,6 +394,17 @@ html, body {
   animation: barShift 1s linear infinite;
 }
 
+/* ── HTMX loading indicator ────────────────────────────────────────────────── */
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator { display: block; }
+
+@keyframes cm-loading {
+  0%   { width: 0; opacity: 1; }
+  60%  { width: 65%; opacity: 1; }
+  100% { width: 100%; opacity: 0; }
+}
+
 /* ── Page layout ───────────────────────────────────────────────────────────── */
 .cm-layout {
   display: flex;
