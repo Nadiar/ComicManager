@@ -222,13 +222,13 @@
 
   <!-- Confirm Modal -->
   <dialog id="confirm-modal" class="modal">
-    <div class="modal-box max-w-sm">
-      <p id="confirm-modal-message" class="text-sm leading-relaxed whitespace-pre-line"></p>
-      <div class="modal-action mt-4">
-        <form method="dialog">
-          <button class="btn btn-ghost btn-sm">Cancel</button>
+    <div class="modal-box" style="background:var(--cm-bg-1);border:1px solid var(--cm-border);max-width:380px;">
+      <p id="confirm-modal-message" style="font-size:13px;color:var(--cm-fg-2);margin:0 0 20px;line-height:1.5;white-space:pre-line;"></p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <form method="dialog" style="display:contents;">
+          <button class="cm-btn sm ghost">Cancel</button>
         </form>
-        <button id="confirm-modal-ok" class="btn btn-sm btn-primary">Confirm</button>
+        <button id="confirm-modal-ok" class="cm-btn sm ok">Confirm</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop">
@@ -285,7 +285,9 @@
     document.getElementById('confirm-modal-message').textContent = message;
     var okBtn = document.getElementById('confirm-modal-ok');
     okBtn.textContent = label || 'Confirm';
-    okBtn.className = 'btn btn-sm ' + (danger ? 'btn-error' : 'btn-primary');
+    okBtn.className = 'cm-btn sm ' + (danger ? '' : 'ok');
+    if (danger) { okBtn.style.color = 'var(--cm-err)'; okBtn.style.borderColor = 'var(--cm-err)'; }
+    else { okBtn.style.color = ''; okBtn.style.borderColor = ''; }
     okBtn.onclick = function() {
       modal.close();
       if (onConfirm) onConfirm();

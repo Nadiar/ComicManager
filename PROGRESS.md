@@ -56,6 +56,7 @@
 - [x] [P2.15] Workflow pipeline step 2 (Scrape) should show two separate counts: all scrapeable comics (excluding scrape_skipped) and skipped comics. The "Scrape All" action button should be disabled (or hidden) when all remaining comics in that state have `scrape_skipped=True`.
 - [ ] [P2.16] The "0Day window (hours)" setting (`scrape_0day_hours`) exists in Settings but appears to never be read anywhere. Originally intended to put recently-added comics into a 0Day priority queue. Verify whether it is used; if not, either implement the 0Day queue logic or remove the setting.
 
+
 ### Phase 3: Issue Count (Comicrack_guide 04 - Add Count)
 
 **Goal:** Populate and manage `count` for series, identifying and resolving discrepancies.
@@ -142,6 +143,7 @@
 - [x] [P7.13] Drag-and-drop priority reordering on the organizer profiles list. Drag handle column added to the table; native HTML5 drag-and-drop reorders rows live and persists via `POST /organizer/profiles/reorder/`.
 - [ ] [P7.14] When using the CLI import command on an existing library, errors such as "Error processing X.cbz: Invalid or corrupted CBZ file" and informational lines like "No ComicInfo.xml in: X.cbz" are only printed to stdout and lost. These should be written to a persistent log file (e.g. `data/logs/import_errors.log`) so they can be reviewed after a large import run without having to keep the terminal open.
 - [ ] [P7.15] AU (Alternate Universe) comics that later gain a `main_character_or_team` value should be detected and moved to their correct publisher folder. Currently `needs_reorganize` is set when the field changes (P7.8), but there is no dedicated detection pass that scans organized AU comics for a newly populated main character and re-queues them.
+- [ ] [P7.16] Check that Path Audit (`/organizer/path-audit/`) only shows and runs on comics in stage `Write to CBZ` or `Done`, as any other stage is in the pipeline where we will get to `Move Files` later on. Path Audit is meant as a way to audit files already organized and through the pipeline. 
 
 ### Phase 8: Write to File (Comicrack_guide 09 - Write to File)
 
@@ -225,6 +227,7 @@
 - [x] [UI.24] Duplicate review page gains method filter tabs (All / CV ID / Series-Number / Cover Hash / Filename). Clicking a tab filters the groups list and shows the count per method on each tab button.
 - [ ] [UI.25] Remove up/down arrows on integer input fields on the edit comic page. 
 - [ ] [UI.26] Thumb in row on comics should show in full (non-thumb size) lightbox when clicked. Other parts of the row should behave as normal. 
+- [ ] [UI.27] Icons in sidebar when collapsed are not centeret. 
 
 ## Major Issues / Bugs
 
@@ -270,7 +273,8 @@
 - [x] [BUG.36] `scrape_all` excludes comics with empty `custom_values` due to JSONField NULL behaviour in PostgreSQL `exclude`. Fixed by using `filter` with negated Q objects instead of `exclude` on JSONField lookups.
 - [x] [BUG.37] On the comic detail page, the "Write to file" action under Actions does not advance the comic state after writing. The comic remains in the "Write to CBZ" state instead of moving to the written state.
 - [x] [BUG.38] Run Path Audit progress bar does not stretch to fill the full width of its container box.
-- [ ] [BUG.39] New, Scrape, Tagging, Move Files, Write to CBZ all live at `/comics/?state=X`. Since active detection uses `request.path`, all five match `/comics/` and highlight the "Comics" item instead of the individual workflow step. Fix: pass the active state name via a template context variable and compare against `request.GET.state` in the sidebar.
+- [x] [BUG.39] New, Scrape, Tagging, Move Files, Write to CBZ all live at `/comics/?state=X`. Since active detection uses `request.path`, all five match `/comics/` and highlight the "Comics" item instead of the individual workflow step. Fix: pass the active state name via a template context variable and compare against `request.GET.state` in the sidebar.
+- [ ] [BUG.40] Redis warning in Docker: WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
 
 
 ## I.N.D.U.C.K.S. Integration
@@ -335,7 +339,7 @@
 - [x] [RD.1] User never had Kanban selected in settings, as Kanban was never shipped. Remove Kanban fallback to Segments.
 - [x] [RD.2] Segments should be default with optional Flow or None. If None is selected the Workflow pipeline is hidden on the dashboard. 
 - [x] [RD.3] Flow needs redesigned. The alignment is wrong and the line looks bad. Either disable or fix.
-- [ ] [RD.4] Add accent style color choice to settings.
+- [x] [RD.4] Add accent style color choice to settings.
 - [x] [RD.5] `/comics/` list page
 - [x] [RD.6] Dashboard
 - [x] [RD.7] Series Audit (`/comics/series-audit/volume/<id>/`)
@@ -354,6 +358,9 @@
 - [x] [RD.20] Manage Pages modal
 - [x] [RD.21] Comic edit page (`/comics/<uuid>/edit/`)
 - [x] [RD.22] Comic reader (`/comics/<uuid>/read/`)
+- [x] [RD.23] `/scraper/`
+- [x] [RD.24] `/settings/log/`
+- [x] [RD.25] `view=compact` on `/comics/` should also have 'Columns' setting like `view=table`. 
 
 ## Code to Port
 
