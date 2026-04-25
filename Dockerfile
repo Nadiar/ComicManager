@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     p7zip-full \
     unrar-free \
     libmagic1 \
+    file \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
