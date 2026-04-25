@@ -38,11 +38,11 @@
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
         <span class="cm-sb-item-label">Dashboard</span>
       </a>
-      <a href="/comics/" class="cm-sb-item {% if '/comics/' in request.path %}active{% endif %}">
+      <a href="/comics/" class="cm-sb-item {% if '/comics/' in request.path and not request.GET.state and request.path != '/comics/format/' and request.GET.medium != 'physical' and '/comics/series-audit/' not in request.path %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="1" width="9" height="13" rx="1.5"/><rect x="5" y="3" width="9" height="13" rx="1.5"/></svg>
         <span class="cm-sb-item-label">Comics</span>
       </a>
-      <a href="/physical/" class="cm-sb-item {% if '/physical/' in request.path %}active{% endif %}">
+      <a href="/physical/" class="cm-sb-item {% if '/physical/' in request.path or request.GET.medium == 'physical' %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h10v10H3z"/><path d="M6 3v10M10 3v10"/></svg>
         <span class="cm-sb-item-label">Physical</span>
       </a>
@@ -50,22 +50,22 @@
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4h12M2 8h8M2 12h5"/></svg>
         <span class="cm-sb-item-label">Smart Lists</span>
       </a>
-      <a href="{% url 'core:character_audit_search' %}" class="cm-sb-item {% if '/audit/' in request.path or 'character' in request.path %}active{% endif %}">
+      <a href="{% url 'core:character_audit_search' %}" class="cm-sb-item {% if '/audit/' in request.path or 'character' in request.path or '/comics/series-audit/' in request.path %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3"/></svg>
         <span class="cm-sb-item-label">Series Audit</span>
       </a>
 
       <!-- Workflow -->
       <div class="cm-sb-group-label">Workflow</div>
-      <a href="/comics/?state=new"     class="cm-sb-item">
+      <a href="/comics/?state=new"     class="cm-sb-item {% if request.GET.state == 'new' %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v6M5 8h6"/></svg>
         <span class="cm-sb-item-label">1. New</span>
       </a>
-      <a href="/comics/?state=scrape"  class="cm-sb-item">
+      <a href="/comics/?state=scrape"  class="cm-sb-item {% if request.GET.state == 'scrape' %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4"/><path d="M10.5 10.5l3 3"/></svg>
         <span class="cm-sb-item-label">2. Scrape</span>
       </a>
-      <a href="/comics/?state=tagging" class="cm-sb-item">
+      <a href="/comics/?state=tagging" class="cm-sb-item {% if request.GET.state == 'tagging' %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 8l5-5h6v6l-5 5-6-6z"/><circle cx="10" cy="6" r="1.2" fill="currentColor" stroke="none"/></svg>
         <span class="cm-sb-item-label">3. Tagging</span>
       </a>
@@ -77,11 +77,11 @@
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="8" height="10" rx="1.5"/><rect x="6" y="4" width="8" height="10" rx="1.5"/></svg>
         <span class="cm-sb-item-label">5. Deduplicate</span>
       </a>
-      <a href="/comics/?state=move"    class="cm-sb-item">
+      <a href="/comics/?state=move"    class="cm-sb-item {% if request.GET.state == 'move' %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12V5a1 1 0 011-1h4l2 2h4a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1z"/></svg>
         <span class="cm-sb-item-label">6. Move Files</span>
       </a>
-      <a href="/comics/?state=write"   class="cm-sb-item">
+      <a href="/comics/?state=write"   class="cm-sb-item {% if request.GET.state == 'write' %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 13l2-2 7-7-2-2-7 7-2 2h2z"/><path d="M11 4l2 2"/></svg>
         <span class="cm-sb-item-label">7. Write to CBZ</span>
       </a>
