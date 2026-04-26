@@ -23,7 +23,14 @@
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--cm-fg-3);pointer-events:none;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <input type="text" name="q" value="{{ current_search|default:'' }}"
            placeholder="Series, writer, characters · (#N [YYYY] V2)"
-           class="cm-input" style="padding-left:28px; width:100%; height:30px; font-size:12px;">
+           class="cm-input" style="padding-left:28px; width:100%; height:30px; font-size:12px;"
+           hx-get="/comics/"
+           hx-trigger="keyup changed delay:300ms, search"
+           hx-target="#comic-results-container"
+           hx-swap="innerHTML"
+           hx-include="#filter-form"
+           hx-push-url="true"
+           hx-indicator="#list-spinner">
   </div>
 
   <!-- View mode -->
@@ -41,7 +48,14 @@
   </button>
 
   <!-- Sort -->
-  <select name="sort" class="cm-input cm-select" style="height:30px; font-size:12px;">
+  <select name="sort" class="cm-input cm-select" style="height:30px; font-size:12px;"
+          hx-get="/comics/"
+          hx-trigger="change"
+          hx-target="#comic-results-container"
+          hx-swap="innerHTML"
+          hx-include="#filter-form"
+          hx-push-url="true"
+          hx-indicator="#list-spinner">
     {% if current_state == 'new' %}
     <option value="proposed_series" {% if current_sort == 'proposed_series' %}selected{% endif %}>Sort: Series</option>
     <option value="proposed_number" {% if current_sort == 'proposed_number' %}selected{% endif %}>Sort: Number</option>
@@ -56,7 +70,14 @@
     <option value="updated_at" {% if current_sort == 'updated_at' %}selected{% endif %}>Sort: Updated</option>
     {% endif %}
   </select>
-  <select name="dir" class="cm-input cm-select" style="height:30px; font-size:12px; width:64px;">
+  <select name="dir" class="cm-input cm-select" style="height:30px; font-size:12px; width:64px;"
+          hx-get="/comics/"
+          hx-trigger="change"
+          hx-target="#comic-results-container"
+          hx-swap="innerHTML"
+          hx-include="#filter-form"
+          hx-push-url="true"
+          hx-indicator="#list-spinner">
     <option value="asc" {% if current_dir == 'asc' %}selected{% endif %}>A→Z</option>
     <option value="desc" {% if current_dir == 'desc' %}selected{% endif %}>Z→A</option>
   </select>
@@ -2061,26 +2082,6 @@ function sortBy(field) {
 }
 
 // Auto-submit form on select change for quick filtering
-document.addEventListener('DOMContentLoaded', function() {
-  const form = document.getElementById('filter-form');
-  if (form) {
-    form.querySelectorAll('select').forEach(select => {
-      select.addEventListener('change', () => form.submit());
-    });
-
-    // Submit on Enter in search box
-    const searchInput = form.querySelector('input[name="q"]');
-    if (searchInput) {
-      searchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          form.submit();
-        }
-      });
-    }
-  }
-});
-
 // ── Full Pipeline ────────────────────────────────────────────────────────────
 
 let _pipelinePollTimer = null;
