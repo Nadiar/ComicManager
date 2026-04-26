@@ -35,10 +35,18 @@
 
   <!-- View mode -->
   <div class="cm-seg" style="flex-shrink:0;">
-    <button type="submit" name="view" value="table" {% if current_view == 'table' %}class="on"{% endif %} onclick="this.form.querySelectorAll('[name=view]').forEach(i=>i.disabled=true); this.disabled=false;">Table</button>
-    <button type="submit" name="view" value="hybrid" {% if current_view == 'hybrid' %}class="on"{% endif %} onclick="this.form.querySelectorAll('[name=view]').forEach(i=>i.disabled=true); this.disabled=false;">Hybrid</button>
-    <button type="submit" name="view" value="grid" {% if current_view == 'grid' %}class="on"{% endif %} onclick="this.form.querySelectorAll('[name=view]').forEach(i=>i.disabled=true); this.disabled=false;">Grid</button>
-    <button type="submit" name="view" value="compact" {% if current_view == 'compact' %}class="on"{% endif %} onclick="this.form.querySelectorAll('[name=view]').forEach(i=>i.disabled=true); this.disabled=false;">Compact</button>
+    <button type="button" {% if current_view == 'table' or not current_view %}class="on"{% endif %}
+            hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
+            hx-include="#filter-form" hx-vals='{"view":"table"}' hx-push-url="true" hx-indicator="#list-spinner">Table</button>
+    <button type="button" {% if current_view == 'hybrid' %}class="on"{% endif %}
+            hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
+            hx-include="#filter-form" hx-vals='{"view":"hybrid"}' hx-push-url="true" hx-indicator="#list-spinner">Hybrid</button>
+    <button type="button" {% if current_view == 'grid' %}class="on"{% endif %}
+            hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
+            hx-include="#filter-form" hx-vals='{"view":"grid"}' hx-push-url="true" hx-indicator="#list-spinner">Grid</button>
+    <button type="button" {% if current_view == 'compact' %}class="on"{% endif %}
+            hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
+            hx-include="#filter-form" hx-vals='{"view":"compact"}' hx-push-url="true" hx-indicator="#list-spinner">Compact</button>
   </div>
 
   <!-- Filter rail toggle -->
@@ -529,6 +537,22 @@ function toggleRail() {
   url.searchParams.delete('page');
   window.location.href = url.toString();
 }
+
+// After any HTMX swap into #comic-results-container: sync hidden form inputs with URL
+document.addEventListener('htmx:afterSettle', function(evt) {
+  if (!evt.detail.target || evt.detail.target.id !== 'comic-results-container') return;
+  const params = new URLSearchParams(window.location.search);
+  const viewInput = document.getElementById('form-view-hidden');
+  if (viewInput) viewInput.value = params.get('view') || 'table';
+  // Sync view button active states
+  document.querySelectorAll('.cm-seg button[hx-vals]').forEach(function(btn) {
+    try {
+      var v = JSON.parse(btn.getAttribute('hx-vals') || '{}').view;
+      btn.classList.toggle('on', v === (params.get('view') || 'table'));
+    } catch(e) {}
+  });
+  if (typeof _attachBulkSelection === 'function') _attachBulkSelection();
+});
 
 // Apply rail filters by updating the current URL (preserves col, per_page, sort, etc.)
 function applyRailFilters() {
