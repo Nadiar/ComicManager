@@ -289,8 +289,22 @@
 
     <!-- Sticky button footer -->
     <div style="flex-shrink:0; padding:8px 12px; border-top:1px solid var(--cm-border); background:var(--cm-bg-1); box-shadow:0 -4px 12px rgba(0,0,0,.15); display:flex; gap:6px;">
-      <button type="button" onclick="applyRailFilters()" class="cm-btn sm primary" style="flex:1; justify-content:center;">Apply</button>
-      <button type="button" onclick="resetRailFilters()" class="cm-btn sm ghost" style="flex:1; justify-content:center;">Reset</button>
+      <button type="button" class="cm-btn sm primary" style="flex:1; justify-content:center;"
+              hx-get="/comics/"
+              hx-trigger="click"
+              hx-target="#comic-results-container"
+              hx-swap="innerHTML"
+              hx-include="#rail-form, #filter-form"
+              hx-push-url="true"
+              hx-indicator="#list-spinner">Apply</button>
+      <button type="button" class="cm-btn sm ghost" style="flex:1; justify-content:center;"
+              hx-get="/comics/"
+              hx-trigger="click"
+              hx-target="#comic-results-container"
+              hx-swap="innerHTML"
+              hx-vals='{"view":"{{ current_view }}","rail":"1","sort":"{{ current_sort }}","dir":"{{ current_dir }}","per_page":"{{ per_page }}"}'
+              hx-push-url="true"
+              hx-indicator="#list-spinner">Reset</button>
     </div>
   </form>
   {% endif %}
@@ -553,52 +567,6 @@ document.addEventListener('htmx:afterSettle', function(evt) {
   });
   if (typeof _attachBulkSelection === 'function') _attachBulkSelection();
 });
-
-// Apply rail filters by updating the current URL (preserves col, per_page, sort, etc.)
-function applyRailFilters() {
-  const url = new URL(window.location.href);
-  const rail = document.getElementById('rail-form');
-  if (!rail) return;
-
-  // Reset to page 1
-  url.searchParams.delete('page');
-
-  // Publisher (multi-value)
-  url.searchParams.delete('publisher');
-  rail.querySelectorAll('input[name="publisher"]:checked').forEach(cb => {
-    url.searchParams.append('publisher', cb.value);
-  });
-
-  // State (single)
-  url.searchParams.delete('state');
-  const stateChecked = rail.querySelector('input[name="state"]:checked');
-  if (stateChecked) url.searchParams.set('state', stateChecked.value);
-
-  // Format (single)
-  url.searchParams.delete('format');
-  const fmtChecked = rail.querySelector('input[name="format"]:checked');
-  if (fmtChecked) url.searchParams.set('format', fmtChecked.value);
-
-  // Flag (single)
-  url.searchParams.delete('flag');
-  const flagChecked = rail.querySelector('input[name="flag"]:checked');
-  if (flagChecked) url.searchParams.set('flag', flagChecked.value);
-
-  // Year range
-  const yMin = rail.querySelector('input[name="year_min"]')?.value.trim();
-  const yMax = rail.querySelector('input[name="year_max"]')?.value.trim();
-  if (yMin) url.searchParams.set('year_min', yMin); else url.searchParams.delete('year_min');
-  if (yMax) url.searchParams.set('year_max', yMax); else url.searchParams.delete('year_max');
-
-  window.location.href = url.toString();
-}
-
-// Reset rail filters while keeping other params (col, sort, view, etc.)
-function resetRailFilters() {
-  const url = new URL(window.location.href);
-  ['publisher', 'state', 'format', 'flag', 'year_min', 'year_max', 'page'].forEach(k => url.searchParams.delete(k));
-  window.location.href = url.toString();
-}
 
 // Column drag-and-drop reordering
 (function _initColDrag() {
