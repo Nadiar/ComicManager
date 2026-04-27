@@ -2067,24 +2067,6 @@ function saveColumnLayout() {
   .catch(err => showMsgToast('Error: ' + err.toString(), 'error'));
 }
 
-// Sort by clicking column headers
-function sortBy(field) {
-  const url = new URL(window.location.href);
-  const currentSort = url.searchParams.get('sort') || 'series';
-  const currentDir = url.searchParams.get('dir') || 'asc';
-
-  // Toggle direction if clicking same column
-  if (currentSort === field) {
-    url.searchParams.set('dir', currentDir === 'asc' ? 'desc' : 'asc');
-  } else {
-    url.searchParams.set('sort', field);
-    url.searchParams.set('dir', 'asc');
-  }
-
-  window.location.href = url.toString();
-}
-
-// Auto-submit form on select change for quick filtering
 // ── Full Pipeline ────────────────────────────────────────────────────────────
 
 let _pipelinePollTimer = null;
