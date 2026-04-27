@@ -661,27 +661,38 @@ document.addEventListener('click', e => {
     bulkBar.querySelectorAll('.bulk-action-btn').forEach(btn => { btn.disabled = count === 0; });
   }
 
-  document.querySelectorAll('.row-select').forEach(cb => {
-    cb.addEventListener('change', e => {
-      if (e.target.checked) selectedPks.add(e.target.value);
-      else selectedPks.delete(e.target.value);
-      e.target.closest('.cm-list-row')?.classList.toggle('selected', e.target.checked);
-      updateBulkBar();
-    });
-  });
-
-  const selectAll = document.getElementById('select-all');
-  if (selectAll) {
-    selectAll.addEventListener('change', e => {
-      document.querySelectorAll('.row-select').forEach(cb => {
-        cb.checked = e.target.checked;
-        if (e.target.checked) selectedPks.add(cb.value);
-        else selectedPks.delete(cb.value);
-        cb.closest('.cm-list-row')?.classList.toggle('selected', e.target.checked);
-      });
-      updateBulkBar();
-    });
+  function _rowSelectHandler(e) {
+    if (e.target.checked) selectedPks.add(e.target.value);
+    else selectedPks.delete(e.target.value);
+    e.target.closest('.cm-list-row')?.classList.toggle('selected', e.target.checked);
+    updateBulkBar();
   }
+
+  function _selectAllHandler(e) {
+    document.querySelectorAll('.row-select').forEach(cb => {
+      cb.checked = e.target.checked;
+      if (e.target.checked) selectedPks.add(cb.value);
+      else selectedPks.delete(cb.value);
+      cb.closest('.cm-list-row')?.classList.toggle('selected', e.target.checked);
+    });
+    updateBulkBar();
+  }
+
+  window._attachBulkSelection = function() {
+    document.querySelectorAll('.row-select').forEach(cb => {
+      cb.removeEventListener('change', _rowSelectHandler);
+      cb.addEventListener('change', _rowSelectHandler);
+    });
+    const sa = document.getElementById('select-all');
+    if (sa) {
+      sa.removeEventListener('change', _selectAllHandler);
+      sa.addEventListener('change', _selectAllHandler);
+    }
+    selectedPks.clear();
+    updateBulkBar();
+  };
+
+  window._attachBulkSelection();
 
   window.clearSelection = function() {
     selectedPks.clear();
