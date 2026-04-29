@@ -1,0 +1,15 @@
+  <!-- Confirm Modal -->
+  <dialog id="confirm-modal" class="modal">
+    <div class="modal-box" style="background:var(--cm-bg-1);border:1px solid var(--cm-border);max-width:380px;">
+      <p id="confirm-modal-message" style="font-size:13px;color:var(--cm-fg-2);margin:0 0 20px;line-height:1.5;white-space:pre-line;"></p>
+      <div style="display:flex;gap:8px;justify-content:flex-end;">
+        <form method="dialog" style="display:contents;">
+          <button class="cm-btn sm ghost">Cancel</button>
+        </form>
+        <button id="confirm-modal-ok" class="cm-btn sm ok">Confirm</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>

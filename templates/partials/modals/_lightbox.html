@@ -1,0 +1,34 @@
+  <!-- Global Gallery Lightbox -->
+  <dialog id="image-modal" class="modal">
+    <div class="modal-box max-w-fit p-0 bg-transparent shadow-none relative overflow-visible">
+      <div class="flex flex-col items-center">
+        <!-- Gallery Row -->
+        <div class="flex items-center gap-4 px-12">
+          <!-- Prev Arrow -->
+          <button id="gallery-prev" class="btn btn-circle btn-lg bg-black/30 hover:bg-black/60 text-white border-none hidden shrink-0 items-center justify-center" onclick="galleryPrev(event)">❮</button>
+
+          <!-- Image Container -->
+          <div class="relative group">
+            <img id="modal-full-img" src="" class="max-h-[85vh] w-auto rounded-lg shadow-2xl border border-white/10 select-none" alt="Full size" />
+
+            <!-- Close button - Top right of image -->
+            <form method="dialog">
+              <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2 z-50 bg-black/30 hover:bg-black/60 text-white border-none">✕</button>
+            </form>
+          </div>
+
+          <!-- Next Arrow -->
+          <button id="gallery-next" class="btn btn-circle btn-lg bg-black/30 hover:bg-black/60 text-white border-none hidden shrink-0 items-center justify-center" onclick="galleryNext(event)">❯</button>
+        </div>
+
+        <!-- Caption & Counter -->
+        <div class="mt-4 flex flex-col items-center gap-2 pointer-events-none">
+          <div id="modal-img-caption" class="text-white font-semibold bg-black/50 px-6 py-2 rounded-full backdrop-blur-sm"></div>
+          <div id="gallery-counter" class="text-white/60 text-xs bg-black/30 px-3 py-1 rounded-full backdrop-blur-sm"></div>
+        </div>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop bg-black/60 backdrop-blur-sm">
+      <button>close</button>
+    </form>
+  </dialog>
