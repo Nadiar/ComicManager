@@ -1,0 +1,9 @@
+    {% if messages %}
+    <div class="p-4 space-y-2">
+      {% for message in messages %}
+      <div class="alert alert-{{ message.tags|default:'info' }}">
+        <span>{{ message }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
