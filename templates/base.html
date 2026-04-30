@@ -41,82 +41,8 @@
   {% include "partials/modals/_lightbox.html" %}
 
   <script src="/static/js/ui.js"></script>
+  <script src="/static/js/lightbox.js"></script>
   <script>
-
-  // ── Global Gallery Logic ──────────────────────────────────────────────────
-  (function() {
-    let currentGallery = [];
-    let currentGalleryIndex = 0;
-    let touchStartX = 0;
-    let touchEndX = 0;
-
-    window.openLightbox = function(items, startIndex = 0) {
-      currentGallery = items || [];
-      currentGalleryIndex = startIndex;
-      updateGalleryUI();
-      document.getElementById('image-modal').showModal();
-    };
-
-    window.galleryPrev = function(e) {
-      if (e) e.stopPropagation();
-      if (currentGallery.length <= 1) return;
-      currentGalleryIndex = (currentGalleryIndex - 1 + currentGallery.length) % currentGallery.length;
-      updateGalleryUI();
-    };
-
-    window.galleryNext = function(e) {
-      if (e) e.stopPropagation();
-      if (currentGallery.length <= 1) return;
-      currentGalleryIndex = (currentGalleryIndex + 1) % currentGallery.length;
-      updateGalleryUI();
-    };
-
-    function updateGalleryUI() {
-      const item = currentGallery[currentGalleryIndex];
-      if (!item) return;
-
-      const img = document.getElementById('modal-full-img');
-      const cap = document.getElementById('modal-img-caption');
-      const counter = document.getElementById('gallery-counter');
-      const prevBtn = document.getElementById('gallery-prev');
-      const nextBtn = document.getElementById('gallery-next');
-      
-      img.src = item.url;
-      cap.textContent = item.caption || '';
-      
-      if (currentGallery.length > 1) {
-        counter.textContent = (currentGalleryIndex + 1) + ' / ' + currentGallery.length;
-        counter.style.display = '';
-        prevBtn.style.display = 'flex';
-        nextBtn.style.display = 'flex';
-      } else {
-        counter.style.display = 'none';
-        prevBtn.style.display = 'none';
-        nextBtn.style.display = 'none';
-      }
-    }
-
-    function handleSwipe() {
-      const threshold = 50;
-      if (touchEndX < touchStartX - threshold) galleryNext();
-      if (touchEndX > touchStartX + threshold) galleryPrev();
-    }
-
-    // Event Listeners
-    document.addEventListener('DOMContentLoaded', function() {
-      const modal = document.getElementById('image-modal');
-      if (!modal) return;
-      
-      modal.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, false);
-      modal.addEventListener('touchend', e => { touchEndX = e.changedTouches[0].screenX; handleSwipe(); }, false);
-
-      document.addEventListener('keydown', e => {
-        if (!modal.open) return;
-        if (e.key === 'ArrowLeft') galleryPrev();
-        if (e.key === 'ArrowRight') galleryNext();
-      });
-    });
-  })();
 
   // ── Task Progress Logic ─────────────────────────────────────────────────────
   (function() {
