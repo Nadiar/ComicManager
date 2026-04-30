@@ -797,15 +797,6 @@ document.addEventListener('click', e => {
 // Force-scrape mode: skip state check for re-scraping mismatched comics
 const isForceScrape = {% if current_flag == 'metadata_mismatch' %}true{% else %}false{% endif %};
 
-function getCsrfToken() {
-  const name = 'csrftoken';
-  const cookies = document.cookie.split(';');
-  for (let cookie of cookies) {
-    const [key, value] = cookie.trim().split('=');
-    if (key === name) return value;
-  }
-  return '';
-}
 
 function acceptAllComics(btn) {
   showConfirm('Accept all comics and move them to "imported" state?', () => {
