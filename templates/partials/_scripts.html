@@ -1,0 +1,23 @@
+  <script src="/static/js/ui.js"></script>
+  <script src="/static/js/lightbox.js"></script>
+  <script src="/static/js/tasks.js"></script>
+  <script>
+  (function(){
+    var writeTaskId = "{{ active_write_task_id|escapejs }}";
+    var smartlistTaskId = "{{ active_smartlist_action_task_id|escapejs }}";
+    var genericTaskId = "{{ active_task_id|escapejs }}";
+    var genericTaskLabel = "{{ active_task_label|escapejs }}";
+
+    if (writeTaskId && !window._isTaskDone(writeTaskId)) {
+      window.startTaskPolling(writeTaskId, 'Writing comics');
+    } else if (smartlistTaskId && !window._isTaskDone(smartlistTaskId)) {
+      window.startTaskPolling(smartlistTaskId, 'Smart list action');
+    } else if (genericTaskId && !window._isTaskDone(genericTaskId)) {
+      window.startTaskPolling(genericTaskId, genericTaskLabel || 'Processing');
+    }
+  })();
+  </script>
+  {% include "partials/modals/_scrape.html" %}
+  <script>window._INDUCKS_COUNTRY_LOCK="{{ inducks_country_lock|escapejs }}";</script>
+  <script src="/static/js/scrape.js"></script>
+  <script src="/static/js/app.js"></script>
