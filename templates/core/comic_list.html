@@ -2434,5 +2434,198 @@ function _escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+// ─── Right-click context menu (all views) ────────────────────────────────────
+(function _initRowContextMenu() {
+  const STATE_LABELS = {
+    'new': 'New', 'scrape': 'Scrape', 'count': 'Count',
+    'tagging': 'Tagging', 'formats': 'Format', 'deduplicate': 'Dedup',
+    'move': 'Organize', 'write': 'Write', 'done': 'Done'
+  };
+
+  const menu = document.createElement('div');
+  menu.id = 'row-ctx-menu';
+  menu.style.cssText = 'position:fixed;z-index:9999;display:none;min-width:185px;background:var(--cm-bg-1);border:1px solid var(--cm-border);border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.35);padding:4px 0;font-size:12.5px;';
+  menu.innerHTML = `
+    <div class="gctx-item" id="gctx-open">Open</div>
+    <div class="gctx-item" id="gctx-read">Read</div>
+    <div class="gctx-sep"></div>
+    <div class="gctx-item" id="gctx-scrape">Scrape</div>
+    <div class="gctx-item" id="gctx-tag">Tag</div>
+    <div class="gctx-item" id="gctx-format">Format</div>
+    <div class="gctx-item" id="gctx-move">Move</div>
+    <div class="gctx-item" id="gctx-write">Write to File</div>
+    <div class="gctx-item" id="gctx-pipeline">Run Pipeline</div>
+    <div class="gctx-sep"></div>
+    <div class="gctx-item danger" id="gctx-delete-cover">Delete Cover</div>
+    <div class="gctx-footer" id="gctx-stage-label"></div>
+  `;
+  document.body.appendChild(menu);
+
+  const style = document.createElement('style');
+  style.textContent = `
+    .gctx-item { padding:6px 14px; cursor:pointer; color:var(--cm-fg-1); white-space:nowrap; }
+    .gctx-item:hover { background:var(--cm-bg-2); }
+    .gctx-item.danger { color:var(--cm-err); }
+    .gctx-item.disabled { opacity:.4; cursor:default; pointer-events:none; }
+    .gctx-sep { height:1px; background:var(--cm-border); margin:3px 0; }
+    .gctx-footer { padding:5px 14px 6px; font-size:10.5px; color:var(--cm-fg-3); border-top:1px solid var(--cm-border); margin-top:3px; }
+  `;
+  document.head.appendChild(style);
+
+  let activePk = null;
+
+  function closeMenu() {
+    menu.style.display = 'none';
+    activePk = null;
+  }
+
+  function showMenu(e, row) {
+    e.preventDefault();
+    activePk = row.dataset.pk;
+    const state  = row.dataset.state || '';
+    const medium = row.dataset.medium || '';
+    const fmt    = row.dataset.format || '';
+    const label  = STATE_LABELS[state] || state;
+
+    const footer = document.getElementById('gctx-stage-label');
+    if (footer) footer.textContent = label ? `current stage: ${label}` : '';
+
+    const delCover = document.getElementById('gctx-delete-cover');
+    const canDeleteCover = medium !== 'physical' && (fmt === 'cbz' || fmt === 'zip');
+    delCover.classList.toggle('disabled', !canDeleteCover);
+
+    menu.style.display = 'block';
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let x = e.clientX, y = e.clientY;
+    if (x + mw > vw - 8) x = x - mw;
+    if (y + mh > vh - 8) y = y - mh;
+    menu.style.left = Math.max(4, x) + 'px';
+    menu.style.top  = Math.max(4, y) + 'px';
+  }
+
+  // Delegated — works for all views, survives HTMX swaps
+  document.getElementById('comic-results-container').addEventListener('contextmenu', function(e) {
+    const row = e.target.closest('.cm-list-row');
+    if (!row || !row.dataset.pk) return;
+    showMenu(e, row);
+  });
+
+  // Close on outside click, Escape, or scroll
+  document.addEventListener('click', function(e) {
+    if (!menu.contains(e.target)) closeMenu();
+  });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeMenu(); });
+  document.addEventListener('scroll', closeMenu, true);
+
+  // Helper: capture pk, stop propagation, close menu — prevents null race
+  function _act(e, fn) {
+    e.stopPropagation();
+    const pk = activePk;
+    if (!pk) return;
+    const row = document.querySelector(`.cm-list-row[data-pk="${pk}"]`);
+    closeMenu();
+    fn(pk, row);
+  }
+
+  function _ctxRefreshResults() {
+    if (window.htmx) {
+      htmx.ajax('GET', window.location.href, {target: '#comic-results-container', swap: 'innerHTML'});
+    } else {
+      location.reload();
+    }
+  }
+
+  // Post a single-pk bulk action — same endpoint and toast as the action bar
+  function _ctxBulkAction(pk, action, label) {
+    const fd = new FormData();
+    fd.append('csrfmiddlewaretoken', getCsrfToken());
+    fd.append('pks', pk);
+    fd.append('action', action);
+    fetch('/comics/bulk-action-pks/', { method: 'POST', body: fd })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success) {
+          if (window.showQuickToast) window.showQuickToast(data.error || label + ' failed', 'error');
+          return;
+        }
+        if (data.task_id && window.startTaskPolling) window.startTaskPolling(data.task_id, label, _ctxRefreshResults);
+      })
+      .catch(() => { if (window.showQuickToast) window.showQuickToast(label + ' failed', 'error'); });
+  }
+
+  document.getElementById('gctx-open').addEventListener('click', function(e) {
+    _act(e, pk => window.open('/comics/' + pk + '/', '_blank'));
+  });
+
+  document.getElementById('gctx-read').addEventListener('click', function(e) {
+    _act(e, pk => window.open('/comics/' + pk + '/read/', '_blank'));
+  });
+
+  document.getElementById('gctx-scrape').addEventListener('click', function(e) {
+    _act(e, pk => _ctxBulkAction(pk, 'scrape', 'Scraping'));
+  });
+
+  document.getElementById('gctx-tag').addEventListener('click', function(e) {
+    _act(e, pk => _ctxBulkAction(pk, 'tag', 'Tagging'));
+  });
+
+  document.getElementById('gctx-format').addEventListener('click', function(e) {
+    _act(e, pk => _ctxBulkAction(pk, 'format', 'Formatting'));
+  });
+
+  document.getElementById('gctx-move').addEventListener('click', function(e) {
+    _act(e, pk => _ctxBulkAction(pk, 'organize', 'Organizing'));
+  });
+
+  document.getElementById('gctx-write').addEventListener('click', function(e) {
+    _act(e, pk => _ctxBulkAction(pk, 'write', 'Writing'));
+  });
+
+  document.getElementById('gctx-pipeline').addEventListener('click', function(e) {
+    _act(e, pk => {
+      const fd = new FormData();
+      fd.append('csrfmiddlewaretoken', getCsrfToken());
+      fd.append('pks', pk);
+      fetch('/comics/run-pipeline/', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+          if (data.task_id && window.startTaskPolling) window.startTaskPolling(data.task_id, 'Running pipeline', _ctxRefreshResults);
+          else if (!data.success && window.showQuickToast) window.showQuickToast(data.error || 'Pipeline failed', 'error');
+        })
+        .catch(() => { if (window.showQuickToast) window.showQuickToast('Pipeline failed', 'error'); });
+    });
+  });
+
+  document.getElementById('gctx-delete-cover').addEventListener('click', function(e) {
+    _act(e, (pk, row) => {
+      const series = row?.dataset.series || 'this comic';
+      const number = row?.dataset.number;
+      const label  = series + (number ? ' #' + number : '');
+      showConfirm(
+        `Delete page 0 (cover) from ${label}? This cannot be undone.`,
+        function() {
+          fetch(`/comics/${pk}/pages/delete/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ indices: [0] })
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              window.showMsgToast('Cover deleted', 'ok');
+              const img = row?.querySelector('img');
+              if (img) { const b = img.src.split('?')[0]; img.src = b + '?t=' + Date.now(); }
+            } else {
+              window.showMsgToast('Delete cover: ' + (data.error || 'failed'), 'error');
+            }
+          })
+          .catch(() => window.showMsgToast('Delete cover failed', 'error'));
+        }
+      );
+    });
+  });
+})();
 </script>
 {% endblock %}
