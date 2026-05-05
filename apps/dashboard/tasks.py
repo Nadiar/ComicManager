@@ -270,8 +270,7 @@ def _run_force_write(comic):
     if not success:
         raise Exception("Failed to write ComicInfo.xml")
 
-    if comic.state != Comic.STATE_WRITTEN:
-        comic.state = Comic.STATE_WRITTEN
+    comic.state = Comic.STATE_DONE
     if comic.flags.get("count_updated"):
         comic.flags.pop("count_updated", None)
     comic.save()
@@ -297,8 +296,7 @@ def _run_write(comic):
         raise Exception("Failed to write ComicInfo.xml")
 
     from django.db.models import F
-    if comic.state != Comic.STATE_WRITTEN:
-        comic.state = Comic.STATE_WRITTEN
+    comic.state = Comic.STATE_DONE
 
     if comic.flags.get("count_updated"):
         comic.flags.pop("count_updated", None)
