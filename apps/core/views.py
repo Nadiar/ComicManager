@@ -1221,6 +1221,27 @@ def cv_compare(request, pk):
     })
 
 
+def _cover_etag_response(request, data: bytes, cache_path) -> HttpResponse:
+    """Build a response with ETag derived from the cache file mtime.
+
+    Forces browser revalidation on every request (no-cache) but returns 304
+    when the cover has not changed, avoiding redundant data transfer.
+    """
+    try:
+        mtime = cache_path.stat().st_mtime
+    except OSError:
+        mtime = 0
+    etag = f'"{cache_path.stem}-{mtime}"'
+    if request.META.get("HTTP_IF_NONE_MATCH") == etag:
+        response = HttpResponse(status=304)
+        response["ETag"] = etag
+        return response
+    response = HttpResponse(data, content_type="image/jpeg")
+    response["Cache-Control"] = "no-cache"
+    response["ETag"] = etag
+    return response
+
+
 def comic_cover(request, pk):
     """
     Serve the cover image of a comic file.
@@ -1228,29 +1249,24 @@ def comic_cover(request, pk):
     For digital comics: extracts from CBZ on first request and caches.
     For physical comics: serves from cache (populated after scraping or manual upload).
     """
-    from .cover_cache import get_comic_cover
+    from .cover_cache import get_comic_cover, COVER_CACHE_DIR
 
     comic = get_object_or_404(Comic, pk=pk)
-
     cover_data = get_comic_cover(comic)
     if not cover_data:
         return HttpResponse(status=404)
 
-    response = HttpResponse(cover_data, content_type="image/jpeg")
-    response["Cache-Control"] = "public, max-age=86400"
-    return response
+    return _cover_etag_response(request, cover_data, COVER_CACHE_DIR / f"{comic.pk}.jpg")
 
 
 def comic_thumb(request, pk):
     """Serve a small thumbnail (80px wide) for list row display."""
-    from .cover_cache import get_comic_thumb
+    from .cover_cache import get_comic_thumb, COVER_CACHE_DIR
     comic = get_object_or_404(Comic, pk=pk)
     thumb_data = get_comic_thumb(comic)
     if not thumb_data:
         return HttpResponse(status=404)
-    response = HttpResponse(thumb_data, content_type="image/jpeg")
-    response["Cache-Control"] = "public, max-age=604800"
-    return response
+    return _cover_etag_response(request, thumb_data, COVER_CACHE_DIR / f"{comic.pk}_thumb.jpg")
 
 
 @require_POST
@@ -1325,13 +1341,18 @@ def comic_page(request, pk, page_num):
     if not comic.file_path:
         return HttpResponse(status=404)
 
-    page_data = get_comic_page(comic, int(page_num))
+    page_num_int = int(page_num)
+    page_data = get_comic_page(comic, page_num_int)
     if not page_data:
         return HttpResponse(status=404)
 
-    response = HttpResponse(page_data, content_type="image/jpeg")
-    response["Cache-Control"] = "public, max-age=86400"
-    return response
+    from .cover_cache import COVER_CACHE_DIR
+    cache_path = (
+        COVER_CACHE_DIR / f"{comic.pk}.jpg"
+        if page_num_int == 0
+        else COVER_CACHE_DIR / f"{comic.pk}_p{page_num_int}.jpg"
+    )
+    return _cover_etag_response(request, page_data, cache_path)
 
 
 @require_GET
@@ -1346,8 +1367,9 @@ def comic_pages_list(request, pk):
         return JsonResponse({"error": "Not a digital comic with a file"}, status=400)
 
     page_count = comic.page_count or 0
+    v = int(comic.updated_at.timestamp())
     pages = [
-        {"index": i, "url": f"/comics/{pk}/page/{i}/"}
+        {"index": i, "url": f"/comics/{pk}/page/{i}/?v={v}"}
         for i in range(page_count)
     ]
     return JsonResponse({"page_count": page_count, "pages": pages})
@@ -1420,6 +1442,10 @@ def comic_pages_delete(request, pk):
     new_count = (comic.page_count or 0) - len(set(indices))
     comic.page_count = max(0, new_count)
     comic.save(update_fields=["page_count"])
+
+    from .audit import log_batch_entry
+    log_batch_entry("delete_pages", comic, comic.state, comic.state,
+                    {"pages_deleted": [None, sorted(indices)]})
 
     return JsonResponse({"success": True, "page_count": comic.page_count})
 
