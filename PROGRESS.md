@@ -30,7 +30,7 @@
 - [x] [P1.21] Verified: `is_zip` does not block batch scraping. `scrape_all_task` only excludes `scrape_skipped` and inducks-sourced comics — `is_pdf`, `low_page_count`, and `needs_conversion` are not excluded either. ZIP files are valid comic archives and can be scraped for metadata normally; the rename to `.cbz` is a separate step. No change needed.
 - [x] [P1.22] Workflow pipeline step 1 (New) should show an action button for "Convert to CBZ" when any comics in the new state are in CBR or CB7 format — similar to the "Needs Conversion" row in the Review & Maintenance card.
 - [x] [P1.23] Removed the unused `import_convert_cbr` setting. CBR/CB7 files are always flagged `needs_conversion` unconditionally. A future improvement (FI.8) tracks making this configurable.
-- [ ] [P1.24] On `/comics/?state=new` we need a 'Scan for Comics' button next to the other buttons like 'Convert All CBR' and 'Rename All ZIP'.
+- [x] [P1.24] On `/comics/?state=new` we need a 'Scan for Comics' button next to the other buttons like 'Convert All CBR' and 'Rename All ZIP'.
 
 ### Phase 2: ComicVine Scraping (Comicrack_guide 02 & 03)
 
@@ -228,6 +228,9 @@
 - [x] [UI.25] Remove up/down arrows on integer input fields on the edit comic page. 
 - [x] [UI.26] Thumb in row on comics should show in full (non-thumb size) lightbox when clicked. Other parts of the row should behave as normal. 
 - [x] [UI.27] Icons in sidebar when collapsed are not centeret. 
+- [ ] [UI.28] In Comics -> Grid layout: Top left corner of cover should be a select circle, so we can select 1..x comics for bulk actions
+- [ ] [UI.29] In Comics -> Grid layout: rightclick a cover should show a custom rightclick form with actions to run. Including a new action where we delete the cover image. This is because some scans have an info sheet on the first page. Current workflow is select comic, go to its details page, select Actions->Manage Pages, delete the first page, save changes. 
+- [ ] [UI.30] Filter rail in `/comics/` (`rail=1`) should have toggle in the settings page to be on/off by default for the user. The button on the comics page should still be there to turn it on/off on-demand. 
 
 ## Major Issues / Bugs
 
