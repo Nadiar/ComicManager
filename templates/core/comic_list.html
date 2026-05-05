@@ -9,6 +9,13 @@
 .cm-list-row:hover { background: var(--cm-bg-2); }
 .cm-list-row.selected { background: var(--cm-accent-dim) !important; }
 ._dd-item { display:flex; align-items:center; gap:6px; width:100%; text-align:left; padding:6px 10px; font-size:12px; border-radius:4px; background:none; border:none; color:var(--cm-fg-1); cursor:pointer; }
+/* Grid view select circle */
+.grid-card:hover .grid-select-circle,
+.grid-card.selected .grid-select-circle { opacity:1; }
+.grid-select-circle { position:absolute; top:6px; left:6px; z-index:3; width:20px; height:20px; border-radius:50%; border:2px solid rgba(255,255,255,.8); background:rgba(0,0,0,.35); opacity:0; transition:opacity .15s; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+.grid-card.selected .grid-select-circle { background:var(--cm-accent); border-color:var(--cm-accent); opacity:1; }
+.grid-select-circle svg { display:none; }
+.grid-card.selected .grid-select-circle svg { display:block; }
 </style>
 
 <!-- Toolbar -->
