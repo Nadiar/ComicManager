@@ -3,6 +3,8 @@
   var activeTaskId = null;
   var taskLabel = '';
   var cancelRequested = false;
+  var _taskOnComplete = null;
+  var _taskUsedCallback = false;
 
   var toast = document.getElementById('task-progress-toast');
   var labelEl = document.getElementById('task-progress-label');
@@ -81,6 +83,27 @@
     } catch(e) { return false; }
   }
   window._isTaskDone = isTaskDone;
+
+  function _doRefreshOrReload() {
+    var container = document.getElementById('comic-results-container');
+    if (container && window.htmx) {
+      htmx.ajax('GET', window.location.href, {target: '#comic-results-container', swap: 'innerHTML'});
+    } else {
+      location.reload();
+    }
+  }
+
+  function _finishTask(r) {
+    var hasErrors = r.errors && r.errors.length > 0;
+    if (!hasErrors && actionQueue.length === 0) {
+      setTimeout(function() {
+        _doRefreshOrReload();
+        hideToast();
+      }, 2500);
+    } else {
+      showDismiss();
+    }
+  }
 
   function showErrors(errors) {
     if (!errors || errors.length === 0) {
@@ -167,7 +190,9 @@
       (r.errors && r.errors.length > 0 ? ', ' + r.errors.length + ' errors' : '');
   }
 
-  function startPolling(taskId, toastLabel) {
+  function startPolling(taskId, toastLabel, onComplete) {
+    _taskOnComplete = onComplete || null;
+    _taskUsedCallback = false;
     activeTaskId = taskId;
     taskLabel = toastLabel || 'Processing';
     cancelRequested = false;
@@ -227,7 +252,14 @@
             status.textContent = 'Starting next task...';
             setTimeout(processNextAction, 800);
           } else {
-            showDismiss();
+            if (_taskOnComplete) {
+              var cb = _taskOnComplete;
+              _taskOnComplete = null;
+              _taskUsedCallback = true;
+              try { cb(); } catch(e) {}
+            } else {
+              _finishTask(r);
+            }
           }
 
         } else if (data.state === 'FAILURE') {
@@ -267,13 +299,18 @@
     });
   };
 
-  window.startTaskPolling = startPolling;
+  window.startTaskPolling = function(taskId, label, onComplete) {
+    startPolling(taskId, label, onComplete);
+  };
 
   window.dismissTaskToast = function() {
     actionQueue = [];
     updateQueueIndicator();
     hideToast();
-    location.reload();
+    if (!_taskUsedCallback) {
+      _doRefreshOrReload();
+    }
+    _taskUsedCallback = false;
   };
 
   window.showQuickToast = function(message, type) {
@@ -343,7 +380,7 @@
             status.textContent = 'Starting next task...';
             setTimeout(processNextAction, 800);
           } else {
-            showDismiss();
+            _finishTask(r);
           }
         } else if (msg.state === 'FAILURE') {
           markTaskDone(activeTaskId);

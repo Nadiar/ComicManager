@@ -229,7 +229,7 @@
 - [x] [UI.26] Thumb in row on comics should show in full (non-thumb size) lightbox when clicked. Other parts of the row should behave as normal. 
 - [x] [UI.27] Icons in sidebar when collapsed are not centeret. 
 - [x] [UI.28] In Comics -> Grid layout: Top left corner of cover should be a select circle, so we can select 1..x comics for bulk actions
-- [ ] [UI.29] In Comics -> Grid layout: rightclick a cover should show a custom rightclick form with actions to run. Including a new action where we delete the cover image. This is because some scans have an info sheet on the first page. Current workflow is select comic, go to its details page, select Actions->Manage Pages, delete the first page, save changes. 
+- [x] [UI.29] In Comics -> Grid layout: rightclick a cover should show a custom rightclick form with actions to run. Including a new action where we delete the cover image. This is because some scans have an info sheet on the first page. Current workflow is select comic, go to its details page, select Actions->Manage Pages, delete the first page, save changes. 
 - [ ] [UI.30] Filter rail in `/comics/` (`rail=1`) should have toggle in the settings page to be on/off by default for the user. The button on the comics page should still be there to turn it on/off on-demand. 
 
 ## Major Issues / Bugs
@@ -280,6 +280,7 @@
 - [ ] [BUG.40] Redis warning in Docker: WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
 - [ ] [BUG.41] When a comic has been tagged the audit log shows rollback to 'To Count', but that stage does not work anymore. 
 - [ ] [BUG.42] If I'm using Hybrid/Grid/Compact view and use the 'x Clear' button, the view resets to Table. Is it possible that the view isn't a url variable? 
+- [ ] [BUG.43] When in Grid view theres sometimes a small exclamationmark on a comic, when hovering we want to see what the issue is, eg. CBR file or ZIP or PDF or whatever it could be. or maybe the flag? 
 
 
 ## I.N.D.U.C.K.S. Integration
