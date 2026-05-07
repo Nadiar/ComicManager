@@ -156,7 +156,7 @@
   {% if current_search %}<span class="cm-chip" style="font-size:10.5px;">"{{ current_search }}"</span>{% endif %}
   {% if current_publishers %}<span class="cm-chip accent" style="font-size:10.5px;">{{ current_publishers|join:", " }}</span>{% endif %}
   {% if current_state or current_flag or current_search or current_publishers or current_format or current_year_min or current_year_max %}
-  <a href="/comics/?rail={% if filter_rail_open %}1{% endif %}" class="cm-btn sm ghost" style="font-size:11px; text-decoration:none; padding:2px 8px;">× Clear</a>
+  <a href="/comics/{% if filter_rail_open %}?rail=1{% endif %}" class="cm-btn sm ghost" style="font-size:11px; text-decoration:none; padding:2px 8px;">× Clear</a>
   {% endif %}
   <div style="flex:1;"></div>
   {% if current_state == 'new' %}<button type="button" class="cm-btn sm" onclick="scanForComics(this)">Scan for Comics</button>{% endif %}
@@ -555,7 +555,8 @@
 // Rail toggle — uses searchParams.set so rail= never accumulates
 function toggleRail() {
   const url = new URL(window.location.href);
-  url.searchParams.set('rail', url.searchParams.get('rail') === '1' ? '0' : '1');
+  const currentlyOpen = {% if filter_rail_open %}true{% else %}false{% endif %};
+  url.searchParams.set('rail', currentlyOpen ? '0' : '1');
   url.searchParams.delete('page');
   window.location.href = url.toString();
 }

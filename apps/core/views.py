@@ -236,7 +236,10 @@ def comic_list(request):
     medium = request.GET.get("medium", "")
     needs_reformat = request.GET.get("needs_reformat", "")
     current_view = request.GET.get("view", "table")
-    filter_rail_open = request.GET.get("rail", "0") == "1"
+    if "rail" in request.GET:
+        filter_rail_open = request.GET.get("rail") == "1"
+    else:
+        filter_rail_open = bool(get_setting("filter_rail_default", False))
     year_min = request.GET.get("year_min", "")
     year_max = request.GET.get("year_max", "")
 
