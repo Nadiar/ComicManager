@@ -432,11 +432,6 @@
   });
 })();
 
-function getCsrfToken() {
-  return document.querySelector('meta[name="csrf-token"]')?.content ||
-         document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1];
-}
-
 var _pipelinePollTimer = null;
 
 function runNewPipeline(comicId, btn) {

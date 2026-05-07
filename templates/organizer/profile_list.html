@@ -101,10 +101,6 @@
 {% endif %}
 
 <script>
-function getCsrfToken() {
-  return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
-}
-
 function toggleProfile(pk, btn) {
   btn.disabled = true;
   fetch(`/organizer/profiles/${pk}/toggle/`, {

@@ -1,11 +1,6 @@
 function getCsrfToken() {
-  var name = 'csrftoken';
-  var cookies = document.cookie.split(';');
-  for (var i = 0; i < cookies.length; i++) {
-    var parts = cookies[i].trim().split('=');
-    if (parts[0] === name) return parts[1] || '';
-  }
-  return '';
+  return document.querySelector('meta[name="csrf-token"]')?.content ||
+         document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
 }
 
 window.showConfirm = function(message, onConfirm, label, danger) {

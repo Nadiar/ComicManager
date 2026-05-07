@@ -128,10 +128,6 @@ document.addEventListener('click', function(e) {
   }
 });
 
-function getCsrfToken() {
-  return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '{{ csrf_token }}';
-}
-
 function runDetection(btn) {
   showConfirm('Run duplicate detection on all formatted comics?', async () => {
     btn.disabled = true;

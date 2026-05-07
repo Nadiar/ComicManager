@@ -163,10 +163,6 @@
 </div>
 
 <script>
-function getCsrfToken() {
-  return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
-}
-
 async function toggleRuleset(pk, btn) {
   const resp = await fetch(`/tagging/rulesets/${pk}/toggle/`, {
     method: 'POST',
