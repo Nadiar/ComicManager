@@ -32,3 +32,11 @@ window.showMsgToast = function(message, type) {
     _msgToastTimer = null;
   }, 4000);
 };
+
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
