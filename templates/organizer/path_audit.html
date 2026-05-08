@@ -4,8 +4,8 @@
 {% block content %}
 
 <!-- Header -->
-<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
-  <h1 style="font-size:22px; font-weight:700; margin:0;">Path Audit</h1>
+<div class="cm-page-header">
+  <h1 class="cm-page-title">Path Audit</h1>
   <div style="display:flex; gap:8px;">
     <button onclick="runAudit(this)" class="cm-btn sm ghost" id="audit-btn">Run Audit</button>
     {% if total_flagged > 0 %}
@@ -19,15 +19,15 @@
 <!-- Stats -->
 <div style="padding:12px 16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; border-bottom:1px solid var(--cm-border);">
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Total Organized</div>
+    <div class="cm-stat-label">Total Organized</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-info); margin-top:2px;" class="mono tnum">{{ total_organized }}</div>
   </div>
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Need Reorganization</div>
+    <div class="cm-stat-label">Need Reorganization</div>
     <div style="font-size:26px; font-weight:700; {% if total_flagged > 0 %}color:var(--cm-warn){% else %}color:var(--cm-ok){% endif %}; margin-top:2px;" class="mono tnum">{{ total_flagged }}</div>
   </div>
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Correct Location</div>
+    <div class="cm-stat-label">Correct Location</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ total_organized|add:"-"|add:total_flagged }}</div>
   </div>
 </div>

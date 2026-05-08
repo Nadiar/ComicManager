@@ -27,7 +27,7 @@
       <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:14px;">
 
         <div style="display:flex; flex-direction:column; gap:4px;">
-          <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Navigation</label>
+          <label class="cm-section-label">Navigation</label>
           <select name="nav" class="cm-input" style="font-size:13px;">
             <option value="topnav"  {% if prefs.nav == "topnav"  %}selected{% endif %}>Top bar</option>
             <option value="sidebar" {% if prefs.nav == "sidebar" %}selected{% endif %}>Sidebar</option>
@@ -35,7 +35,7 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:6px; grid-column:1/-1;">
-          <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Theme</label>
+          <label class="cm-section-label">Theme</label>
           <div style="display:flex; flex-wrap:wrap; gap:6px;">
             {% for val, label, swatch in mood_swatches %}
             <label style="display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:6px; border:1px solid {% if prefs.mood == val %}var(--cm-accent){% else %}var(--cm-border){% endif %}; cursor:pointer; background:var(--cm-bg-2); user-select:none;">
@@ -48,7 +48,7 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:4px;">
-          <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Table density</label>
+          <label class="cm-section-label">Table density</label>
           <select name="table_density" class="cm-input" style="font-size:13px;">
             <option value="compact" {% if prefs.table_density == "compact" %}selected{% endif %}>Compact</option>
             <option value="default" {% if prefs.table_density == "default" %}selected{% endif %}>Default</option>
@@ -57,7 +57,7 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:4px;">
-          <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Pipeline view</label>
+          <label class="cm-section-label">Pipeline view</label>
           <select name="dashboard_pipeline" class="cm-input" style="font-size:13px;">
             <option value="segments" {% if prefs.dashboard_pipeline != "flow" and prefs.dashboard_pipeline != "none" %}selected{% endif %}>Segments</option>
             <option value="flow"     {% if prefs.dashboard_pipeline == "flow" %}selected{% endif %}>Flow</option>
@@ -95,7 +95,7 @@
 
         <div style="grid-column:1/-1; display:flex; flex-direction:column; gap:8px; padding-top:4px; border-top:1px solid var(--cm-border);">
           <div style="display:flex; align-items:center; justify-content:space-between;">
-            <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">
+            <label class="cm-section-label">
               Custom Colors <span style="text-transform:none; font-weight:400;">— overrides preset per slot</span>
             </label>
             <button type="submit" name="clear_custom_colors" value="1" class="cm-btn sm ghost" style="font-size:11px;">Reset all</button>
@@ -218,7 +218,7 @@
       <div style="display:flex; flex-direction:column; gap:14px;">
         {% for setting in settings %}
         <div style="display:flex; flex-direction:column; gap:4px;">
-          <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">{{ setting.label }}</label>
+          <label class="cm-section-label">{{ setting.label }}</label>
           {% if setting.type == "bool" %}
             <div style="display:flex; align-items:center; gap:8px;">
               <input type="checkbox" name="{{ setting.key }}"

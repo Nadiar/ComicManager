@@ -5,8 +5,8 @@
 {% block content %}
 
 <!-- Header -->
-<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
-  <h1 style="font-size:22px; font-weight:700; margin:0;">File Organizer Profiles</h1>
+<div class="cm-page-header">
+  <h1 class="cm-page-title">File Organizer Profiles</h1>
   <div style="display:flex; gap:8px;">
     <a href="{% url 'organizer:import' %}" class="cm-btn sm ghost" cm-no-underline">Import .lop</a>
     {% if profiles %}<a href="{% url 'organizer:export' %}" class="cm-btn sm ghost" cm-no-underline">Export .lop</a>{% endif %}
@@ -17,19 +17,19 @@
 <!-- Stats -->
 <div style="padding:12px 16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; border-bottom:1px solid var(--cm-border);">
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Total Profiles</div>
+    <div class="cm-stat-label">Total Profiles</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-accent); margin-top:2px;" class="mono tnum">{{ stats.total_profiles }}</div>
   </div>
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Enabled</div>
+    <div class="cm-stat-label">Enabled</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ stats.enabled_profiles }}</div>
   </div>
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Pending</div>
+    <div class="cm-stat-label">Pending</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-warn); margin-top:2px;" class="mono tnum">{{ stats.pending_organization }}</div>
   </div>
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Organized</div>
+    <div class="cm-stat-label">Organized</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-info); margin-top:2px;" class="mono tnum">{{ stats.already_organized }}</div>
   </div>
 </div>

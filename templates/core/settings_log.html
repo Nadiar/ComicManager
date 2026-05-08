@@ -6,9 +6,9 @@
 <div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
 <!-- Header -->
-<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+<div class="cm-page-header">
   <div>
-    <h1 style="font-size:22px; font-weight:700; margin:0;">Batch Audit Log</h1>
+    <h1 class="cm-page-title">Batch Audit Log</h1>
     <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;" class="mono tnum">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} total</p>
   </div>
   <a href="{% url 'settings:index' %}" class="cm-btn sm ghost" cm-no-underline">Back to Settings</a>

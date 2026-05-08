@@ -6,9 +6,9 @@
 <div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
 <!-- Header -->
-<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+<div class="cm-page-header">
   <div>
-    <h1 style="font-size:22px; font-weight:700; margin:0;">Format Review</h1>
+    <h1 class="cm-page-title">Format Review</h1>
     <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;">
       {{ total_tagged }} comic{{ total_tagged|pluralize }} in tagged state{% if total_reformat %} · {{ total_reformat }} need{{ total_reformat|pluralize:",s" }} re-formatting{% endif %}
     </p>

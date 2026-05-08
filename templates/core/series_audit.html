@@ -6,8 +6,8 @@
 
 {% if unavailable %}
 <!-- Header -->
-<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border);">
-  <h1 style="font-size:22px; font-weight:700; margin:0;">Series Audit</h1>
+<div class="cm-page-header">
+  <h1 class="cm-page-title">Series Audit</h1>
   <div style="display:flex; gap:8px;">
     {% if comic %}<a href="{% url 'core:detail' comic.pk %}" class="cm-btn sm ghost" cm-no-underline">Back to Comic</a>{% endif %}
     <a href="{% url 'core:character_audit_search' %}" class="cm-btn sm ghost" cm-no-underline">Audit Search</a>
@@ -23,7 +23,7 @@
 <!-- Header -->
 <div style="padding:14px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
   <div>
-    <h1 style="font-size:22px; font-weight:700; margin:0;">
+    <h1 class="cm-page-title">
       {{ data.volume_info.name }}{% if data.volume_info.start_year %} <span style="color:var(--cm-fg-3); font-weight:400;">({{ data.volume_info.start_year }})</span>{% endif %}
     </h1>
     <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center;">

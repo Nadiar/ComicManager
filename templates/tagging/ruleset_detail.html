@@ -11,7 +11,7 @@
       {% if ruleset.group_path %} / {{ ruleset.group_path }}{% endif %}
       / {{ ruleset.name }}
     </div>
-    <h1 style="font-size:22px; font-weight:700; margin:0;">{{ ruleset.name }}</h1>
+    <h1 class="cm-page-title">{{ ruleset.name }}</h1>
     <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center;">
       <span class="cm-chip {% if ruleset.is_enabled %}ok{% else %}err{% endif %}" style="font-size:11px;">{% if ruleset.is_enabled %}Enabled{% else %}Disabled{% endif %}</span>
       <span class="cm-chip {% if ruleset.mode == 'AND' %}info{% else %}warn{% endif %}" style="font-size:11px;">{{ ruleset.mode }}</span>

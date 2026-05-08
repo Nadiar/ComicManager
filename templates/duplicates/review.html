@@ -6,9 +6,9 @@
 <div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
 <!-- Header -->
-<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+<div class="cm-page-header">
   <div>
-    <h1 style="font-size:22px; font-weight:700; margin:0;">Duplicate Review</h1>
+    <h1 class="cm-page-title">Duplicate Review</h1>
     <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;">{{ total_pending }} duplicate group{{ total_pending|pluralize }} pending review</p>
   </div>
   <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -21,24 +21,24 @@
 <!-- Stats -->
 <div style="padding:12px 16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; border-bottom:1px solid var(--cm-border);">
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Pending</div>
+    <div class="cm-stat-label">Pending</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-warn); margin-top:2px;" class="mono tnum">{{ stats.pending_groups }}</div>
   </div>
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Resolved</div>
+    <div class="cm-stat-label">Resolved</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ stats.resolved_groups }}</div>
   </div>
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Intentional</div>
+    <div class="cm-stat-label">Intentional</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-info); margin-top:2px;" class="mono tnum">{{ stats.intentional_groups }}</div>
   </div>
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Add Formats</div>
+    <div class="cm-stat-label">Add Formats</div>
     <div style="font-size:26px; font-weight:700; margin-top:2px;" class="mono tnum">{{ stats.formatted_comics }}</div>
     <div style="font-size:10px; color:var(--cm-fg-3); margin-top:1px;">awaiting detection</div>
   </div>
   <div class="cm-card-sm">
-    <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Deduplicated</div>
+    <div class="cm-stat-label">Deduplicated</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ stats.deduplicated_comics }}</div>
   </div>
 </div>

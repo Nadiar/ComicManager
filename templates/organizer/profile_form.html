@@ -6,7 +6,7 @@
 
 <!-- Header -->
 <div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border);">
-  <h1 style="font-size:22px; font-weight:700; margin:0;">
+  <h1 class="cm-page-title">
     {% if is_create %}New Profile{% else %}Edit Profile{% endif %}
   </h1>
   <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>

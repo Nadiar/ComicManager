@@ -270,7 +270,7 @@
 
   <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px;">
     <div>
-      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Core Info</div>
+      <div class="cm-section-label-accent">Core Info</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
         <div><span class="cm-text-muted">Series:</span> <span class="cm-text-primary">{{ comic.series|default:"-" }}</span></div>
         <div><span class="cm-text-muted">Number:</span> <span class="cm-text-primary">{{ comic.number|default:"-" }}</span></div>
@@ -280,7 +280,7 @@
       </div>
     </div>
     <div>
-      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Publication</div>
+      <div class="cm-section-label-accent">Publication</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
         <div><span class="cm-text-muted">Publisher:</span> <span class="cm-text-primary">{{ comic.publisher|default:"-" }}</span></div>
         <div><span class="cm-text-muted">Year:</span> <span class="cm-text-primary">{{ comic.year|default:"-" }}</span></div>
@@ -290,7 +290,7 @@
       </div>
     </div>
     <div>
-      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Classification</div>
+      <div class="cm-section-label-accent">Classification</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
         <div><span class="cm-text-muted">Genre:</span> <span class="cm-text-primary">{{ comic.genre|default:"-" }}</span></div>
         <div><span class="cm-text-muted">Series Group:</span> <span class="cm-text-primary">{{ comic.series_group|default:"-" }}</span></div>
@@ -311,7 +311,7 @@
 
   {% if comic.writer or comic.penciller or comic.inker or comic.colorist or comic.letterer or comic.cover_artist or comic.editor %}
   <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
-    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Credits</div>
+    <div class="cm-section-label-accent">Credits</div>
     <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:5px; font-size:12px;">
       {% if comic.writer %}<div><span class="cm-text-muted">Writer:</span> <span class="cm-text-primary">{{ comic.writer }}</span></div>{% endif %}
       {% if comic.penciller %}<div><span class="cm-text-muted">Penciller:</span> <span class="cm-text-primary">{{ comic.penciller }}</span></div>{% endif %}
@@ -360,7 +360,7 @@
 
   <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px;">
     <div>
-      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">File Details</div>
+      <div class="cm-section-label-accent">File Details</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
         {% if comic.file_path %}
         <div><span class="cm-text-muted">Path:</span> <code style="font-size:11px; color:var(--cm-fg-1); word-break:break-all;">{{ comic.file_path }}</code></div>
@@ -373,7 +373,7 @@
       </div>
     </div>
     <div>
-      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">System Info</div>
+      <div class="cm-section-label-accent">System Info</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
         <div><span class="cm-text-muted">ID:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.pk }}</code></div>
         <div><span class="cm-text-muted">State:</span> <span class="cm-text-primary">{{ comic.state }}</span></div>
@@ -386,7 +386,7 @@
 
     {% if comic.phash or comic.ahash %}
     <div>
-      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Cover Hashes</div>
+      <div class="cm-section-label-accent">Cover Hashes</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
         {% if comic.phash %}<div><span class="cm-text-muted">pHash:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.phash }}</code></div>{% endif %}
         {% if comic.ahash %}<div><span class="cm-text-muted">aHash:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.ahash }}</code></div>{% endif %}
@@ -396,7 +396,7 @@
 
     {% if display_custom_values %}
     <div>
-      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Custom Values</div>
+      <div class="cm-section-label-accent">Custom Values</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
         {% for key, value in display_custom_values.items %}
         <div><span class="cm-text-muted">{{ key }}:</span> <span class="cm-text-primary">{{ value }}</span></div>
@@ -408,7 +408,7 @@
 
   {% if comic.has_flags %}
   <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
-    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Flags</div>
+    <div class="cm-section-label-accent">Flags</div>
     <div style="display:flex; flex-wrap:wrap; gap:6px;">
       {% for flag in comic.flag_list %}
       <span class="cm-chip warn">{{ flag }}</span>

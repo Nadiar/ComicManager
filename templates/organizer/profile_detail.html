@@ -7,7 +7,7 @@
 <!-- Header -->
 <div style="padding:14px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
   <div>
-    <h1 style="font-size:22px; font-weight:700; margin:0;">{{ profile.name }}</h1>
+    <h1 class="cm-page-title">{{ profile.name }}</h1>
     <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
       <span style="font-size:12px; color:var(--cm-fg-3);">Priority: <span class="mono tnum">{{ profile.priority }}</span></span>
       {% if profile.is_enabled %}

@@ -6,7 +6,7 @@
 
 <!-- Header -->
 <div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border);">
-  <h1 style="font-size:22px; font-weight:700; margin:0;">{% if mode == 'edit' %}Edit{% else %}Create{% endif %} Smart List</h1>
+  <h1 class="cm-page-title">{% if mode == 'edit' %}Edit{% else %}Create{% endif %} Smart List</h1>
   <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" cm-no-underline">Back to Lists</a>
 </div>
 
