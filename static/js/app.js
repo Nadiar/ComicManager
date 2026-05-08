@@ -20,3 +20,53 @@ document.querySelectorAll('.cm-nav-dd').forEach(function(dd) {
     localStorage.setItem('cm.sb.collapsed', sb.classList.contains('collapsed') ? '1' : '0');
   });
 })();
+
+function batchAction(url, confirmMsg, taskLabel, btn) {
+  showConfirm(confirmMsg, () => {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Working...';
+    fetch(url, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
+      .then(r => r.json())
+      .then(data => {
+        if (data.task_id) {
+          btn.innerHTML = 'Running...';
+          if (window.startTaskPolling) window.startTaskPolling(data.task_id, taskLabel);
+        } else if (data.success) {
+          btn.innerHTML = 'Done';
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          btn.innerHTML = data.error || 'Error';
+          btn.disabled = false;
+        }
+      })
+      .catch(err => {
+        btn.innerHTML = 'Error';
+        btn.title = err.toString();
+        btn.disabled = false;
+      });
+  });
+}
+
+function comicActionFadeRow(pk, urlPath, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+  fetch(`/comics/${pk}/${urlPath}/`, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        const row = btn.closest('tr');
+        row.style.transition = 'opacity 0.3s';
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 300);
+      } else {
+        btn.innerHTML = 'Error';
+        btn.title = data.error || 'Failed';
+        btn.disabled = false;
+      }
+    })
+    .catch(err => {
+      btn.innerHTML = 'Error';
+      btn.title = err.toString();
+      btn.disabled = false;
+    });
+}

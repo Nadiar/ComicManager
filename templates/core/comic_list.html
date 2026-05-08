@@ -1166,43 +1166,7 @@ function scanForComics(btn) {
 }
 
 function convertAllComics(btn) {
-  showConfirm('Convert all CBR/CB7 files to CBZ? This may take a while.', () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
-
-  fetch('/comics/convert-all/', {
-    method: 'POST',
-    headers: {'X-CSRFToken': getCsrfToken()},
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.task_id) {
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-info');
-      btn.innerHTML = 'Running...';
-      if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id, 'Converting files');
-      }
-    } else if (data.success) {
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-success');
-      btn.innerHTML = 'Done';
-      setTimeout(() => window.location.reload(), 1500);
-    } else {
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-error');
-      btn.innerHTML = data.error || 'Error';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-primary');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
-  });
+  batchAction('/comics/convert-all/', 'Convert all CBR/CB7 files to CBZ? This may take a while.', 'Converting files', btn);
 }
 
 function convertComic(pk, btn) {
@@ -1297,43 +1261,7 @@ function convertZipComic(pk, btn) {
 }
 
 function convertAllZip(btn) {
-  showConfirm('Rename all ZIP files to CBZ? This is safe — ZIP and CBZ are the same format.', () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
-
-  fetch('/comics/convert-all-zip/', {
-    method: 'POST',
-    headers: {'X-CSRFToken': getCsrfToken()},
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.task_id) {
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-info');
-      btn.innerHTML = 'Running...';
-      if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id, 'Renaming ZIP files');
-      }
-    } else if (data.success) {
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-success');
-      btn.innerHTML = 'Done';
-      setTimeout(() => window.location.reload(), 1500);
-    } else {
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-error');
-      btn.innerHTML = data.error || 'Error';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-primary');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
-  });
+  batchAction('/comics/convert-all-zip/', 'Rename all ZIP files to CBZ? This is safe — ZIP and CBZ are the same format.', 'Renaming ZIP files', btn);
 }
 
 function deleteComic(pk, btn) {
@@ -1423,41 +1351,7 @@ function tagComic(pk, btn) {
 }
 
 function tagAllComics(btn) {
-  showConfirm('Apply DataManager tagging rules to all counted comics?', () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Tagging...';
-
-  fetch('/comics/tag-all/', {
-    method: 'POST',
-    headers: {'X-CSRFToken': getCsrfToken()},
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.task_id) {
-      btn.classList.remove('btn-accent');
-      btn.classList.add('btn-info');
-      btn.innerHTML = 'Running...';
-      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Tagging comics');
-    } else if (data.success) {
-      btn.classList.remove('btn-accent');
-      btn.classList.add('btn-success');
-      btn.innerHTML = 'Done';
-      setTimeout(() => window.location.reload(), 1500);
-    } else {
-      btn.classList.remove('btn-accent');
-      btn.classList.add('btn-error');
-      btn.innerHTML = data.error || 'Error';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-accent');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
-  });
+  batchAction('/comics/tag-all/', 'Apply DataManager tagging rules to all counted comics?', 'Tagging comics', btn);
 }
 
 function retagFlagged(btn, flagName) {
@@ -1582,155 +1476,19 @@ function formatComic(pk, btn) {
 }
 
 function formatAllComics(btn) {
-  showConfirm('Apply format detection to all tagged comics?', () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Formatting...';
-
-  fetch('/comics/format-all/', {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.task_id) {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-info');
-      btn.innerHTML = 'Running...';
-      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Formatting comics');
-    } else if (data.success) {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-success');
-      btn.innerHTML = 'Done';
-      setTimeout(() => window.location.reload(), 1500);
-    } else {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-error');
-      btn.innerHTML = data.error || 'Error';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-info');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
-  });
+  batchAction('/comics/format-all/', 'Apply format detection to all tagged comics?', 'Formatting comics', btn);
 }
 
 function deduplicateAllComics(btn) {
-  showConfirm('Process deduplication for all formatted comics?', () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
-
-  fetch('/comics/deduplicate-all/', {
-    method: 'POST',
-    headers: {'X-CSRFToken': getCsrfToken()},
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.task_id) {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-info');
-      btn.innerHTML = 'Running...';
-      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Deduplicating');
-    } else if (data.success) {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-success');
-      btn.innerHTML = 'Done';
-      setTimeout(() => window.location.reload(), 1500);
-    } else {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-error');
-      btn.innerHTML = data.error || 'Error';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-secondary');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
-  });
+  batchAction('/comics/deduplicate-all/', 'Process deduplication for all formatted comics?', 'Deduplicating', btn);
 }
 
 function organizeAllComics(btn) {
-  showConfirm('Organize all deduplicated comics? Files will be moved to the library folder.', () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
-
-  fetch('/comics/organize-all/', {
-    method: 'POST',
-    headers: {'X-CSRFToken': getCsrfToken()},
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.task_id) {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-info');
-      btn.innerHTML = 'Running...';
-      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Organizing comics');
-    } else if (data.success) {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-success');
-      btn.innerHTML = 'Done';
-      setTimeout(() => window.location.reload(), 1500);
-    } else {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-error');
-      btn.innerHTML = data.error || 'Error';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-info');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
-  });
+  batchAction('/comics/organize-all/', 'Organize all deduplicated comics? Files will be moved to the library folder.', 'Organizing comics', btn);
 }
 
 function writeAllComics(btn) {
-  showConfirm('Write ComicInfo.xml for all organized comics? This will update the files.', () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Writing...';
-
-  fetch('/comics/write-all/', {
-    method: 'POST',
-    headers: {'X-CSRFToken': getCsrfToken()},
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.task_id) {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-info');
-      btn.innerHTML = 'Running...';
-      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Writing comics');
-    } else if (data.success) {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-neutral');
-      btn.innerHTML = 'Done';
-      setTimeout(() => window.location.reload(), 1500);
-    } else {
-      btn.classList.add('btn-error');
-      btn.innerHTML = data.error || 'Error';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
-  });
+  batchAction('/comics/write-all/', 'Write ComicInfo.xml for all organized comics? This will update the files.', 'Writing comics', btn);
 }
 
 // Tagging result modal functions
@@ -1960,69 +1718,9 @@ function writeComic(pk, btn) {
   });
 }
 
-function forceWriteComic(pk, btn) {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+function forceWriteComic(pk, btn) { comicActionFadeRow(pk, 'force-write', btn); }
 
-  fetch(`/comics/${pk}/force-write/`, {
-    method: 'POST',
-    headers: { 'X-CSRFToken': getCsrfToken() }
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      const row = btn.closest('tr');
-      row.style.transition = 'opacity 0.3s';
-      row.style.opacity = '0';
-      setTimeout(() => row.remove(), 300);
-    } else {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
-      btn.title = data.error || 'Failed to write';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-success');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
-}
-
-function tryRezipComic(pk, btn) {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
-
-  fetch(`/comics/${pk}/rezip/`, {
-    method: 'POST',
-    headers: { 'X-CSRFToken': getCsrfToken() }
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      const row = btn.closest('tr');
-      row.style.transition = 'opacity 0.3s';
-      row.style.opacity = '0';
-      setTimeout(() => row.remove(), 300);
-    } else {
-      btn.classList.remove('btn-warning');
-      btn.classList.add('btn-error');
-      btn.innerHTML = 'Failed';
-      btn.title = data.error || 'Rezip failed';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-warning');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
-}
+function tryRezipComic(pk, btn) { comicActionFadeRow(pk, 'rezip', btn); }
 
 function runBulkAction(action, flagName, label) {
   const totalCount = {{ total_count }};
