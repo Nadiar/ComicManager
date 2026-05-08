@@ -19,7 +19,7 @@
     </div>
   </div>
   <div style="display:flex; gap:8px; flex-shrink:0;">
-    <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="cm-btn sm primary" style="text-decoration:none;">Edit</a>
+    <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="cm-btn sm primary" cm-no-underline">Edit</a>
     <form method="post" action="{% url 'tagging:ruleset_duplicate' ruleset.pk %}" class="inline">
       {% csrf_token %}
       <button type="submit" class="cm-btn sm ghost">Duplicate</button>
@@ -41,7 +41,7 @@
 <div style="padding:16px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
 
   <!-- Rules -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
       <span style="font-size:15px; font-weight:700;">Rules</span>
       <span class="cm-chip" style="font-size:10.5px;" class="mono tnum">{{ ruleset.rule_count }}</span>
@@ -71,7 +71,7 @@
   </div>
 
   <!-- Actions -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
       <span style="font-size:15px; font-weight:700;">Actions</span>
       <span class="cm-chip" style="font-size:10.5px;" class="mono tnum">{{ ruleset.action_count }}</span>
@@ -104,10 +104,10 @@
 <div style="margin:0 16px 16px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
   <div style="font-size:15px; font-weight:700; margin-bottom:10px;">Metadata</div>
   <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; font-size:12px;">
-    <div><span style="color:var(--cm-fg-3);">Created:</span> <span>{{ ruleset.created_at|date:"M d, Y H:i" }}</span></div>
-    <div><span style="color:var(--cm-fg-3);">Updated:</span> <span>{{ ruleset.updated_at|date:"M d, Y H:i" }}</span></div>
-    <div><span style="color:var(--cm-fg-3);">Group Path:</span> <span>{{ ruleset.group_path|default:"—" }}</span></div>
-    <div><span style="color:var(--cm-fg-3);">ID:</span> <span class="mono">{{ ruleset.pk }}</span></div>
+    <div><span class="cm-text-muted">Created:</span> <span>{{ ruleset.created_at|date:"M d, Y H:i" }}</span></div>
+    <div><span class="cm-text-muted">Updated:</span> <span>{{ ruleset.updated_at|date:"M d, Y H:i" }}</span></div>
+    <div><span class="cm-text-muted">Group Path:</span> <span>{{ ruleset.group_path|default:"—" }}</span></div>
+    <div><span class="cm-text-muted">ID:</span> <span class="mono">{{ ruleset.pk }}</span></div>
   </div>
 </div>
 {% endblock %}

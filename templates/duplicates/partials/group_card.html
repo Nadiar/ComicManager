@@ -10,7 +10,7 @@
       </div>
     </div>
     <div style="display:flex; gap:6px; flex-shrink:0;">
-      <a href="{% url 'duplicates:group_detail' group.id %}" class="cm-btn sm ghost" style="text-decoration:none;">Details</a>
+      <a href="{% url 'duplicates:group_detail' group.id %}" class="cm-btn sm ghost" cm-no-underline">Details</a>
       <button class="cm-btn sm"
         style="color:var(--cm-info); border-color:var(--cm-info);"
         hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
@@ -22,10 +22,10 @@
   </div>
 
   <!-- Comics table -->
-  <div style="overflow-x:auto;">
-    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+  <div class="cm-overflow-x">
+    <table class="cm-table">
       <thead>
-        <tr style="border-bottom:1px solid var(--cm-border);">
+        <tr class="cm-divider">
           <th style="padding:6px 8px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:90px;">Cover</th>
           <th style="padding:6px 8px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Actions</th>
           <th style="padding:6px 8px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Series</th>
@@ -42,7 +42,7 @@
       </thead>
       <tbody>
         {% for comic in group.comics %}
-        <tr style="border-bottom:1px solid var(--cm-border);" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+        <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
           <td style="padding:6px 8px;">
             <img src="{% url 'core:cover' comic.id %}" alt="Cover"
               style="width:72px; height:auto; border-radius:3px; cursor:pointer; transition:opacity .15s;"
@@ -77,16 +77,16 @@
             </div>
           </td>
           <td style="padding:6px 8px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-            <a href="{% url 'core:detail' comic.id %}" style="color:var(--cm-accent);" target="_blank" rel="noopener noreferrer">{{ comic.series|default:"—"|truncatechars:30 }}</a>
+            <a href="{% url 'core:detail' comic.id %}" class="cm-text-accent" target="_blank" rel="noopener noreferrer">{{ comic.series|default:"—"|truncatechars:30 }}</a>
           </td>
           <td style="padding:6px 8px;" class="mono tnum">{{ comic.number|default:"—" }}</td>
           <td style="padding:6px 8px;" class="mono tnum">{{ comic.volume|default:"—" }}</td>
-          <td style="padding:6px 8px;">{% if comic.format %}<span class="cm-chip" style="font-size:10.5px;">{{ comic.format }}</span>{% else %}<span style="color:var(--cm-fg-3);">—</span>{% endif %}</td>
+          <td style="padding:6px 8px;">{% if comic.format %}<span class="cm-chip" style="font-size:10.5px;">{{ comic.format }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
           <td style="padding:6px 8px; color:var(--cm-fg-3);" class="mono tnum">{% if comic.cv_issue %}{{ comic.cv_issue }}{% else %}—{% endif %}</td>
           <td style="padding:6px 8px; text-align:right;" class="mono tnum">{% if comic.file_size %}{% widthratio comic.file_size 1048576 1 %} MB{% else %}—{% endif %}</td>
           <td style="padding:6px 8px; text-align:right;" class="mono tnum">{{ comic.page_count|default:"—" }}</td>
           {% if group.detection_method == 'phash' %}<td style="padding:6px 8px; text-align:center;" class="mono tnum">{{ comic.phash_distance|default:"0" }}</td>{% endif %}
-          <td style="padding:6px 8px;">{% if comic.scrape_source %}<span class="cm-chip" style="font-size:10px;">{{ comic.scrape_source }}</span>{% else %}<span style="color:var(--cm-fg-3);">—</span>{% endif %}</td>
+          <td style="padding:6px 8px;">{% if comic.scrape_source %}<span class="cm-chip" cm-text-xs">{{ comic.scrape_source }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
           <td style="padding:6px 8px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--cm-fg-3);" title="{{ comic.file_path }}">{{ comic.file_path|default:"—" }}</td>
         </tr>
         {% endfor %}

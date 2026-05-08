@@ -125,7 +125,7 @@
         {{ comic.series|default:comic.proposed_series|default:"—" }}
         <span class="mono" style="color:var(--cm-fg-3); font-weight:400;">&nbsp;#{{ comic.number|default:comic.proposed_number|default:"?" }}</span>
       </div>
-      <div style="font-size:11.5px; color:var(--cm-fg-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{% if comic.title %}{{ comic.title }}{% else %}<span style="color:var(--cm-fg-3);">— no title —</span>{% endif %}</div>
+      <div style="font-size:11.5px; color:var(--cm-fg-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{% if comic.title %}{{ comic.title }}{% else %}<span class="cm-text-muted">— no title —</span>{% endif %}</div>
       <div class="mono" style="font-size:10.5px; color:var(--cm-fg-3); margin-top:2px; display:flex; gap:8px;">
         <span>{{ comic.publisher|default:"—" }}</span><span>·</span><span>{{ comic.format|default:"—" }}</span><span>·</span><span>{{ comic.pages|default:"?" }}p</span>{% if comic.file_size %}<span>·</span><span>{{ comic.file_size|filesizeformat }}</span>{% endif %}
       </div>

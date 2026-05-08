@@ -65,8 +65,8 @@
   </div>
 
   {% if comics %}
-  <div style="overflow-x:auto;">
-    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+  <div class="cm-overflow-x">
+    <table class="cm-table">
       <thead>
         <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1);">
           <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); white-space:nowrap;">Series</th>
@@ -78,7 +78,7 @@
       </thead>
       <tbody>
         {% for comic in comics %}
-        <tr style="border-bottom:1px solid var(--cm-border);">
+        <tr class="cm-divider">
           <td style="padding:7px 10px; font-weight:500;">{{ comic.proposed_series|default:"—" }}</td>
           <td style="padding:7px 10px;" class="mono tnum">{{ comic.proposed_number|default:"—" }}</td>
           <td style="padding:7px 10px; color:var(--cm-fg-3);" class="mono tnum">{{ comic.proposed_year|default:"—" }}</td>
@@ -121,7 +121,7 @@ function runDryRun(btn) {
 
   btn.disabled = true;
   loading.style.display = 'inline-block';
-  output.innerHTML = '<div style="color:var(--cm-fg-3);">Loading...</div>';
+  output.innerHTML = '<div class="cm-text-muted">Loading...</div>';
 
   fetch(`/scraper/dry-run/?limit=${limit}&max_distance=${distance}`)
     .then(response => response.text())

@@ -11,16 +11,16 @@
     <h1 style="font-size:22px; font-weight:700; margin:0;">Batch Audit Log</h1>
     <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;" class="mono tnum">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} total</p>
   </div>
-  <a href="{% url 'settings:index' %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Settings</a>
+  <a href="{% url 'settings:index' %}" class="cm-btn sm ghost" cm-no-underline">Back to Settings</a>
 </div>
 
 <!-- Action filter tabs -->
 <div style="padding:10px 16px; display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--cm-border);">
-  <a href="{% url 'settings:log' %}" class="cm-btn sm {% if not action_filter %}primary{% else %}ghost{% endif %}" style="text-decoration:none;">All</a>
+  <a href="{% url 'settings:log' %}" class="cm-btn sm {% if not action_filter %}primary{% else %}ghost{% endif %}" cm-no-underline">All</a>
   {% for action in actions %}
   <a href="{% url 'settings:log' %}?action={{ action }}"
      class="cm-btn sm {% if action_filter == action %}primary{% else %}ghost{% endif %}"
-     style="text-decoration:none;">
+     class="cm-no-underline">
     {% if action == 'scrape_all' %}Scrape
     {% elif action == 'tag_all' %}Tag
     {% elif action == 'format_all' %}Format
@@ -40,21 +40,21 @@
   <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ total_count }}</span></span>
   <div style="display:flex; gap:3px;">
     {% if page_obj.has_previous %}
-    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
-    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost" cm-no-underline">First</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" cm-no-underline">Prev</a>
     {% endif %}
     <span class="cm-btn sm primary" style="cursor:default;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
     {% if page_obj.has_next %}
-    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
-    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" cm-no-underline">Next</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" cm-no-underline">Last</a>
     {% endif %}
   </div>
 </div>
 {% endif %}
 
 <!-- Table -->
-<div style="overflow-x:auto;">
-  <table style="width:100%; border-collapse:collapse; font-size:12px;">
+<div class="cm-overflow-x">
+  <table class="cm-table">
     <thead>
       <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1); position:sticky; top:0; z-index:3;">
         <th style="padding:7px 10px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); white-space:nowrap;">Timestamp</th>
@@ -67,7 +67,7 @@
     </thead>
     <tbody>
       {% for entry in page_obj %}
-      <tr id="log-row-{{ forloop.counter }}" style="border-bottom:1px solid var(--cm-border);">
+      <tr id="log-row-{{ forloop.counter }}" class="cm-divider">
         <td style="padding:7px 10px; white-space:nowrap; font-family:monospace; font-size:11px; color:var(--cm-fg-3);">
           {{ entry.timestamp|slice:":19" }}
         </td>
@@ -88,19 +88,19 @@
           {% for key, pair in entry.changes.items %}
           <div style="display:flex; gap:4px; align-items:baseline; flex-wrap:wrap; margin-bottom:2px;">
             <span style="font-weight:600;">{{ key }}:</span>
-            <span style="color:var(--cm-fg-3);">{{ pair.0|default:"null" }}</span>
-            <span style="color:var(--cm-fg-3);">&rarr;</span>
+            <span class="cm-text-muted">{{ pair.0|default:"null" }}</span>
+            <span class="cm-text-muted">&rarr;</span>
             <span style="color:var(--cm-ok);">{{ pair.1|default:"null" }}</span>
           </div>
           {% empty %}
-          <span style="color:var(--cm-fg-3);">no changes</span>
+          <span class="cm-text-muted">no changes</span>
           {% endfor %}
         </td>
         <td style="padding:7px 10px;">
           <a href="{% url 'core:detail' entry.uuid %}"
              target="_blank"
              class="cm-btn sm ghost"
-             style="text-decoration:none;"
+             class="cm-no-underline"
              title="{{ entry.uuid }}">
             Info
           </a>
@@ -165,13 +165,13 @@
 {% if page_obj.paginator.num_pages > 1 %}
 <div style="padding:10px 16px; display:flex; justify-content:center; gap:3px; border-top:1px solid var(--cm-border);">
   {% if page_obj.has_previous %}
-  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
-  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost" cm-no-underline">First</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" cm-no-underline">Prev</a>
   {% endif %}
   <span class="cm-btn sm primary" style="cursor:default;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
   {% if page_obj.has_next %}
-  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
-  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" cm-no-underline">Next</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" cm-no-underline">Last</a>
   {% endif %}
 </div>
 {% endif %}

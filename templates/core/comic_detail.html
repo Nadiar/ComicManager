@@ -120,8 +120,8 @@
       </div>
     </div>
 
-    <a href="/comics/{{ comic.pk }}/edit/" class="cm-btn sm primary" style="text-decoration:none;">Edit</a>
-    <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="cm-btn sm ghost" style="text-decoration:none;">Back</a>
+    <a href="/comics/{{ comic.pk }}/edit/" class="cm-btn sm primary" cm-no-underline">Edit</a>
+    <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="cm-btn sm ghost" cm-no-underline">Back</a>
   </div>
 </div>
 
@@ -178,7 +178,7 @@
              alt="Variant Cover" />
       </div>
       {% if cover.is_main %}
-      <span class="cm-chip ok" style="font-size:10px;">Main Cover</span>
+      <span class="cm-chip ok" cm-text-xs">Main Cover</span>
       {% else %}
       <button class="cm-btn sm ok" onclick="setMainCover('{{ cover.original_url|escapejs }}')">Set Main</button>
       {% endif %}
@@ -210,10 +210,10 @@
   </div>
   {% if reorganize_preview.would_move %}
   <div style="font-size:12px; color:var(--cm-fg-2); margin-bottom:3px;">
-    <span style="color:var(--cm-fg-3);">Current:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ reorganize_preview.old_path }}</code>
+    <span class="cm-text-muted">Current:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ reorganize_preview.old_path }}</code>
   </div>
   <div style="font-size:12px; color:var(--cm-fg-2);">
-    <span style="color:var(--cm-fg-3);">Target:</span> <code style="font-size:11px; color:var(--cm-ok);">{{ reorganize_preview.new_path }}</code>
+    <span class="cm-text-muted">Target:</span> <code style="font-size:11px; color:var(--cm-ok);">{{ reorganize_preview.new_path }}</code>
   </div>
   {% endif %}
 </div>
@@ -222,14 +222,14 @@
 
 {% if comic.is_digital and comparison %}
 <!-- Metadata Comparison Table -->
-<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+<div class="cm-card">
   <div style="font-size:15px; font-weight:700; margin-bottom:6px;">Metadata Comparison</div>
   <div style="font-size:12px; color:var(--cm-fg-3); margin-bottom:12px;">
     Comparing database values with ComicInfo.xml from the file.
     {% if not xml_data %}<span style="color:var(--cm-warn);">No ComicInfo.xml found in file.</span>{% endif %}
   </div>
-  <div style="overflow-x:auto;">
-    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+  <div class="cm-overflow-x">
+    <table class="cm-table">
       <thead>
         <tr style="border-bottom:2px solid var(--cm-border);">
           <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.04em;">Field</th>
@@ -243,17 +243,17 @@
         <tr style="border-bottom:1px solid var(--cm-border); {% if item.status == 'differ' %}background:var(--cm-warn-dim);{% elif item.status == 'db_only' %}background:var(--cm-info-dim);{% elif item.status == 'xml_only' %}background:var(--cm-err-dim);{% endif %}">
           <td style="padding:6px 10px; font-weight:600; color:var(--cm-fg-1);">{{ item.label }}</td>
           <td style="padding:6px 10px; max-width:260px;">
-            {% if item.db_value %}<span style="white-space:pre-wrap; color:{% if item.status == 'differ' %}var(--cm-warn){% else %}var(--cm-fg-1){% endif %};">{{ item.db_value }}</span>{% else %}<span style="color:var(--cm-fg-3);">-</span>{% endif %}
+            {% if item.db_value %}<span style="white-space:pre-wrap; color:{% if item.status == 'differ' %}var(--cm-warn){% else %}var(--cm-fg-1){% endif %};">{{ item.db_value }}</span>{% else %}<span class="cm-text-muted">-</span>{% endif %}
           </td>
           <td style="padding:6px 10px; max-width:260px;">
-            {% if item.xml_value %}<span style="white-space:pre-wrap; color:{% if item.status == 'differ' %}var(--cm-warn){% else %}var(--cm-fg-1){% endif %};">{{ item.xml_value }}</span>{% else %}<span style="color:var(--cm-fg-3);">-</span>{% endif %}
+            {% if item.xml_value %}<span style="white-space:pre-wrap; color:{% if item.status == 'differ' %}var(--cm-warn){% else %}var(--cm-fg-1){% endif %};">{{ item.xml_value }}</span>{% else %}<span class="cm-text-muted">-</span>{% endif %}
           </td>
           <td style="padding:6px 10px;">
-            {% if item.status == 'match' %}<span class="cm-chip ok" style="font-size:10px;">Match</span>
-            {% elif item.status == 'differ' %}<span class="cm-chip warn" style="font-size:10px;">Different</span>
-            {% elif item.status == 'db_only' %}<span class="cm-chip info" style="font-size:10px;">DB Only</span>
-            {% elif item.status == 'xml_only' %}<span class="cm-chip err" style="font-size:10px;">XML Only</span>
-            {% else %}<span class="cm-chip" style="font-size:10px;">Empty</span>{% endif %}
+            {% if item.status == 'match' %}<span class="cm-chip ok" cm-text-xs">Match</span>
+            {% elif item.status == 'differ' %}<span class="cm-chip warn" cm-text-xs">Different</span>
+            {% elif item.status == 'db_only' %}<span class="cm-chip info" cm-text-xs">DB Only</span>
+            {% elif item.status == 'xml_only' %}<span class="cm-chip err" cm-text-xs">XML Only</span>
+            {% else %}<span class="cm-chip" cm-text-xs">Empty</span>{% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -265,38 +265,38 @@
 
 {% if comic.is_physical or not comparison %}
 <!-- Comic Metadata -->
-<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+<div class="cm-card">
   <div style="font-size:15px; font-weight:700; margin-bottom:14px;">Comic Metadata</div>
 
   <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px;">
     <div>
       <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Core Info</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
-        <div><span style="color:var(--cm-fg-3);">Series:</span> <span style="color:var(--cm-fg-1);">{{ comic.series|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Number:</span> <span style="color:var(--cm-fg-1);">{{ comic.number|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Title:</span> <span style="color:var(--cm-fg-1);">{{ comic.title|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Volume:</span> <span style="color:var(--cm-fg-1);">{{ comic.volume|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Count:</span> <span style="color:var(--cm-fg-1);">{{ comic.count|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Series:</span> <span class="cm-text-primary">{{ comic.series|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Number:</span> <span class="cm-text-primary">{{ comic.number|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Title:</span> <span class="cm-text-primary">{{ comic.title|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Volume:</span> <span class="cm-text-primary">{{ comic.volume|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Count:</span> <span class="cm-text-primary">{{ comic.count|default:"-" }}</span></div>
       </div>
     </div>
     <div>
       <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Publication</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
-        <div><span style="color:var(--cm-fg-3);">Publisher:</span> <span style="color:var(--cm-fg-1);">{{ comic.publisher|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Year:</span> <span style="color:var(--cm-fg-1);">{{ comic.year|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Month:</span> <span style="color:var(--cm-fg-1);">{{ comic.month|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Day:</span> <span style="color:var(--cm-fg-1);">{{ comic.day|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Format:</span> <span style="color:var(--cm-fg-1);">{{ comic.format|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Publisher:</span> <span class="cm-text-primary">{{ comic.publisher|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Year:</span> <span class="cm-text-primary">{{ comic.year|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Month:</span> <span class="cm-text-primary">{{ comic.month|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Day:</span> <span class="cm-text-primary">{{ comic.day|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Format:</span> <span class="cm-text-primary">{{ comic.format|default:"-" }}</span></div>
       </div>
     </div>
     <div>
       <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Classification</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
-        <div><span style="color:var(--cm-fg-3);">Genre:</span> <span style="color:var(--cm-fg-1);">{{ comic.genre|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Series Group:</span> <span style="color:var(--cm-fg-1);">{{ comic.series_group|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Main Character:</span> <span style="color:var(--cm-fg-1);">{{ comic.main_character_or_team|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Genre:</span> <span class="cm-text-primary">{{ comic.genre|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Series Group:</span> <span class="cm-text-primary">{{ comic.series_group|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Main Character:</span> <span class="cm-text-primary">{{ comic.main_character_or_team|default:"-" }}</span></div>
         {% if comic.is_physical %}
-        <div><span style="color:var(--cm-fg-3);">Storage Location:</span> <span style="color:var(--cm-fg-1);">{{ comic.storage_location|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Storage Location:</span> <span class="cm-text-primary">{{ comic.storage_location|default:"-" }}</span></div>
         {% endif %}
       </div>
     </div>
@@ -313,13 +313,13 @@
   <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
     <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Credits</div>
     <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:5px; font-size:12px;">
-      {% if comic.writer %}<div><span style="color:var(--cm-fg-3);">Writer:</span> <span style="color:var(--cm-fg-1);">{{ comic.writer }}</span></div>{% endif %}
-      {% if comic.penciller %}<div><span style="color:var(--cm-fg-3);">Penciller:</span> <span style="color:var(--cm-fg-1);">{{ comic.penciller }}</span></div>{% endif %}
-      {% if comic.inker %}<div><span style="color:var(--cm-fg-3);">Inker:</span> <span style="color:var(--cm-fg-1);">{{ comic.inker }}</span></div>{% endif %}
-      {% if comic.colorist %}<div><span style="color:var(--cm-fg-3);">Colorist:</span> <span style="color:var(--cm-fg-1);">{{ comic.colorist }}</span></div>{% endif %}
-      {% if comic.letterer %}<div><span style="color:var(--cm-fg-3);">Letterer:</span> <span style="color:var(--cm-fg-1);">{{ comic.letterer }}</span></div>{% endif %}
-      {% if comic.cover_artist %}<div><span style="color:var(--cm-fg-3);">Cover Artist:</span> <span style="color:var(--cm-fg-1);">{{ comic.cover_artist }}</span></div>{% endif %}
-      {% if comic.editor %}<div><span style="color:var(--cm-fg-3);">Editor:</span> <span style="color:var(--cm-fg-1);">{{ comic.editor }}</span></div>{% endif %}
+      {% if comic.writer %}<div><span class="cm-text-muted">Writer:</span> <span class="cm-text-primary">{{ comic.writer }}</span></div>{% endif %}
+      {% if comic.penciller %}<div><span class="cm-text-muted">Penciller:</span> <span class="cm-text-primary">{{ comic.penciller }}</span></div>{% endif %}
+      {% if comic.inker %}<div><span class="cm-text-muted">Inker:</span> <span class="cm-text-primary">{{ comic.inker }}</span></div>{% endif %}
+      {% if comic.colorist %}<div><span class="cm-text-muted">Colorist:</span> <span class="cm-text-primary">{{ comic.colorist }}</span></div>{% endif %}
+      {% if comic.letterer %}<div><span class="cm-text-muted">Letterer:</span> <span class="cm-text-primary">{{ comic.letterer }}</span></div>{% endif %}
+      {% if comic.cover_artist %}<div><span class="cm-text-muted">Cover Artist:</span> <span class="cm-text-primary">{{ comic.cover_artist }}</span></div>{% endif %}
+      {% if comic.editor %}<div><span class="cm-text-muted">Editor:</span> <span class="cm-text-primary">{{ comic.editor }}</span></div>{% endif %}
     </div>
   </div>
   {% endif %}
@@ -355,7 +355,7 @@
 {% endif %}
 
 <!-- File & System Info -->
-<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+<div class="cm-card">
   <div style="font-size:15px; font-weight:700; margin-bottom:14px;">File &amp; System Info</div>
 
   <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:16px;">
@@ -363,24 +363,24 @@
       <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">File Details</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
         {% if comic.file_path %}
-        <div><span style="color:var(--cm-fg-3);">Path:</span> <code style="font-size:11px; color:var(--cm-fg-1); word-break:break-all;">{{ comic.file_path }}</code></div>
+        <div><span class="cm-text-muted">Path:</span> <code style="font-size:11px; color:var(--cm-fg-1); word-break:break-all;">{{ comic.file_path }}</code></div>
         {% else %}
-        <div><span style="color:var(--cm-fg-3);">Path:</span> <span style="color:var(--cm-warn);">No file (physical comic)</span></div>
+        <div><span class="cm-text-muted">Path:</span> <span style="color:var(--cm-warn);">No file (physical comic)</span></div>
         {% endif %}
-        <div><span style="color:var(--cm-fg-3);">Format:</span> <span style="color:var(--cm-fg-1);">{{ comic.file_format|default:"-" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Size:</span> <span style="color:var(--cm-fg-1);">{% if comic.file_size %}{{ comic.file_size|filesizeformat }}{% else %}-{% endif %}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Pages:</span> <span style="color:var(--cm-fg-1);">{{ comic.page_count|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Format:</span> <span class="cm-text-primary">{{ comic.file_format|default:"-" }}</span></div>
+        <div><span class="cm-text-muted">Size:</span> <span class="cm-text-primary">{% if comic.file_size %}{{ comic.file_size|filesizeformat }}{% else %}-{% endif %}</span></div>
+        <div><span class="cm-text-muted">Pages:</span> <span class="cm-text-primary">{{ comic.page_count|default:"-" }}</span></div>
       </div>
     </div>
     <div>
       <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">System Info</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
-        <div><span style="color:var(--cm-fg-3);">ID:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.pk }}</code></div>
-        <div><span style="color:var(--cm-fg-3);">State:</span> <span style="color:var(--cm-fg-1);">{{ comic.state }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Medium:</span> <span style="color:var(--cm-fg-1);">{{ comic.medium }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Imported:</span> <span class="mono tnum" style="color:var(--cm-fg-1);">{{ comic.imported_at|date:"Y-m-d H:i" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Updated:</span> <span class="mono tnum" style="color:var(--cm-fg-1);">{{ comic.updated_at|date:"Y-m-d H:i" }}</span></div>
-        <div><span style="color:var(--cm-fg-3);">Last Written:</span> <span class="mono tnum" style="color:var(--cm-fg-1);">{% if comic.last_written %}{{ comic.last_written|date:"Y-m-d H:i:s" }}{% else %}-{% endif %}</span></div>
+        <div><span class="cm-text-muted">ID:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.pk }}</code></div>
+        <div><span class="cm-text-muted">State:</span> <span class="cm-text-primary">{{ comic.state }}</span></div>
+        <div><span class="cm-text-muted">Medium:</span> <span class="cm-text-primary">{{ comic.medium }}</span></div>
+        <div><span class="cm-text-muted">Imported:</span> <span class="mono tnum" cm-text-primary">{{ comic.imported_at|date:"Y-m-d H:i" }}</span></div>
+        <div><span class="cm-text-muted">Updated:</span> <span class="mono tnum" cm-text-primary">{{ comic.updated_at|date:"Y-m-d H:i" }}</span></div>
+        <div><span class="cm-text-muted">Last Written:</span> <span class="mono tnum" cm-text-primary">{% if comic.last_written %}{{ comic.last_written|date:"Y-m-d H:i:s" }}{% else %}-{% endif %}</span></div>
       </div>
     </div>
 
@@ -388,8 +388,8 @@
     <div>
       <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Cover Hashes</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
-        {% if comic.phash %}<div><span style="color:var(--cm-fg-3);">pHash:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.phash }}</code></div>{% endif %}
-        {% if comic.ahash %}<div><span style="color:var(--cm-fg-3);">aHash:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.ahash }}</code></div>{% endif %}
+        {% if comic.phash %}<div><span class="cm-text-muted">pHash:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.phash }}</code></div>{% endif %}
+        {% if comic.ahash %}<div><span class="cm-text-muted">aHash:</span> <code style="font-size:11px; color:var(--cm-fg-1);">{{ comic.ahash }}</code></div>{% endif %}
       </div>
     </div>
     {% endif %}
@@ -399,7 +399,7 @@
       <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent); margin-bottom:8px;">Custom Values</div>
       <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
         {% for key, value in display_custom_values.items %}
-        <div><span style="color:var(--cm-fg-3);">{{ key }}:</span> <span style="color:var(--cm-fg-1);">{{ value }}</span></div>
+        <div><span class="cm-text-muted">{{ key }}:</span> <span class="cm-text-primary">{{ value }}</span></div>
         {% endfor %}
       </div>
     </div>
@@ -441,7 +441,7 @@
 
   {% if comic.web %}
   <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
-    <a href="{{ comic.web }}" target="_blank" class="cm-btn sm ghost" style="text-decoration:none;">View on ComicVine</a>
+    <a href="{{ comic.web }}" target="_blank" class="cm-btn sm ghost" cm-no-underline">View on ComicVine</a>
   </div>
   {% endif %}
 </div>
@@ -476,10 +476,10 @@
 
       <div id="tag-changes-section">
         <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Field Changes</div>
-        <div style="overflow-x:auto;">
-          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <div class="cm-overflow-x">
+          <table class="cm-table">
             <thead>
-              <tr style="border-bottom:1px solid var(--cm-border);">
+              <tr class="cm-divider">
                 <th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">Field</th>
                 <th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">Action</th>
                 <th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">Value</th>
@@ -518,10 +518,10 @@
       <div style="margin-bottom:12px;">
         <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Text Analyzed</div>
         <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 12px; font-size:12px;">
-          <div style="margin-bottom:3px;"><span style="color:var(--cm-fg-3);">Series:</span> <span id="format-series" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
-          <div style="margin-bottom:3px;"><span style="color:var(--cm-fg-3);">Title:</span> <span id="format-title" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
-          <div style="margin-bottom:3px;"><span style="color:var(--cm-fg-3);">Issue Count:</span> <span id="format-count" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
-          <div><span style="color:var(--cm-fg-3);">Page Count:</span> <span id="format-page-count" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
+          <div style="margin-bottom:3px;"><span class="cm-text-muted">Series:</span> <span id="format-series" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
+          <div style="margin-bottom:3px;"><span class="cm-text-muted">Title:</span> <span id="format-title" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
+          <div style="margin-bottom:3px;"><span class="cm-text-muted">Issue Count:</span> <span id="format-count" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
+          <div><span class="cm-text-muted">Page Count:</span> <span id="format-page-count" style="color:var(--cm-fg-1); font-weight:600;"></span></div>
         </div>
       </div>
 
@@ -566,11 +566,11 @@
         <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">File Paths</div>
         <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 12px; font-size:12px;">
           <div style="margin-bottom:6px;">
-            <span style="color:var(--cm-fg-3);">From:</span>
+            <span class="cm-text-muted">From:</span>
             <div id="organize-old-path" style="font-family:monospace; font-size:11px; color:var(--cm-fg-1); word-break:break-all; margin-top:2px;"></div>
           </div>
           <div>
-            <span style="color:var(--cm-fg-3);">To:</span>
+            <span class="cm-text-muted">To:</span>
             <div id="organize-new-path" style="font-family:monospace; font-size:11px; color:var(--cm-ok); word-break:break-all; margin-top:2px;"></div>
           </div>
         </div>
@@ -617,8 +617,8 @@
     <!-- Content -->
     <div id="cv-compare-content" style="display:none; flex:1; overflow-y:auto; padding:14px 16px;">
       <div id="cv-compare-sources" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;"></div>
-      <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+      <div class="cm-overflow-x">
+        <table class="cm-table">
           <thead>
             <tr style="border-bottom:2px solid var(--cm-border);">
               <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; width:130px;">Field</th>
@@ -634,8 +634,8 @@
       </div>
       <div id="cv-compare-extras-section" style="display:none; margin-top:20px;">
         <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:8px;">Source-Specific Fields</div>
-        <div style="overflow-x:auto;">
-          <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <div class="cm-overflow-x">
+          <table class="cm-table">
             <thead>
               <tr style="border-bottom:2px solid var(--cm-border);">
                 <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; width:130px;">Field</th>
@@ -883,9 +883,9 @@ function openCvCompareModal() {
         if (item.status === 'differ') tr.style.background = 'var(--cm-warn-dim)';
 
         let statusBadge;
-        if (item.status === 'match') statusBadge = '<span class="cm-chip ok" style="font-size:10px;">Match</span>';
-        else if (item.status === 'differ') statusBadge = '<span class="cm-chip warn" style="font-size:10px;">Different</span>';
-        else statusBadge = '<span class="cm-chip" style="font-size:10px;">Empty</span>';
+        if (item.status === 'match') statusBadge = '<span class="cm-chip ok" cm-text-xs">Match</span>';
+        else if (item.status === 'differ') statusBadge = '<span class="cm-chip warn" cm-text-xs">Different</span>';
+        else statusBadge = '<span class="cm-chip" cm-text-xs">Empty</span>';
 
         const tdStyle = 'padding:6px 10px; max-width:220px;';
         tr.innerHTML = `
@@ -910,7 +910,7 @@ function openCvCompareModal() {
           tr.style.borderBottom = '1px solid var(--cm-border)';
           tr.innerHTML = `
             <td style="padding:6px 10px; font-weight:600; color:var(--cm-fg-1);">${escapeHtml(item.label)}</td>
-            <td style="padding:6px 10px;"><span class="cm-chip ${sourceChips[item.source] || ''}" style="font-size:10px;">${sourceLabels[item.source] || item.source}</span></td>
+            <td style="padding:6px 10px;"><span class="cm-chip ${sourceChips[item.source] || ''}" cm-text-xs">${sourceLabels[item.source] || item.source}</span></td>
             <td style="padding:6px 10px; max-width:320px; font-size:11px; color:var(--cm-fg-1); white-space:pre-wrap; word-break:break-word;">${escapeHtml(String(item.value))}</td>
           `;
           extrasBody.appendChild(tr);
@@ -1111,9 +1111,9 @@ function showTagResultModal(comicTitle, data) {
     const changesTable = document.getElementById('tag-changes-table');
     if (changesCount > 0) {
       changesTable.innerHTML = data.changes.map(change => `
-        <tr style="border-bottom:1px solid var(--cm-border);">
+        <tr class="cm-divider">
           <td style="padding:5px 8px; font-weight:600; color:var(--cm-fg-1);">${escapeHtml(change.field)}</td>
-          <td style="padding:5px 8px;"><span class="cm-chip ${getActionBadgeClass(change.modifier)}" style="font-size:10px;">${escapeHtml(change.modifier)}</span></td>
+          <td style="padding:5px 8px;"><span class="cm-chip ${getActionBadgeClass(change.modifier)}" cm-text-xs">${escapeHtml(change.modifier)}</span></td>
           <td style="padding:5px 8px; max-width:200px; overflow:hidden; text-overflow:ellipsis; color:var(--cm-fg-1);" title="${escapeHtml(change.new_value || '')}">${escapeHtml(change.new_value || '')}</td>
           <td style="padding:5px 8px; font-size:11px; color:var(--cm-fg-3);">${escapeHtml(change.ruleset_name || '')}</td>
         </tr>

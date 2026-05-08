@@ -13,7 +13,7 @@ Expects: rule (dict with type, field, operator, value OR type=group with nested 
 {% else %}
 <div style="display:flex; align-items:center; gap:6px; font-size:12px;">
   <span class="cm-chip accent" style="font-size:10.5px;">{{ rule.field }}</span>
-  <span style="color:var(--cm-fg-3);">{{ rule.operator }}</span>
+  <span class="cm-text-muted">{{ rule.operator }}</span>
   <span style="font-weight:500;">{{ rule.value }}</span>
 </div>
 {% endif %}

@@ -18,15 +18,15 @@
     </div>
   </div>
   <div style="display:flex; gap:8px;">
-    <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to List</a>
-    <a href="{% url 'organizer:profile_edit' profile.pk %}" class="cm-btn sm primary" style="text-decoration:none;">Edit</a>
+    <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" cm-no-underline">Back to List</a>
+    <a href="{% url 'organizer:profile_edit' profile.pk %}" class="cm-btn sm primary" cm-no-underline">Edit</a>
   </div>
 </div>
 
 <div style="padding:16px; display:flex; flex-direction:column; gap:12px;">
 
   <!-- Templates -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Templates</div>
     <div style="display:flex; flex-direction:column; gap:10px;">
       <div>
@@ -45,7 +45,7 @@
   </div>
 
   <!-- Matching Rules -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Matching Rules</div>
     {% if profile.exclude_rules.rules %}
     <div style="display:flex; gap:6px; margin-bottom:10px;">
@@ -63,7 +63,7 @@
   </div>
 
   <!-- Actions -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Actions</div>
     <div style="display:flex; gap:8px;">
       <form method="post" action="{% url 'organizer:profile_duplicate' profile.pk %}" class="inline">

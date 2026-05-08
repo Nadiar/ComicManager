@@ -9,8 +9,8 @@
   <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
     <h1 style="font-size:22px; font-weight:700; color:var(--cm-fg-1); margin:0;">Settings</h1>
     <div style="display:flex; gap:8px;">
-      <a href="/scraper/" class="cm-btn sm ghost" style="text-decoration:none;">Scraper</a>
-      <a href="{% url 'settings:log' %}" class="cm-btn sm ghost" style="text-decoration:none;">Batch Log</a>
+      <a href="/scraper/" class="cm-btn sm ghost" cm-no-underline">Scraper</a>
+      <a href="{% url 'settings:log' %}" class="cm-btn sm ghost" cm-no-underline">Batch Log</a>
     </div>
   </div>
 
@@ -128,34 +128,34 @@
     <div style="display:flex; flex-direction:column; gap:10px; font-size:13px;">
       <div style="display:flex; align-items:center; gap:10px;">
         {% if cv_status.db %}
-        <span class="cm-chip ok" style="font-size:10px;">connected</span>
+        <span class="cm-chip ok" cm-text-xs">connected</span>
         {% else %}
-        <span class="cm-chip err" style="font-size:10px;">not found</span>
+        <span class="cm-chip err" cm-text-xs">not found</span>
         {% endif %}
         <code style="font-size:12px; color:var(--cm-fg-1);">comicvine.db</code>
-        <span style="color:var(--cm-fg-3);">— local SQLite index (hash + metadata matching, Series Audit)</span>
+        <span class="cm-text-muted">— local SQLite index (hash + metadata matching, Series Audit)</span>
       </div>
       <div style="display:flex; align-items:center; gap:10px;">
         {% if cv_status.mcl %}
-        <span class="cm-chip ok" style="font-size:10px;">loaded</span>
+        <span class="cm-chip ok" cm-text-xs">loaded</span>
         {% else %}
-        <span class="cm-chip" style="font-size:10px;">not found</span>
+        <span class="cm-chip" cm-text-xs">not found</span>
         {% endif %}
         <code style="font-size:12px; color:var(--cm-fg-1);">latest.mcl</code>
         {% if cv_status.mcl %}
-        <span style="color:var(--cm-fg-3);">— {{ cv_status.mcl_count }} volume{% if cv_status.mcl_count != 1 %}s{% endif %} (Series Audit fallback)</span>
+        <span class="cm-text-muted">— {{ cv_status.mcl_count }} volume{% if cv_status.mcl_count != 1 %}s{% endif %} (Series Audit fallback)</span>
         {% else %}
-        <span style="color:var(--cm-fg-3);">— Series Audit fallback when comicvine.db is absent. Place in <code>./data/latest.mcl</code>.</span>
+        <span class="cm-text-muted">— Series Audit fallback when comicvine.db is absent. Place in <code>./data/latest.mcl</code>.</span>
         {% endif %}
       </div>
       <div style="display:flex; align-items:center; gap:10px;">
         {% if cv_status.api_key %}
-        <span class="cm-chip ok" style="font-size:10px;">configured</span>
+        <span class="cm-chip ok" cm-text-xs">configured</span>
         {% else %}
-        <span class="cm-chip warn" style="font-size:10px;">not set</span>
+        <span class="cm-chip warn" cm-text-xs">not set</span>
         {% endif %}
         <code style="font-size:12px; color:var(--cm-fg-1);">API key</code>
-        <span style="color:var(--cm-fg-3);">— ComicVine REST API (manual search + API-only batch scraping)</span>
+        <span class="cm-text-muted">— ComicVine REST API (manual search + API-only batch scraping)</span>
       </div>
     </div>
 

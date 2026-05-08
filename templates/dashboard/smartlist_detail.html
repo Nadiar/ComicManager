@@ -35,11 +35,11 @@
       </div>
     </div>
     {% if smart_list.has_cv_volume %}
-    <a href="{% url 'dashboard:smartlist_missing' smart_list.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Missing Issues</a>
+    <a href="{% url 'dashboard:smartlist_missing' smart_list.pk %}" class="cm-btn sm ghost" cm-no-underline">Missing Issues</a>
     {% endif %}
-    <a href="{% url 'dashboard:smartlist_export_cbl' smart_list.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Download CBL</a>
-    <a href="{% url 'dashboard:smartlist_edit' smart_list.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Edit</a>
-    <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Lists</a>
+    <a href="{% url 'dashboard:smartlist_export_cbl' smart_list.pk %}" class="cm-btn sm ghost" cm-no-underline">Download CBL</a>
+    <a href="{% url 'dashboard:smartlist_edit' smart_list.pk %}" class="cm-btn sm ghost" cm-no-underline">Edit</a>
+    <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" cm-no-underline">Back to Lists</a>
   </div>
 </div>
 
@@ -47,7 +47,7 @@
 <div id="action-progress" style="display:none; padding:10px 16px; border-bottom:1px solid var(--cm-border); background:var(--cm-bg-2);">
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px;">
     <span style="font-weight:600;" id="progress-label">Processing...</span>
-    <span style="color:var(--cm-fg-3);" id="progress-count">0 / 0</span>
+    <span class="cm-text-muted" id="progress-count">0 / 0</span>
   </div>
   <div style="background:var(--cm-bg-1); border-radius:3px; height:5px; overflow:hidden;">
     <div id="progress-bar-fill" style="height:100%; background:var(--cm-accent); width:0%; transition:width .3s;"></div>
@@ -100,26 +100,26 @@
   <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ comic_count }}</span></span>
   <div style="display:flex; gap:3px;">
     {% if page_obj.has_previous %}
-    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
-    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="cm-btn sm ghost" cm-no-underline">First</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" cm-no-underline">Prev</a>
     {% endif %}
     {% for num in page_obj.paginator.page_range %}
       {% if num == page_obj.number %}<button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
-      {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}<a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="cm-btn sm ghost" style="text-decoration:none;">{{ num }}</a>
+      {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}<a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="cm-btn sm ghost" cm-no-underline">{{ num }}</a>
       {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}<span style="color:var(--cm-fg-3); padding:0 4px;" class="mono">…</span>
       {% endif %}
     {% endfor %}
     {% if page_obj.has_next %}
-    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
-    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" cm-no-underline">Next</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" cm-no-underline">Last</a>
     {% endif %}
   </div>
 </div>
 {% endif %}
 
 <!-- Table -->
-<div style="overflow-x:auto;">
-  <table style="width:100%; border-collapse:collapse; font-size:12px;">
+<div class="cm-overflow-x">
+  <table class="cm-table">
     <thead>
       <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1); position:sticky; top:0; z-index:3;">
         {% for col_id in active_columns %}
@@ -158,18 +158,18 @@
   <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
   <div style="display:flex; gap:3px;">
     {% if page_obj.has_previous %}
-    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="cm-btn sm ghost" style="text-decoration:none;">First</a>
-    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Prev</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page=1" class="cm-btn sm ghost" cm-no-underline">First</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" cm-no-underline">Prev</a>
     {% endif %}
     {% for num in page_obj.paginator.page_range %}
       {% if num == page_obj.number %}<button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
-      {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}<a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="cm-btn sm ghost" style="text-decoration:none;">{{ num }}</a>
+      {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}<a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ num }}" class="cm-btn sm ghost" cm-no-underline">{{ num }}</a>
       {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}<span style="color:var(--cm-fg-3); padding:0 4px;" class="mono">…</span>
       {% endif %}
     {% endfor %}
     {% if page_obj.has_next %}
-    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" style="text-decoration:none;">Next</a>
-    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" style="text-decoration:none;">Last</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" cm-no-underline">Next</a>
+    <a href="?{% if query_string %}{{ query_string }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" cm-no-underline">Last</a>
     {% endif %}
   </div>
 </div>

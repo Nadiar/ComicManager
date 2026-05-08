@@ -13,7 +13,7 @@
       {{ total_tagged }} comic{{ total_tagged|pluralize }} in tagged state{% if total_reformat %} · {{ total_reformat }} need{{ total_reformat|pluralize:",s" }} re-formatting{% endif %}
     </p>
   </div>
-  <a href="/" class="cm-btn sm ghost" style="text-decoration:none;">Back to Dashboard</a>
+  <a href="/" class="cm-btn sm ghost" cm-no-underline">Back to Dashboard</a>
 </div>
 
 <div style="padding:16px; display:flex; flex-direction:column; gap:12px;">
@@ -37,33 +37,33 @@
   </div>
   <details>
     <summary style="cursor:pointer; font-size:12px; color:var(--cm-fg-3); user-select:none; margin-bottom:8px;">Show/hide {{ reformat_group.count }} comic{{ reformat_group.count|pluralize }}</summary>
-    <div style="overflow-x:auto;">
-      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+    <div class="cm-overflow-x">
+      <table class="cm-table">
         <thead>
-          <tr style="border-bottom:1px solid var(--cm-border);">
+          <tr class="cm-divider">
             <th style="padding:6px 10px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Series</th>
-            <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Vol</th>
-            <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">#</th>
-            <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Count</th>
-            <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Pages</th>
-            <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Publisher</th>
-            <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Current</th>
-            <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Suggested</th>
-            <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">State</th>
+            <th class="cm-th">Vol</th>
+            <th class="cm-th">#</th>
+            <th class="cm-th">Count</th>
+            <th class="cm-th">Pages</th>
+            <th class="cm-th">Publisher</th>
+            <th class="cm-th">Current</th>
+            <th class="cm-th">Suggested</th>
+            <th class="cm-th">State</th>
             <th style="padding:6px 10px;"></th>
           </tr>
         </thead>
         <tbody>
           {% for row in reformat_group.rows %}
-          <tr style="border-bottom:1px solid var(--cm-border);" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
-            <td style="padding:7px 10px; font-weight:500;"><a href="{% url 'core:detail' row.comic.pk %}" style="color:var(--cm-accent);">{{ row.comic.series|default:"—" }}</a></td>
+          <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <td style="padding:7px 10px; font-weight:500;"><a href="{% url 'core:detail' row.comic.pk %}" class="cm-text-accent">{{ row.comic.series|default:"—" }}</a></td>
             <td style="padding:7px 10px;" class="mono tnum">{{ row.comic.volume|default:"—" }}</td>
             <td style="padding:7px 10px;" class="mono tnum">{{ row.comic.number|default:"—" }}</td>
             <td style="padding:7px 10px;" class="mono tnum">{{ row.comic.count|default:"—" }}</td>
             <td style="padding:7px 10px;" class="mono tnum">{{ row.comic.page_count|default:"—" }}</td>
             <td style="padding:7px 10px; color:var(--cm-fg-2);">{{ row.comic.publisher|default:"—" }}</td>
-            <td style="padding:7px 10px;">{% if row.comic.format %}<span class="cm-chip" style="font-size:10.5px;">{{ row.comic.format }}</span>{% else %}<span style="color:var(--cm-fg-3);">—</span>{% endif %}</td>
-            <td style="padding:7px 10px;">{% if row.detected %}<span class="cm-chip {% if row.detected != row.comic.format %}warn{% else %}ok{% endif %}" style="font-size:10.5px;">{{ row.detected }}</span>{% else %}<span style="color:var(--cm-fg-3);">—</span>{% endif %}</td>
+            <td style="padding:7px 10px;">{% if row.comic.format %}<span class="cm-chip" style="font-size:10.5px;">{{ row.comic.format }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
+            <td style="padding:7px 10px;">{% if row.detected %}<span class="cm-chip {% if row.detected != row.comic.format %}warn{% else %}ok{% endif %}" style="font-size:10.5px;">{{ row.detected }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
             <td style="padding:7px 10px;"><span class="cm-chip info" style="font-size:10.5px;">{{ row.comic.state }}</span></td>
             <td style="padding:7px 10px; text-align:right;">
               <button type="button" class="cm-btn sm" style="color:var(--cm-ok); border-color:var(--cm-ok);"
@@ -82,7 +82,7 @@
 
 <!-- Format groups -->
 {% for group in format_groups %}
-<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+<div class="cm-card">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
     <div>
       <div style="font-size:15px; font-weight:700;">{{ group.name }}</div>
@@ -98,30 +98,30 @@
         hx-swap="outerHTML">Accept {{ group.name }}</button>
     </div>
   </div>
-  <div style="overflow-x:auto;">
-    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+  <div class="cm-overflow-x">
+    <table class="cm-table">
       <thead>
-        <tr style="border-bottom:1px solid var(--cm-border);">
+        <tr class="cm-divider">
           <th style="padding:6px 10px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Series</th>
-          <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Vol</th>
-          <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">#</th>
-          <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Count</th>
-          <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Pages</th>
-          <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Publisher</th>
-          <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Current</th>
-          <th style="padding:6px 10px; text-align:left; color:var(--cm-fg-2); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Suggested</th>
+          <th class="cm-th">Vol</th>
+          <th class="cm-th">#</th>
+          <th class="cm-th">Count</th>
+          <th class="cm-th">Pages</th>
+          <th class="cm-th">Publisher</th>
+          <th class="cm-th">Current</th>
+          <th class="cm-th">Suggested</th>
         </tr>
       </thead>
       <tbody>
         {% for comic in group.comics %}
-        <tr style="border-bottom:1px solid var(--cm-border);" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
-          <td style="padding:7px 10px; font-weight:500;"><a href="{% url 'core:detail' comic.pk %}" style="color:var(--cm-accent);">{{ comic.series|default:"—" }}</a></td>
+        <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          <td style="padding:7px 10px; font-weight:500;"><a href="{% url 'core:detail' comic.pk %}" class="cm-text-accent">{{ comic.series|default:"—" }}</a></td>
           <td style="padding:7px 10px;" class="mono tnum">{{ comic.volume|default:"—" }}</td>
           <td style="padding:7px 10px;" class="mono tnum">{{ comic.number|default:"—" }}</td>
           <td style="padding:7px 10px;" class="mono tnum">{{ comic.count|default:"—" }}</td>
           <td style="padding:7px 10px;" class="mono tnum">{{ comic.page_count|default:"—" }}</td>
           <td style="padding:7px 10px; color:var(--cm-fg-2);">{{ comic.publisher|default:"—" }}</td>
-          <td style="padding:7px 10px;">{% if comic.format %}<span class="cm-chip" style="font-size:10.5px;">{{ comic.format }}</span>{% else %}<span style="color:var(--cm-fg-3);">—</span>{% endif %}</td>
+          <td style="padding:7px 10px;">{% if comic.format %}<span class="cm-chip" style="font-size:10.5px;">{{ comic.format }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
           <td style="padding:7px 10px;"><span class="cm-chip {% if group.name != comic.format %}warn{% else %}ok{% endif %}" style="font-size:10.5px;">{{ group.name }}</span></td>
         </tr>
         {% endfor %}

@@ -9,7 +9,7 @@
   <h1 style="font-size:22px; font-weight:700; margin:0;">
     {% if is_create %}New Profile{% else %}Edit Profile{% endif %}
   </h1>
-  <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" style="text-decoration:none;">Cancel</a>
+  <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
 </div>
 
 <style>
@@ -55,11 +55,11 @@
   <input type="hidden" name="exclude_rules" id="exclude-rules-input" value="">
 
   <!-- Basic Settings -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Basic Settings</div>
     <div style="display:flex; flex-direction:column; gap:10px;">
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Name</label>
+        <label class="cm-label">Name</label>
         <input type="text" name="name" value="{{ profile.name|default:'' }}" class="cm-input" placeholder="Profile name" required style="width:100%; max-width:400px;">
       </div>
       {% if not is_create %}
@@ -74,19 +74,19 @@
   </div>
 
   <!-- Matching Rules -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:4px;">Matching Rules</div>
     <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:12px;">Define which comics this profile applies to. Leave empty to match all comics. Use groups for OR logic.</p>
     <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Mode</label>
+        <label class="cm-label">Mode</label>
         <select id="rule-mode" class="cm-input" style="height:30px; font-size:12px; min-width:180px;">
           <option value="Only">Only process matches</option>
           <option value="Do not">Exclude matches</option>
         </select>
       </div>
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Top-level match</label>
+        <label class="cm-label">Top-level match</label>
         <select id="rule-operator" class="cm-input" style="height:30px; font-size:12px; min-width:150px;">
           <option value="All">All rules (AND)</option>
           <option value="Any">Any rule (OR)</option>
@@ -101,29 +101,29 @@
   </div>
 
   <!-- Templates -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:4px;">Templates</div>
     <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:12px;">
-      Use placeholders like <code style="color:var(--cm-accent);">{&lt;series&gt;}</code>,
-      <code style="color:var(--cm-accent);">{&lt;publisher&gt;}</code>,
-      <code style="color:var(--cm-accent);">{#&lt;number3&gt;}</code> (padded 3 digits),
-      <code style="color:var(--cm-accent);">{&lt;Custom(First Series)&gt;}</code>
+      Use placeholders like <code class="cm-text-accent">{&lt;series&gt;}</code>,
+      <code class="cm-text-accent">{&lt;publisher&gt;}</code>,
+      <code class="cm-text-accent">{#&lt;number3&gt;}</code> (padded 3 digits),
+      <code class="cm-text-accent">{&lt;Custom(First Series)&gt;}</code>
     </p>
     <div style="display:flex; flex-direction:column; gap:12px;">
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Folder Template</label>
+        <label class="cm-label">Folder Template</label>
         <textarea name="folder_template" rows="3" class="cm-input" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"
           placeholder="{<publisher>}/{<series>} ({<volume0>})">{{ profile.folder_template|default:'{<publisher>}/{<series>}' }}</textarea>
         <div style="font-size:11px; color:var(--cm-fg-3); margin-top:3px;">Path segments separated by / or \</div>
       </div>
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">File Template</label>
+        <label class="cm-label">File Template</label>
         <textarea name="file_template" rows="3" class="cm-input" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"
           placeholder="{<series>} #{<number3>} [{<year>}]">{{ profile.file_template|default:'{<series>} #{<number3>}' }}</textarea>
         <div style="font-size:11px; color:var(--cm-fg-3); margin-top:3px;">Filename without extension</div>
       </div>
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Base Folder</label>
+        <label class="cm-label">Base Folder</label>
         <input type="text" name="base_folder" value="{{ profile.base_folder|default:'/comics/library' }}" class="cm-input" style="width:100%; font-family:monospace; font-size:12px;" placeholder="/comics/library">
         <div style="font-size:11px; color:var(--cm-fg-3); margin-top:3px;">Root folder for organized comics (inside container)</div>
       </div>
@@ -131,38 +131,38 @@
   </div>
 
   <!-- Template Reference -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:10px;">Template Reference</div>
     <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:4px; font-size:12px;">
-      <div><code style="color:var(--cm-accent);">{&lt;series&gt;}</code> Series name</div>
-      <div><code style="color:var(--cm-accent);">{&lt;publisher&gt;}</code> Publisher</div>
-      <div><code style="color:var(--cm-accent);">{&lt;format&gt;}</code> Format (TPB, etc)</div>
-      <div><code style="color:var(--cm-accent);">{&lt;volume&gt;}</code> Volume number</div>
-      <div><code style="color:var(--cm-accent);">{&lt;volume0&gt;}</code> Volume (default 0)</div>
-      <div><code style="color:var(--cm-accent);">{&lt;number&gt;}</code> Issue number</div>
-      <div><code style="color:var(--cm-accent);">{#&lt;number3&gt;}</code> Number padded (001)</div>
-      <div><code style="color:var(--cm-accent);">{&lt;year&gt;}</code> Year</div>
-      <div><code style="color:var(--cm-accent);">{&lt;month&gt;}</code> Month name</div>
-      <div><code style="color:var(--cm-accent);">{&lt;day&gt;}</code> Day</div>
-      <div><code style="color:var(--cm-accent);">{&lt;title&gt;}</code> Issue title</div>
-      <div><code style="color:var(--cm-accent);">{&lt;genre&gt;}</code> Genre</div>
-      <div><code style="color:var(--cm-accent);">{&lt;seriesgroup&gt;}</code> Series group</div>
-      <div><code style="color:var(--cm-accent);">{&lt;maincharacter&gt;}</code> Main character</div>
-      <div><code style="color:var(--cm-accent);">{&lt;writer&gt;}</code> Writer(s)</div>
-      <div><code style="color:var(--cm-accent);">{&lt;writer[1]&gt;}</code> First writer</div>
-      <div><code style="color:var(--cm-accent);">{&lt;writer[1][l]&gt;}</code> First writer last name</div>
-      <div><code style="color:var(--cm-accent);">{&lt;writer[1][f]&gt;}</code> First writer first name</div>
-      <div><code style="color:var(--cm-accent);">{&lt;penciller&gt;}</code> Penciller(s)</div>
-      <div><code style="color:var(--cm-accent);">{&lt;inker&gt;}</code> Inker</div>
-      <div><code style="color:var(--cm-accent);">{&lt;colorist&gt;}</code> Colorist</div>
-      <div><code style="color:var(--cm-accent);">{&lt;letterer&gt;}</code> Letterer</div>
-      <div><code style="color:var(--cm-accent);">{&lt;coverartist&gt;}</code> Cover artist</div>
-      <div><code style="color:var(--cm-accent);">{&lt;editor&gt;}</code> Editor</div>
-      <div><code style="color:var(--cm-accent);">{&lt;count&gt;}</code> Issue count</div>
-      <div><code style="color:var(--cm-accent);">{&lt;storyarc&gt;}</code> Story arc</div>
-      <div><code style="color:var(--cm-accent);">{&lt;altnumber&gt;}</code> Alternate number</div>
-      <div><code style="color:var(--cm-accent);">{&lt;startyear&gt;}</code> Series start year</div>
-      <div><code style="color:var(--cm-accent);">{&lt;Custom(X)&gt;}</code> Custom value</div>
+      <div><code class="cm-text-accent">{&lt;series&gt;}</code> Series name</div>
+      <div><code class="cm-text-accent">{&lt;publisher&gt;}</code> Publisher</div>
+      <div><code class="cm-text-accent">{&lt;format&gt;}</code> Format (TPB, etc)</div>
+      <div><code class="cm-text-accent">{&lt;volume&gt;}</code> Volume number</div>
+      <div><code class="cm-text-accent">{&lt;volume0&gt;}</code> Volume (default 0)</div>
+      <div><code class="cm-text-accent">{&lt;number&gt;}</code> Issue number</div>
+      <div><code class="cm-text-accent">{#&lt;number3&gt;}</code> Number padded (001)</div>
+      <div><code class="cm-text-accent">{&lt;year&gt;}</code> Year</div>
+      <div><code class="cm-text-accent">{&lt;month&gt;}</code> Month name</div>
+      <div><code class="cm-text-accent">{&lt;day&gt;}</code> Day</div>
+      <div><code class="cm-text-accent">{&lt;title&gt;}</code> Issue title</div>
+      <div><code class="cm-text-accent">{&lt;genre&gt;}</code> Genre</div>
+      <div><code class="cm-text-accent">{&lt;seriesgroup&gt;}</code> Series group</div>
+      <div><code class="cm-text-accent">{&lt;maincharacter&gt;}</code> Main character</div>
+      <div><code class="cm-text-accent">{&lt;writer&gt;}</code> Writer(s)</div>
+      <div><code class="cm-text-accent">{&lt;writer[1]&gt;}</code> First writer</div>
+      <div><code class="cm-text-accent">{&lt;writer[1][l]&gt;}</code> First writer last name</div>
+      <div><code class="cm-text-accent">{&lt;writer[1][f]&gt;}</code> First writer first name</div>
+      <div><code class="cm-text-accent">{&lt;penciller&gt;}</code> Penciller(s)</div>
+      <div><code class="cm-text-accent">{&lt;inker&gt;}</code> Inker</div>
+      <div><code class="cm-text-accent">{&lt;colorist&gt;}</code> Colorist</div>
+      <div><code class="cm-text-accent">{&lt;letterer&gt;}</code> Letterer</div>
+      <div><code class="cm-text-accent">{&lt;coverartist&gt;}</code> Cover artist</div>
+      <div><code class="cm-text-accent">{&lt;editor&gt;}</code> Editor</div>
+      <div><code class="cm-text-accent">{&lt;count&gt;}</code> Issue count</div>
+      <div><code class="cm-text-accent">{&lt;storyarc&gt;}</code> Story arc</div>
+      <div><code class="cm-text-accent">{&lt;altnumber&gt;}</code> Alternate number</div>
+      <div><code class="cm-text-accent">{&lt;startyear&gt;}</code> Series start year</div>
+      <div><code class="cm-text-accent">{&lt;Custom(X)&gt;}</code> Custom value</div>
     </div>
   </div>
 
@@ -170,7 +170,7 @@
     <button type="submit" class="cm-btn sm primary">
       {% if is_create %}Create Profile{% else %}Save Changes{% endif %}
     </button>
-    <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" style="text-decoration:none;">Cancel</a>
+    <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
   </div>
 </form>
 

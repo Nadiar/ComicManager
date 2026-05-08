@@ -21,12 +21,12 @@
   <div style="background:var(--cm-bg-1); border:1px solid color-mix(in srgb, var(--cm-warn) 30%, var(--cm-border)); border-radius:8px; padding:18px 20px;">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
       <span style="font-size:14px; font-weight:600; color:var(--cm-warn);">Uncovered Publishers</span>
-      <span class="cm-chip warn" style="font-size:10px;">{{ uncovered_count }}</span>
+      <span class="cm-chip warn" cm-text-xs">{{ uncovered_count }}</span>
     </div>
     <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">These publishers have no matching tagging ruleset. Comics from these publishers are flagged as "Unknown Publisher".</p>
     <table style="width:100%; border-collapse:collapse; font-size:13px;">
       <thead>
-        <tr style="border-bottom:1px solid var(--cm-border);">
+        <tr class="cm-divider">
           <th style="text-align:left; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Publisher</th>
           <th style="text-align:right; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Comics</th>
           <th style="padding:6px 10px 8px;"></th>
@@ -34,13 +34,13 @@
       </thead>
       <tbody>
         {% for pub in uncovered %}
-        <tr style="border-bottom:1px solid var(--cm-border);">
+        <tr class="cm-divider">
           <td style="padding:8px 10px; font-weight:500; color:var(--cm-fg-1);">{{ pub.name }}</td>
           <td style="padding:8px 10px; text-align:right;">
             <a href="/comics/?publisher={{ pub.name|urlencode }}" style="color:var(--cm-accent); text-decoration:none; font-family:monospace;">{{ pub.comic_count }}</a>
           </td>
           <td style="padding:8px 10px; text-align:right;">
-            <a href="{% url 'tagging:ruleset_create' %}?publisher={{ pub.name|urlencode }}" class="cm-btn sm primary" style="text-decoration:none;">Create Ruleset</a>
+            <a href="{% url 'tagging:ruleset_create' %}?publisher={{ pub.name|urlencode }}" class="cm-btn sm primary" cm-no-underline">Create Ruleset</a>
           </td>
         </tr>
         {% endfor %}
@@ -53,13 +53,13 @@
   <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:18px 20px;">
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
       <span style="font-size:14px; font-weight:600; color:var(--cm-ok);">Covered Publishers</span>
-      <span class="cm-chip ok" style="font-size:10px;">{{ known_count }}</span>
+      <span class="cm-chip ok" cm-text-xs">{{ known_count }}</span>
     </div>
     <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">These publishers are matched by at least one enabled tagging ruleset.</p>
     {% if known %}
     <table style="width:100%; border-collapse:collapse; font-size:13px;">
       <thead>
-        <tr style="border-bottom:1px solid var(--cm-border);">
+        <tr class="cm-divider">
           <th style="text-align:left; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Publisher</th>
           <th style="text-align:right; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Comics</th>
           <th style="text-align:left; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Rulesets</th>
@@ -67,7 +67,7 @@
       </thead>
       <tbody>
         {% for pub in known %}
-        <tr style="border-bottom:1px solid var(--cm-border);">
+        <tr class="cm-divider">
           <td style="padding:8px 10px; font-weight:500; color:var(--cm-fg-1);">{{ pub.name }}</td>
           <td style="padding:8px 10px; text-align:right;">
             {% if pub.comic_count %}

@@ -8,27 +8,27 @@
 <div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
   <h1 style="font-size:22px; font-weight:700; margin:0;">File Organizer Profiles</h1>
   <div style="display:flex; gap:8px;">
-    <a href="{% url 'organizer:import' %}" class="cm-btn sm ghost" style="text-decoration:none;">Import .lop</a>
-    {% if profiles %}<a href="{% url 'organizer:export' %}" class="cm-btn sm ghost" style="text-decoration:none;">Export .lop</a>{% endif %}
-    <a href="{% url 'organizer:profile_create' %}" class="cm-btn sm primary" style="text-decoration:none;">New Profile</a>
+    <a href="{% url 'organizer:import' %}" class="cm-btn sm ghost" cm-no-underline">Import .lop</a>
+    {% if profiles %}<a href="{% url 'organizer:export' %}" class="cm-btn sm ghost" cm-no-underline">Export .lop</a>{% endif %}
+    <a href="{% url 'organizer:profile_create' %}" class="cm-btn sm primary" cm-no-underline">New Profile</a>
   </div>
 </div>
 
 <!-- Stats -->
 <div style="padding:12px 16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; border-bottom:1px solid var(--cm-border);">
-  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+  <div class="cm-card-sm">
     <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Total Profiles</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-accent); margin-top:2px;" class="mono tnum">{{ stats.total_profiles }}</div>
   </div>
-  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+  <div class="cm-card-sm">
     <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Enabled</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ stats.enabled_profiles }}</div>
   </div>
-  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+  <div class="cm-card-sm">
     <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Pending</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-warn); margin-top:2px;" class="mono tnum">{{ stats.pending_organization }}</div>
   </div>
-  <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:12px;">
+  <div class="cm-card-sm">
     <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">Organized</div>
     <div style="font-size:26px; font-weight:700; color:var(--cm-info); margin-top:2px;" class="mono tnum">{{ stats.already_organized }}</div>
   </div>
@@ -38,8 +38,8 @@
 <!-- Profiles Table -->
 <div style="padding:16px;">
   <div style="font-size:12px; color:var(--cm-fg-3); margin-bottom:10px;">Comics are matched against profiles in priority order. The first matching profile determines the destination path.</div>
-  <div style="overflow-x:auto;">
-    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+  <div class="cm-overflow-x">
+    <table class="cm-table">
       <thead>
         <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1);">
           <th style="padding:8px 12px; width:24px;"></th>
@@ -57,7 +57,7 @@
           <td style="padding:8px 12px; color:var(--cm-fg-3); cursor:grab; user-select:none; font-size:14px;" class="drag-handle">⠿</td>
           <td style="padding:8px 12px;" class="mono tnum priority-cell">{{ profile.priority }}</td>
           <td style="padding:8px 12px; font-weight:500;">
-            <a href="{% url 'organizer:profile_detail' profile.pk %}" style="color:var(--cm-accent);">{{ profile.name }}</a>
+            <a href="{% url 'organizer:profile_detail' profile.pk %}" class="cm-text-accent">{{ profile.name }}</a>
           </td>
           <td style="padding:8px 12px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
             <code style="font-size:10.5px; color:var(--cm-fg-2);" title="{{ profile.folder_template }}">{{ profile.folder_template|truncatechars:60 }}</code>
@@ -67,7 +67,7 @@
             {% if rule_count %}
             <span class="cm-chip" style="font-size:10.5px;" class="mono tnum">{{ rule_count }}</span>
             {% else %}
-            <span style="color:var(--cm-fg-3);">—</span>
+            <span class="cm-text-muted">—</span>
             {% endif %}
             {% endwith %}
           </td>
@@ -80,7 +80,7 @@
           </td>
           <td style="padding:8px 12px;">
             <div style="display:flex; gap:4px;">
-              <a href="{% url 'organizer:profile_edit' profile.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Edit</a>
+              <a href="{% url 'organizer:profile_edit' profile.pk %}" class="cm-btn sm ghost" cm-no-underline">Edit</a>
               <button onclick="toggleProfile({{ profile.pk }}, this)" class="cm-btn sm ghost">
                 {% if profile.is_enabled %}Disable{% else %}Enable{% endif %}
               </button>

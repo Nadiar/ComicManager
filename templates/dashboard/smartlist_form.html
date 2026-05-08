@@ -7,7 +7,7 @@
 <!-- Header -->
 <div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border);">
   <h1 style="font-size:22px; font-weight:700; margin:0;">{% if mode == 'edit' %}Edit{% else %}Create{% endif %} Smart List</h1>
-  <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Lists</a>
+  <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" cm-no-underline">Back to Lists</a>
 </div>
 
 <style>
@@ -52,26 +52,26 @@
   {% csrf_token %}
 
   <!-- Basic Info -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Basic Info</div>
     <div style="display:grid; grid-template-columns:1fr auto; gap:12px; margin-bottom:10px;">
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Name</label>
+        <label class="cm-label">Name</label>
         <input type="text" name="name" value="{{ smart_list.name|default:'' }}" class="cm-input" placeholder="e.g., My Batman Collection" required style="width:100%;">
       </div>
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Icon (optional)</label>
+        <label class="cm-label">Icon (optional)</label>
         <input type="text" name="icon" value="{{ smart_list.icon|default:'' }}" class="cm-input" placeholder="e.g., DC" maxlength="32" style="width:80px;">
       </div>
     </div>
     <div>
-      <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Description (optional)</label>
+      <label class="cm-label">Description (optional)</label>
       <textarea name="description" class="cm-input" rows="2" placeholder="What does this smart list track?" style="width:100%; resize:vertical;">{{ smart_list.description|default:'' }}</textarea>
     </div>
   </div>
 
   <!-- Filters -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
       <div style="font-size:15px; font-weight:700;">Filters</div>
       <div style="display:flex; gap:8px;">
@@ -85,11 +85,11 @@
   </div>
 
   <!-- ComicVine Volume -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:4px;">ComicVine Volume (Missing Issues)</div>
     <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:10px;">Link a ComicVine volume to compare your library against and find missing issues.</p>
     <div>
-      <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Search CV Volume</label>
+      <label class="cm-label">Search CV Volume</label>
       <input type="text" id="cv-search-input" class="cm-input" placeholder="Type a series name to search..."
              hx-get="{% url 'dashboard:smartlist_cv_search' %}"
              hx-trigger="keyup changed delay:300ms"
@@ -111,11 +111,11 @@
   </div>
 
   <!-- Sort & Display -->
-  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div class="cm-card">
     <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Sort & Display</div>
     <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:12px; margin-bottom:12px; align-items:end;">
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Sort by</label>
+        <label class="cm-label">Sort by</label>
         <select name="sort_field" class="cm-input" style="height:30px; font-size:12px; width:100%;">
           {% for value, label in sort_options %}
           <option value="{{ value }}" {% if smart_list.sort_field == value %}selected{% endif %}>{{ label }}</option>
@@ -123,7 +123,7 @@
         </select>
       </div>
       <div>
-        <label style="display:block; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Direction</label>
+        <label class="cm-label">Direction</label>
         <select name="sort_direction" class="cm-input" style="height:30px; font-size:12px; width:100%;">
           <option value="asc" {% if smart_list.sort_direction == 'asc' or not smart_list %}selected{% endif %}>Ascending</option>
           <option value="desc" {% if smart_list.sort_direction == 'desc' %}selected{% endif %}>Descending</option>
@@ -160,7 +160,7 @@
               onclick="showConfirm('Delete this smart list?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
     </form>
     {% endif %}
-    <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" style="text-decoration:none;">Cancel</a>
+    <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
     <button type="submit" class="cm-btn sm primary">{% if mode == 'edit' %}Save Changes{% else %}Create Smart List{% endif %}</button>
   </div>
 </form>

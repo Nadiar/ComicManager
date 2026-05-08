@@ -669,3 +669,55 @@ html, body {
 /* ── Constrained modal images (kept from original) ─────────────────────────── */
 .modal-cover-img { width: 100px; height: auto; object-fit: contain; }
 .modal-cover-lg  { width: 150px; height: auto; max-height: 220px; object-fit: contain; }
+
+/* ── Utility classes (replaces high-frequency inline styles) ────────────────── */
+.cm-no-underline  { text-decoration: none; }
+.cm-text-muted    { color: var(--cm-fg-3); }
+.cm-text-accent   { color: var(--cm-accent); }
+.cm-text-primary  { color: var(--cm-fg-1); }
+.cm-text-xs       { font-size: 10px; }
+.cm-divider       { border-bottom: 1px solid var(--cm-border); }
+.cm-overflow-x    { overflow-x: auto; }
+
+.cm-card {
+  background: var(--cm-bg-1);
+  border: 1px solid var(--cm-border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.cm-card-sm {
+  background: var(--cm-bg-2);
+  border: 1px solid var(--cm-border);
+  border-radius: 6px;
+  padding: 12px;
+}
+.cm-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--cm-fg-3);
+  margin-bottom: 4px;
+}
+.cm-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--cm-fg-3);
+}
+.cm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.cm-th {
+  padding: 6px 10px;
+  text-align: left;
+  color: var(--cm-fg-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}

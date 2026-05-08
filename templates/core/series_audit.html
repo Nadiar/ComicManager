@@ -9,8 +9,8 @@
 <div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border);">
   <h1 style="font-size:22px; font-weight:700; margin:0;">Series Audit</h1>
   <div style="display:flex; gap:8px;">
-    {% if comic %}<a href="{% url 'core:detail' comic.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Comic</a>{% endif %}
-    <a href="{% url 'core:character_audit_search' %}" class="cm-btn sm ghost" style="text-decoration:none;">Audit Search</a>
+    {% if comic %}<a href="{% url 'core:detail' comic.pk %}" class="cm-btn sm ghost" cm-no-underline">Back to Comic</a>{% endif %}
+    <a href="{% url 'core:character_audit_search' %}" class="cm-btn sm ghost" cm-no-underline">Audit Search</a>
   </div>
 </div>
 <div style="margin:20px 16px; padding:14px 16px; background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.3); border-radius:8px; font-size:13px;">
@@ -34,8 +34,8 @@
     </div>
   </div>
   <div style="display:flex; gap:8px; flex-shrink:0;">
-    {% if comic %}<a href="{% url 'core:detail' comic.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Back to Comic</a>{% endif %}
-    <a href="{% url 'core:character_audit_search' %}" class="cm-btn sm ghost" style="text-decoration:none;">Audit Search</a>
+    {% if comic %}<a href="{% url 'core:detail' comic.pk %}" class="cm-btn sm ghost" cm-no-underline">Back to Comic</a>{% endif %}
+    <a href="{% url 'core:character_audit_search' %}" class="cm-btn sm ghost" cm-no-underline">Audit Search</a>
   </div>
 </div>
 

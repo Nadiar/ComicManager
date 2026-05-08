@@ -10,9 +10,9 @@
     <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;">{{ enabled_count }} enabled / {{ total_count }} total rulesets</p>
   </div>
   <div style="display:flex; gap:8px;">
-    <a href="{% url 'tagging:import' %}" class="cm-btn sm ghost" style="text-decoration:none;">Import</a>
-    <a href="{% url 'tagging:export' %}" class="cm-btn sm ghost" style="text-decoration:none;">Export</a>
-    <a href="{% url 'tagging:ruleset_create' %}" class="cm-btn sm primary" style="text-decoration:none;">Create Ruleset</a>
+    <a href="{% url 'tagging:import' %}" class="cm-btn sm ghost" cm-no-underline">Import</a>
+    <a href="{% url 'tagging:export' %}" class="cm-btn sm ghost" cm-no-underline">Export</a>
+    <a href="{% url 'tagging:ruleset_create' %}" class="cm-btn sm primary" cm-no-underline">Create Ruleset</a>
   </div>
 </div>
 
@@ -63,7 +63,7 @@
           </select>
         </div>
         <button type="submit" class="cm-btn sm primary">Filter</button>
-        <a href="{% url 'tagging:ruleset_list' %}" class="cm-btn sm ghost" style="text-decoration:none;">Clear</a>
+        <a href="{% url 'tagging:ruleset_list' %}" class="cm-btn sm ghost" cm-no-underline">Clear</a>
       </form>
       {% if group %}
       <div style="font-size:11px; color:var(--cm-fg-3); margin-top:8px;">
@@ -75,8 +75,8 @@
 
     <!-- Rulesets Table -->
     <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; overflow:hidden;">
-      <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse; font-size:12px;">
+      <div class="cm-overflow-x">
+        <table class="cm-table">
           <thead>
             <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1);">
               <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:60px;">Priority</th>
@@ -91,10 +91,10 @@
           </thead>
           <tbody>
             {% for ruleset in rulesets %}
-            <tr style="border-bottom:1px solid var(--cm-border);" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
               <td style="padding:8px 12px;" class="mono tnum">{{ ruleset.priority }}</td>
               <td style="padding:8px 12px; font-weight:500;">
-                <a href="{% url 'tagging:ruleset_detail' ruleset.pk %}" style="color:var(--cm-accent);">{{ ruleset.name }}</a>
+                <a href="{% url 'tagging:ruleset_detail' ruleset.pk %}" class="cm-text-accent">{{ ruleset.name }}</a>
               </td>
               <td style="padding:8px 12px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--cm-fg-2);" title="{{ ruleset.group_path }}">
                 {{ ruleset.group_path|default:"—" }}
@@ -114,7 +114,7 @@
               </td>
               <td style="padding:8px 12px;">
                 <div style="display:flex; gap:4px;">
-                  <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Edit</a>
+                  <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="cm-btn sm ghost" cm-no-underline">Edit</a>
                   <form method="post" action="{% url 'tagging:ruleset_duplicate' ruleset.pk %}" class="inline">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
@@ -150,11 +150,11 @@
     {% if rulesets.has_other_pages %}
     <div style="padding:8px 0; display:flex; justify-content:center; gap:4px; margin-top:10px;">
       {% if rulesets.has_previous %}
-      <a href="?page={{ rulesets.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="cm-btn sm ghost" style="text-decoration:none;">«</a>
+      <a href="?page={{ rulesets.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="cm-btn sm ghost" cm-no-underline">«</a>
       {% endif %}
       <span class="cm-btn sm ghost" style="cursor:default;">Page {{ rulesets.number }} of {{ rulesets.paginator.num_pages }}</span>
       {% if rulesets.has_next %}
-      <a href="?page={{ rulesets.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="cm-btn sm ghost" style="text-decoration:none;">»</a>
+      <a href="?page={{ rulesets.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="cm-btn sm ghost" cm-no-underline">»</a>
       {% endif %}
     </div>
     {% endif %}

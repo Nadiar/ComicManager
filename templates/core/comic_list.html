@@ -102,7 +102,7 @@
   <!-- Count -->
   <span class="cm-chip" style="padding:3px 10px; flex-shrink:0;">
     <span class="mono tnum">{{ total_count }}</span>
-    <span style="color:var(--cm-fg-3);">comics</span>
+    <span class="cm-text-muted">comics</span>
   </span>
 
   <!-- Columns (table and compact view) -->
@@ -196,8 +196,8 @@
   </div>
   {% endif %}
   {% if current_medium == 'physical' %}
-  <a href="{% url 'physical:import_csv' %}" class="cm-btn sm" style="text-decoration:none;">CSV Import</a>
-  <a href="{% url 'physical:add' %}" class="cm-btn sm primary" style="text-decoration:none;">+ Physical</a>
+  <a href="{% url 'physical:import_csv' %}" class="cm-btn sm" cm-no-underline">CSV Import</a>
+  <a href="{% url 'physical:add' %}" class="cm-btn sm primary" cm-no-underline">+ Physical</a>
   {% endif %}
 </div>
 
@@ -330,7 +330,7 @@
 <div id="bulk-action-bar" style="flex-shrink:0; z-index:5; display:flex; align-items:center; gap:8px; padding:7px 14px; background:var(--cm-bg-1); border-top:1px solid var(--cm-border); flex-wrap:wrap;">
   <span style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; flex-shrink:0;">
     <span class="sel-count mono tnum" style="background:var(--cm-bg-3); color:var(--cm-fg-2); padding:1px 7px; border-radius:4px; font-weight:700; min-width:20px; text-align:center;">0</span>
-    <span style="color:var(--cm-fg-3);">selected</span>
+    <span class="cm-text-muted">selected</span>
   </span>
   <span style="color:var(--cm-border); font-size:12px; flex-shrink:0;">|</span>
   <button class="cm-btn sm bulk-action-btn" onclick="bulkRunPipeline(this)" disabled>Run Pipeline</button>
