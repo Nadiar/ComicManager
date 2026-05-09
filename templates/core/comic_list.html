@@ -1302,51 +1302,35 @@ function deleteComic(pk, btn) {
   );
 }
 
-function tagComic(pk, btn) {
+function comicActionWithModal(pk, urlPath, successLabel, resultModalFn, btn, onSuccess) {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
-
-  // Get comic title from the row for display
   const row = btn.closest('tr');
-  const seriesCell = row.querySelector('td:first-child');
-  const numberCell = row.querySelector('td:nth-child(2)');
-  const comicTitle = `${seriesCell?.textContent || 'Unknown'} #${numberCell?.textContent || '?'}`;
-
-  fetch(`/comics/${pk}/tag/`, {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      btn.classList.remove('btn-accent');
-      btn.classList.add('btn-success');
-      btn.innerHTML = 'Tagged';
-
-      // Update state badge
-      const stateBadge = row.querySelector('td .badge-info, td .badge-warning');
-      if (stateBadge) {
-        stateBadge.textContent = data.state === 'formats' ? 'Add Formats' : 'Tagging';
+  const comicTitle = `${row.querySelector('td:first-child')?.textContent || 'Unknown'} #${row.querySelector('td:nth-child(2)')?.textContent || '?'}`;
+  fetch(`/comics/${pk}/${urlPath}/`, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        btn.innerHTML = successLabel;
+        if (onSuccess) onSuccess(row, data);
+        resultModalFn(comicTitle, data);
+      } else {
+        btn.innerHTML = 'Error';
+        btn.title = data.error || 'Failed';
+        btn.disabled = false;
       }
-
-      // Show results modal
-      showTagResultModal(comicTitle, data);
-    } else {
-      btn.classList.remove('btn-accent');
-      btn.classList.add('btn-error');
+    })
+    .catch(err => {
       btn.innerHTML = 'Error';
-      btn.title = data.error || 'Failed to tag';
+      btn.title = err.toString();
       btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-accent');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
+    });
+}
+
+function tagComic(pk, btn) {
+  comicActionWithModal(pk, 'tag', 'Tagged', showTagResultModal, btn, (row, data) => {
+    const badge = row.querySelector('td .badge-info, td .badge-warning');
+    if (badge) badge.textContent = data.state === 'formats' ? 'Add Formats' : 'Tagging';
   });
 }
 
@@ -1428,50 +1412,9 @@ function fixCountMismatches(btn) {
 }
 
 function formatComic(pk, btn) {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
-
-  // Get comic title from the row for display
-  const row = btn.closest('tr');
-  const seriesCell = row.querySelector('td:first-child');
-  const numberCell = row.querySelector('td:nth-child(2)');
-  const comicTitle = `${seriesCell?.textContent || 'Unknown'} #${numberCell?.textContent || '?'}`;
-
-  fetch(`/comics/${pk}/format/`, {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-success');
-      btn.innerHTML = 'Formatted';
-
-      // Update state badge
-      const stateBadge = row.querySelector('td .badge-info');
-      if (stateBadge) {
-        stateBadge.textContent = 'Add Formats';
-      }
-
-      // Show results modal
-      showFormatResultModal(comicTitle, data);
-    } else {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
-      btn.title = data.error || 'Failed to format';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-info');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
+  comicActionWithModal(pk, 'format', 'Formatted', showFormatResultModal, btn, (row) => {
+    const badge = row.querySelector('td .badge-info');
+    if (badge) badge.textContent = 'Add Formats';
   });
 }
 
