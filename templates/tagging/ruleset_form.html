@@ -14,33 +14,6 @@
   <a href="{% url 'tagging:ruleset_list' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
 </div>
 
-<style>
-/* Shims for JS-generated DaisyUI elements */
-.select-bordered, .input-bordered, .textarea-bordered {
-  border: 1px solid var(--cm-border);
-  background: var(--cm-bg-1);
-  color: var(--cm-fg-1);
-  border-radius: 4px;
-  padding: 4px 8px;
-  outline: none;
-  font-size: 12px;
-}
-.select-bordered:focus, .input-bordered:focus { border-color: var(--cm-accent); }
-.select-sm, .input-sm { height: 28px; font-size: 12px; }
-.bg-base-300 { background: var(--cm-bg-2) !important; }
-.rounded-lg { border-radius: 6px !important; }
-.p-3 { padding: 10px 12px !important; }
-.btn-ghost.btn-sm.btn-square, .btn-ghost.btn-sm { background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; padding: 4px 8px; font-size: 12px; color: var(--cm-fg-2); }
-.text-error { color: var(--cm-err) !important; }
-.btn-ghost.btn-sm.btn-square { width: 28px; height: 28px; padding: 0; text-align: center; }
-.flex { display: flex !important; }
-.flex-wrap { flex-wrap: wrap !important; }
-.gap-2 { gap: 8px !important; }
-.items-center { align-items: center !important; }
-.flex-1 { flex: 1 !important; }
-.min-w-48 { min-width: 180px !important; }
-.w-40 { width: 160px !important; }
-</style>
 
 <form method="post" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
   {% csrf_token %}

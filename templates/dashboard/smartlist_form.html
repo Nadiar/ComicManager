@@ -10,43 +10,6 @@
   <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" cm-no-underline">Back to Lists</a>
 </div>
 
-<style>
-/* Shims for JS-generated DaisyUI elements */
-.select-bordered, .input-bordered, .textarea-bordered {
-  border: 1px solid var(--cm-border);
-  background: var(--cm-bg-1);
-  color: var(--cm-fg-1);
-  border-radius: 4px;
-  padding: 4px 8px;
-  outline: none;
-  font-size: 12px;
-}
-.select-bordered:focus, .input-bordered:focus { border-color: var(--cm-accent); }
-.select-sm { height: 28px; font-size: 12px; }
-.select-xs { height: 22px; font-size: 11px; padding: 2px 6px; }
-.input-sm { height: 28px; font-size: 12px; }
-.bg-base-100 { background: var(--cm-bg-1) !important; }
-.rounded-lg { border-radius: 6px !important; }
-.p-3 { padding: 10px 12px !important; }
-.space-y-2 > * + * { margin-top: 6px; }
-.btn-xs.btn-error.btn-outline { background: transparent; border: 1px solid var(--cm-err); border-radius: 4px; cursor: pointer; padding: 2px 8px; font-size: 11px; color: var(--cm-err); }
-.btn-xs.btn-ghost { background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; padding: 2px 8px; font-size: 11px; color: var(--cm-fg-2); }
-.btn-xs.btn-ghost:hover { background: var(--cm-bg-2); }
-.ml-auto { margin-left: auto !important; }
-.flex { display: flex !important; }
-.gap-2 { gap: 8px !important; }
-.items-center { align-items: center !important; }
-.flex-1 { flex: 1 !important; }
-.w-48 { width: 180px !important; }
-.w-40 { width: 160px !important; }
-/* OR group container */
-[data-type="group"] {
-  border: 1px solid color-mix(in srgb, var(--cm-accent) 40%, transparent);
-  border-radius: 6px;
-  padding: 10px 12px;
-  background: var(--cm-bg-1);
-}
-</style>
 
 <form method="POST" style="padding:16px; display:flex; flex-direction:column; gap:12px; max-width:900px;">
   {% csrf_token %}
