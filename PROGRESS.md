@@ -230,7 +230,7 @@
 - [x] [UI.27] Icons in sidebar when collapsed are not centeret. 
 - [x] [UI.28] In Comics -> Grid layout: Top left corner of cover should be a select circle, so we can select 1..x comics for bulk actions
 - [x] [UI.29] In Comics -> Grid layout: rightclick a cover should show a custom rightclick form with actions to run. Including a new action where we delete the cover image. This is because some scans have an info sheet on the first page. Current workflow is select comic, go to its details page, select Actions->Manage Pages, delete the first page, save changes. 
-- [ ] [UI.30] Filter rail in `/comics/` (`rail=1`) should have toggle in the settings page to be on/off by default for the user. The button on the comics page should still be there to turn it on/off on-demand. 
+- [x] [UI.30] Filter rail in `/comics/` (`rail=1`) should have toggle in the settings page to be on/off by default for the user. The button on the comics page should still be there to turn it on/off on-demand. 
 
 ## Major Issues / Bugs
 
