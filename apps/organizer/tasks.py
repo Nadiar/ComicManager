@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 @shared_task(bind=True, base=ProgressTask, name="organizer.audit_paths", queue="organize")
 def audit_paths_task(self):
     """
-    Scan all organized/written digital comics.
+    Scan all written/done digital comics.
     Compare file_path vs computed target path.
     Flag mismatches with needs_reorganize=True and store expected_path.
     """
@@ -24,7 +24,7 @@ def audit_paths_task(self):
 
     comic_ids = list(
         Comic.objects.filter(
-            state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN],
+            state__in=[Comic.STATE_WRITTEN, Comic.STATE_DONE],
             medium=Comic.MEDIUM_DIGITAL,
         )
         .exclude(file_path__isnull=True)

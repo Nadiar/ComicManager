@@ -297,13 +297,14 @@ def path_audit(request):
         Comic.objects.filter(
             needs_reorganize=True,
             medium=Comic.MEDIUM_DIGITAL,
+            state__in=[Comic.STATE_WRITTEN, Comic.STATE_DONE],
         )
         .order_by("publisher", "series", "number")
     )
 
     total_flagged = comics.count()
     total_organized = Comic.objects.filter(
-        state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN],
+        state__in=[Comic.STATE_WRITTEN, Comic.STATE_DONE],
         medium=Comic.MEDIUM_DIGITAL,
     ).count()
 
@@ -335,7 +336,7 @@ def start_audit(request):
             }, status=409)
 
     count = Comic.objects.filter(
-        state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN],
+        state__in=[Comic.STATE_WRITTEN, Comic.STATE_DONE],
         medium=Comic.MEDIUM_DIGITAL,
     ).count()
 
@@ -343,7 +344,7 @@ def start_audit(request):
         return JsonResponse({
             "success": True,
             "total": 0,
-            "message": "No organized/written digital comics to audit",
+            "message": "No written/done digital comics to audit",
         })
 
     from .tasks import audit_paths_task
