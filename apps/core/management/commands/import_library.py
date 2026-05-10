@@ -11,6 +11,7 @@ Teams, Locations, and CustomValuesStore data not present in ComicInfo.xml.
 import os
 import zipfile
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 
 from django.core.management.base import BaseCommand
@@ -70,6 +71,10 @@ class Command(BaseCommand):
             comicdb_lookup = self.parse_comicdb(comicdb_path)
             self.stdout.write(f"Loaded {len(comicdb_lookup)} entries from ComicDb.xml")
 
+        log_dir = Path(settings.BASE_DIR) / "data" / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "import_errors.log"
+
         cbz_files = list(Path(library_path).rglob("*.cbz"))
         self.stdout.write(f"Found {len(cbz_files)} .cbz files")
 
@@ -77,6 +82,14 @@ class Command(BaseCommand):
         skipped = 0
         errors = 0
         enriched = 0
+
+        with open(log_path, "a") as log_file:
+            run_header = f"\n--- Import run {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | library: {library_path} ---\n"
+            log_file.write(run_header)
+
+        def log_error(msg: str) -> None:
+            with open(log_path, "a") as lf:
+                lf.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
 
         for cbz_path in cbz_files:
             file_path_str = str(cbz_path)
@@ -89,7 +102,9 @@ class Command(BaseCommand):
             try:
                 comic_data = self.extract_comic_info(cbz_path)
                 if comic_data is None:
-                    self.stderr.write(self.style.WARNING(f"No ComicInfo.xml in: {cbz_path.name}"))
+                    msg = f"No ComicInfo.xml in: {cbz_path.name}"
+                    self.stderr.write(self.style.WARNING(msg))
+                    log_error(msg)
                     errors += 1
                     continue
 
@@ -129,7 +144,9 @@ class Command(BaseCommand):
                         self.stdout.write(f"  Imported {imported} comics...")
 
             except Exception as e:
-                self.stderr.write(self.style.ERROR(f"Error processing {cbz_path.name}: {e}"))
+                msg = f"Error processing {cbz_path.name}: {e}"
+                self.stderr.write(self.style.ERROR(msg))
+                log_error(msg)
                 errors += 1
 
         self.stdout.write("")
@@ -139,6 +156,7 @@ class Command(BaseCommand):
             self.stdout.write(f"Enriched from ComicDb.xml: {enriched}")
         if errors:
             self.stdout.write(self.style.WARNING(f"Errors: {errors}"))
+            self.stdout.write(self.style.WARNING(f"Error log: {log_path}"))
 
     def parse_comicdb(self, comicdb_path: str) -> dict:
         """
