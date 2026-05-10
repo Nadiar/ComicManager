@@ -379,3 +379,12 @@
 - [x] [CP.4] Confirmed DataManager file equivalent implemented (`ComicDb.xml import support`).
 - [x] [CP.5] Thoroughly verify that existing implementations fully replicate the functionality of ComicRack script counterparts, ensuring all nuances are handled.
 - [x] [CP.6] Import ComicRack CBL files as Smart Lists. A CBL (Comic Book List) is a ComicRack smart list export format. Importing a CBL should create a corresponding Smart List in ComicManager, mapping the stored filters and column layout to the ComicManager equivalents where possible.
+
+
+## Architecture
+
+**Current Status & Tasks:**
+- [ ] [AC.1] Replace `xml.etree.ElementTree` with `defusedxml.ElementTree` project-wide. Affects `ComicInfo.xml` read/write, `.lop` parser, and any other XML ingestion.
+- [ ] [AC.2] Check batch task functions for missing `transaction.atomic()` wrapping. If a worker crashes mid-batch (e.g. `tag_all` at comic 25 of 50) the DB is left in a split state. Wrap each item's DB writes atomically.
+- [ ] [AC.3] Check `get_setting()` call sites inside task loops. If called per-comic in a batch, snapshot settings once before the loop instead of hitting the DB on every iteration.
+- [ ] [AC.4] Reduce `ProgressTask` boilerplate. Add a shared helper so individual tasks don't each reimplement the same cancellation-check + progress-update pattern. Probably no change to the JS polling layer.
