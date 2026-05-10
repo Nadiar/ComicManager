@@ -488,7 +488,7 @@ def _parse_cbl(xml_bytes):
     filters: list of SmartList filter dicts (leaf or group).
     warnings: list of strings for skipped/unsupported matchers.
     """
-    import xml.etree.ElementTree as ET
+    import defusedxml.ElementTree as ET
 
     XSI_TYPE = "{http://www.w3.org/2001/XMLSchema-instance}type"
 

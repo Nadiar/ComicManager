@@ -10,7 +10,7 @@ Teams, Locations, and CustomValuesStore data not present in ComicInfo.xml.
 
 import os
 import zipfile
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 

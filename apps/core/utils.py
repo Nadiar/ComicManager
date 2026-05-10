@@ -10,6 +10,7 @@ import re
 import shutil
 import tempfile
 import xml.etree.ElementTree as ET
+from defusedxml.ElementTree import fromstring as _safe_fromstring
 import zipfile
 from typing import Any
 
@@ -213,7 +214,7 @@ def read_comicinfo_xml(cbz_path: str) -> dict | None:
 
 def parse_comicinfo_xml(xml_content: bytes) -> dict:
     """Parse ComicInfo.xml content into a dictionary matching Comic model fields."""
-    root = ET.fromstring(xml_content)
+    root = _safe_fromstring(xml_content)
     data = {}
 
     for xml_tag, model_field in FIELD_MAP.items():
