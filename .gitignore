@@ -205,3 +205,4 @@ PROGRESS.md
 download*.sh*
 *.db
 .vscode/
+staticfiles/*

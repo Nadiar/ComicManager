@@ -97,6 +97,7 @@
     var hasErrors = r.errors && r.errors.length > 0;
     if (!hasErrors && actionQueue.length === 0) {
       setTimeout(function() {
+        if (_taskUsedCallback) return;
         _doRefreshOrReload();
         hideToast();
       }, 2500);
@@ -380,7 +381,14 @@
             status.textContent = 'Starting next task...';
             setTimeout(processNextAction, 800);
           } else {
-            _finishTask(r);
+            if (_taskOnComplete) {
+              var cb = _taskOnComplete;
+              _taskOnComplete = null;
+              _taskUsedCallback = true;
+              try { cb(); } catch(e) {}
+            } else {
+              _finishTask(r);
+            }
           }
         } else if (msg.state === 'FAILURE') {
           markTaskDone(activeTaskId);
