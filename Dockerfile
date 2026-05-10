@@ -1,6 +1,5 @@
 FROM python:3.12-slim
 
-# System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
     npm \
@@ -12,20 +11,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Node deps and build CSS
-COPY package.json .
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . .
 RUN npx tailwindcss -i ./static/css/input.css -o ./static/css/main.css --minify
 
-# Remove Node after CSS build — not needed at runtime
-RUN apt-get purge -y nodejs npm && apt-get autoremove -y && rm -rf /root/.npm
+RUN apt-get purge -y nodejs npm && apt-get autoremove -y \
+    && rm -rf /root/.npm node_modules
 
-RUN python manage.py collectstatic --noinput
+RUN mkdir -p /app/staticfiles /app/logs && chmod 777 /app/staticfiles /app/logs
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 8000
+ENTRYPOINT ["/entrypoint.sh"]
