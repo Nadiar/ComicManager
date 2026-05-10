@@ -3,6 +3,7 @@ Celery tasks for long-running core operations.
 """
 
 from celery import shared_task
+from django.db import transaction
 from django.utils import timezone
 from .task_base import ProgressTask
 
@@ -101,9 +102,9 @@ def write_all_comics_task(self):
         comic.state = Comic.STATE_DONE
         if comic.flags.get("count_updated"):
             comic.flags.pop("count_updated", None)
-        comic.save()
-        # Sync last_written to updated_at so the comic is not immediately stale
-        Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+        with transaction.atomic():
+            comic.save()
+            Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
         written += 1
 
         from .audit import log_batch_entry
@@ -180,8 +181,9 @@ def write_stale_comics_task(self):
                 )
                 continue
 
-        comic.save()
-        Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+        with transaction.atomic():
+            comic.save()
+            Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
         written += 1
 
         from .audit import log_batch_entry
@@ -256,8 +258,9 @@ def write_missing_comics_task(self):
                 )
                 continue
 
-        comic.save()
-        Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+        with transaction.atomic():
+            comic.save()
+            Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
         written += 1
 
         from .audit import log_batch_entry
@@ -873,8 +876,11 @@ def format_all_task(self):
     """
     Apply format detection to all comics in 'formatted' state.
     """
-    from .models import Comic
+    from .models import Comic, get_setting
     from apps.dashboard.tasks import _run_format
+
+    one_shot_max = get_setting("one_shot_max_count", 1)
+    limited_max = get_setting("limited_series_max_count", 15)
 
     comic_ids = list(
         Comic.objects.filter(state=Comic.STATE_FORMATTED)
@@ -904,7 +910,7 @@ def format_all_task(self):
             continue
 
         try:
-            _run_format(comic)
+            _run_format(comic, _one_shot_max=one_shot_max, _limited_max=limited_max)
             processed += 1
         except Exception as e:
             errors.append(f"{comic.series} #{comic.number}: {str(e)}")

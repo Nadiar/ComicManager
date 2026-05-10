@@ -489,7 +489,7 @@ def detect_format(comic, _one_shot_max=None, _limited_max=None) -> str | None:
     return None
 
 
-def detect_and_set_format(comic) -> dict:
+def detect_and_set_format(comic, _one_shot_max=None, _limited_max=None) -> dict:
     """
     Detect format and apply it to a comic. Advances state to formatted.
 
@@ -499,7 +499,7 @@ def detect_and_set_format(comic) -> dict:
     Returns dict with detection results for reporting.
     """
     old_format = comic.format
-    detected = detect_format(comic)
+    detected = detect_format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max)
 
     is_inducks = comic.custom_values.get("scrape_source") == "inducks"
 

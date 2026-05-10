@@ -162,13 +162,13 @@ def _run_tag(comic):
     log_batch_entry("tag_all", comic, state_before, comic.state, changes or {"processed": [None, True]})
 
 
-def _run_format(comic):
+def _run_format(comic, _one_shot_max=None, _limited_max=None):
     """Detect and set format for a comic."""
     from apps.core.services import detect_and_set_format
     from apps.core.audit import log_batch_entry
 
     state_before = comic.state
-    result = detect_and_set_format(comic)
+    result = detect_and_set_format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max)
 
     changes = {}
     if result["format_changed"]:
