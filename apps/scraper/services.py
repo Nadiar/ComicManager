@@ -154,7 +154,7 @@ def try_metadata_match(comic, scraper):
     return matches[0] if matches else None
 
 
-def find_best_match(comic, scraper, max_distance=10):
+def find_best_match(comic, scraper, max_distance=None):
     """
     Find the best ComicVine match for a comic, automatically choosing the
     right strategy based on available data sources.
@@ -168,6 +168,9 @@ def find_best_match(comic, scraper, max_distance=10):
     """
     from apps.scraper.cv_sources import is_cv_db_available
     from apps.core.models import get_setting
+
+    if max_distance is None:
+        max_distance = get_setting("scrape_hash_threshold", 8)
 
     if is_cv_db_available():
         match = try_hash_match(comic, scraper, max_distance=max_distance)
