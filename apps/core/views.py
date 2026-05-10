@@ -30,6 +30,17 @@ from apps.scraper.services import (
 from .services import scan_untagged_folder
 
 
+def _mark_recommended(matches):
+    """Mark only the top-scoring match(es) as recommended. Mutates in place."""
+    if not matches:
+        return
+    top = matches[0]["alignment_score"]
+    if top <= 0:
+        return
+    for m in matches:
+        m["recommended"] = m["alignment_score"] == top
+
+
 # Columns editable inline on the STATE_NEW list
 _INLINE_EDITABLE_FIELDS = {"proposed_series", "proposed_number", "proposed_volume", "publisher", "format"}
 
@@ -853,11 +864,12 @@ def scrape_preview(request, pk):
             "match_type": match.match_type,
             "match_score": match.match_score,
             "alignment_score": score,
-            "recommended": score > 0,
+            "recommended": False,
         })
 
     # Sort by alignment score (desc) then match score (asc)
     all_matches.sort(key=lambda m: (-m["alignment_score"], m["match_score"]))
+    _mark_recommended(all_matches)
 
     return JsonResponse({
         "success": True,
@@ -977,10 +989,11 @@ def scrape_api_search(request, pk):
             "match_type": match.match_type,
             "match_score": match.match_score,
             "alignment_score": score,
-            "recommended": score > 0,
+            "recommended": False,
         })
 
     all_matches.sort(key=lambda m: (-m["alignment_score"], m["match_score"]))
+    _mark_recommended(all_matches)
 
     return JsonResponse({
         "success": True,
