@@ -19,28 +19,38 @@ def normalize_issue_number(num):
     return str(num).lstrip("0").lower() or "0"
 
 
+def _normalize_series(s):
+    s = s.lower()
+    s = re.sub(r"[^\w\s]", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
+def series_match_quality(proposed, matched):
+    """
+    Return how closely two series names match.
+
+    2 = exact match (normalized strings are identical)
+    1 = partial match (substring or shared first word)
+    0 = no match
+    """
+    p = _normalize_series(proposed)
+    m = _normalize_series(matched)
+
+    if p == m:
+        return 2
+    if p in m or m in p:
+        return 1
+    p_words = p.split()
+    m_words = m.split()
+    if p_words and m_words and p_words[0] == m_words[0]:
+        return 1
+    return 0
+
+
 def series_matches(proposed, matched):
     """Check if two series names are similar enough to be the same series."""
-    def normalize(s):
-        s = s.lower()
-        s = re.sub(r"[^\w\s]", " ", s)
-        s = re.sub(r"\s+", " ", s).strip()
-        return s
-
-    proposed_norm = normalize(proposed)
-    matched_norm = normalize(matched)
-
-    if proposed_norm == matched_norm:
-        return True
-    if proposed_norm in matched_norm or matched_norm in proposed_norm:
-        return True
-
-    proposed_words = proposed_norm.split()
-    matched_words = matched_norm.split()
-    if proposed_words and matched_words and proposed_words[0] == matched_words[0]:
-        return True
-
-    return False
+    return series_match_quality(proposed, matched) > 0
 
 
 def metadata_alignment_score(comic, match):
@@ -51,8 +61,16 @@ def metadata_alignment_score(comic, match):
     works for both STATE_IMPORTED comics (may have ComicInfo data) and
     fresh imports (only proposed_* populated).
 
-    Returns 0 if the match is disqualified, >0 for viable matches
-    (higher is better: 1=number only, 2=number+series, 3=number+series+year).
+    Returns 0 if the match is disqualified, >0 for viable matches.
+    Score breakdown:
+      1 = number only (no series to validate)
+      2 = number + partial/substring series match
+      3 = number + exact series match  OR  number + partial series + year
+      4 = number + exact series + year
+    Exact series matches intentionally outscore partial/substring matches so
+    that collected editions sharing cover art with single issues (e.g. a TPB
+    whose series name extends the original with a subtitle) do not beat the
+    correct single-issue match on hash distance alone.
     """
     cv_series = comic.series or comic.proposed_series
     cv_number = comic.number or comic.proposed_number
@@ -72,12 +90,14 @@ def metadata_alignment_score(comic, match):
         score = 1
 
     if cv_series and match.series:
-        if series_matches(cv_series, match.series):
-            score = 2
+        quality = series_match_quality(cv_series, match.series)
+        if quality > 0:
+            # base: 2 for partial, 3 for exact
+            score = 1 + quality
             if cv_year and match.start_year:
                 try:
                     if abs(int(cv_year) - int(match.start_year)) <= 2:
-                        score = 3
+                        score += 1
                 except (ValueError, TypeError):
                     pass
     elif not cv_series and score == 0:
