@@ -164,25 +164,6 @@
   {% if current_state == 'deduplicate' and comics %}<button type="button" class="cm-btn sm" onclick="deduplicateAllComics(this)">Deduplicate All</button>{% endif %}
   {% if current_state == 'move' and comics %}<button type="button" class="cm-btn sm" onclick="organizeAllComics(this)">Organize All</button>{% endif %}
   {% if current_state == 'write' and comics %}<button type="button" class="cm-btn sm" onclick="writeAllComics(this)">Write All</button>{% endif %}
-  {% if comics %}
-  <div style="position:relative;" id="bulk-dd-wrap">
-    <button type="button" class="cm-btn sm" onclick="document.getElementById('bulk-dd').classList.toggle('hidden')">
-      Bulk Action <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
-    </button>
-    <ul id="bulk-dd" class="hidden" style="position:absolute; right:0; top:100%; margin-top:4px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:6px; min-width:200px; z-index:20; box-shadow:0 8px 20px rgba(0,0,0,.18); list-style:none; margin-block:0; padding-left:0;">
-      <li style="font-size:10.5px; color:var(--cm-fg-3); padding:4px 8px;">On {{ total_count }} filtered comics</li>
-      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('scrape', null, 'Scraping')">Scrape</a></li>
-      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('tag', null, 'Tagging')">Tag / Re-tag</a></li>
-      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('format', null, 'Formatting')">Detect Format</a></li>
-      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('organize', null, 'Organizing')">Organize</a></li>
-      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('force_write', null, 'Force writing')">Force Write</a></li>
-      {% if current_flag %}
-      <li style="border-top:1px solid var(--cm-border); margin:4px 0; padding:0;"></li>
-      <li><a style="display:block; padding:5px 8px; font-size:12px; cursor:pointer; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''" onclick="runBulkAction('accept_flag', '{{ current_flag }}', 'Suppressing flag on')">Suppress "{{ flag_label }}" on all</a></li>
-      {% endif %}
-    </ul>
-  </div>
-  {% endif %}
   {% if current_medium == 'physical' %}
   <a href="{% url 'physical:import_csv' %}" class="cm-btn sm" cm-no-underline">CSV Import</a>
   <a href="{% url 'physical:add' %}" class="cm-btn sm primary" cm-no-underline">+ Physical</a>
@@ -195,13 +176,7 @@
   <!-- Filter rail -->
   {% if filter_rail_open %}
   <form method="GET" id="rail-form" style="width:220px; flex-shrink:0; border-right:1px solid var(--cm-border); display:flex; flex-direction:column; height:100%; overflow:hidden;">
-    <input type="hidden" name="view" value="{{ current_view }}">
-    <input type="hidden" name="rail" value="1">
-    {% if current_search %}<input type="hidden" name="q" value="{{ current_search }}">{% endif %}
-    <input type="hidden" name="sort" value="{{ current_sort }}">
-    <input type="hidden" name="dir" value="{{ current_dir }}">
     <input type="hidden" name="per_page" value="{{ per_page }}">
-    {% for col_id in active_columns %}<input type="hidden" name="col" value="{{ col_id }}">{% endfor %}
 
     <!-- Scrollable filter sections -->
     <div style="flex:1; overflow-y:auto; padding:14px 12px; display:flex; flex-direction:column; gap:14px;">
@@ -322,12 +297,12 @@
   </span>
   <span style="color:var(--cm-border); font-size:12px; flex-shrink:0;">|</span>
   <button class="cm-btn sm bulk-action-btn" onclick="bulkRunPipeline(this)" disabled>Run Pipeline</button>
-  <button class="cm-btn sm bulk-action-btn" onclick="bulkScrape(this)" disabled>Scrape</button>
-  <button class="cm-btn sm bulk-action-btn" onclick="bulkRetag(this)" disabled>Tag</button>
-  <button class="cm-btn sm bulk-action-btn" onclick="bulkFormat(this)" disabled>Format</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkScrape()" disabled>Scrape</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkRetag()" disabled>Tag</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkFormat()" disabled>Format</button>
   <button class="cm-btn sm bulk-action-btn" onclick="bulkDeduplicate(this)" disabled>Deduplicate</button>
-  <button class="cm-btn sm bulk-action-btn" onclick="bulkOrganize(this)" disabled>Move File(s)</button>
-  <button class="cm-btn sm bulk-action-btn" onclick="bulkWrite(this)" disabled>Write</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkOrganize()" disabled>Move File(s)</button>
+  <button class="cm-btn sm bulk-action-btn" onclick="bulkWrite()" disabled>Write</button>
   <div style="flex:1;"></div>
   <button class="cm-btn sm ghost bulk-action-btn" onclick="clearSelection()" disabled>Clear</button>
   <button class="cm-btn sm bulk-action-btn" style="color:var(--cm-err);" onclick="confirmBulkDelete()" disabled title="Delete selected">
@@ -724,30 +699,11 @@ document.addEventListener('click', e => {
       .catch(function() { btn.disabled = false; btn.textContent = origText; });
   };
 
-  function _bulkActionPks(btn, action, label) {
-    if (!selectedPks.size) return;
-    btn.disabled = true;
-    const origText = btn.textContent;
-    btn.textContent = 'Starting...';
-    bulkPost('/comics/bulk-action-pks/', {action: action})
-      .then(function(data) {
-        if (!data.success) {
-          btn.disabled = false;
-          btn.textContent = origText;
-          if (window.showQuickToast) window.showQuickToast(data.error || 'Failed to start', 'error');
-          return;
-        }
-        btn.textContent = 'Running...';
-        if (window.startTaskPolling) window.startTaskPolling(data.task_id, label + ' ' + data.total + ' comics');
-      })
-      .catch(() => { btn.disabled = false; btn.textContent = origText; });
-  }
-
-  window.bulkScrape    = function(btn) { _bulkActionPks(btn, 'scrape',   'Scraping');   };
-  window.bulkRetag     = function(btn) { _bulkActionPks(btn, 'tag',      'Tagging');    };
-  window.bulkFormat    = function(btn) { _bulkActionPks(btn, 'format',   'Formatting'); };
-  window.bulkOrganize  = function(btn) { _bulkActionPks(btn, 'organize', 'Organizing'); };
-  window.bulkWrite     = function(btn) { _bulkActionPks(btn, 'write',    'Writing');    };
+  window.bulkScrape    = function() { window.runAction([...selectedPks], 'scrape',   { label: 'Scraping' });   };
+  window.bulkRetag     = function() { window.runAction([...selectedPks], 'tag',      { label: 'Tagging' });    };
+  window.bulkFormat    = function() { window.runAction([...selectedPks], 'format',   { label: 'Formatting' }); };
+  window.bulkOrganize  = function() { window.runAction([...selectedPks], 'organize', { label: 'Organizing' }); };
+  window.bulkWrite     = function() { window.runAction([...selectedPks], 'write',    { label: 'Writing' });    };
 
   window.bulkDeduplicate = function(btn) {
     if (!selectedPks.size) return;
@@ -767,6 +723,54 @@ document.addEventListener('click', e => {
       .catch(() => { btn.disabled = false; btn.textContent = origText; });
   };
 })();
+
+// Unified action runner — used by all 6 action surfaces.
+// pks: array of comic PK strings. options: { label, showResult, force, onComplete }
+function _refreshResults() {
+  if (window.htmx) htmx.ajax('GET', window.location.href, {target: '#comic-results-container', swap: 'innerHTML'});
+  else location.reload();
+}
+
+function _showResultModal(modalType, result) {
+  const title = (result.series || '') + (result.number ? ' #' + result.number : '');
+  if (modalType === 'tag'      && window.showTagResultModal)      window.showTagResultModal(title, result);
+  if (modalType === 'format'   && window.showFormatResultModal)   window.showFormatResultModal(title, result);
+  if (modalType === 'organize' && window.showOrganizeResultModal) window.showOrganizeResultModal(title, result);
+}
+
+window.runAction = function(pks, action, options) {
+  options = options || {};
+  const label      = options.label      || action;
+  const showResult = !!(options.showResult && pks.length === 1);
+  const force      = !!(options.force);
+  const onComplete = options.onComplete || _refreshResults;
+
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', getCsrfToken());
+  pks.forEach(function(pk) { fd.append('pks', pk); });
+  fd.append('action', action);
+  if (showResult) fd.append('show_result', 'true');
+  if (force)      fd.append('force', 'true');
+
+  fetch('/comics/action/', { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) {
+        if (window.showMsgToast) window.showMsgToast(data.error || label + ' failed', 'error');
+        return;
+      }
+      if (data.task_id) {
+        const taskLabel = label + (data.total > 1 ? ' (' + data.total + ')' : '');
+        if (window.startTaskPolling) window.startTaskPolling(data.task_id, taskLabel, options.onComplete || null);
+      } else if (data.result) {
+        _showResultModal(data.modal_type, data.result);
+        onComplete();
+      }
+    })
+    .catch(function() {
+      if (window.showMsgToast) window.showMsgToast(label + ' failed', 'error');
+    });
+};
 
 // Force-scrape mode: skip state check for re-scraping mismatched comics
 const isForceScrape = {% if current_flag == 'metadata_mismatch' %}true{% else %}false{% endif %};
@@ -954,18 +958,15 @@ function scrapeAllComics(btn) {
         btn.innerHTML = 'Done';
         setTimeout(() => window.location.reload(), 1500);
       } else {
-        btn.classList.remove('btn-secondary');
-        btn.classList.add('btn-error');
-        btn.innerHTML = data.error || 'Error';
+        btn.innerHTML = 'Scrape';
         btn.disabled = false;
+        if (window.showQuickToast) window.showQuickToast(data.error || 'Error', 'error');
       }
     })
     .catch(err => {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
-      btn.title = err.toString();
+      btn.innerHTML = 'Scrape';
       btn.disabled = false;
+      if (window.showQuickToast) window.showQuickToast('Scrape error', 'error');
     });
     });
   }
@@ -994,42 +995,10 @@ function processNextScrape() {
 }
 
 function scrapeComic(pk, btn) {
-  const confirmEach = document.getElementById('confirm-scrape-checkbox')?.checked;
-
-  if (confirmEach) {
-    // Show modal with matches
+  if (document.getElementById('confirm-scrape-checkbox')?.checked) {
     openListScrapeModal(pk, btn);
   } else {
-    // Auto-scrape without confirmation
-    btn.disabled = true;
-    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
-
-    fetch(`/comics/${pk}/scrape/${isForceScrape ? '?force=1' : ''}`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': getCsrfToken(),
-      }
-    })
-    .then(response => response.json().then(data => ({ ok: response.ok, data })))
-    .then(({ ok, data }) => {
-      if (data.success) {
-        updateRowAfterScrape(btn, data);
-      } else {
-        const msg = data.error || 'No match found';
-        btn.classList.remove('btn-secondary');
-        btn.classList.add('btn-error');
-        btn.innerHTML = msg;
-        btn.title = msg;
-        btn.disabled = false;
-      }
-    })
-    .catch(err => {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-error');
-      btn.innerHTML = 'Scrape error';
-      btn.title = err.toString();
-      btn.disabled = false;
-    });
+    window.runAction([pk], 'scrape', { label: 'Scraping', force: isForceScrape });
   }
 }
 
@@ -1068,9 +1037,15 @@ function openListScrapeModal(pk, btn) {
 
 function updateRowAfterScrape(btn, data) {
   const row = btn.closest('tr');
-  btn.classList.remove('btn-secondary');
-  btn.classList.add('btn-success');
-  btn.innerHTML = 'Done';
+  if (btn) {
+    btn.classList.remove('btn-secondary');
+    btn.classList.add('btn-success');
+    btn.innerHTML = 'Done';
+  }
+  if (!row) {
+    _refreshResults();
+    return;
+  }
 
   // Update state badge
   const stateBadge = row.querySelector('td[data-col="state"] .badge');
@@ -1267,36 +1242,9 @@ function deleteComic(pk, btn) {
   );
 }
 
-function comicActionWithModal(pk, urlPath, successLabel, resultModalFn, btn, onSuccess) {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
-  const row = btn.closest('tr');
-  const comicTitle = `${row.querySelector('td:first-child')?.textContent || 'Unknown'} #${row.querySelector('td:nth-child(2)')?.textContent || '?'}`;
-  fetch(`/comics/${pk}/${urlPath}/`, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } })
-    .then(r => r.json())
-    .then(data => {
-      if (data.success) {
-        btn.innerHTML = successLabel;
-        if (onSuccess) onSuccess(row, data);
-        resultModalFn(comicTitle, data);
-      } else {
-        btn.innerHTML = 'Error';
-        btn.title = data.error || 'Failed';
-        btn.disabled = false;
-      }
-    })
-    .catch(err => {
-      btn.innerHTML = 'Error';
-      btn.title = err.toString();
-      btn.disabled = false;
-    });
-}
 
 function tagComic(pk, btn) {
-  comicActionWithModal(pk, 'tag', 'Tagged', showTagResultModal, btn, (row, data) => {
-    const badge = row.querySelector('td .badge-info, td .badge-warning');
-    if (badge) badge.textContent = data.state === 'formats' ? 'Add Formats' : 'Tagging';
-  });
+  window.runAction([pk], 'tag', { label: 'Tagging', showResult: true });
 }
 
 function tagAllComics(btn) {
@@ -1377,10 +1325,7 @@ function fixCountMismatches(btn) {
 }
 
 function formatComic(pk, btn) {
-  comicActionWithModal(pk, 'format', 'Formatted', showFormatResultModal, btn, (row) => {
-    const badge = row.querySelector('td .badge-info');
-    if (badge) badge.textContent = 'Add Formats';
-  });
+  window.runAction([pk], 'format', { label: 'Formatting', showResult: true });
 }
 
 function formatAllComics(btn) {
@@ -1399,134 +1344,20 @@ function writeAllComics(btn) {
   batchAction('/comics/write-all/', 'Write ComicInfo.xml for all organized comics? This will update the files.', 'Writing comics', btn);
 }
 
-// Organize single comic
 function organizeComic(pk, btn) {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
-
-  // Get comic title from the row for display
-  const row = btn.closest('tr');
-  const seriesCell = row.querySelector('td:first-child');
-  const numberCell = row.querySelector('td:nth-child(2)');
-  const comicTitle = `${seriesCell?.textContent || 'Unknown'} #${numberCell?.textContent || '?'}`;
-
-  fetch(`/comics/${pk}/organize/`, {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-success');
-      btn.innerHTML = 'Organized';
-
-      // Update state badge
-      const stateBadge = row.querySelector('td .badge-info');
-      if (stateBadge) {
-        stateBadge.textContent = 'Move Files';
-      }
-
-      // Show results modal
-      showOrganizeResultModal(comicTitle, data);
-    } else {
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
-      btn.title = data.error || 'Failed to organize';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-secondary');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
+  window.runAction([pk], 'organize', { label: 'Organizing', showResult: true });
 }
 
-// Write single comic
 function writeComic(pk, btn) {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
-
-  const row = btn.closest('tr');
-
-  fetch(`/comics/${pk}/write/`, {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-neutral');
-      btn.innerHTML = 'Written';
-
-      // Update state badge
-      const stateBadge = row.querySelector('td .badge-info');
-      if (stateBadge) {
-        stateBadge.classList.remove('badge-info');
-        stateBadge.classList.add('badge-success');
-        stateBadge.textContent = 'Write to CBZ';
-      }
-    } else {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-error');
-      btn.innerHTML = 'Error';
-      btn.title = data.error || 'Failed to write';
-      btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.remove('btn-success');
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.title = err.toString();
-    btn.disabled = false;
-  });
+  window.runAction([pk], 'write', { label: 'Writing' });
 }
 
-function forceWriteComic(pk, btn) { comicActionFadeRow(pk, 'force-write', btn); }
+function forceWriteComic(pk, btn) {
+  window.runAction([pk], 'force_write', { label: 'Force writing' });
+}
 
 function tryRezipComic(pk, btn) { comicActionFadeRow(pk, 'rezip', btn); }
 
-function runBulkAction(action, flagName, label) {
-  const totalCount = {{ total_count }};
-  const confirmMsg = `Run "${label}" on all ${totalCount} comics in the current view?`;
-
-  showConfirm(confirmMsg, () => {
-    const params = new URLSearchParams(window.location.search);
-    const formData = new FormData();
-    formData.append('action', action);
-    if (flagName) formData.append('flag_name', flagName);
-    ['state', 'flag', 'q', 'publisher', 'format', 'medium', 'needs_reformat'].forEach(key => {
-      if (params.has(key)) formData.append(key, params.get(key));
-    });
-
-    fetch('{% url "core:bulk_action_from_filter" %}', {
-      method: 'POST',
-      headers: {'X-CSRFToken': getCsrfToken()},
-      body: formData,
-    })
-    .then(r => r.json())
-    .then(data => {
-      if (data.success && data.task_id) {
-        window.startPolling(data.task_id, label + ' ' + data.total + ' comics');
-      } else if (data.success && data.total === 0) {
-        showMsgToast('No comics match the current filters', 'info');
-      } else {
-        showMsgToast(data.error || 'Failed to start bulk action', 'error');
-      }
-    })
-    .catch(err => showMsgToast(err.toString(), 'error'));
-  });
-}
 
 function saveColumnLayout() {
   const cols = Array.from(document.querySelectorAll('.col-toggle:checked')).map(el => el.value);
@@ -1905,24 +1736,6 @@ function _escHtml(str) {
     }
   }
 
-  // Post a single-pk bulk action — same endpoint and toast as the action bar
-  function _ctxBulkAction(pk, action, label) {
-    const fd = new FormData();
-    fd.append('csrfmiddlewaretoken', getCsrfToken());
-    fd.append('pks', pk);
-    fd.append('action', action);
-    fetch('/comics/bulk-action-pks/', { method: 'POST', body: fd })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.success) {
-          if (window.showQuickToast) window.showQuickToast(data.error || label + ' failed', 'error');
-          return;
-        }
-        if (data.task_id && window.startTaskPolling) window.startTaskPolling(data.task_id, label, _ctxRefreshResults);
-      })
-      .catch(() => { if (window.showQuickToast) window.showQuickToast(label + ' failed', 'error'); });
-  }
-
   document.getElementById('gctx-open').addEventListener('click', function(e) {
     _act(e, pk => window.open('/comics/' + pk + '/', '_blank'));
   });
@@ -1932,23 +1745,29 @@ function _escHtml(str) {
   });
 
   document.getElementById('gctx-scrape').addEventListener('click', function(e) {
-    _act(e, pk => _ctxBulkAction(pk, 'scrape', 'Scraping'));
+    _act(e, function(pk) {
+      if (document.getElementById('confirm-scrape-checkbox')?.checked) {
+        openScrapeModal(pk, { onSuccess: _ctxRefreshResults });
+      } else {
+        window.runAction([pk], 'scrape', { label: 'Scraping', force: isForceScrape, onComplete: _ctxRefreshResults });
+      }
+    });
   });
 
   document.getElementById('gctx-tag').addEventListener('click', function(e) {
-    _act(e, pk => _ctxBulkAction(pk, 'tag', 'Tagging'));
+    _act(e, pk => window.runAction([pk], 'tag', { label: 'Tagging', showResult: true, onComplete: _ctxRefreshResults }));
   });
 
   document.getElementById('gctx-format').addEventListener('click', function(e) {
-    _act(e, pk => _ctxBulkAction(pk, 'format', 'Formatting'));
+    _act(e, pk => window.runAction([pk], 'format', { label: 'Formatting', showResult: true, onComplete: _ctxRefreshResults }));
   });
 
   document.getElementById('gctx-move').addEventListener('click', function(e) {
-    _act(e, pk => _ctxBulkAction(pk, 'organize', 'Organizing'));
+    _act(e, pk => window.runAction([pk], 'organize', { label: 'Organizing', showResult: true, onComplete: _ctxRefreshResults }));
   });
 
   document.getElementById('gctx-write').addEventListener('click', function(e) {
-    _act(e, pk => _ctxBulkAction(pk, 'write', 'Writing'));
+    _act(e, pk => window.runAction([pk], 'write', { label: 'Writing', onComplete: _ctxRefreshResults }));
   });
 
   document.getElementById('gctx-pipeline').addEventListener('click', function(e) {

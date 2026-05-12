@@ -95,14 +95,13 @@
 
   function _finishTask(r) {
     var hasErrors = r.errors && r.errors.length > 0;
+    showDismiss();
     if (!hasErrors && actionQueue.length === 0) {
       setTimeout(function() {
         if (_taskUsedCallback) return;
         _doRefreshOrReload();
         hideToast();
       }, 2500);
-    } else {
-      showDismiss();
     }
   }
 

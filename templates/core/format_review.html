@@ -94,7 +94,7 @@
       <span class="cm-chip accent mono tnum" style="font-size:13px; padding:4px 12px; font-weight:700;">{{ group.count }}</span>
       <button type="button" class="cm-btn sm primary"
         hx-post="{% url 'core:format_accept' group.slug %}"
-        hx-target="closest div[style*='background:var(--cm-bg-1)']"
+        hx-target="closest .cm-card"
         hx-swap="outerHTML">Accept {{ group.name }}</button>
     </div>
   </div>

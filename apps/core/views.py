@@ -4098,6 +4098,237 @@ def bulk_delete_comics(request):
     return JsonResponse({"deleted": deleted})
 
 
+def _run_action_sync(comic, action, force=False):
+    """
+    Execute a single-comic action synchronously and return a result dict.
+    Used by comic_action when show_result=True for a single-comic request.
+    """
+    from apps.core.audit import log_batch_entry
+
+    if action == "scrape":
+        if not force and comic.state != Comic.STATE_IMPORTED:
+            return {"success": False, "error": f"Comic is not in 'imported' state (current: {comic.state})"}
+        state_before = comic.state
+        scraper = ComicVineScraper()
+        try:
+            match = _find_best_match(comic, scraper)
+        except ComicVineRateLimitError as e:
+            return {"success": False, "error": str(e), "rate_limited": True}
+        except Exception as e:
+            return {"success": False, "error": f"Scrape error: {e}"}
+        if not match:
+            comic.flags["scrape_no_match"] = True
+            comic.save(update_fields=["flags"])
+            log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "no_match"]})
+            return {"success": False, "error": "No match found in ComicVine database"}
+        try:
+            _apply_match(comic, match, scraper)
+        except Exception as e:
+            return {"success": False, "error": f"Error applying match: {e}"}
+        log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "matched"]})
+        return {
+            "success": True,
+            "message": f"Matched: {match.series} #{match.issue_number}",
+            "match": {
+                "series": match.series,
+                "number": match.issue_number,
+                "publisher": match.publisher,
+                "year": match.start_year,
+                "match_type": match.match_type,
+                "cover_url": match.cover_url,
+            },
+        }
+
+    elif action == "tag":
+        from apps.tagging.services import tag_comic as tagging_service_tag_comic
+        state_before = comic.state
+        result = tagging_service_tag_comic(comic)
+        if not result["success"]:
+            return {"success": False, "error": result["message"]}
+        log_batch_entry("tag_all", comic, state_before, comic.state, {"processed": [None, True]})
+        return {
+            "success": True,
+            "message": result["message"],
+            "matched_rulesets": result["matched_rulesets"],
+            "changes": result["changes"],
+            "changes_count": len(result["changes"]),
+            "state": comic.state,
+        }
+
+    elif action == "format":
+        if comic.state not in (Comic.STATE_TAGGED, Comic.STATE_FORMATTED):
+            return {"success": False, "error": f"Comic is not in 'tagged' or 'formatted' state (current: {comic.state})"}
+        state_before = comic.state
+        old_format = comic.format
+        detected_format = _detect_format(comic)
+        if detected_format:
+            comic.format = detected_format
+            comic.flags.pop("missing_format", None)
+        elif not comic.format:
+            comic.flags["missing_format"] = True
+        if comic.medium == Comic.MEDIUM_PHYSICAL:
+            comic.state = Comic.STATE_WRITTEN
+        elif comic.state == Comic.STATE_FORMATTED:
+            comic.state = Comic.STATE_DEDUPLICATED
+        else:
+            comic.state = Comic.STATE_FORMATTED
+        comic.save()
+        _text = f"{comic.series or ''} {comic.title or ''}"
+        _summary = comic.summary or ""
+        _pages = comic.page_count or 0
+        patterns_checked = [
+            {"pattern": "Director's Cut (text)", "matched": detected_format == "Director's Cut"},
+            {"pattern": "Black & White (text)", "matched": detected_format == "Black & White"},
+            {"pattern": "Omnibus (keyword in title/summary)", "matched": detected_format == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
+            {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)", "matched": detected_format == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
+            {"pattern": "TPB (keyword)", "matched": detected_format == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
+            {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected_format == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
+            {"pattern": "Annual (keyword)", "matched": detected_format == "Annual"},
+            {"pattern": "One-Shot (count=1)", "matched": detected_format == "One-Shot"},
+            {"pattern": "Limited Series (count 2-15)", "matched": detected_format == "Limited Series"},
+            {"pattern": "Main Series (count>15)", "matched": detected_format == "Main Series"},
+        ]
+        audit_changes = {}
+        if old_format != comic.format:
+            audit_changes["format"] = [old_format, comic.format]
+        if comic.state != state_before:
+            audit_changes["state"] = [state_before, comic.state]
+        log_batch_entry("format_all", comic, state_before, comic.state, audit_changes or {"processed": [None, True]})
+        return {
+            "success": True,
+            "old_format": old_format,
+            "new_format": comic.format,
+            "detected_format": detected_format,
+            "format_changed": old_format != comic.format,
+            "patterns_checked": patterns_checked,
+            "series": comic.series,
+            "title": comic.title,
+            "count": comic.count,
+            "page_count": comic.page_count,
+            "state": comic.state,
+        }
+
+    elif action == "organize":
+        from apps.organizer.services import organize_comic as organizer_service_organize
+        state_before = comic.state
+        result = organizer_service_organize(comic)
+        if not result["success"]:
+            return {"success": False, "error": result["message"]}
+        organize_changes = {}
+        if result.get("moved"):
+            organize_changes["path"] = [result["old_path"], result["new_path"]]
+        log_batch_entry("organize_all", comic, state_before, comic.state, organize_changes)
+        return {
+            "success": True,
+            "message": result["message"],
+            "profile": result["profile"],
+            "old_path": result["old_path"],
+            "new_path": result["new_path"],
+            "moved": result["moved"],
+            "state": comic.state,
+        }
+
+    elif action == "write":
+        from .utils import write_comicinfo_xml, validate_comic_for_write
+        from django.db.models import F as _F
+        if comic.state != Comic.STATE_WRITTEN:
+            return {"success": False, "error": f"Comic must be in 'write' state (current: {comic.state})"}
+        state_before = comic.state
+        validation_errors = validate_comic_for_write(comic)
+        if validation_errors:
+            return {"success": False, "error": f"Missing required fields: {', '.join(validation_errors)}"}
+        if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
+            if not write_comicinfo_xml(comic.file_path, comic):
+                return {"success": False, "error": "Failed to write ComicInfo.xml"}
+        comic.state = Comic.STATE_DONE
+        comic.flags.pop("count_updated", None)
+        comic.save()
+        Comic.objects.filter(pk=comic.pk).update(last_written=_F("updated_at"))
+        log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
+        return {"success": True, "message": "ComicInfo.xml written successfully", "state": comic.state}
+
+    elif action == "force_write":
+        from .utils import write_comicinfo_xml
+        from django.db.models import F as _F
+        if not comic.is_digital:
+            return {"success": False, "error": "Cannot write to physical comics"}
+        if not comic.file_path or not comic.file_path.lower().endswith(".cbz"):
+            return {"success": False, "error": "Comic has no CBZ file"}
+        state_before = comic.state
+        if not write_comicinfo_xml(comic.file_path, comic):
+            return {"success": False, "error": "Failed to write ComicInfo.xml"}
+        if comic.state != Comic.STATE_DONE:
+            comic.state = Comic.STATE_DONE
+        comic.flags.pop("count_updated", None)
+        comic.save()
+        Comic.objects.filter(pk=comic.pk).update(last_written=_F("updated_at"))
+        log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
+        return {"success": True, "message": "ComicInfo.xml written successfully", "state": comic.state}
+
+    return {"success": False, "error": f"Unknown action: {action}"}
+
+
+@require_POST
+def comic_action(request):
+    """
+    Unified action endpoint: handles single-comic (sync + optional result modal)
+    and bulk (Celery task + toast polling) from a single call site.
+
+    Parameters (POST):
+        pks: one or more comic PKs
+        action: scrape | tag | format | organize | write | force_write
+        show_result: "true" — return detailed result dict for modal display (single comics only)
+        force: "true" — skip state check for scrape (used when re-scraping flagged comics)
+    """
+    from celery.result import AsyncResult
+    from .tasks import bulk_action_task
+
+    VALID_ACTIONS = ("scrape", "tag", "format", "organize", "write", "force_write")
+    action = request.POST.get("action", "").strip()
+    if action not in VALID_ACTIONS:
+        return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
+
+    pks = request.POST.getlist("pks")
+    if not pks:
+        return JsonResponse({"success": False, "error": "No comics selected"}, status=400)
+
+    show_result = request.POST.get("show_result") == "true" and len(pks) == 1
+    force = request.POST.get("force") == "true"
+
+    if show_result:
+        comic = get_object_or_404(Comic, pk=pks[0])
+        result = _run_action_sync(comic, action, force=force)
+        if not result["success"]:
+            return JsonResponse({"success": False, "error": result.get("error", "Action failed")}, status=400)
+        return JsonResponse({"success": True, "result": result, "modal_type": action})
+
+    # Celery task path
+    comic_ids = [str(pk) for pk in Comic.objects.filter(pk__in=pks).values_list("pk", flat=True)]
+    if not comic_ids:
+        return JsonResponse({"success": True, "total": 0, "message": "No matching comics"})
+
+    active = request.session.get("active_task_id")
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+
+    task = bulk_action_task.delay(comic_ids, action)
+    request.session["active_task_id"] = task.id
+
+    action_labels = {
+        "scrape": "Scraping", "tag": "Tagging", "format": "Formatting",
+        "organize": "Organizing", "write": "Writing", "force_write": "Force writing",
+    }
+    label = action_labels.get(action, action.title())
+    request.session["active_task_label"] = f"{label} {len(comic_ids)} comics"
+
+    return JsonResponse({
+        "success": True,
+        "task_id": task.id,
+        "total": len(comic_ids),
+        "message": f"{label} {len(comic_ids)} comics in background",
+    })
+
+
 def bulk_action_from_pks(request):
     """
     Run a bulk action on an explicit set of comic PKs (posted as 'pks').

@@ -134,22 +134,26 @@ def _run_tag(comic):
 
     before_series_group = comic.series_group
     before_main_char = comic.main_character_or_team
-
-    apply_datamanager_rules(comic, save=False)
-    comic.custom_values["DataManager_Processed"] = "Yes"
-
-    # Clear unknown_publisher if this publisher is now covered by a ruleset
-    if comic.publisher and comic.has_flag("unknown_publisher"):
-        from apps.tagging.engine import is_publisher_known
-        if is_publisher_known(comic.publisher):
-            comic.remove_flag("unknown_publisher")
-
-    from apps.core.models import Comic
     state_before = comic.state
-    if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
-        comic.state = Comic.STATE_TAGGED
 
-    comic.save()
+    try:
+        apply_datamanager_rules(comic, save=False)
+        comic.custom_values["DataManager_Processed"] = "Yes"
+
+        # Clear unknown_publisher if this publisher is now covered by a ruleset
+        if comic.publisher and comic.has_flag("unknown_publisher"):
+            from apps.tagging.engine import is_publisher_known
+            if is_publisher_known(comic.publisher):
+                comic.remove_flag("unknown_publisher")
+
+        from apps.core.models import Comic
+        if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
+            comic.state = Comic.STATE_TAGGED
+
+        comic.save()
+    except Exception as e:
+        log_batch_entry("tag_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        raise
 
     changes = {}
     if comic.series_group != before_series_group:
@@ -168,7 +172,12 @@ def _run_format(comic, _one_shot_max=None, _limited_max=None):
     from apps.core.audit import log_batch_entry
 
     state_before = comic.state
-    result = detect_and_set_format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max)
+
+    try:
+        result = detect_and_set_format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max)
+    except Exception as e:
+        log_batch_entry("format_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        raise
 
     changes = {}
     if result["format_changed"]:
@@ -225,40 +234,59 @@ def _run_organize(comic):
                        Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
         comic.state = Comic.STATE_WRITTEN
 
-    comic.needs_reorganize = False
-    comic.expected_path = None
-    comic.save()
+    try:
+        comic.needs_reorganize = False
+        comic.expected_path = None
+        comic.save()
+    except Exception as e:
+        log_batch_entry("organize_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        raise
 
     changes = {}
     if old_path != comic.file_path:
         changes["path"] = [old_path, comic.file_path]
-    log_batch_entry("organize_all", comic, state_before, comic.state, changes)
+    log_batch_entry("organize_all", comic, state_before, comic.state, changes or {"processed": [None, True]})
 
 
 def _run_scrape(comic, scraper=None):
     """Scrape a comic against ComicVine or Inducks. Creates a scraper if not provided."""
     from apps.scraper.services import find_best_match, apply_cv_match
     from apps.scraper.comicvine import ComicVineScraper
+    from apps.core.audit import log_batch_entry
 
     if scraper is None:
         scraper = ComicVineScraper()
 
+    state_before = comic.state
     for key in ("scrape_no_match", "scrape_error", "scrape_error_detail"):
         comic.flags.pop(key, None)
 
-    match = find_best_match(comic, scraper)
-    if match:
-        apply_cv_match(comic, match, scraper, insert_covers=False)
-    else:
+    try:
+        match = find_best_match(comic, scraper)
+    except Exception as e:
+        log_batch_entry("scrape_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        raise
+
+    if not match:
         comic.add_flag("scrape_no_match")
         comic.save(update_fields=["flags"])
+        log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "no_match"]})
         raise Exception(f"No match found for {comic.series} #{comic.number}")
+
+    try:
+        apply_cv_match(comic, match, scraper, insert_covers=False)
+    except Exception as e:
+        log_batch_entry("scrape_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        raise
+
+    log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "matched"]})
 
 
 def _run_force_write(comic):
     """Force-write ComicInfo.xml regardless of current state."""
     from apps.core.models import Comic
     from apps.core.utils import write_comicinfo_xml
+    from apps.core.audit import log_batch_entry
     from django.db.models import F
 
     if not comic.is_digital or not comic.file_path:
@@ -266,15 +294,23 @@ def _run_force_write(comic):
     if not comic.file_path.lower().endswith(".cbz"):
         return
 
-    success = write_comicinfo_xml(comic.file_path, comic)
-    if not success:
-        raise Exception("Failed to write ComicInfo.xml")
+    state_before = comic.state
 
-    comic.state = Comic.STATE_DONE
-    if comic.flags.get("count_updated"):
-        comic.flags.pop("count_updated", None)
-    comic.save()
-    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+    try:
+        success = write_comicinfo_xml(comic.file_path, comic)
+        if not success:
+            raise Exception("Failed to write ComicInfo.xml")
+
+        comic.state = Comic.STATE_DONE
+        if comic.flags.get("count_updated"):
+            comic.flags.pop("count_updated", None)
+        comic.save()
+        Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+    except Exception as e:
+        log_batch_entry("write_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        raise
+
+    log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
 
 
 def _run_write(comic):
@@ -291,19 +327,24 @@ def _run_write(comic):
         return
 
     state_before = comic.state
-    success = write_comicinfo_xml(comic.file_path, comic)
-    if not success:
-        raise Exception("Failed to write ComicInfo.xml")
 
-    from django.db.models import F
-    comic.state = Comic.STATE_DONE
+    try:
+        success = write_comicinfo_xml(comic.file_path, comic)
+        if not success:
+            raise Exception("Failed to write ComicInfo.xml")
 
-    if comic.flags.get("count_updated"):
-        comic.flags.pop("count_updated", None)
+        from django.db.models import F
+        comic.state = Comic.STATE_DONE
 
-    comic.save()
-    # Sync last_written to updated_at so the comic is not immediately stale
-    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+        if comic.flags.get("count_updated"):
+            comic.flags.pop("count_updated", None)
+
+        comic.save()
+        Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+    except Exception as e:
+        log_batch_entry("write_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        raise
+
     log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
 
 
