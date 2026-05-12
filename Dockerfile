@@ -23,7 +23,7 @@ RUN npx tailwindcss -i ./static/css/input.css -o ./static/css/main.css --minify
 RUN apt-get purge -y nodejs npm && apt-get autoremove -y \
     && rm -rf /root/.npm node_modules
 
-RUN mkdir -p /app/staticfiles /app/logs && chmod 777 /app/staticfiles /app/logs
+RUN mkdir -p /app/staticfiles /app/logs && chmod -R 777 /app/staticfiles /app/logs
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
