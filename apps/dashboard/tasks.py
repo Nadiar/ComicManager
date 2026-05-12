@@ -425,6 +425,11 @@ def run_full_pipeline_task(self, comic_ids: list):
             for key in ("scrape_no_match", "scrape_error", "scrape_error_detail"):
                 comic.flags.pop(key, None)
 
+            before_scrape_series = comic.series
+            before_scrape_publisher = comic.publisher
+            before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
+            before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
+
             match = find_best_match(comic, scraper)
             if match:
                 apply_cv_match(comic, match, scraper, insert_covers=False)
@@ -438,10 +443,23 @@ def run_full_pipeline_task(self, comic_ids: list):
                     "issue_id": match.issue_id,
                     "cv_cover_url": getattr(match, "cover_url", None),
                 }
+                scrape_changes = {}
+                if comic.series != before_scrape_series:
+                    scrape_changes["series"] = [before_scrape_series, comic.series]
+                if comic.publisher != before_scrape_publisher:
+                    scrape_changes["publisher"] = [before_scrape_publisher, comic.publisher]
+                after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
+                after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
+                if after_cv_issue != before_cv_issue:
+                    scrape_changes["cv_issue"] = [before_cv_issue, after_cv_issue]
+                if after_cv_volume != before_cv_volume:
+                    scrape_changes["cv_volume"] = [before_cv_volume, after_cv_volume]
+                log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, scrape_changes or {"result": [None, "matched"]})
             else:
                 comic.add_flag("scrape_no_match")
                 comic.save(update_fields=["flags"])
                 result["scrape"] = {"matched": False}
+                log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, {"result": [None, "no_match"]})
                 raise Exception(f"No CV match found for {comic.series} #{comic.number}")
 
             # Step 3: Tag — inline to capture rule changes
@@ -472,7 +490,7 @@ def run_full_pipeline_task(self, comic_ids: list):
                 audit_changes["main_character_or_team"] = [before_main_char, comic.main_character_or_team]
             if comic.state != state_before_tag:
                 audit_changes["state"] = [state_before_tag, comic.state]
-            log_batch_entry("run_pipeline", comic, state_before_tag, comic.state, audit_changes)
+            log_batch_entry("tag_all", comic, state_before_tag, comic.state, audit_changes or {"processed": [None, True]})
 
             result["tag"] = {
                 "matched_rulesets": tag_result["matched_rulesets"],
