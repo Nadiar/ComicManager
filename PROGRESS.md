@@ -281,7 +281,10 @@
 - [ ] [BUG.41] When a comic has been tagged the audit log shows rollback to 'To Count', but that stage does not work anymore. 
 - [ ] [BUG.42] If I'm using Hybrid/Grid/Compact view and use the 'x Clear' button, the view resets to Table. Is it possible that the view isn't a url variable? 
 - [ ] [BUG.43] When in Grid view theres sometimes a small exclamationmark on a comic, when hovering we want to see what the issue is, eg. CBR file or ZIP or PDF or whatever it could be. or maybe the flag? 
-
+- [ ] [BUG.44] After using row buttons on `/comics/` table we get the error `Convert failed: TypeError: can't access property "querySelectorAll", row is null`. 
+- [ ] [BUG.45] On production server the container (using `docker-compose.yaml` and not `*override*`) gives `web-1 | Not Found: /ws/tasks/`. 
+- [ ] [BUG.46] Comics not deselected in table view. Reproduce: go to `/comics/?state=new`, select 3 comics, using the action bar, press `Run Pipeline`, after finished, dismiss the modal popup. The comics disappear but the 3 comics that took their place are still selected.
+- [ ] [BUG.47] Action bar isn't shown in table/hybrid/grid/compact view if navigation = topbar. It works with navigation=sidebar. 
 
 ## I.N.D.U.C.K.S. Integration
 
@@ -384,7 +387,8 @@
 ## Architecture
 
 **Current Status & Tasks:**
-- [ ] [AC.1] Replace `xml.etree.ElementTree` with `defusedxml.ElementTree` project-wide. Affects `ComicInfo.xml` read/write, `.lop` parser, and any other XML ingestion.
-- [ ] [AC.2] Check batch task functions for missing `transaction.atomic()` wrapping. If a worker crashes mid-batch (e.g. `tag_all` at comic 25 of 50) the DB is left in a split state. Wrap each item's DB writes atomically.
-- [ ] [AC.3] Check `get_setting()` call sites inside task loops. If called per-comic in a batch, snapshot settings once before the loop instead of hitting the DB on every iteration.
+- [x] [AC.1] Replace `xml.etree.ElementTree` with `defusedxml.ElementTree` project-wide. Affects `ComicInfo.xml` read/write, `.lop` parser, and any other XML ingestion.
+- [x] [AC.2] Check batch task functions for missing `transaction.atomic()` wrapping. If a worker crashes mid-batch (e.g. `tag_all` at comic 25 of 50) the DB is left in a split state. Wrap each item's DB writes atomically.
+- [x] [AC.3] Check `get_setting()` call sites inside task loops. If called per-comic in a batch, snapshot settings once before the loop instead of hitting the DB on every iteration.
 - [ ] [AC.4] Reduce `ProgressTask` boilerplate. Add a shared helper so individual tasks don't each reimplement the same cancellation-check + progress-update pattern. Probably no change to the JS polling layer.
+- [x] [AC.5] Rewrite action endpoint to a single unified one. 
