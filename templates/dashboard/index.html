@@ -450,7 +450,10 @@ function runNewPipeline(comicId, btn) {
         if (window.showQuickToast) window.showQuickToast(data.error || 'Failed to start pipeline', 'error');
         return;
       }
-      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Running pipeline');
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Running pipeline', function() {
+        var t = document.getElementById('task-progress-toast');
+        if (t) t.classList.add('hidden');
+      });
       _pollPipelineCompletion(data.task_id, btn);
     })
     .catch(function() { btn.disabled = false; btn.textContent = orig; });
@@ -512,12 +515,6 @@ function _pollPipelineCompletion(taskId, btn) {
 }
 
 function _openPipelineModal(result) {
-  if (window.dismissTaskToast) {
-    window.dismissTaskToast = function() {
-      var toast = document.getElementById('task-progress-toast');
-      if (toast) toast.classList.add('hidden');
-    };
-  }
   if ((result.total || 0) > 1) { _openPipelineModalBulk(result); return; }
   var r = (result.results || [])[0] || {};
   var outcome = r.outcome || 'error';
@@ -603,12 +600,6 @@ function _openPipelineModal(result) {
 }
 
 function _openPipelineModalBulk(result) {
-  if (window.dismissTaskToast) {
-    window.dismissTaskToast = function() {
-      var toast = document.getElementById('task-progress-toast');
-      if (toast) toast.classList.add('hidden');
-    };
-  }
   document.getElementById('pipeline-modal-title').textContent = 'Pipeline Complete \u2014 ' + (result.total||0) + ' comics';
   var badgeEl = document.getElementById('pipeline-modal-badge');
   badgeEl.className = 'cm-chip ' + (result.error_count > 0 ? 'err' : result.duplicate_count > 0 ? 'warn' : 'ok');
