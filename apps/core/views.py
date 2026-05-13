@@ -123,13 +123,14 @@ def _build_comic_list_queryset(params):
     search = (params.get("q", "") or "").strip()
     char_q = (params.get("char_q", "") or "").strip()
     char_main_only = params.get("char_main_only", "1")
-    # Support multi-publisher from filter rail (getlist) and single legacy param
     if hasattr(params, "getlist"):
         publisher_list = [p for p in params.getlist("publisher") if p]
+        format_list = [f for f in params.getlist("format") if f]
     else:
-        publisher_list = [params.get("publisher", "")] if params.get("publisher") else []
+        publisher_list = [params.get("publisher")] if params.get("publisher") else []
+        format_list = [params.get("format")] if params.get("format") else []
     publisher = params.get("publisher", "") or ""
-    format_filter = params.get("format", "") or ""
+    format_filter = format_list[0] if len(format_list) == 1 else ""
     medium = params.get("medium", "") or ""
     needs_reformat = params.get("needs_reformat", "") or ""
     year_min = params.get("year_min", "") or ""
@@ -188,9 +189,9 @@ def _build_comic_list_queryset(params):
     if state:
         comics = comics.filter(state=state)
     if publisher_list:
-        comics = comics.filter(publisher__in=publisher_list) if len(publisher_list) > 1 else comics.filter(publisher=publisher_list[0])
-    if format_filter:
-        comics = comics.filter(format=format_filter)
+        comics = comics.filter(publisher__in=publisher_list)
+    if format_list:
+        comics = comics.filter(format__in=format_list)
     if medium:
         comics = comics.filter(medium=medium)
     if flag:
@@ -243,7 +244,8 @@ def comic_list(request):
     char_main_only = request.GET.get("char_main_only", "1")
     publisher = request.GET.get("publisher", "")
     publisher_list = [p for p in request.GET.getlist("publisher") if p]
-    format_filter = request.GET.get("format", "")
+    format_list = [f for f in request.GET.getlist("format") if f]
+    format_filter = format_list[0] if len(format_list) == 1 else ""
     medium = request.GET.get("medium", "")
     needs_reformat = request.GET.get("needs_reformat", "")
     current_view = request.GET.get("view", "table")
@@ -349,6 +351,7 @@ def comic_list(request):
         "current_publisher": publisher,
         "current_publishers": publisher_list,
         "current_format": format_filter,
+        "current_formats": format_list,
         "current_medium": medium,
         "current_sort": sort,
         "current_dir": sort_dir,

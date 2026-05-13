@@ -8,10 +8,15 @@
 
 <!-- Toolbar -->
 <form method="GET" id="filter-form" style="padding:10px 16px; border-bottom:1px solid var(--cm-border); display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--cm-bg-1);">
-  {% if current_state %}<input type="hidden" name="state" value="{{ current_state }}">{% endif %}
-  {% if current_flag %}<input type="hidden" name="flag" value="{{ current_flag }}">{% endif %}
+  {% if not filter_rail_open %}{% if current_flag %}<input type="hidden" name="flag" value="{{ current_flag }}">{% endif %}{% endif %}
   {% if filter_rail_open %}<input type="hidden" name="rail" value="1">{% endif %}
   <input type="hidden" name="view" value="{{ current_view|default:'table' }}" id="form-view-hidden">
+
+  <!-- Filter rail toggle -->
+  <button type="button" onclick="toggleRail()" class="cm-btn sm{% if filter_rail_open %} primary{% endif %}" style="flex-shrink:0;">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg>
+    Filters
+  </button>
 
   <!-- Search -->
   <div style="position:relative; flex:0 0 300px;">
@@ -23,7 +28,7 @@
            hx-trigger="keyup changed delay:300ms, search"
            hx-target="#comic-results-container"
            hx-swap="innerHTML"
-           hx-include="#filter-form"
+           hx-include="#filter-form, #rail-form"
            hx-push-url="true"
            hx-indicator="#list-spinner">
   </div>
@@ -32,23 +37,32 @@
   <div class="cm-seg" style="flex-shrink:0;">
     <button type="button" {% if current_view == 'table' or not current_view %}class="on"{% endif %}
             hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
-            hx-include="#filter-form" hx-vals='{"view":"table"}' hx-push-url="true" hx-indicator="#list-spinner">Table</button>
+            hx-include="#filter-form, #rail-form" hx-vals='{"view":"table"}' hx-push-url="true" hx-indicator="#list-spinner">Table</button>
     <button type="button" {% if current_view == 'hybrid' %}class="on"{% endif %}
             hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
-            hx-include="#filter-form" hx-vals='{"view":"hybrid"}' hx-push-url="true" hx-indicator="#list-spinner">Hybrid</button>
+            hx-include="#filter-form, #rail-form" hx-vals='{"view":"hybrid"}' hx-push-url="true" hx-indicator="#list-spinner">Hybrid</button>
     <button type="button" {% if current_view == 'grid' %}class="on"{% endif %}
             hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
-            hx-include="#filter-form" hx-vals='{"view":"grid"}' hx-push-url="true" hx-indicator="#list-spinner">Grid</button>
+            hx-include="#filter-form, #rail-form" hx-vals='{"view":"grid"}' hx-push-url="true" hx-indicator="#list-spinner">Grid</button>
     <button type="button" {% if current_view == 'compact' %}class="on"{% endif %}
             hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
-            hx-include="#filter-form" hx-vals='{"view":"compact"}' hx-push-url="true" hx-indicator="#list-spinner">Compact</button>
+            hx-include="#filter-form, #rail-form" hx-vals='{"view":"compact"}' hx-push-url="true" hx-indicator="#list-spinner">Compact</button>
   </div>
 
-  <!-- Filter rail toggle -->
-  <button type="button" onclick="toggleRail()" class="cm-btn sm{% if filter_rail_open %} primary{% endif %}" style="flex-shrink:0;">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg>
-    Filters
-  </button>
+  <!-- State filter -->
+  <select name="state" class="cm-input cm-select" style="height:30px; font-size:12px;"
+          hx-get="/comics/"
+          hx-trigger="change"
+          hx-target="#comic-results-container"
+          hx-swap="innerHTML"
+          hx-include="#filter-form, #rail-form"
+          hx-push-url="true"
+          hx-indicator="#list-spinner">
+    <option value="">All States</option>
+    {% for key, label in workflow_states %}
+    <option value="{{ key }}" {% if current_state == key %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
 
   <!-- Sort -->
   <select name="sort" class="cm-input cm-select" style="height:30px; font-size:12px;"
@@ -56,7 +70,7 @@
           hx-trigger="change"
           hx-target="#comic-results-container"
           hx-swap="innerHTML"
-          hx-include="#filter-form"
+          hx-include="#filter-form, #rail-form"
           hx-push-url="true"
           hx-indicator="#list-spinner">
     {% if current_state == 'new' %}
@@ -78,7 +92,7 @@
           hx-trigger="change"
           hx-target="#comic-results-container"
           hx-swap="innerHTML"
-          hx-include="#filter-form"
+          hx-include="#filter-form, #rail-form"
           hx-push-url="true"
           hx-indicator="#list-spinner">
     <option value="asc" {% if current_dir == 'asc' %}selected{% endif %}>A→Z</option>
@@ -144,7 +158,7 @@
   {% if current_search %}<span class="cm-chip" style="font-size:10.5px;">"{{ current_search }}"</span>{% endif %}
   {% if current_publishers %}<span class="cm-chip accent" style="font-size:10.5px;">{{ current_publishers|join:", " }}</span>{% endif %}
   {% if current_state or current_flag or current_search or current_publishers or current_format or current_year_min or current_year_max %}
-  <a href="/comics/{% if filter_rail_open %}?rail=1{% endif %}" class="cm-btn sm ghost" style="font-size:11px; text-decoration:none; padding:2px 8px;">× Clear</a>
+  <a href="/comics/?view={{ current_view|default:'table' }}{% if filter_rail_open %}&amp;rail=1{% endif %}" class="cm-btn sm ghost" style="font-size:11px; text-decoration:none; padding:2px 8px;">× Clear</a>
   {% endif %}
   <div style="flex:1;"></div>
   {% if current_state == 'new' %}<button type="button" class="cm-btn sm" onclick="scanForComics(this)">Scan for Comics</button>{% endif %}
@@ -197,22 +211,6 @@
         </div>
       </div>
 
-      <!-- State -->
-      <div>
-        <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--cm-fg-3); margin-bottom:6px;">State</div>
-        <div style="display:flex; flex-direction:column; gap:1px;">
-          {% for s in state_counts %}
-          <label style="display:flex; align-items:center; justify-content:space-between; padding:3px 6px; border-radius:4px; cursor:pointer; font-size:12px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
-            <span style="display:flex; align-items:center; gap:6px;">
-              <input type="checkbox" name="state" value="{{ s.state }}" {% if s.state == current_state %}checked{% endif %} style="accent-color:var(--cm-accent); flex-shrink:0;">
-              <span class="cm-chip {{ s.state|state_chip_class }}" style="padding:1px 6px; font-size:10.5px;"><span class="cm-dot"></span> {{ s.label }}</span>
-            </span>
-            <span class="mono tnum" style="color:var(--cm-fg-3); font-size:10.5px; flex-shrink:0;">{{ s.count }}</span>
-          </label>
-          {% endfor %}
-        </div>
-      </div>
-
       <!-- Format -->
       <div>
         <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--cm-fg-3); margin-bottom:6px;">Format</div>
@@ -220,7 +218,7 @@
           {% for f in format_counts %}
           <label style="display:flex; align-items:center; justify-content:space-between; padding:3px 6px; border-radius:4px; cursor:pointer; font-size:12px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
             <span style="display:flex; align-items:center; gap:6px; min-width:0;">
-              <input type="checkbox" name="format" value="{{ f.format }}" {% if f.format == current_format %}checked{% endif %} style="accent-color:var(--cm-accent); flex-shrink:0;">
+              <input type="checkbox" name="format" value="{{ f.format }}" {% if f.format in current_formats %}checked{% endif %} style="accent-color:var(--cm-accent); flex-shrink:0;">
               <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px;">{{ f.format }}</span>
             </span>
             <span class="mono tnum" style="color:var(--cm-fg-3); font-size:10.5px; flex-shrink:0; margin-left:4px;">{{ f.n }}</span>
@@ -274,8 +272,10 @@
               hx-target="#comic-results-container"
               hx-swap="innerHTML"
               hx-vals='{"view":"{{ current_view }}","rail":"1","sort":"{{ current_sort }}","dir":"{{ current_dir }}","per_page":"{{ per_page }}"}'
+              hx-params="none"
               hx-push-url="true"
-              hx-indicator="#list-spinner">Reset</button>
+              hx-indicator="#list-spinner"
+              hx-on::after-request="document.querySelectorAll('#rail-form input[type=checkbox]').forEach(cb=>cb.checked=false);document.querySelectorAll('#rail-form input[type=text]').forEach(t=>t.value='');">Reset</button>
     </div>
   </form>
   {% endif %}
