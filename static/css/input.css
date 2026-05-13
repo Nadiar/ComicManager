@@ -410,7 +410,7 @@ html, body {
   display: flex;
   min-height: 100vh;
 }
-.cm-layout.topnav { flex-direction: column; }
+.cm-layout.topnav { flex-direction: column; height: 100vh; overflow: hidden; }
 .cm-layout.sidebar { flex-direction: row; height: 100vh; overflow: hidden; }
 
 .cm-layout-content {
@@ -420,6 +420,7 @@ html, body {
   flex-direction: column;
 }
 .cm-layout.sidebar .cm-layout-content { overflow-y: auto; }
+.cm-layout.topnav .cm-layout-content { overflow-y: auto; }
 
 /* ── Sidebar ────────────────────────────────────────────────────────────────── */
 .cm-sidebar {
