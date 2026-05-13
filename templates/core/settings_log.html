@@ -129,11 +129,11 @@
           {% elif entry.action == 'tag_all' %}
           <button class="cm-btn sm" style="color:var(--cm-warn); border-color:var(--cm-warn);"
                   hx-post="{% url 'core:comic_rollback' entry.uuid %}"
-                  hx-vals='{"to_state": "count"}'
+                  hx-vals='{"to_state": "scrape"}'
                   hx-target="#log-row-{{ forloop.counter }}"
                   hx-swap="outerHTML"
-                  hx-confirm="Reset this comic to 'count' and clear tagging data?">
-            To Count
+                  hx-confirm="Reset this comic to Scrape and clear tagging data?">
+            To Scrape
           </button>
           {% elif entry.action == 'format_all' %}
           <button class="cm-btn sm" style="color:var(--cm-warn); border-color:var(--cm-warn);"

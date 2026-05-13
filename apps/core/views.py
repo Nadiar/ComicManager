@@ -3903,7 +3903,7 @@ def comic_inline_field(request, pk):
 # Rollback
 # =============================================================================
 
-_VALID_ROLLBACK_STATES = {"new", "scrape", "count", "tagging"}
+_VALID_ROLLBACK_STATES = {"new", "scrape", "tagging"}
 
 
 @require_POST
@@ -3925,13 +3925,6 @@ def comic_rollback(request, pk):
         comic.custom_values = cv
         comic.state = Comic.STATE_NEW if to_state == "new" else Comic.STATE_IMPORTED
 
-    elif to_state == "count":
-        comic.series_group = None
-        comic.main_character_or_team = None
-        cv.pop("DataManager_Processed", None)
-        comic.custom_values = cv
-        comic.state = Comic.STATE_COUNTED
-
     elif to_state == "tagging":
         comic.format = None
         comic.state = Comic.STATE_TAGGED
@@ -3941,7 +3934,6 @@ def comic_rollback(request, pk):
     label_map = {
         "new":     "New (phase 1)",
         "scrape":  "Scrape (phase 2)",
-        "count":   "Add Count (phase 3)",
         "tagging": "Tagging (phase 4)",
     }
     return HttpResponse(
