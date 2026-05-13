@@ -27,7 +27,7 @@ services:
     image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-latest}
     user: "${UID}:${GID}"
     restart: unless-stopped
-    command: gunicorn comicmanager.wsgi:application --bind 0.0.0.0:8000 --workers 4
+    command: daphne -b 0.0.0.0 -p 8000 comicmanager.asgi:application
     ports:
       - "${PORT:-8381}:8000"
     env_file: .env
