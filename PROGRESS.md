@@ -283,7 +283,7 @@
 - [x] [BUG.43] When in Grid view theres sometimes a small exclamationmark on a comic, when hovering we want to see what the issue is, eg. CBR file or ZIP or PDF or whatever it could be. or maybe the flag? 
 - [-] [BUG.44] After using row buttons on `/comics/` table we get the error `Convert failed: TypeError: can't access property "querySelectorAll", row is null`. Errors and results from row actions now correctly route to the toast system via the unified endpoint.
 - [x] [BUG.45] On production server the container (using `docker-compose.yaml` and not `*override*`) gives `web-1 | Not Found: /ws/tasks/`. 
-- [ ] [BUG.46] Comics not deselected in table view. Reproduce: go to `/comics/?state=new`, select 3 comics, using the action bar, press `Run Pipeline`, after finished, dismiss the modal popup. The comics disappear but the 3 comics that took their place are still selected.
+- [x] [BUG.46] Comics not deselected in table view. Reproduce: go to `/comics/?state=new`, select 3 comics, using the action bar, press `Run Pipeline`, after finished, dismiss the modal popup. The comics disappear but the 3 comics that took their place are still selected.
 - [ ] [BUG.47] Action bar isn't shown in table/hybrid/grid/compact view if navigation = topbar. It works with navigation=sidebar. 
 - [ ] [BUG.48] Selecting New/Scrape/Taggning/move/Write in sidebar, then removing the filter from the rail and applying, does not remove the url filter for that stage and still highlights the stage in the sidebar. 
 

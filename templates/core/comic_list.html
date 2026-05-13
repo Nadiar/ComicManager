@@ -626,14 +626,17 @@ document.addEventListener('click', e => {
 
   window._attachBulkSelection = function() {
     document.querySelectorAll('.row-select').forEach(cb => {
+      cb.checked = false;
       cb.removeEventListener('change', _rowSelectHandler);
       cb.addEventListener('change', _rowSelectHandler);
     });
     const sa = document.getElementById('select-all');
     if (sa) {
+      sa.checked = false;
       sa.removeEventListener('change', _selectAllHandler);
       sa.addEventListener('change', _selectAllHandler);
     }
+    document.querySelectorAll('.cm-list-row').forEach(r => r.classList.remove('selected'));
     selectedPks.clear();
     updateBulkBar();
   };
