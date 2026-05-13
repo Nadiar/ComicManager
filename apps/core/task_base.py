@@ -5,6 +5,33 @@ from asgiref.sync import async_to_sync
 _GROUP = "tasks"
 
 
+# =============================================================================
+# Cancel helpers (Redis-backed, cross-process)
+# =============================================================================
+
+def _cancel_client():
+    import redis as _redis
+    from django.conf import settings
+    url = getattr(settings, "CELERY_BROKER_URL", "redis://redis:6379/0")
+    base = url.rsplit("/", 1)[0]
+    return _redis.from_url(f"{base}/1", decode_responses=True)
+
+
+def request_cancel(task_id):
+    """Signal a task to cancel cooperatively."""
+    _cancel_client().setex(f"cancel:{task_id}", 7200, "1")
+
+
+def is_cancelled(task_id):
+    """Return True if a cancel has been requested for this task."""
+    return bool(_cancel_client().get(f"cancel:{task_id}"))
+
+
+def clear_cancel(task_id):
+    """Remove the cancel flag."""
+    _cancel_client().delete(f"cancel:{task_id}")
+
+
 def _broadcast(task_id, payload):
     layer = get_channel_layer()
     if layer is None:
@@ -71,6 +98,12 @@ class ProgressTask(Task):
             "error": str(exc),
         }
         _broadcast(task_id, payload)
+
+    def is_cancelled(self):
+        return is_cancelled(self.request.id)
+
+    def clear_cancel(self):
+        clear_cancel(self.request.id)
 
     def is_paused(self):
         from django.core.cache import cache

@@ -5,36 +5,7 @@ Celery tasks for long-running core operations.
 from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
-from .task_base import ProgressTask
-
-
-# =============================================================================
-# Cancel helpers (Redis-backed, cross-process)
-# =============================================================================
-
-def _cancel_client():
-    """Return a Redis client for cancel flags (db=1, same host as broker)."""
-    import redis as _redis
-    from django.conf import settings
-    url = getattr(settings, "CELERY_BROKER_URL", "redis://redis:6379/0")
-    # Use db=1 for cancel flags to avoid collisions with the broker (db=0)
-    base = url.rsplit("/", 1)[0]
-    return _redis.from_url(f"{base}/1", decode_responses=True)
-
-
-def request_cancel(task_id):
-    """Signal a task to cancel cooperatively. Workers check this before each item."""
-    _cancel_client().setex(f"cancel:{task_id}", 7200, "1")
-
-
-def is_cancelled(task_id):
-    """Return True if a cancel has been requested for this task."""
-    return bool(_cancel_client().get(f"cancel:{task_id}"))
-
-
-def clear_cancel(task_id):
-    """Remove the cancel flag (called when task finishes or honours the request)."""
-    _cancel_client().delete(f"cancel:{task_id}")
+from .task_base import ProgressTask, request_cancel, is_cancelled, clear_cancel
 
 
 # =============================================================================
@@ -63,8 +34,8 @@ def write_all_comics_task(self):
     errors = []
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"written": written, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -146,8 +117,8 @@ def write_stale_comics_task(self):
     errors = []
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"written": written, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -223,8 +194,8 @@ def write_missing_comics_task(self):
     errors = []
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"written": written, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -298,8 +269,8 @@ def rewrite_updated_comics_task(self):
     errors = []
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"written": written, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -402,8 +373,8 @@ def convert_all_cbr_task(self):
     )
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"converted": converted, "processed": converted, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -546,8 +517,8 @@ def convert_all_zip_task(self):
     )
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"converted": converted, "processed": converted, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -650,8 +621,8 @@ def scrape_all_task(self):
     scraper = ComicVineScraper()
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {
                 "matched": matched, "failed": failed,
                 "processed": matched + failed,
@@ -791,8 +762,8 @@ def tag_all_task(self):
     )
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"processed": processed, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -848,8 +819,8 @@ def retag_flagged_task(self, flag_name):
     )
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"processed": processed, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -900,8 +871,8 @@ def format_all_task(self):
     )
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"processed": processed, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -953,8 +924,8 @@ def organize_all_task(self):
     )
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"processed": processed, "total": total, "errors": errors, "cancelled": True}
 
         try:
@@ -1057,8 +1028,8 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
         scraper = ComicVineScraper()
 
     for i, comic_id in enumerate(comic_ids):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"success": True, "action": action, "processed": processed,
                     "success_count": success_count, "total": total, "errors": errors,
                     "cancelled": True}
@@ -1363,8 +1334,8 @@ def populate_counts_task(self):
     failed = 0
 
     for i, comic in enumerate(comics):
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {
                 "success": True, "populated": populated, "failed": failed,
                 "mismatched_volumes": 0, "flagged": 0, "cleared": 0,
@@ -1441,8 +1412,8 @@ def populate_counts_task(self):
     mismatched_volumes = 0
 
     for vid, comics_in_vol in volume_comics.items():
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {
                 "success": True, "populated": populated, "failed": failed,
                 "mismatched_volumes": mismatched_volumes,

@@ -390,5 +390,5 @@
 - [x] [AC.1] Replace `xml.etree.ElementTree` with `defusedxml.ElementTree` project-wide. Affects `ComicInfo.xml` read/write, `.lop` parser, and any other XML ingestion.
 - [x] [AC.2] Check batch task functions for missing `transaction.atomic()` wrapping. If a worker crashes mid-batch (e.g. `tag_all` at comic 25 of 50) the DB is left in a split state. Wrap each item's DB writes atomically.
 - [x] [AC.3] Check `get_setting()` call sites inside task loops. If called per-comic in a batch, snapshot settings once before the loop instead of hitting the DB on every iteration.
-- [ ] [AC.4] Reduce `ProgressTask` boilerplate. Add a shared helper so individual tasks don't each reimplement the same cancellation-check + progress-update pattern. Probably no change to the JS polling layer.
+- [x] [AC.4] Reduce `ProgressTask` boilerplate. Add a shared helper so individual tasks don't each reimplement the same cancellation-check + progress-update pattern. Probably no change to the JS polling layer.
 - [x] [AC.5] Rewrite action endpoint to a single unified one. 

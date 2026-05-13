@@ -47,9 +47,8 @@ def audit_paths_task(self):
     )
 
     for i, comic_id in enumerate(comic_ids):
-        from apps.core.tasks import is_cancelled, clear_cancel
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {
                 "scanned": i, "mismatched": mismatched, "matched": matched,
                 "total": total, "errors": errors, "cancelled": True,
@@ -135,9 +134,8 @@ def reorganize_all_flagged_task(self):
     )
 
     for i, comic_id in enumerate(comic_ids):
-        from apps.core.tasks import is_cancelled, clear_cancel
-        if is_cancelled(self.request.id):
-            clear_cancel(self.request.id)
+        if self.is_cancelled():
+            self.clear_cancel()
             return {"moved": moved, "already_ok": already_ok, "total": total, "errors": errors, "cancelled": True}
 
         try:
