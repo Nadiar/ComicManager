@@ -161,15 +161,19 @@ The stored cover hashes (computed at accept time, see above) are compared agains
 
 Why this is the most reliable method: hashes are based on the actual pixels of the cover, so they match even if the filename is completely wrong or the metadata is absent. It also means we avoid needing an LLM or OCR to extract information from the cover image. The downside is that if a cover variant looks significantly different from the one in the database, no hash match will be found. In practice this has not been a major issue.
 
-After hash candidates are found, they are cross-validated against the comic's parsed metadata. Issue number is required: a mismatch immediately disqualifies the candidate. Series name is checked by normalising both strings (lowercase, strip punctuation) and testing for exact match, substring containment, or first-word match. Year is a bonus if within ±2 years.
+After hash candidates are found, they are cross-validated against the comic's parsed metadata. Both checks can disqualify a candidate:
+
+- **Issue number**: a mismatch immediately disqualifies the candidate.
+- **Series name**: both sides are normalised (lowercase, punctuation stripped) and compared for exact match, substring containment, or shared first word. If both the comic's series and the candidate's series are known but share no resemblance at all, the candidate is disqualified. Issue number alone is too ambiguous (every series has a #1) to auto-apply a match.
 
 The match is scored:
-- **Score 0**: Issue number does not match. Candidate discarded.
-- **Score 1**: Issue number matches.
-- **Score 2**: Issue number + series name matches.
-- **Score 3**: Issue number + series name + year within ±2 years.
+- **Score 0**: Issue number mismatches OR both series names are known but share no resemblance. Candidate discarded.
+- **Score 1**: Issue number matches, no series name available to validate against.
+- **Score 2**: Issue number + partial or substring series match.
+- **Score 3**: Issue number + exact series match, OR issue number + partial series + year within ±2.
+- **Score 4**: Issue number + exact series match + year within ±2.
 
-Only candidates with score > 0 are accepted.
+Only candidates with score > 0 are accepted. The highest-scoring candidate wins; ties are broken by lowest combined hash distance.
 
 ### Layer 2: Metadata Match (DB mode only)
 

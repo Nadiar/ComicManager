@@ -63,6 +63,7 @@ def metadata_alignment_score(comic, match):
 
     Returns 0 if the match is disqualified, >0 for viable matches.
     Score breakdown:
+      0 = disqualified (wrong number, or series known on both sides but share no resemblance)
       1 = number only (no series to validate)
       2 = number + partial/substring series match
       3 = number + exact series match  OR  number + partial series + year
@@ -100,6 +101,10 @@ def metadata_alignment_score(comic, match):
                         score += 1
                 except (ValueError, TypeError):
                     pass
+        else:
+            # Both series are known but share no resemblance — disqualify even if
+            # the issue number matched, because #3 is far too common to rely on alone.
+            return 0
     elif not cv_series and score == 0:
         score = 1
 

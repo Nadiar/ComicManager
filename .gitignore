@@ -9,7 +9,6 @@ static/css/main.css
 
 # Development tooling
 .?*
-docs/
 Comicrack_guide/
 
 # Git
