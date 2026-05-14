@@ -5,7 +5,7 @@ Comics/
 cover_cache/
 logs/
 staticfiles/
-static/
+static/css/main.css
 
 # Development tooling
 .?*

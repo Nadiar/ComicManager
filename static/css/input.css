@@ -729,7 +729,7 @@ html, body {
   margin: 0;
 }
 .cm-page-header {
-  padding: 14px 16px;
+  padding: 9px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
