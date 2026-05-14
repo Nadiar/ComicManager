@@ -142,7 +142,7 @@
 - [x] [P7.12] TPB folder path improvements: numeric rule operators (`greater than`, `less than`, etc.) added to profile matching engine, along with `Count` and `Page Count` fields. Indexed credit field access added to template engine (`{<writer[1]>}`, `{<writer[1][l]>}`, etc.). Two-profile pattern documented in `docs/guide/organizing.md`: Profile 1 matches `Format is TPB AND Count greater than 1` and groups into `{<series>} ({<volume>})` subfolder; Profile 2 catches remaining TPBs and uses `{ by <writer[1][l]>}` in the filename.
 - [x] [P7.13] Drag-and-drop priority reordering on the organizer profiles list. Drag handle column added to the table; native HTML5 drag-and-drop reorders rows live and persists via `POST /organizer/profiles/reorder/`.
 - [x] [P7.14] When using the CLI import command on an existing library, errors such as "Error processing X.cbz: Invalid or corrupted CBZ file" and informational lines like "No ComicInfo.xml in: X.cbz" are only printed to stdout and lost. These should be written to a persistent log file (e.g. `data/logs/import_errors.log`) so they can be reviewed after a large import run without having to keep the terminal open.
-- [ ] [P7.15] AU (Alternate Universe) comics that later gain a `main_character_or_team` value should be detected and moved to their correct publisher folder. Currently `needs_reorganize` is set when the field changes (P7.8), but there is no dedicated detection pass that scans organized AU comics for a newly populated main character and re-queues them.
+- [x] [P7.15] AU (Alternate Universe) comics that later gain a `main_character_or_team` value should be detected and moved to their correct publisher folder. Currently `needs_reorganize` is set when the field changes (P7.8), but there is no dedicated detection pass that scans organized AU comics for a newly populated main character and re-queues them.
 - [x] [P7.16] Check that Path Audit (`/organizer/path-audit/`) only shows and runs on comics in stage `Write to CBZ` or `Done`, as any other stage is in the pipeline where we will get to `Move Files` later on. Path Audit is meant as a way to audit files already organized and through the pipeline. 
 
 ### Phase 8: Write to File (Comicrack_guide 09 - Write to File)
@@ -279,13 +279,15 @@
 - [x] [BUG.39] New, Scrape, Tagging, Move Files, Write to CBZ all live at `/comics/?state=X`. Since active detection uses `request.path`, all five match `/comics/` and highlight the "Comics" item instead of the individual workflow step. Fix: pass the active state name via a template context variable and compare against `request.GET.state` in the sidebar.
 - [ ] [BUG.40] Redis warning in Docker: WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
 - [x] [BUG.41] When a comic has been tagged the audit log shows rollback to 'To Count', but that stage does not work anymore. 
-- [ ] [BUG.42] If I'm using Hybrid/Grid/Compact view and use the 'x Clear' button, the view resets to Table. Is it possible that the view isn't a url variable? 
+- [x] [BUG.42] If I'm using Hybrid/Grid/Compact view and use the 'x Clear' button, the view resets to Table. Is it possible that the view isn't a url variable? 
 - [x] [BUG.43] When in Grid view theres sometimes a small exclamationmark on a comic, when hovering we want to see what the issue is, eg. CBR file or ZIP or PDF or whatever it could be. or maybe the flag? 
 - [-] [BUG.44] After using row buttons on `/comics/` table we get the error `Convert failed: TypeError: can't access property "querySelectorAll", row is null`. Errors and results from row actions now correctly route to the toast system via the unified endpoint.
 - [x] [BUG.45] On production server the container (using `docker-compose.yaml` and not `*override*`) gives `web-1 | Not Found: /ws/tasks/`. 
 - [x] [BUG.46] Comics not deselected in table view. Reproduce: go to `/comics/?state=new`, select 3 comics, using the action bar, press `Run Pipeline`, after finished, dismiss the modal popup. The comics disappear but the 3 comics that took their place are still selected.
-- [ ] [BUG.47] Action bar isn't shown in table/hybrid/grid/compact view if navigation = topbar. It works with navigation=sidebar. 
-- [ ] [BUG.48] Selecting New/Scrape/Taggning/move/Write in sidebar, then removing the filter from the rail and applying, does not remove the url filter for that stage and still highlights the stage in the sidebar. 
+- [x] [BUG.47] Action bar isn't shown in table/hybrid/grid/compact view if navigation = topbar. It works with navigation=sidebar. 
+- [x] [BUG.48] Selecting New/Scrape/Taggning/move/Write in sidebar, then removing the filter from the rail and applying, does not remove the url filter for that stage and still highlights the stage in the sidebar. 
+- [ ] [BUG.49] Smartlists using 'is empty' or 'is not empty' doesn't save that filter line, as the field if empty. Also add warning if a filter line is not gonna be saved. All smartlists/filters/etc should warn the user if a filter is not gonna be saved for some reason. 
+- [ ] Correct / new path isn't always shown on the comics details page.  
 
 ## I.N.D.U.C.K.S. Integration
 

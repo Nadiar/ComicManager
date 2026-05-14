@@ -999,7 +999,7 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
     Used by the bulk-action endpoint to run any action on the current
     filtered comic list without requiring a saved SmartList.
 
-    Supported actions: scrape, tag, format, organize, write, force_write, accept_flag
+    Supported actions: scrape, tag, format, organize, write, force_write, accept_flag, au_reorganize
     """
     from .models import Comic
     from apps.dashboard.tasks import (
@@ -1052,18 +1052,24 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
                 _run_write(comic)
             elif action == "force_write":
                 _run_force_write(comic)
+            elif action == "au_reorganize":
+                _run_tag(comic)
+                comic.refresh_from_db()
+                _run_organize(comic)
+                comic.refresh_from_db()
+                _run_write(comic)
             elif action == "accept_flag" and flag_name:
                 comic.accept_flag(flag_name)
                 comic.save(update_fields=["flags", "accepted_flags"])
             success_count += 1
         except (PermissionError, OSError) as e:
             import errno as _errno
-            fatal = action in ("organize", "write", "force_write") and (
+            fatal = action in ("organize", "write", "force_write", "au_reorganize") and (
                 isinstance(e, PermissionError) or getattr(e, "errno", None) == _errno.ENOSPC
             )
             err_msg = str(e)
             errors.append(f"{comic.series} #{comic.number}: {err_msg}")
-            if action in ("organize", "write", "force_write"):
+            if action in ("organize", "write", "force_write", "au_reorganize"):
                 from .audit import log_batch_entry
                 log_batch_entry(f"{action}_error", comic, comic.state, comic.state,
                                 {"error": [None, err_msg]})

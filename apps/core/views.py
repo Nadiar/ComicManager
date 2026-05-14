@@ -2845,21 +2845,38 @@ def organize_all_comics(request):
 @require_POST
 def reorganize_comic(request, pk):
     """
-    Re-organize a comic that's already been organized or written.
-
-    This allows moving a comic to a new location if its metadata
-    (like format, series_group, etc.) has changed after organization.
+    Re-organize a comic that's already been organized, written, or done.
+    For done comics, runs the full tag → organize → write pipeline so that
+    updated metadata and ComicInfo.xml are both handled in one step.
     """
-    from apps.organizer.services import reorganize_comic as service_reorganize
-
     comic = get_object_or_404(Comic, pk=pk)
 
-    if comic.state not in (Comic.STATE_WRITTEN, Comic.STATE_DONE):
+    if comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE):
         return JsonResponse({
             "success": False,
-            "error": f"Comic must be in 'write' or 'done' state (current: {comic.state})"
+            "error": f"Comic must be in organized, written, or done state (current: {comic.state})"
         }, status=400)
 
+    if comic.state == Comic.STATE_DONE:
+        from apps.dashboard.tasks import _run_organize, _run_tag, _run_write
+        try:
+            old_path = comic.file_path
+            _run_tag(comic)
+            comic.refresh_from_db()
+            _run_organize(comic)
+            comic.refresh_from_db()
+            _run_write(comic)
+            comic.refresh_from_db()
+            return JsonResponse({
+                "success": True,
+                "moved": comic.file_path != old_path,
+                "old_path": old_path,
+                "new_path": comic.file_path,
+            })
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+    from apps.organizer.services import reorganize_comic as service_reorganize
     result = service_reorganize(comic)
 
     if not result["success"]:
@@ -2870,7 +2887,7 @@ def reorganize_comic(request, pk):
 
     return JsonResponse({
         "success": True,
-        "message": result.get("message", "Comic reorganized successfully") if not result.get("moved") else "Comic reorganized successfully",
+        "message": "Comic reorganized successfully",
         "old_path": result.get("old_path"),
         "new_path": result.get("new_path"),
         "moved": result.get("moved", False),
@@ -4271,14 +4288,14 @@ def comic_action(request):
 
     Parameters (POST):
         pks: one or more comic PKs
-        action: scrape | tag | format | organize | write | force_write
+        action: scrape | tag | format | organize | write | force_write | au_reorganize
         show_result: "true" — return detailed result dict for modal display (single comics only)
         force: "true" — skip state check for scrape (used when re-scraping flagged comics)
     """
     from celery.result import AsyncResult
     from .tasks import bulk_action_task
 
-    VALID_ACTIONS = ("scrape", "tag", "format", "organize", "write", "force_write")
+    VALID_ACTIONS = ("scrape", "tag", "format", "organize", "write", "force_write", "au_reorganize")
     action = request.POST.get("action", "").strip()
     if action not in VALID_ACTIONS:
         return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
@@ -4312,6 +4329,7 @@ def comic_action(request):
     action_labels = {
         "scrape": "Scraping", "tag": "Tagging", "format": "Formatting",
         "organize": "Organizing", "write": "Writing", "force_write": "Force writing",
+        "au_reorganize": "Moving AU comic",
     }
     label = action_labels.get(action, action.title())
     request.session["active_task_label"] = f"{label} {len(comic_ids)} comics"

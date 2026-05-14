@@ -286,6 +286,63 @@ def preview_view(request, pk):
 
 
 # ============================================================================
+# AU Scan Views
+# ============================================================================
+
+def au_scan(request):
+    """AU Comic Scan page — detect and reorganize AU comics that gained a main character via tagging rules."""
+    from django.core.paginator import Paginator
+
+    from celery.result import AsyncResult
+
+    # Comics in the generic AU folder that were re-tagged and are now waiting to be moved
+    flagged_qs = (
+        Comic.objects.filter(
+            needs_reorganize=True,
+            medium=Comic.MEDIUM_DIGITAL,
+            file_path__icontains="alternate universe",
+        )
+        .exclude(main_character_or_team__isnull=True)
+        .exclude(main_character_or_team="")
+        .order_by("publisher", "series", "number")
+    )
+
+    # Comics still in the generic AU folder with no main character — candidates for the scan
+    from django.db.models import Q
+    total_to_scan = Comic.objects.filter(
+        Q(main_character_or_team__isnull=True) | Q(main_character_or_team=""),
+        state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE],
+        medium=Comic.MEDIUM_DIGITAL,
+        file_path__icontains="alternate universe",
+    ).exclude(file_path__isnull=True).exclude(file_path="").count()
+
+    total_flagged = flagged_qs.count()
+
+    paginator = Paginator(flagged_qs, 50)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    active_au_scan_task_id = request.session.get("au_scan_task_id", "")
+    if active_au_scan_task_id:
+        result = AsyncResult(active_au_scan_task_id)
+        if result.state not in ("PENDING", "STARTED", "PROGRESS"):
+            active_au_scan_task_id = ""
+
+    active_reorganize_au_task_id = request.session.get("reorganize_au_task_id", "")
+    if active_reorganize_au_task_id:
+        result = AsyncResult(active_reorganize_au_task_id)
+        if result.state not in ("PENDING", "STARTED", "PROGRESS"):
+            active_reorganize_au_task_id = ""
+
+    return render(request, "organizer/au_scan.html", {
+        "comics": page_obj,
+        "page_obj": page_obj,
+        "total_flagged": total_flagged,
+        "total_to_scan": total_to_scan,
+        "active_au_scan_task_id": active_au_scan_task_id,
+        "active_reorganize_au_task_id": active_reorganize_au_task_id,
+    })
+
+
 # Path Audit Views
 # ============================================================================
 
@@ -312,11 +369,34 @@ def path_audit(request):
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
+    from celery.result import AsyncResult
+
+    active_audit_task_id = request.session.get("audit_task_id", "")
+    if active_audit_task_id:
+        result = AsyncResult(active_audit_task_id)
+        if result.state not in ("PENDING", "STARTED", "PROGRESS"):
+            active_audit_task_id = ""
+
+    active_au_scan_task_id = request.session.get("au_scan_task_id", "")
+    if active_au_scan_task_id:
+        result = AsyncResult(active_au_scan_task_id)
+        if result.state not in ("PENDING", "STARTED", "PROGRESS"):
+            active_au_scan_task_id = ""
+
+    active_reorganize_task_id = request.session.get("reorganize_task_id", "")
+    if active_reorganize_task_id:
+        result = AsyncResult(active_reorganize_task_id)
+        if result.state not in ("PENDING", "STARTED", "PROGRESS"):
+            active_reorganize_task_id = ""
+
     return render(request, "organizer/path_audit.html", {
         "comics": page_obj,
         "page_obj": page_obj,
         "total_flagged": total_flagged,
         "total_organized": total_organized,
+        "active_audit_task_id": active_audit_task_id,
+        "active_au_scan_task_id": active_au_scan_task_id,
+        "active_reorganize_task_id": active_reorganize_task_id,
     })
 
 
@@ -357,6 +437,93 @@ def start_audit(request):
         "task_id": result.id,
         "total": count,
         "message": f"Started auditing {count} comics",
+    })
+
+
+@require_POST
+def start_au_scan(request):
+    """Dispatch Celery task to scan organized AU comics for path mismatches."""
+    from django.db.models import Q
+
+    from celery.result import AsyncResult
+
+    active_task_id = request.session.get("au_scan_task_id")
+    if active_task_id:
+        result = AsyncResult(active_task_id)
+        if result.state in ("PENDING", "STARTED", "PROGRESS"):
+            return JsonResponse({
+                "success": False,
+                "error": "An AU scan task is already running",
+                "task_id": active_task_id,
+            }, status=409)
+
+    count = Comic.objects.filter(
+        Q(main_character_or_team__isnull=True) | Q(main_character_or_team=""),
+        state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE],
+        medium=Comic.MEDIUM_DIGITAL,
+        file_path__icontains="alternate universe",
+    ).exclude(file_path__isnull=True).exclude(file_path="").count()
+
+    if count == 0:
+        return JsonResponse({
+            "success": True,
+            "total": 0,
+            "message": "No AU comics to scan",
+        })
+
+    from .tasks import scan_au_paths_task
+
+    result = scan_au_paths_task.delay()
+    request.session["au_scan_task_id"] = result.id
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": count,
+        "message": f"Started scanning {count} AU comics",
+    })
+
+
+@require_POST
+def start_reorganize_au(request):
+    """Dispatch Celery task to reorganize AU-flagged comics."""
+    from celery.result import AsyncResult
+
+    active_task_id = request.session.get("reorganize_au_task_id")
+    if active_task_id:
+        result = AsyncResult(active_task_id)
+        if result.state in ("PENDING", "STARTED", "PROGRESS"):
+            return JsonResponse({
+                "success": False,
+                "error": "A reorganize AU task is already running",
+                "task_id": active_task_id,
+            }, status=409)
+
+    count = Comic.objects.filter(
+        needs_reorganize=True,
+        medium=Comic.MEDIUM_DIGITAL,
+        file_path__icontains="alternate universe",
+    ).exclude(file_path__isnull=True).exclude(file_path="").exclude(
+        main_character_or_team__isnull=True
+    ).exclude(main_character_or_team="").count()
+
+    if count == 0:
+        return JsonResponse({
+            "success": True,
+            "total": 0,
+            "message": "No AU comics flagged for reorganization",
+        })
+
+    from .tasks import reorganize_au_flagged_task
+
+    result = reorganize_au_flagged_task.delay()
+    request.session["reorganize_au_task_id"] = result.id
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": count,
+        "message": f"Started reorganizing {count} AU comics",
     })
 
 

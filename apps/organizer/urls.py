@@ -25,4 +25,9 @@ urlpatterns = [
     path("path-audit/", views.path_audit, name="path_audit"),
     path("path-audit/start/", views.start_audit, name="start_audit"),
     path("path-audit/reorganize-all/", views.start_reorganize_all, name="start_reorganize_all"),
+
+    # AU Scan
+    path("au-scan/", views.au_scan, name="au_scan"),
+    path("au-scan/start/", views.start_au_scan, name="start_au_scan"),
+    path("au-scan/reorganize/", views.start_reorganize_au, name="start_reorganize_au"),
 ]

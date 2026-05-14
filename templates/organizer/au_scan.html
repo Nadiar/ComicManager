@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}AU Scan — ComicManager{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="cm-page-header">
+  <h1 class="cm-page-title">AU Scan</h1>
+  <div style="display:flex; gap:8px;">
+    <button onclick="runAuScan(this)" class="cm-btn sm ghost" id="au-scan-btn">Run Scan</button>
+    {% if total_flagged > 0 %}
+    <button onclick="reorganizeAu(this)" class="cm-btn sm primary" id="reorganize-au-btn">
+      Reorganize ({{ total_flagged }})
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Description -->
+<div style="padding:10px 16px; border-bottom:1px solid var(--cm-border); font-size:13px; color:var(--cm-fg-2);">
+  Finds organized comics sitting in a generic <em>Alternate Universe</em> folder that now have a
+  matching tagging rule setting a <code>MainCharacterOrTeam</code> value. Applies the full rule
+  and flags the comic for reorganization into its own folder.
+</div>
+
+<!-- Stats -->
+<div style="padding:12px 16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; border-bottom:1px solid var(--cm-border);">
+  <div class="cm-card-sm">
+    <div class="cm-stat-label">Candidates to Scan</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-info); margin-top:2px;" class="mono tnum">{{ total_to_scan }}</div>
+  </div>
+  <div class="cm-card-sm">
+    <div class="cm-stat-label">Flagged for Move</div>
+    <div style="font-size:26px; font-weight:700; {% if total_flagged > 0 %}color:var(--cm-warn){% else %}color:var(--cm-ok){% endif %}; margin-top:2px;" class="mono tnum">{{ total_flagged }}</div>
+  </div>
+</div>
+
+<!-- Progress indicator -->
+<div id="au-progress" style="display:none; padding:12px 16px; border-bottom:1px solid var(--cm-border); background:var(--cm-bg-2);">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px;">
+    <span style="font-weight:600;" id="au-progress-label"></span>
+    <span class="cm-text-muted" id="au-progress-count"></span>
+  </div>
+  <div style="background:var(--cm-bg-1); border-radius:3px; height:5px; overflow:hidden;">
+    <div id="au-progress-bar" style="height:100%; background:var(--cm-accent); width:0%; transition:width .3s;"></div>
+  </div>
+  <div id="au-progress-status" style="font-size:11px; color:var(--cm-fg-3); margin-top:4px;"></div>
+</div>
+
+{% if total_flagged == 0 %}
+<div style="padding:48px 16px; text-align:center; color:var(--cm-fg-3); font-size:14px;">
+  No AU comics flagged. {% if total_to_scan > 0 %}Click "Run Scan" to check {{ total_to_scan }} candidate{{ total_to_scan|pluralize }}.{% endif %}
+</div>
+{% else %}
+
+<!-- Pagination top -->
+{% if page_obj.paginator.num_pages > 1 %}
+<div style="padding:7px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
+  <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ total_flagged }}</span></span>
+  <div style="display:flex; gap:3px;">
+    {% if page_obj.has_previous %}
+    <a href="?page=1" class="cm-btn sm ghost" cm-no-underline>First</a>
+    <a href="?page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" cm-no-underline>Prev</a>
+    {% endif %}
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}<button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
+      {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}<a href="?page={{ num }}" class="cm-btn sm ghost" cm-no-underline>{{ num }}</a>
+      {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}<span style="color:var(--cm-fg-3); padding:0 4px;" class="mono">…</span>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" cm-no-underline>Next</a>
+    <a href="?page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" cm-no-underline>Last</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Table -->
+<div class="cm-overflow-x">
+  <table class="cm-table">
+    <thead>
+      <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1); position:sticky; top:0; z-index:3;">
+        <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Series</th>
+        <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:60px;">#</th>
+        <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Publisher</th>
+        <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Main Character / Team</th>
+        <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Current Path</th>
+        <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Target Path</th>
+        <th style="padding:8px 12px; width:70px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for comic in comics %}
+      <tr id="row-{{ comic.pk }}" class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+        <td style="padding:8px 12px; font-weight:500;">
+          <a href="/comics/{{ comic.pk }}/" class="cm-text-accent">{{ comic.series }}</a>
+        </td>
+        <td style="padding:8px 12px;" class="mono tnum">{{ comic.number }}</td>
+        <td style="padding:8px 12px; color:var(--cm-fg-2);">{{ comic.publisher|default:"—" }}</td>
+        <td style="padding:8px 12px;"><span class="cm-chip" style="font-size:10.5px;">{{ comic.main_character_or_team }}</span></td>
+        <td style="padding:8px 12px; max-width:240px;">
+          <code style="font-size:10.5px; color:var(--cm-fg-2); word-break:break-all;">{{ comic.file_path }}</code>
+        </td>
+        <td style="padding:8px 12px; max-width:240px;">
+          <code style="font-size:10.5px; color:var(--cm-warn); word-break:break-all;">{{ comic.expected_path|default:"—" }}</code>
+        </td>
+        <td style="padding:8px 12px; text-align:right;">
+          <button onclick="reorganizeSingle('{{ comic.pk }}', this)" class="cm-btn sm ghost">Move</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination bottom -->
+{% if page_obj.paginator.num_pages > 1 %}
+<div style="padding:7px 16px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
+  <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  <div style="display:flex; gap:3px;">
+    {% if page_obj.has_previous %}
+    <a href="?page=1" class="cm-btn sm ghost" cm-no-underline>First</a>
+    <a href="?page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" cm-no-underline>Prev</a>
+    {% endif %}
+    {% for num in page_obj.paginator.page_range %}
+      {% if num == page_obj.number %}<button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
+      {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}<a href="?page={{ num }}" class="cm-btn sm ghost" cm-no-underline>{{ num }}</a>
+      {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}<span style="color:var(--cm-fg-3); padding:0 4px;" class="mono">…</span>
+      {% endif %}
+    {% endfor %}
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" cm-no-underline>Next</a>
+    <a href="?page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" cm-no-underline>Last</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+
+<script>
+var pollTimer = null;
+
+function setProgressBar(pct, color) {
+  var bar = document.getElementById('au-progress-bar');
+  bar.style.width = pct + '%';
+  if (color) bar.style.background = color;
+}
+
+function showProgress(label) {
+  document.getElementById('au-progress').style.display = 'block';
+  document.getElementById('au-progress-label').textContent = label;
+  document.getElementById('au-progress-count').textContent = '';
+  document.getElementById('au-progress-status').textContent = 'Starting...';
+  setProgressBar(0, 'var(--cm-accent)');
+}
+
+function pollProgress(taskId, statusKey) {
+  fetch('/comics/task-progress/' + taskId + '/')
+    .then(r => r.json())
+    .then(data => {
+      if (data.state === 'PROGRESS') {
+        var pct = data.total > 0 ? Math.round((data.current / data.total) * 100) : 0;
+        setProgressBar(pct);
+        document.getElementById('au-progress-count').textContent = data.current + ' / ' + data.total;
+        var errCount = (data.errors && data.errors.length) || 0;
+        document.getElementById('au-progress-status').textContent =
+          (data[statusKey] || 0) + ' ' + statusKey + (errCount > 0 ? ', ' + errCount + ' errors' : '');
+        pollTimer = setTimeout(() => pollProgress(taskId, statusKey), 2000);
+      } else if (data.state === 'SUCCESS') {
+        setProgressBar(100, 'var(--cm-ok)');
+        document.getElementById('au-progress-count').textContent = '';
+        document.getElementById('au-progress-status').textContent = 'Complete! Reloading...';
+        setTimeout(() => location.reload(), 1500);
+      } else if (data.state === 'FAILURE') {
+        setProgressBar(100, 'var(--cm-err)');
+        document.getElementById('au-progress-status').textContent = data.error || 'Task failed';
+      } else {
+        document.getElementById('au-progress-status').textContent = data.state === 'STARTED' ? 'Starting...' : 'Queued...';
+        pollTimer = setTimeout(() => pollProgress(taskId, statusKey), 2000);
+      }
+    })
+    .catch(() => { pollTimer = setTimeout(() => pollProgress(taskId, statusKey), 4000); });
+}
+
+async function runAuScan(btn) {
+  btn.disabled = true;
+  var orig = btn.textContent;
+  btn.textContent = 'Starting...';
+  try {
+    var resp = await fetch('{% url "organizer:start_au_scan" %}', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+    var data = await resp.json();
+    if (data.success && data.task_id) {
+      btn.textContent = 'Scanning...';
+      showProgress('Scanning AU comics...');
+      pollProgress(data.task_id, 'flagged');
+    } else if (data.success) {
+      btn.textContent = data.message || 'Nothing to scan';
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+    } else {
+      btn.textContent = data.error || 'Error';
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000);
+    }
+  } catch { btn.textContent = 'Error'; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000); }
+}
+
+function reorganizeAu(btn) {
+  showConfirm('Move all flagged AU comics to their character-specific folders?', async () => {
+    btn.disabled = true;
+    var orig = btn.textContent;
+    btn.textContent = 'Starting...';
+    try {
+      var resp = await fetch('{% url "organizer:start_reorganize_au" %}', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+      var data = await resp.json();
+      if (data.success && data.task_id) {
+        btn.textContent = 'Reorganizing...';
+        showProgress('Moving AU comics...');
+        pollProgress(data.task_id, 'moved');
+      } else if (data.success) {
+        btn.textContent = data.message || 'Nothing to reorganize';
+        setTimeout(() => location.reload(), 1500);
+      } else {
+        btn.textContent = data.error || 'Error';
+        setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000);
+      }
+    } catch { btn.textContent = 'Error'; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000); }
+  });
+}
+
+function reorganizeSingle(pk, btn) {
+  var fd = new FormData();
+  fd.append('csrfmiddlewaretoken', getCsrfToken());
+  fd.append('pks', pk);
+  fd.append('action', 'au_reorganize');
+  fetch('/comics/action/', { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) {
+        if (window.showMsgToast) window.showMsgToast(data.error || 'Move failed', 'error');
+        return;
+      }
+      if (data.task_id) {
+        var row = document.getElementById('row-' + pk);
+        if (row) { row.style.opacity = '0.5'; btn.textContent = 'Moving...'; btn.disabled = true; }
+        if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Moving AU comic', function() {
+          if (row) { row.style.opacity = '0.2'; btn.textContent = 'Done'; }
+        });
+      }
+    })
+    .catch(function() {
+      if (window.showMsgToast) window.showMsgToast('Move failed', 'error');
+    });
+}
+
+(function() {
+  var scanTaskId = "{{ active_au_scan_task_id|escapejs }}";
+  var reorgTaskId = "{{ active_reorganize_au_task_id|escapejs }}";
+  if (scanTaskId) {
+    document.getElementById('au-scan-btn').disabled = true;
+    document.getElementById('au-scan-btn').textContent = 'Scanning...';
+    showProgress('Scanning AU comics...');
+    pollProgress(scanTaskId, 'flagged');
+  } else if (reorgTaskId) {
+    var btn = document.getElementById('reorganize-au-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Reorganizing...'; }
+    showProgress('Moving AU comics...');
+    pollProgress(reorgTaskId, 'moved');
+  }
+})();
+</script>
+{% endblock %}
