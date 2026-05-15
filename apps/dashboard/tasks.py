@@ -281,36 +281,6 @@ def _run_scrape(comic, scraper=None):
     log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "matched"]})
 
 
-def _run_force_write(comic):
-    """Force-write ComicInfo.xml regardless of current state."""
-    from apps.core.models import Comic
-    from apps.core.utils import write_comicinfo_xml
-    from apps.core.audit import log_batch_entry
-    from django.db.models import F
-
-    if not comic.is_digital or not comic.file_path:
-        return
-    if not comic.file_path.lower().endswith(".cbz"):
-        return
-
-    state_before = comic.state
-
-    try:
-        success = write_comicinfo_xml(comic.file_path, comic)
-        if not success:
-            raise Exception("Failed to write ComicInfo.xml")
-
-        comic.state = Comic.STATE_DONE
-        if comic.flags.get("count_updated"):
-            comic.flags.pop("count_updated", None)
-        comic.save()
-        Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
-    except Exception as e:
-        log_batch_entry("write_all", comic, state_before, comic.state, {"error": [None, str(e)]})
-        raise
-
-    log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
-
 
 def _run_write(comic):
     """Write ComicInfo.xml to a comic's CBZ file."""

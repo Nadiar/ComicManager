@@ -1004,7 +1004,7 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
     from .models import Comic
     from apps.dashboard.tasks import (
         _run_tag, _run_format, _run_organize, _run_write,
-        _run_scrape, _run_force_write,
+        _run_scrape,
     )
 
     total = len(comic_ids)
@@ -1051,7 +1051,7 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
             elif action == "write":
                 _run_write(comic)
             elif action == "force_write":
-                _run_force_write(comic)
+                _run_write(comic)
             elif action == "au_reorganize":
                 _run_tag(comic)
                 comic.refresh_from_db()
