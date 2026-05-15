@@ -22,6 +22,20 @@ from django.utils.html import strip_tags
 from .models import Comic
 
 
+def active_task_conflict(request, session_key="active_task_id", error="A task is already running"):
+    """Return a 409 JsonResponse if a task tracked under `session_key` is still running, else None."""
+    from celery.result import AsyncResult
+    from django.http import JsonResponse
+
+    active = request.session.get(session_key)
+    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
+        return JsonResponse(
+            {"success": False, "error": error, "task_id": active},
+            status=409,
+        )
+    return None
+
+
 def html_to_text(html: str) -> str:
     """Convert HTML to plain text, preserving paragraph breaks.
 

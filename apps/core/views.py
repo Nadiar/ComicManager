@@ -13,7 +13,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
 from .models import Comic, get_setting
-from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS
+from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS, active_task_conflict
 from .cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
 from apps.scraper.inducks import InducksScraper, is_inducks_available
@@ -728,9 +728,9 @@ def convert_all_cbr(request):
     from celery.result import AsyncResult
     from .tasks import convert_all_cbr_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(flags__needs_conversion=True).count()
     result = convert_all_cbr_task.delay()
@@ -780,9 +780,9 @@ def convert_all_zip(request):
     from celery.result import AsyncResult
     from .tasks import convert_all_zip_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(flags__is_zip=True).count()
     result = convert_all_zip_task.delay()
@@ -1771,9 +1771,9 @@ def scrape_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import scrape_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_IMPORTED).count()
     result = scrape_all_task.delay()
@@ -2186,9 +2186,9 @@ def detect_format_upgrades(request):
     from celery.result import AsyncResult
     from .tasks import detect_format_upgrades_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(format__in=Comic.COUNT_BASED_FORMATS, format_ok=False).count()
     result = detect_format_upgrades_task.delay()
@@ -2255,9 +2255,9 @@ def populate_counts_all(request):
     from celery.result import AsyncResult
     from .tasks import populate_counts_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(count__isnull=True).exclude(
         custom_values__comicvine_volume__isnull=True,
@@ -2311,9 +2311,9 @@ def tag_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import tag_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_TAGGED).count()
     result = tag_all_task.delay()
@@ -2334,9 +2334,9 @@ def retag_flagged(request):
     if not flag:
         return JsonResponse({"success": False, "error": "No flag specified"}, status=400)
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(**{f"flags__{flag}": True}).count()
     result = retag_flagged_task.delay(flag)
@@ -2460,9 +2460,9 @@ def format_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import format_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_FORMATTED).count()
     result = format_all_task.delay()
@@ -2766,9 +2766,9 @@ def deduplicate_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import deduplicate_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_DEDUPLICATED).count()
     result = deduplicate_all_task.delay()
@@ -2831,9 +2831,9 @@ def organize_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import organize_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_ORGANIZED).count()
     result = organize_all_task.delay()
@@ -3613,9 +3613,9 @@ def scan_untagged(request):
     from celery.result import AsyncResult
     from .tasks import scan_untagged_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     result = scan_untagged_task.delay()
     request.session["active_task_id"] = result.id
@@ -4031,9 +4031,9 @@ def audit_metadata_mismatches(request):
     from celery.result import AsyncResult
     from .tasks import audit_metadata_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     result = audit_metadata_task.delay()
     request.session["active_task_id"] = result.id
@@ -4319,9 +4319,9 @@ def comic_action(request):
     if not comic_ids:
         return JsonResponse({"success": True, "total": 0, "message": "No matching comics"})
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     task = bulk_action_task.delay(comic_ids, action)
     request.session["active_task_id"] = task.id
@@ -4363,9 +4363,9 @@ def bulk_action_from_pks(request):
     if not comic_ids:
         return JsonResponse({"success": True, "total": 0, "message": "No matching comics"})
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     result = bulk_action_task.delay(comic_ids, action)
     request.session["active_task_id"] = result.id
@@ -4412,10 +4412,9 @@ def bulk_action_from_filter(request):
         return JsonResponse({"success": True, "processed": 0, "total": 0,
                              "message": "No comics match the current filters"})
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running",
-                             "task_id": active}, status=409)
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     result = bulk_action_task.delay([str(pk) for pk in comic_ids], action, flag_name or None)
     request.session["active_task_id"] = result.id
