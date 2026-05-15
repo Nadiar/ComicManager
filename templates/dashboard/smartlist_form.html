@@ -141,6 +141,9 @@ const lookupOptions = [
   {% endfor %}
 ];
 
+// Lookups that don't require a user-supplied value
+const NO_VALUE_LOOKUPS = new Set(['isnull', 'not_isnull']);
+
 function buildSelect(options, selected, extraStyle) {
   const sel = document.createElement('select');
   sel.className = 'select-bordered';
@@ -155,10 +158,32 @@ function buildSelect(options, selected, extraStyle) {
   return sel;
 }
 
+function updateLeafRowUI(row) {
+  const lookup = row.querySelector('[data-role="lookup"]').value;
+  const field = row.querySelector('[data-role="field"]').value;
+  const valueInput = row.querySelector('[data-role="value"]');
+  const noValueLabel = row.querySelector('[data-role="no-value-label"]');
+  const warning = row.querySelector('[data-role="row-warning"]');
+
+  if (NO_VALUE_LOOKUPS.has(lookup)) {
+    valueInput.style.display = 'none';
+    noValueLabel.style.display = '';
+    warning.style.display = 'none';
+  } else {
+    valueInput.style.display = '';
+    noValueLabel.style.display = 'none';
+    const value = valueInput.value;
+    warning.style.display = (field && !value) ? '' : 'none';
+  }
+}
+
 function createLeafRow(field = '', lookup = 'exact', value = '') {
   const row = document.createElement('div');
   row.dataset.type = 'leaf';
-  row.style.cssText = 'display:flex; gap:8px; align-items:center;';
+  row.style.cssText = 'display:flex; flex-direction:column; gap:3px;';
+
+  const controls = document.createElement('div');
+  controls.style.cssText = 'display:flex; gap:8px; align-items:center;';
 
   const fieldSel = buildSelect(fieldOptions, field, 'height:28px; font-size:12px; width:190px;');
   fieldSel.dataset.role = 'field';
@@ -172,7 +197,14 @@ function createLeafRow(field = '', lookup = 'exact', value = '') {
   valueInput.className = 'input-bordered';
   valueInput.style.cssText = 'flex:1; height:28px; font-size:12px;';
   valueInput.placeholder = 'Value...';
-  valueInput.value = value;
+  valueInput.value = NO_VALUE_LOOKUPS.has(lookup) ? '' : value;
+
+  const noValueLabel = document.createElement('span');
+  noValueLabel.dataset.role = 'no-value-label';
+  noValueLabel.style.cssText = 'flex:1; font-size:11px; color:var(--cm-fg-3); font-style:italic;';
+  noValueLabel.textContent = 'no value needed';
+  noValueLabel.style.display = NO_VALUE_LOOKUPS.has(lookup) ? '' : 'none';
+  if (!NO_VALUE_LOOKUPS.has(lookup)) valueInput.style.display = '';
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
@@ -180,10 +212,24 @@ function createLeafRow(field = '', lookup = 'exact', value = '') {
   removeBtn.textContent = 'Remove';
   removeBtn.onclick = () => row.remove();
 
-  row.appendChild(fieldSel);
-  row.appendChild(lookupSel);
-  row.appendChild(valueInput);
-  row.appendChild(removeBtn);
+  const warning = document.createElement('div');
+  warning.dataset.role = 'row-warning';
+  warning.style.cssText = 'font-size:11px; color:var(--cm-warn); display:none; padding-left:2px;';
+  warning.textContent = 'This filter won\'t be saved — a value is required for this lookup type.';
+
+  if (NO_VALUE_LOOKUPS.has(lookup)) valueInput.style.display = 'none';
+
+  lookupSel.addEventListener('change', () => updateLeafRowUI(row));
+  fieldSel.addEventListener('change', () => updateLeafRowUI(row));
+  valueInput.addEventListener('input', () => updateLeafRowUI(row));
+
+  controls.appendChild(fieldSel);
+  controls.appendChild(lookupSel);
+  controls.appendChild(valueInput);
+  controls.appendChild(noValueLabel);
+  controls.appendChild(removeBtn);
+  row.appendChild(controls);
+  row.appendChild(warning);
   return row;
 }
 
@@ -252,7 +298,9 @@ function serializeItem(el) {
     const field = el.querySelector('[data-role="field"]').value;
     const lookup = el.querySelector('[data-role="lookup"]').value;
     const value = el.querySelector('[data-role="value"]').value;
-    return (field && value) ? {field, lookup, value} : null;
+    if (!field) return null;
+    if (NO_VALUE_LOOKUPS.has(lookup)) return {field, lookup, value: 'true'};
+    return value ? {field, lookup, value} : null;
   }
   if (el.dataset.type === 'group') {
     const mode = el.querySelector('[data-role="mode"]').value;
@@ -275,8 +323,25 @@ function serializeFilters() {
   return result;
 }
 
+function countDroppedFilters() {
+  let dropped = 0;
+  document.querySelectorAll('#filter-rows [data-type="leaf"]').forEach(el => {
+    const field = el.querySelector('[data-role="field"]').value;
+    const lookup = el.querySelector('[data-role="lookup"]').value;
+    const value = el.querySelector('[data-role="value"]').value;
+    if (field && !NO_VALUE_LOOKUPS.has(lookup) && !value) dropped++;
+  });
+  return dropped;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-  document.querySelector('form[method="POST"]').addEventListener('submit', function() {
+  document.querySelector('form[method="POST"]').addEventListener('submit', function(e) {
+    const dropped = countDroppedFilters();
+    if (dropped > 0) {
+      const plural = dropped === 1 ? 'filter' : 'filters';
+      const ok = confirm(`${dropped} ${plural} won't be saved because the value field is empty. Continue saving without ${dropped === 1 ? 'it' : 'them'}?`);
+      if (!ok) { e.preventDefault(); return; }
+    }
     document.getElementById('filters-json').value = JSON.stringify(serializeFilters());
   });
 
