@@ -830,23 +830,24 @@ function acceptComic(pk, btn) {
   .then(data => {
     if (data.success) {
       // Update the row to show success
-      const row = btn.closest('tr');
+      const row = btn.closest('.cm-list-row');
       btn.classList.remove('btn-success');
       btn.classList.add('btn-neutral');
       btn.innerHTML = 'Accepted';
 
       // Update state badge
-      const stateBadge = row.querySelector('td:nth-child(9) .badge');
+      const stateBadge = row?.querySelector('.cm-chip');
       if (stateBadge) {
         stateBadge.classList.remove('badge-warning');
         stateBadge.classList.add('badge-info');
         stateBadge.textContent = 'Scrape';
       }
 
-      // Update the proposed values styling (remove warning color)
-      row.querySelectorAll('.text-warning').forEach(el => {
-        el.classList.remove('text-warning');
-      });
+      // Fade out the row — it's no longer in state=new
+      if (row) {
+        row.style.transition = 'opacity 0.4s';
+        row.style.opacity = '0.4';
+      }
     } else {
       btn.classList.remove('btn-success');
       btn.classList.add('btn-error');
@@ -876,7 +877,7 @@ async function toggleSkipComic(pk, btn) {
     });
     const data = await resp.json();
     if (data.success) {
-      const scrapeBtn = btn.closest('tr').querySelector('button[onclick^="scrapeComic"]');
+      const scrapeBtn = btn.closest('.cm-list-row')?.querySelector('button[onclick^="scrapeComic"]');
       if (data.skipped) {
         btn.textContent = 'Un-skip';
         btn.classList.remove('btn-ghost', 'btn-outline');
@@ -910,7 +911,7 @@ function scrapeAllComics(btn) {
 
   if (confirmEach) {
     // Confirmation mode: collect all comic IDs and process one by one
-    const rows = document.querySelectorAll('tbody tr');
+    const rows = document.querySelectorAll('.cm-list-row');
     scrapeQueue = [];
     rows.forEach(row => {
       const scrapeBtn = row.querySelector('button[onclick^="scrapeComic"]');
@@ -1039,7 +1040,7 @@ function openListScrapeModal(pk, btn) {
 }
 
 function updateRowAfterScrape(btn, data) {
-  const row = btn.closest('tr');
+  const row = btn.closest('.cm-list-row');
   if (btn) {
     btn.classList.remove('btn-secondary');
     btn.classList.add('btn-success');
@@ -1126,24 +1127,18 @@ function convertComic(pk, btn) {
   .then(data => {
     if (data.success) {
       // Update the row to show success
-      const row = btn.closest('tr');
+      const row = btn.closest('.cm-list-row');
       btn.classList.remove('btn-primary');
       btn.classList.add('btn-success');
       btn.innerHTML = 'Done';
 
       // Remove the needs_conversion badge
-      const badges = row.querySelectorAll('.badge-error');
+      const badges = row?.querySelectorAll('.cm-chip.err') ?? [];
       badges.forEach(badge => {
         if (badge.textContent === 'needs_conversion') {
           badge.remove();
         }
       });
-
-      // Update format column
-      const formatCell = row.querySelector('td:nth-child(7)');
-      if (formatCell) {
-        formatCell.textContent = 'cbz';
-      }
     } else {
       const errMsg = data.error || 'Conversion failed';
       btn.classList.remove('btn-primary');
@@ -1176,16 +1171,14 @@ function convertZipComic(pk, btn) {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      const row = btn.closest('tr');
+      const row = btn.closest('.cm-list-row');
       btn.classList.remove('btn-primary');
       btn.classList.add('btn-success');
       btn.innerHTML = 'Done';
-      const badges = row.querySelectorAll('.badge-error');
+      const badges = row?.querySelectorAll('.cm-chip.err') ?? [];
       badges.forEach(badge => {
         if (badge.textContent === 'is_zip') badge.remove();
       });
-      const formatCell = row.querySelector('td[data-col="file_format"]');
-      if (formatCell) formatCell.textContent = 'cbz';
     } else {
       btn.classList.remove('btn-primary');
       btn.classList.add('btn-error');
@@ -1208,8 +1201,8 @@ function convertAllZip(btn) {
 }
 
 function deleteComic(pk, btn) {
-  const row = btn.closest('tr');
-  const series = row.querySelector('td')?.textContent?.trim() || 'this comic';
+  const row = btn.closest('.cm-list-row');
+  const series = row?.dataset?.series || 'this comic';
   showConfirm(
     `Delete "${series}" and remove the file from disk? This cannot be undone.`,
     () => {
