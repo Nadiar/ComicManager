@@ -2927,16 +2927,10 @@ def rewrite_updated_comics(request):
     """
     from celery.result import AsyncResult
 
-    # Prevent double-submit (shares session key with write-all)
-    active_task_id = request.session.get("write_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A write task is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    # Shares session key with write-all
+    conflict = active_task_conflict(request, session_key="write_task_id", error="A write task is already running")
+    if conflict:
+        return conflict
 
     count = Comic.objects.filter(
         flags__count_updated=True,
@@ -3024,16 +3018,9 @@ def write_all_comics(request):
     """
     from celery.result import AsyncResult
 
-    # Prevent double-submit
-    active_task_id = request.session.get("write_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A write task is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    conflict = active_task_conflict(request, session_key="write_task_id", error="A write task is already running")
+    if conflict:
+        return conflict
 
     count = Comic.objects.filter(state=Comic.STATE_WRITTEN).count()
     if count == 0:
@@ -3065,15 +3052,9 @@ def write_stale_comics(request):
     from celery.result import AsyncResult
     from django.db.models import F
 
-    active_task_id = request.session.get("write_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A write task is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    conflict = active_task_conflict(request, session_key="write_task_id", error="A write task is already running")
+    if conflict:
+        return conflict
 
     count = Comic.objects.filter(
         state=Comic.STATE_WRITTEN,
@@ -3108,15 +3089,9 @@ def write_missing_comics(request):
     """
     from celery.result import AsyncResult
 
-    active_task_id = request.session.get("write_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A write task is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    conflict = active_task_conflict(request, session_key="write_task_id", error="A write task is already running")
+    if conflict:
+        return conflict
 
     count = Comic.objects.filter(
         state=Comic.STATE_WRITTEN,

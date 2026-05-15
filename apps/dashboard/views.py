@@ -4,7 +4,7 @@ from django.views.decorators.http import require_POST
 from django.db.models import Count, Q
 from apps.core.models import Comic
 from .models import SmartList
-from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS
+from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS, active_task_conflict
 from .services import build_queryset, get_missing_issues, search_cv_volumes
 
 
@@ -1103,16 +1103,9 @@ def smartlist_run_action(request, pk):
     if action not in ("tag", "format", "organize", "write"):
         return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
 
-    # Prevent double-submit
-    active_task_id = request.session.get("smartlist_action_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "An action is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    conflict = active_task_conflict(request, session_key="smartlist_action_task_id", error="An action is already running")
+    if conflict:
+        return conflict
 
     # Count comics
     qs = build_queryset(sl)
