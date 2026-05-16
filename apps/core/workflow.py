@@ -42,14 +42,19 @@ class ActionResult:
 
     def to_json(self) -> dict:
         """Build a JsonResponse-ready envelope. Spreads `detail` into the top level
-        so views need no per-action JSON shaping."""
+        so views need no per-action JSON shaping. Keys starting with ``_`` or ending
+        in ``_obj`` are excluded — those carry raw Python objects (e.g. scraper match)
+        for in-process consumers like the pipeline."""
         out = {
             "success": self.success,
             "message": self.message,
             "state": self.state_after,
             "skipped": self.skipped,
-            **self.detail,
         }
+        for k, v in self.detail.items():
+            if k.startswith("_") or k.endswith("_obj"):
+                continue
+            out[k] = v
         if self.error:
             out["error"] = self.error
         return out
@@ -71,8 +76,203 @@ def scrape(
     insert_covers=True,
     force=False,
 ) -> ActionResult:
-    """Scrape a comic against ComicVine or Inducks and apply the match. Not yet implemented."""
-    raise NotImplementedError("workflow.scrape not yet implemented")
+    """Scrape a comic against ComicVine or Inducks and apply the match.
+
+    State gate: STATE_IMPORTED. A manual selection (cv_issue_id, inducks_issuecode,
+    inducks_storycode) implies force=True.
+
+    On success: detail["match"] holds a serialized match dict (series, number,
+    title, publisher, year, issue_id, match_type, cover_url, cv_cover_url).
+    detail["match_obj"] holds the raw match object for callers that need the
+    underlying scraper return value.
+    """
+    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
+    from apps.core.models import Comic
+    from apps.scraper.services import find_best_match, apply_cv_match, apply_inducks_match
+
+    state_before = comic.state
+    manual = cv_issue_id is not None or inducks_issuecode is not None or inducks_storycode is not None
+    if manual:
+        force = True
+
+    if not force and comic.state != Comic.STATE_IMPORTED:
+        return ActionResult(
+            action="scrape",
+            success=False,
+            message=f"Comic is not in 'imported' state (current: {comic.state})",
+            state_before=state_before,
+            state_after=comic.state,
+            skipped=True,
+        )
+
+    # Inducks branch
+    if inducks_issuecode or inducks_storycode:
+        from apps.scraper.inducks import InducksScraper
+
+        ind_scraper = InducksScraper()
+        try:
+            if inducks_storycode and inducks_issuecode:
+                match = ind_scraper.get_story_details(inducks_issuecode, inducks_storycode)
+            elif inducks_storycode:
+                match = ind_scraper.get_story_only(inducks_storycode)
+            else:
+                match = ind_scraper.get_issue_details(inducks_issuecode)
+        except Exception as e:
+            log_batch_entry("scrape_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+            return ActionResult(
+                action="scrape", success=False,
+                message=f"Inducks lookup failed: {e}",
+                state_before=state_before, state_after=comic.state, error=str(e),
+            )
+
+        if not match:
+            label = inducks_storycode or inducks_issuecode
+            log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "no_match"]})
+            return ActionResult(
+                action="scrape", success=False,
+                message=f"Not found in Inducks: {label}",
+                state_before=state_before, state_after=comic.state,
+                detail={"matched": False},
+            )
+
+        snap = snapshot_fields(comic, ["series", "publisher"])
+        try:
+            apply_inducks_match(comic, match)
+        except Exception as e:
+            log_batch_entry("scrape_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+            return ActionResult(
+                action="scrape", success=False,
+                message=f"Error applying Inducks match: {e}",
+                state_before=state_before, state_after=comic.state, error=str(e),
+            )
+
+        match_dict = {
+            "series": match.series,
+            "number": match.issue_number,
+            "title": match.title,
+            "publisher": match.publisher,
+            "year": match.start_year,
+            "issue_id": getattr(match, "issuecode", None),
+            "match_type": "inducks",
+            "cover_url": match.cover_url,
+            "cv_cover_url": match.cover_url,
+            "matched": True,
+        }
+        msg = f"Matched story: {match.title}" if not getattr(match, "issuecode", None) else f"Matched: {match.series} #{match.issue_number}"
+        changes = diff_fields(comic, snap)
+        log_batch_entry("scrape_all", comic, state_before, comic.state, changes or {"result": [None, "matched"]})
+        return ActionResult(
+            action="scrape", success=True, message=msg,
+            state_before=state_before, state_after=comic.state,
+            detail={"match": match_dict, "match_obj": match}, changes=changes,
+        )
+
+    # ComicVine branch
+    if scraper is None:
+        from apps.scraper.comicvine import ComicVineScraper
+        scraper = ComicVineScraper()
+
+    # Clear previous scrape error flags
+    flags_dirty = False
+    for key in ("scrape_no_match", "scrape_error", "scrape_error_detail"):
+        if key in comic.flags:
+            comic.flags.pop(key, None)
+            flags_dirty = True
+    if flags_dirty:
+        comic.save(update_fields=["flags"])
+
+    # Fetch the match
+    match = None
+    if cv_issue_id is not None:
+        from apps.scraper.cv_sources import is_cv_db_available
+        try:
+            if is_cv_db_available():
+                match = scraper.get_issue_details(int(cv_issue_id))
+            if not match:
+                match = scraper.get_issue_from_api(int(cv_issue_id))
+        except Exception as e:
+            log_batch_entry("scrape_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+            return ActionResult(
+                action="scrape", success=False,
+                message=f"Scrape error: {e}",
+                state_before=state_before, state_after=comic.state, error=str(e),
+                detail={"rate_limited": "rate" in str(e).lower() or "limit" in str(e).lower()},
+            )
+        if match:
+            match.match_type = "manual"
+    else:
+        try:
+            match = find_best_match(comic, scraper)
+        except Exception as e:
+            log_batch_entry("scrape_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+            return ActionResult(
+                action="scrape", success=False,
+                message=f"Scrape error: {e}",
+                state_before=state_before, state_after=comic.state, error=str(e),
+                detail={"rate_limited": "rate" in str(e).lower() or "limit" in str(e).lower()},
+            )
+
+    if not match:
+        # Only set the no-match flag for auto matches; manual cv_issue_id failures
+        # are a different UX state (the user tried to pick a specific issue).
+        if not manual:
+            comic.add_flag("scrape_no_match")
+            comic.save(update_fields=["flags"])
+        no_match_changes = {"result": [None, "no_match"]}
+        detail_msg = comic.flags.get("scrape_error_detail")
+        if detail_msg:
+            no_match_changes["reason"] = [None, detail_msg]
+        log_batch_entry("scrape_all", comic, state_before, comic.state, no_match_changes)
+        return ActionResult(
+            action="scrape", success=False,
+            message="No match found in ComicVine database",
+            state_before=state_before, state_after=comic.state,
+            detail={"matched": False},
+        )
+
+    # Apply the match
+    snap = snapshot_fields(comic, ["series", "publisher"])
+    cv = comic.custom_values or {}
+    before_cv_issue = cv.get("comicvine_issue")
+    before_cv_volume = cv.get("comicvine_volume")
+
+    try:
+        apply_cv_match(comic, match, scraper, insert_covers=insert_covers)
+    except Exception as e:
+        log_batch_entry("scrape_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        return ActionResult(
+            action="scrape", success=False,
+            message=f"Error applying match: {e}",
+            state_before=state_before, state_after=comic.state, error=str(e),
+        )
+
+    changes = diff_fields(comic, snap)
+    cv = comic.custom_values or {}
+    if cv.get("comicvine_issue") != before_cv_issue:
+        changes["cv_issue"] = [before_cv_issue, cv.get("comicvine_issue")]
+    if cv.get("comicvine_volume") != before_cv_volume:
+        changes["cv_volume"] = [before_cv_volume, cv.get("comicvine_volume")]
+
+    log_batch_entry("scrape_all", comic, state_before, comic.state, changes or {"result": [None, "matched"]})
+
+    match_dict = {
+        "series": match.series,
+        "number": match.issue_number,
+        "title": match.title,
+        "publisher": match.publisher,
+        "year": match.start_year,
+        "issue_id": match.issue_id,
+        "match_type": getattr(match, "match_type", ""),
+        "cover_url": match.cover_url,
+        "cv_cover_url": match.cover_url,
+        "matched": True,
+    }
+    return ActionResult(
+        action="scrape", success=True,
+        message=f"Matched: {match.series} #{match.issue_number}",
+        state_before=state_before, state_after=comic.state,
+        detail={"match": match_dict, "match_obj": match}, changes=changes,
+    )
 
 
 def tag(comic, *, advance_to_formatted=False, force=False) -> ActionResult:

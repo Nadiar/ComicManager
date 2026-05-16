@@ -578,17 +578,15 @@ def convert_all_zip_task(self):
 
 @shared_task(bind=True, base=ProgressTask, name="core.scrape_all", queue="scrape")
 def scrape_all_task(self):
-    """
-    Scrape all comics in 'imported' state against the ComicVine database.
+    """Scrape every comic in 'imported' state.
 
-    When the local comicvine.db is unavailable, falls back to the ComicVine API
-    (API-only mode). The API budget is checked before each comic; if the 200/hour
-    limit is reached the task stops early with a clear error message.
+    Falls back to the ComicVine API when the local comicvine.db is unavailable.
+    Stops early if the API budget runs out (API-only mode).
     """
     from .models import Comic
+    from apps.core import workflow
     from apps.scraper.comicvine import ComicVineScraper
     from apps.scraper.cv_sources import is_cv_db_available, check_api_budget, get_api_calls_remaining
-    from apps.scraper.services import find_best_match, apply_cv_match
 
     from django.db.models import Q
     comic_ids = list(
@@ -629,7 +627,7 @@ def scrape_all_task(self):
                 "total": total, "errors": errors, "cancelled": True,
             }
 
-        # In API-only mode, stop early if budget is exhausted
+        # Stop early if the API budget runs out (API-only mode)
         if not db_available and not check_api_budget(required=3):
             remaining = get_api_calls_remaining()
             budget_exhausted = True
@@ -644,63 +642,18 @@ def scrape_all_task(self):
         except Comic.DoesNotExist:
             continue
 
-        # Clear any previous scrape error flags before re-attempting
-        _scrape_flag_keys = ("scrape_no_match", "scrape_error", "scrape_error_detail")
-        if any(f in comic.flags for f in _scrape_flag_keys):
-            for f in _scrape_flag_keys:
-                comic.flags.pop(f, None)
-            comic.save(update_fields=["flags"])
-
-        try:
-            match = find_best_match(comic, scraper)
-
-            before_series = comic.series
-            before_publisher = comic.publisher
-            before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-            before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-
-            if match:
-                apply_cv_match(comic, match, scraper, insert_covers=False)
-                matched += 1
-
-                from .audit import log_batch_entry
-                changes = {}
-                if comic.series != before_series:
-                    changes["series"] = [before_series, comic.series]
-                if comic.publisher != before_publisher:
-                    changes["publisher"] = [before_publisher, comic.publisher]
-                after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-                after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-                if after_cv_issue != before_cv_issue:
-                    changes["cv_issue"] = [before_cv_issue, after_cv_issue]
-                if after_cv_volume != before_cv_volume:
-                    changes["cv_volume"] = [before_cv_volume, after_cv_volume]
-                log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, changes)
-            else:
-                comic.add_flag("scrape_no_match")
-                comic.save(update_fields=["flags"])
-                failed += 1
-                errors.append(f"{comic.series} #{comic.number}: no match found")
-
-                from .audit import log_batch_entry
-                no_match_changes = {"result": [None, "no_match"]}
-                detail = comic.flags.get("scrape_error_detail")
-                if detail:
-                    no_match_changes["reason"] = [None, detail]
-                log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state,
-                                no_match_changes)
-        except Exception as e:
-            err_msg = str(e)
-            comic.flags["scrape_error"] = True
-            comic.flags["scrape_error_detail"] = err_msg[:300]
-            comic.flags.pop("scrape_no_match", None)
-            comic.save(update_fields=["flags"])
+        result = workflow.scrape(comic, scraper=scraper, insert_covers=False)
+        if result.success:
+            matched += 1
+        else:
             failed += 1
-            errors.append(f"{comic.series} #{comic.number}: {err_msg[:150]}")
-
-            from .audit import log_batch_entry
-            log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state,
-                            {"result": [None, "error"]})
+            errors.append(f"{comic.series} #{comic.number}: {result.message}")
+            if not result.detail.get("matched") is False and result.error:
+                # Apply or fetch error: capture detail flag
+                comic.flags["scrape_error"] = True
+                comic.flags["scrape_error_detail"] = result.error[:300]
+                comic.flags.pop("scrape_no_match", None)
+                comic.save(update_fields=["flags"])
 
         self.update_state(
             state="PROGRESS",
@@ -713,8 +666,7 @@ def scrape_all_task(self):
             },
         )
 
-        # Release DB connections and clear query log every 50 comics to
-        # prevent memory accumulation in long-running Celery tasks.
+        # Release DB connections every 50 comics to prevent memory growth
         if i % 50 == 0:
             from django.db import reset_queries, close_old_connections
             reset_queries()
@@ -1002,9 +954,9 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
     Supported actions: scrape, tag, format, organize, write, force_write, accept_flag, au_reorganize
     """
     from .models import Comic
+    from apps.core import workflow
     from apps.dashboard.tasks import (
         _run_tag, _run_format, _run_organize, _run_write,
-        _run_scrape,
     )
 
     total = len(comic_ids)
@@ -1041,7 +993,9 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
 
         try:
             if action == "scrape":
-                _run_scrape(comic, scraper)
+                result = workflow.scrape(comic, scraper=scraper, insert_covers=False)
+                if not result.success:
+                    raise Exception(result.error or result.message)
             elif action == "tag":
                 _run_tag(comic)
             elif action == "format":

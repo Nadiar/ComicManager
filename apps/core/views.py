@@ -1600,167 +1600,48 @@ def cv_cover(request, issue_id):
     return response
 
 
-@require_POST
 def scrape_comic(request, pk):
-    """
-    Scrape a single comic against the ComicVine database.
-
-    If issue_id is provided in POST data (form or JSON), use that specific match.
-    Otherwise, auto-select the best match.
-
-    Query params:
-        force=1: Skip state check (for re-scraping comics in any state)
-    """
+    """Scrape a single comic. Manual issue selection via POST cv_issue_id (form)
+    or JSON body (cv_issue_id / inducks issuecode/storycode). force=1 query param
+    bypasses the imported-state gate."""
     import json
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-
     force = request.GET.get("force") == "1"
 
-    # Parse JSON body for manual match selection
     cv_issue_id = request.POST.get("cv_issue_id") or request.POST.get("issue_id")
     inducks_issuecode = None
     inducks_storycode = None
-    source = None
 
     if not cv_issue_id and request.content_type == "application/json":
         try:
             body = json.loads(request.body)
             source = body.get("source")
-            cv_issue_id = body.get("issue_id") or body.get("cv_issue_id")
-            inducks_issuecode = body.get("issuecode")
-            inducks_storycode = body.get("storycode")
-            if cv_issue_id or inducks_issuecode or inducks_storycode:
-                force = True
+            if source == "inducks":
+                inducks_issuecode = body.get("issuecode")
+                inducks_storycode = body.get("storycode")
+            else:
+                cv_issue_id = body.get("issue_id") or body.get("cv_issue_id")
         except (json.JSONDecodeError, ValueError):
             pass
 
-    if not force and comic.state != Comic.STATE_IMPORTED:
-        return JsonResponse({
-            "success": False,
-            "error": f"Comic is not in 'imported' state (current: {comic.state})"
-        }, status=400)
+    result = workflow.scrape(
+        comic,
+        cv_issue_id=cv_issue_id,
+        inducks_issuecode=inducks_issuecode,
+        inducks_storycode=inducks_storycode,
+        force=force,
+    )
 
-    # Handle Inducks match
-    if source == "inducks" and (inducks_issuecode or inducks_storycode):
-        from apps.scraper.services import apply_inducks_match
-
-        scraper = InducksScraper()
-        if inducks_storycode and inducks_issuecode:
-            match = scraper.get_story_details(inducks_issuecode, inducks_storycode)
-        elif inducks_storycode:
-            match = scraper.get_story_only(inducks_storycode)
-        else:
-            match = scraper.get_issue_details(inducks_issuecode)
-        if not match:
-            label = inducks_storycode or inducks_issuecode
-            return JsonResponse({
-                "success": False,
-                "error": f"Not found in Inducks: {label}"
-            }, status=404)
-
-        apply_inducks_match(comic, match)
-
-        msg = f"Matched story: {match.title}" if not match.issuecode else f"Matched: {match.series} #{match.issue_number}"
-        return JsonResponse({
-            "success": True,
-            "message": msg,
-            "match": {
-                "series": match.series,
-                "number": match.issue_number,
-                "publisher": match.publisher,
-                "year": match.start_year,
-                "match_type": "inducks",
-                "cover_url": match.cover_url,
-            }
-        })
-
-    # ComicVine match (existing flow)
-    from apps.scraper.cv_sources import is_cv_db_available
-
-    scraper = ComicVineScraper()
-    match = None
-
-    if cv_issue_id:
-        try:
-            if is_cv_db_available():
-                match = scraper.get_issue_details(int(cv_issue_id))
-            if not match:
-                match = scraper.get_issue_from_api(int(cv_issue_id))
-        except ComicVineRateLimitError as e:
-            logger.warning("scrape_comic [%s]: rate limited — %s", pk, e)
-            return JsonResponse({"success": False, "error": str(e), "rate_limited": True}, status=429)
-        except Exception as e:
-            logger.exception("scrape_comic [%s]: error fetching issue %s", pk, cv_issue_id)
-            return JsonResponse({"success": False, "error": f"Scrape error: {e}"}, status=500)
-        if match:
-            match.match_type = "manual"
-    else:
-        try:
-            match = _find_best_match(comic, scraper)
-        except ComicVineRateLimitError as e:
-            logger.warning("scrape_comic [%s]: rate limited — %s", pk, e)
-            return JsonResponse({"success": False, "error": str(e), "rate_limited": True}, status=429)
-        except Exception as e:
-            logger.exception("scrape_comic [%s]: unexpected error during auto-match", pk)
-            return JsonResponse({"success": False, "error": f"Scrape error: {e}"}, status=500)
-
-    if not match:
-        logger.warning(
-            "scrape_comic [%s]: no match found for %s #%s",
-            pk, comic.proposed_series or comic.series, comic.proposed_number or comic.number,
-        )
-        if not cv_issue_id:
-            comic.flags["scrape_no_match"] = True
-            comic.save(update_fields=["flags"])
-        from apps.core.audit import log_batch_entry
-        no_match_changes = {"result": [None, "no_match"]}
-        detail = comic.flags.get("scrape_error_detail")
-        if detail:
-            no_match_changes["reason"] = [None, detail]
-        log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, no_match_changes)
-        return JsonResponse({
-            "success": False,
-            "error": "No match found in ComicVine database"
-        }, status=404)
-
-    before_series = comic.series
-    before_publisher = comic.publisher
-    before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-    before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-
-    try:
-        _apply_match(comic, match, scraper)
-    except Exception as e:
-        logger.exception("scrape_comic [%s]: error applying match %s", pk, match.issue_id)
-        return JsonResponse({"success": False, "error": f"Error applying match: {e}"}, status=500)
-
-    from apps.core.audit import log_batch_entry
-    changes = {}
-    if comic.series != before_series:
-        changes["series"] = [before_series, comic.series]
-    if comic.publisher != before_publisher:
-        changes["publisher"] = [before_publisher, comic.publisher]
-    after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-    after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-    if after_cv_issue != before_cv_issue:
-        changes["cv_issue"] = [before_cv_issue, after_cv_issue]
-    if after_cv_volume != before_cv_volume:
-        changes["cv_volume"] = [before_cv_volume, after_cv_volume]
-    log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, changes)
-
-    return JsonResponse({
-        "success": True,
-        "message": f"Matched: {match.series} #{match.issue_number}",
-        "match": {
-            "series": match.series,
-            "number": match.issue_number,
-            "publisher": match.publisher,
-            "year": match.start_year,
-            "match_type": match.match_type,
-            "cover_url": match.cover_url,
-        }
-    })
+    if result.skipped:
+        return JsonResponse(result.to_json(), status=400)
+    if not result.success:
+        if result.detail.get("rate_limited"):
+            return JsonResponse({**result.to_json(), "rate_limited": True}, status=429)
+        status = 404 if result.detail.get("matched") is False else 500
+        return JsonResponse(result.to_json(), status=status)
+    return JsonResponse(result.to_json())
 
 
 @require_POST
@@ -3199,70 +3080,33 @@ def resume_task(request, task_id):
 
 @require_POST
 def force_scrape(request, pk):
-    """
-    Force re-scrape a comic against ComicVine, regardless of current state.
-    Uses the stored comicvine_issue ID if available, otherwise tries matching.
-    """
+    """Force re-scrape a comic regardless of state. Prefers the stored
+    comicvine_issue ID; falls back to the auto-match strategy."""
+    from apps.core import workflow
+
     comic = get_object_or_404(Comic, pk=pk)
+    stored_id = (comic.custom_values or {}).get("comicvine_issue")
 
-    from apps.scraper.cv_sources import is_cv_db_available
+    result = workflow.scrape(
+        comic,
+        cv_issue_id=int(stored_id) if stored_id else None,
+        force=True,
+    )
 
-    scraper = ComicVineScraper()
-    match = None
+    if not result.success and result.detail.get("matched") is False and stored_id:
+        # Stored ID lookup failed; fall back to auto-match while still forced.
+        result = workflow.scrape(comic, force=True)
 
-    # If we have a stored CV issue ID, use it directly
-    cv_issue_id = comic.custom_values.get("comicvine_issue")
-    if cv_issue_id:
-        if is_cv_db_available():
-            match = scraper.get_issue_details(int(cv_issue_id))
-        if not match:
-            match = scraper.get_issue_from_api(int(cv_issue_id))
-        if match:
-            match.match_type = "refresh"
+    if not result.success:
+        if result.detail.get("rate_limited"):
+            return JsonResponse({**result.to_json(), "rate_limited": True}, status=429)
+        status = 404 if result.detail.get("matched") is False else 500
+        return JsonResponse(result.to_json(), status=status)
 
-    # Otherwise find the best match using the unified strategy (DB or API)
-    if not match:
-        match = _find_best_match(comic, scraper)
-
-    if not match:
-        from apps.core.audit import log_batch_entry
-        no_match_changes = {"result": [None, "no_match"]}
-        detail = comic.flags.get("scrape_error_detail")
-        if detail:
-            no_match_changes["reason"] = [None, detail]
-        log_batch_entry("scrape_all", comic, comic.state, comic.state, no_match_changes)
-        return JsonResponse({
-            "success": False,
-            "error": "No match found in ComicVine database"
-        }, status=404)
-
-    before_series = comic.series
-    before_publisher = comic.publisher
-    before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-    before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-
-    # Apply the match (this also enriches with credits)
-    _apply_match(comic, match, scraper)
-
-    from apps.core.audit import log_batch_entry
-    changes = {}
-    if comic.series != before_series:
-        changes["series"] = [before_series, comic.series]
-    if comic.publisher != before_publisher:
-        changes["publisher"] = [before_publisher, comic.publisher]
-    after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-    after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-    if after_cv_issue != before_cv_issue:
-        changes["cv_issue"] = [before_cv_issue, after_cv_issue]
-    if after_cv_volume != before_cv_volume:
-        changes["cv_volume"] = [before_cv_volume, after_cv_volume]
-    log_batch_entry("scrape_all", comic, comic.state, comic.state, changes or {"result": [None, "matched"]})
-
-    return JsonResponse({
-        "success": True,
-        "message": f"Re-scraped: {match.series} #{match.issue_number}",
-        "new_state": comic.state,
-    })
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    payload["message"] = f"Re-scraped: {result.detail['match']['series']} #{result.detail['match']['number']}"
+    return JsonResponse(payload)
 
 
 @require_POST
@@ -4093,38 +3937,14 @@ def _run_action_sync(comic, action, force=False):
     from apps.core.audit import log_batch_entry
 
     if action == "scrape":
-        if not force and comic.state != Comic.STATE_IMPORTED:
-            return {"success": False, "error": f"Comic is not in 'imported' state (current: {comic.state})"}
-        state_before = comic.state
-        scraper = ComicVineScraper()
-        try:
-            match = _find_best_match(comic, scraper)
-        except ComicVineRateLimitError as e:
-            return {"success": False, "error": str(e), "rate_limited": True}
-        except Exception as e:
-            return {"success": False, "error": f"Scrape error: {e}"}
-        if not match:
-            comic.flags["scrape_no_match"] = True
-            comic.save(update_fields=["flags"])
-            log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "no_match"]})
-            return {"success": False, "error": "No match found in ComicVine database"}
-        try:
-            _apply_match(comic, match, scraper)
-        except Exception as e:
-            return {"success": False, "error": f"Error applying match: {e}"}
-        log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "matched"]})
-        return {
-            "success": True,
-            "message": f"Matched: {match.series} #{match.issue_number}",
-            "match": {
-                "series": match.series,
-                "number": match.issue_number,
-                "publisher": match.publisher,
-                "year": match.start_year,
-                "match_type": match.match_type,
-                "cover_url": match.cover_url,
-            },
-        }
+        from apps.core import workflow
+        result = workflow.scrape(comic, force=force)
+        if result.success:
+            return result.to_json()
+        out = {"success": False, "error": result.message}
+        if result.detail.get("rate_limited"):
+            out["rate_limited"] = True
+        return out
 
     elif action == "tag":
         from apps.tagging.services import tag_comic as tagging_service_tag_comic
