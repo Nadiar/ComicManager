@@ -162,19 +162,25 @@ def _run_tag(comic):
 
 
 def _run_format(comic, _one_shot_max=None, _limited_max=None):
-    """Detect and set format for a comic."""
+    """Detect and set format for a comic.
+
+    Returns the dict from `detect_and_set_format` (old_format, new_format,
+    detected_format, format_changed) so callers can populate UI-result detail
+    without re-running detection.
+    """
     from apps.core.services import detect_and_set_format
     from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
 
     snap = snapshot_fields(comic, ["state", "format"])
 
     try:
-        detect_and_set_format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max)
+        format_result = detect_and_set_format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max)
     except Exception as e:
         log_batch_entry("format_all", comic, snap["state"], comic.state, {"error": [None, str(e)]})
         raise
 
     log_batch_entry("format_all", comic, snap["state"], comic.state, diff_fields(comic, snap) or {"processed": [None, True]})
+    return format_result
 
 
 def _run_organize(comic):
@@ -345,7 +351,7 @@ def run_full_pipeline_task(self, comic_ids: list):
     import re
     from apps.core.models import Comic
     from apps.core.audit import log_batch_entry
-    from apps.core.services import detect_format, OMNIBUS_MIN_PAGES, TPB_MIN_PAGES, TPB_ISSUE_RANGE_RE
+    from apps.core.services import OMNIBUS_MIN_PAGES, TPB_MIN_PAGES, TPB_ISSUE_RANGE_RE
     from apps.scraper.comicvine import ComicVineScraper
     from apps.duplicates.services import run_duplicate_detection
 
@@ -479,21 +485,20 @@ def run_full_pipeline_task(self, comic_ids: list):
                     "run_pipeline", comic, Comic.STATE_TAGGED, Comic.STATE_FORMATTED, {}
                 )
 
-            # Step 5: Format detection — capture detail, then run _run_format
+            # Step 5: Format detection
             _step("Detecting format")
-            old_format = comic.format
-            detected_format = detect_format(comic)
             _text = f"{comic.series or ''} {comic.title or ''}"
             _summary = comic.summary or ""
             _pages = comic.page_count or 0
 
-            _run_format(comic)
+            format_result = _run_format(comic)
+            detected_format = format_result["detected_format"]
 
             result["format"] = {
-                "old_format": old_format,
-                "new_format": comic.format,
+                "old_format": format_result["old_format"],
+                "new_format": format_result["new_format"],
                 "detected_format": detected_format,
-                "format_changed": old_format != comic.format,
+                "format_changed": format_result["format_changed"],
                 "series": comic.series,
                 "title": comic.title,
                 "count": comic.count,
