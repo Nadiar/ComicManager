@@ -129,11 +129,9 @@ def run_smartlist_action_task(self, smart_list_id, action):
 def _run_tag(comic):
     """Apply DataManager tagging rules to a comic."""
     from apps.tagging.engine import apply_datamanager_rules
-    from apps.core.audit import log_batch_entry
+    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
 
-    before_series_group = comic.series_group
-    before_main_char = comic.main_character_or_team
-    state_before = comic.state
+    snap = snapshot_fields(comic, ["series_group", "main_character_or_team", "state"])
 
     try:
         apply_datamanager_rules(comic, save=False)
@@ -151,40 +149,26 @@ def _run_tag(comic):
 
         comic.save()
     except Exception as e:
-        log_batch_entry("tag_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        log_batch_entry("tag_all", comic, snap["state"], comic.state, {"error": [None, str(e)]})
         raise
 
-    changes = {}
-    if comic.series_group != before_series_group:
-        changes["series_group"] = [before_series_group, comic.series_group]
-    if comic.main_character_or_team != before_main_char:
-        changes["main_character_or_team"] = [before_main_char, comic.main_character_or_team]
-    if comic.state != state_before:
-        changes["state"] = [state_before, comic.state]
-
-    log_batch_entry("tag_all", comic, state_before, comic.state, changes or {"processed": [None, True]})
+    log_batch_entry("tag_all", comic, snap["state"], comic.state, diff_fields(comic, snap) or {"processed": [None, True]})
 
 
 def _run_format(comic, _one_shot_max=None, _limited_max=None):
     """Detect and set format for a comic."""
     from apps.core.services import detect_and_set_format
-    from apps.core.audit import log_batch_entry
+    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
 
-    state_before = comic.state
+    snap = snapshot_fields(comic, ["state", "format"])
 
     try:
-        result = detect_and_set_format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max)
+        detect_and_set_format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max)
     except Exception as e:
-        log_batch_entry("format_all", comic, state_before, comic.state, {"error": [None, str(e)]})
+        log_batch_entry("format_all", comic, snap["state"], comic.state, {"error": [None, str(e)]})
         raise
 
-    changes = {}
-    if result["format_changed"]:
-        changes["format"] = [result["old_format"], result["new_format"]]
-    if comic.state != state_before:
-        changes["state"] = [state_before, comic.state]
-
-    log_batch_entry("format_all", comic, state_before, comic.state, changes or {"processed": [None, True]})
+    log_batch_entry("format_all", comic, snap["state"], comic.state, diff_fields(comic, snap) or {"processed": [None, True]})
 
 
 def _run_organize(comic):
@@ -337,7 +321,7 @@ def run_full_pipeline_task(self, comic_ids: list):
     """
     import re
     from apps.core.models import Comic
-    from apps.core.audit import log_batch_entry
+    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
     from apps.core.services import detect_format, OMNIBUS_MIN_PAGES, TPB_MIN_PAGES, TPB_ISSUE_RANGE_RE
     from apps.scraper.comicvine import ComicVineScraper
     from apps.scraper.services import find_best_match, apply_cv_match
@@ -473,8 +457,7 @@ def run_full_pipeline_task(self, comic_ids: list):
 
             # Step 3: Tag — inline to capture rule changes
             _step("Tagging")
-            before_series_group = comic.series_group
-            before_main_char = comic.main_character_or_team
+            tag_snap = snapshot_fields(comic, ["series_group", "main_character_or_team", "state"])
 
             tag_result = apply_datamanager_rules(comic, save=False)
             comic.custom_values["DataManager_Processed"] = "Yes"
@@ -483,7 +466,6 @@ def run_full_pipeline_task(self, comic_ids: list):
                 if is_publisher_known(comic.publisher):
                     comic.remove_flag("unknown_publisher")
 
-            state_before_tag = comic.state
             if comic.state in (
                 Comic.STATE_NEW, Comic.STATE_IMPORTED,
                 Comic.STATE_SCRAPED, Comic.STATE_COUNTED,
@@ -492,14 +474,7 @@ def run_full_pipeline_task(self, comic_ids: list):
 
             comic.save()
 
-            audit_changes = {}
-            if comic.series_group != before_series_group:
-                audit_changes["series_group"] = [before_series_group, comic.series_group]
-            if comic.main_character_or_team != before_main_char:
-                audit_changes["main_character_or_team"] = [before_main_char, comic.main_character_or_team]
-            if comic.state != state_before_tag:
-                audit_changes["state"] = [state_before_tag, comic.state]
-            log_batch_entry("tag_all", comic, state_before_tag, comic.state, audit_changes or {"processed": [None, True]})
+            log_batch_entry("tag_all", comic, tag_snap["state"], comic.state, diff_fields(comic, tag_snap) or {"processed": [None, True]})
 
             result["tag"] = {
                 "matched_rulesets": tag_result["matched_rulesets"],

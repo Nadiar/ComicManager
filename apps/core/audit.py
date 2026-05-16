@@ -47,3 +47,18 @@ def log_batch_entry(action: str, comic, state_before: str, state_after: str, cha
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+
+def snapshot_fields(comic, fields: list) -> dict:
+    """Capture current values of the named comic attributes for later diffing."""
+    return {f: getattr(comic, f) for f in fields}
+
+
+def diff_fields(comic, snapshot: dict) -> dict:
+    """Return a {field: [old, new]} dict for attributes whose value changed since `snapshot` was taken."""
+    return {
+        f: [old, getattr(comic, f)]
+        for f, old in snapshot.items()
+        if getattr(comic, f) != old
+    }
