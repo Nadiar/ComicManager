@@ -232,10 +232,14 @@ def _run_organize(comic):
 
 
 def _run_scrape(comic, scraper=None):
-    """Scrape a comic against ComicVine or Inducks. Creates a scraper if not provided."""
+    """Scrape a comic against ComicVine or Inducks. Creates a scraper if not provided.
+
+    Returns the matched issue object so callers (e.g. the full pipeline) can populate
+    UI-result detail without redoing the scrape.
+    """
     from apps.scraper.services import find_best_match, apply_cv_match
     from apps.scraper.comicvine import ComicVineScraper
-    from apps.core.audit import log_batch_entry
+    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
 
     if scraper is None:
         scraper = ComicVineScraper()
@@ -256,13 +260,26 @@ def _run_scrape(comic, scraper=None):
         log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "no_match"]})
         raise Exception(f"No match found for {comic.series} #{comic.number}")
 
+    snap = snapshot_fields(comic, ["series", "publisher"])
+    cv = comic.custom_values or {}
+    before_cv_issue = cv.get("comicvine_issue")
+    before_cv_volume = cv.get("comicvine_volume")
+
     try:
         apply_cv_match(comic, match, scraper, insert_covers=False)
     except Exception as e:
         log_batch_entry("scrape_all", comic, state_before, comic.state, {"error": [None, str(e)]})
         raise
 
-    log_batch_entry("scrape_all", comic, state_before, comic.state, {"result": [None, "matched"]})
+    changes = diff_fields(comic, snap)
+    cv = comic.custom_values or {}
+    if cv.get("comicvine_issue") != before_cv_issue:
+        changes["cv_issue"] = [before_cv_issue, cv.get("comicvine_issue")]
+    if cv.get("comicvine_volume") != before_cv_volume:
+        changes["cv_volume"] = [before_cv_volume, cv.get("comicvine_volume")]
+
+    log_batch_entry("scrape_all", comic, state_before, comic.state, changes or {"result": [None, "matched"]})
+    return match
 
 
 
@@ -324,7 +341,6 @@ def run_full_pipeline_task(self, comic_ids: list):
     from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
     from apps.core.services import detect_format, OMNIBUS_MIN_PAGES, TPB_MIN_PAGES, TPB_ISSUE_RANGE_RE
     from apps.scraper.comicvine import ComicVineScraper
-    from apps.scraper.services import find_best_match, apply_cv_match
     from apps.tagging.engine import apply_datamanager_rules, is_publisher_known
     from apps.duplicates.services import run_duplicate_detection
 
@@ -413,47 +429,24 @@ def run_full_pipeline_task(self, comic_ids: list):
                 comic.state = Comic.STATE_IMPORTED
                 comic.save()
 
-            # Step 2: Scrape — inline to capture match detail
+            # Step 2: Scrape
             _step("Scraping")
-            for key in ("scrape_no_match", "scrape_error", "scrape_error_detail"):
-                comic.flags.pop(key, None)
-
-            before_scrape_series = comic.series
-            before_scrape_publisher = comic.publisher
-            before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-            before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-
-            match = find_best_match(comic, scraper)
-            if match:
-                apply_cv_match(comic, match, scraper, insert_covers=False)
-                result["scrape"] = {
-                    "matched": True,
-                    "match_type": getattr(match, "match_type", ""),
-                    "series": match.series,
-                    "number": match.issue_number,
-                    "title": match.title,
-                    "publisher": match.publisher,
-                    "issue_id": match.issue_id,
-                    "cv_cover_url": getattr(match, "cover_url", None),
-                }
-                scrape_changes = {}
-                if comic.series != before_scrape_series:
-                    scrape_changes["series"] = [before_scrape_series, comic.series]
-                if comic.publisher != before_scrape_publisher:
-                    scrape_changes["publisher"] = [before_scrape_publisher, comic.publisher]
-                after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-                after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-                if after_cv_issue != before_cv_issue:
-                    scrape_changes["cv_issue"] = [before_cv_issue, after_cv_issue]
-                if after_cv_volume != before_cv_volume:
-                    scrape_changes["cv_volume"] = [before_cv_volume, after_cv_volume]
-                log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, scrape_changes or {"result": [None, "matched"]})
-            else:
-                comic.add_flag("scrape_no_match")
-                comic.save(update_fields=["flags"])
+            try:
+                match = _run_scrape(comic, scraper)
+            except Exception:
                 result["scrape"] = {"matched": False}
-                log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, {"result": [None, "no_match"]})
-                raise Exception(f"No CV match found for {comic.series} #{comic.number}")
+                raise
+
+            result["scrape"] = {
+                "matched": True,
+                "match_type": getattr(match, "match_type", ""),
+                "series": match.series,
+                "number": match.issue_number,
+                "title": match.title,
+                "publisher": match.publisher,
+                "issue_id": match.issue_id,
+                "cv_cover_url": getattr(match, "cover_url", None),
+            }
 
             # Step 3: Tag — inline to capture rule changes
             _step("Tagging")

@@ -3256,7 +3256,7 @@ def force_scrape(request, pk):
         changes["cv_issue"] = [before_cv_issue, after_cv_issue]
     if after_cv_volume != before_cv_volume:
         changes["cv_volume"] = [before_cv_volume, after_cv_volume]
-    log_batch_entry("scrape_all", comic, comic.state, comic.state, changes)
+    log_batch_entry("scrape_all", comic, comic.state, comic.state, changes or {"result": [None, "matched"]})
 
     return JsonResponse({
         "success": True,

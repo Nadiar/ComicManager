@@ -286,7 +286,7 @@
 - [x] [BUG.46] Comics not deselected in table view. Reproduce: go to `/comics/?state=new`, select 3 comics, using the action bar, press `Run Pipeline`, after finished, dismiss the modal popup. The comics disappear but the 3 comics that took their place are still selected.
 - [x] [BUG.47] Action bar isn't shown in table/hybrid/grid/compact view if navigation = topbar. It works with navigation=sidebar. 
 - [x] [BUG.48] Selecting New/Scrape/Taggning/move/Write in sidebar, then removing the filter from the rail and applying, does not remove the url filter for that stage and still highlights the stage in the sidebar. 
-- [ ] [BUG.49] Smartlists using 'is empty' or 'is not empty' doesn't save that filter line, as the field if empty. Also add warning if a filter line is not gonna be saved. All smartlists/filters/etc should warn the user if a filter is not gonna be saved for some reason. 
+- [x] [BUG.49] Smartlists using 'is empty' or 'is not empty' doesn't save that filter line, as the field if empty. Also add warning if a filter line is not gonna be saved. All smartlists/filters/etc should warn the user if a filter is not gonna be saved for some reason. 
 - [ ] Correct / new path isn't always shown on the comics details page.  
 
 ## I.N.D.U.C.K.S. Integration
@@ -342,6 +342,7 @@
 - [x] [FI.2] ComicVine API call budget management. Per-path rolling counters (/search, /volume, /issues, /issue) tracked in Redis and displayed as progress bars in Settings. Budget checked before every call; comics skipped when exhausted rather than errored. Manual search results loaded in batches of 3 with lazy /volume fetching to minimise cost.
 - [x] [FI.3] Resolved by redesigning `try_api_metadata_match` to use a 3-call volume-based strategy: /search returns credits inline via /issue on the final call, so there is no separate budget-gated credits fetch. Full credits are always included or the entire match is skipped.
 - [ ] [FI.8] Add a configurable setting to control whether CBR/CB7 files are flagged `needs_conversion` on import. Currently flagging is unconditional. Implementation: re-introduce a setting (e.g. `import_convert_cbr`), read it in `services.py` and `scan_untagged.py`, and only set the flag when enabled.
+- [ ] [FI.9] Extend `snapshot_fields` / `diff_fields` (in `apps/core/audit.py`) to handle nested dict-key paths like `comic.custom_values["comicvine_issue"]` with audit-key renaming, so scrape audit code can declare one shared field list and avoid the inline `before_cv_issue` / `before_cv_volume` currently in `_run_scrape`, `scrape_comic`, and `force_scrape`.
 
 ## Redesign 
 
