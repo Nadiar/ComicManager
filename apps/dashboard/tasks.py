@@ -127,14 +127,19 @@ def run_smartlist_action_task(self, smart_list_id, action):
 
 
 def _run_tag(comic):
-    """Apply DataManager tagging rules to a comic."""
+    """Apply DataManager tagging rules to a comic.
+
+    Returns the dict from `apply_datamanager_rules` (matched_rulesets, matched_count,
+    changes, changes_count) so callers can populate UI-result detail without
+    re-running the rules.
+    """
     from apps.tagging.engine import apply_datamanager_rules
     from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
 
     snap = snapshot_fields(comic, ["series_group", "main_character_or_team", "state"])
 
     try:
-        apply_datamanager_rules(comic, save=False)
+        tag_result = apply_datamanager_rules(comic, save=False)
         comic.custom_values["DataManager_Processed"] = "Yes"
 
         # Clear unknown_publisher if this publisher is now covered by a ruleset
@@ -153,6 +158,7 @@ def _run_tag(comic):
         raise
 
     log_batch_entry("tag_all", comic, snap["state"], comic.state, diff_fields(comic, snap) or {"processed": [None, True]})
+    return tag_result
 
 
 def _run_format(comic, _one_shot_max=None, _limited_max=None):
@@ -338,10 +344,9 @@ def run_full_pipeline_task(self, comic_ids: list):
     """
     import re
     from apps.core.models import Comic
-    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
+    from apps.core.audit import log_batch_entry
     from apps.core.services import detect_format, OMNIBUS_MIN_PAGES, TPB_MIN_PAGES, TPB_ISSUE_RANGE_RE
     from apps.scraper.comicvine import ComicVineScraper
-    from apps.tagging.engine import apply_datamanager_rules, is_publisher_known
     from apps.duplicates.services import run_duplicate_detection
 
     total = len(comic_ids)
@@ -448,27 +453,9 @@ def run_full_pipeline_task(self, comic_ids: list):
                 "cv_cover_url": getattr(match, "cover_url", None),
             }
 
-            # Step 3: Tag — inline to capture rule changes
+            # Step 3: Tag
             _step("Tagging")
-            tag_snap = snapshot_fields(comic, ["series_group", "main_character_or_team", "state"])
-
-            tag_result = apply_datamanager_rules(comic, save=False)
-            comic.custom_values["DataManager_Processed"] = "Yes"
-
-            if comic.publisher and comic.has_flag("unknown_publisher"):
-                if is_publisher_known(comic.publisher):
-                    comic.remove_flag("unknown_publisher")
-
-            if comic.state in (
-                Comic.STATE_NEW, Comic.STATE_IMPORTED,
-                Comic.STATE_SCRAPED, Comic.STATE_COUNTED,
-            ):
-                comic.state = Comic.STATE_TAGGED
-
-            comic.save()
-
-            log_batch_entry("tag_all", comic, tag_snap["state"], comic.state, diff_fields(comic, tag_snap) or {"processed": [None, True]})
-
+            tag_result = _run_tag(comic)
             result["tag"] = {
                 "matched_rulesets": tag_result["matched_rulesets"],
                 "matched_count": tag_result["matched_count"],
