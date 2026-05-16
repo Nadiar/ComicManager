@@ -123,6 +123,39 @@ EDITABLE_FIELDS = [
     "storage_location",
 ]
 
+# Human-readable display labels for comic fields, used by metadata-comparison views
+FIELD_LABELS = {
+    "title": "Title",
+    "series": "Series",
+    "number": "Issue #",
+    "count": "Count",
+    "volume": "Volume",
+    "year": "Year",
+    "month": "Month",
+    "day": "Day",
+    "publisher": "Publisher",
+    "summary": "Summary",
+    "notes": "Notes",
+    "genre": "Genre",
+    "web": "Web URL",
+    "page_count": "Page Count",
+    "format": "Format",
+    "characters": "Characters",
+    "teams": "Teams",
+    "locations": "Locations",
+    "tags": "Tags",
+    "scan_information": "Scan Info",
+    "series_group": "Series Group",
+    "main_character_or_team": "Main Character/Team",
+    "writer": "Writer",
+    "penciller": "Penciller",
+    "inker": "Inker",
+    "colorist": "Colorist",
+    "letterer": "Letterer",
+    "cover_artist": "Cover Artist",
+    "editor": "Editor",
+}
+
 # Registry of all possible columns for comic tables
 COLUMNS_REGISTRY = {
     # Core Metadata
@@ -280,39 +313,6 @@ def compare_db_vs_xml(comic: Comic, xml_data: dict | None) -> list[dict]:
 
     comparisons = []
 
-    # Human-readable labels for fields
-    field_labels = {
-        "title": "Title",
-        "series": "Series",
-        "number": "Issue #",
-        "count": "Count",
-        "volume": "Volume",
-        "year": "Year",
-        "month": "Month",
-        "day": "Day",
-        "publisher": "Publisher",
-        "summary": "Summary",
-        "notes": "Notes",
-        "genre": "Genre",
-        "web": "Web URL",
-        "page_count": "Page Count",
-        "format": "Format",
-        "characters": "Characters",
-        "teams": "Teams",
-        "locations": "Locations",
-        "tags": "Tags",
-        "scan_information": "Scan Info",
-        "series_group": "Series Group",
-        "main_character_or_team": "Main Character/Team",
-        "writer": "Writer",
-        "penciller": "Penciller",
-        "inker": "Inker",
-        "colorist": "Colorist",
-        "letterer": "Letterer",
-        "cover_artist": "Cover Artist",
-        "editor": "Editor",
-    }
-
     for field in EDITABLE_FIELDS:
         db_value = getattr(comic, field, None)
         xml_value = xml_data.get(field)
@@ -332,7 +332,7 @@ def compare_db_vs_xml(comic: Comic, xml_data: dict | None) -> list[dict]:
 
         comparisons.append({
             "field": field,
-            "label": field_labels.get(field, field.replace("_", " ").title()),
+            "label": FIELD_LABELS.get(field, field.replace("_", " ").title()),
             "db_value": db_value,
             "xml_value": xml_value,
             "status": status,
@@ -389,21 +389,6 @@ def compare_all_sources(comic, xml_data, cv_local_match, cv_api_match):
     if xml_data is None:
         xml_data = {}
 
-    field_labels = {
-        "series": "Series", "number": "Issue #", "title": "Title",
-        "count": "Count", "volume": "Volume", "year": "Year",
-        "month": "Month", "day": "Day", "publisher": "Publisher",
-        "summary": "Summary", "notes": "Notes", "genre": "Genre",
-        "web": "Web URL", "page_count": "Page Count", "format": "Format",
-        "characters": "Characters", "teams": "Teams", "locations": "Locations",
-        "tags": "Tags", "scan_information": "Scan Info",
-        "series_group": "Series Group",
-        "main_character_or_team": "Main Character/Team",
-        "writer": "Writer", "penciller": "Penciller", "inker": "Inker",
-        "colorist": "Colorist", "letterer": "Letterer",
-        "cover_artist": "Cover Artist", "editor": "Editor",
-    }
-
     common = []
 
     # Common fields: fields shared between CV and DB/XML
@@ -436,7 +421,7 @@ def compare_all_sources(comic, xml_data, cv_local_match, cv_api_match):
 
         common.append({
             "field": db_field,
-            "label": field_labels.get(db_field, db_field.replace("_", " ").title()),
+            "label": FIELD_LABELS.get(db_field, db_field.replace("_", " ").title()),
             "db": db_val,
             "xml": xml_val,
             "cv_local": cv_local_val,
@@ -449,7 +434,7 @@ def compare_all_sources(comic, xml_data, cv_local_match, cv_api_match):
     for db_field in DB_ONLY_FIELDS:
         db_val = getattr(comic, db_field, None)
         xml_val = xml_data.get(db_field)
-        label = field_labels.get(db_field, db_field.replace("_", " ").title())
+        label = FIELD_LABELS.get(db_field, db_field.replace("_", " ").title())
         if db_val is not None and str(db_val).strip():
             extras.append({"field": db_field, "label": label, "source": "db", "value": db_val})
         if xml_val is not None and str(xml_val).strip():
