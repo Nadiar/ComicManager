@@ -2157,31 +2157,18 @@ def populate_counts_all(request):
 
 @require_POST
 def tag_comic(request, pk):
-    """
-    Apply DataManager rules to a single comic.
-
-    This is Phase 4 of the workflow: counted -> tagged
-    """
-    from apps.tagging.services import tag_comic as tagging_service_tag_comic
+    """Apply DataManager rules to a single comic in 'counted' or 'tagged' state."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-
-    result = tagging_service_tag_comic(comic)
-
-    if not result["success"]:
-        return JsonResponse({
-            "success": False,
-            "error": result["message"]
-        }, status=400)
-
-    return JsonResponse({
-        "success": True,
-        "message": result["message"],
-        "matched_rulesets": result["matched_rulesets"],
-        "changes": result["changes"],
-        "changes_count": len(result["changes"]),
-        "state": comic.state,
-    })
+    result = workflow.tag(comic)
+    if result.skipped:
+        return JsonResponse(result.to_json(), status=400)
+    if not result.success:
+        return JsonResponse(result.to_json(), status=500)
+    payload = result.to_json()
+    payload["state"] = result.state_after
+    return JsonResponse(payload)
 
 
 @require_POST
@@ -3024,49 +3011,16 @@ def force_scrape(request, pk):
 
 @require_POST
 def force_tag(request, pk):
-    """
-    Force re-tag a comic with DataManager rules, regardless of current state.
-
-    Unlike the normal tag_comic service, this bypasses the state check
-    and applies rules to comics in any state.
-    """
-    from apps.tagging.engine import apply_datamanager_rules
+    """Force re-tag a comic regardless of state."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-
-    # Apply tagging rules directly (bypassing state check)
-    result = apply_datamanager_rules(comic, save=False)
-
-    # Mark as processed by DataManager
-    comic.custom_values["DataManager_Processed"] = "Yes"
-
-    # Clear unknown_publisher if this publisher is now covered by a ruleset
-    if comic.publisher and comic.has_flag("unknown_publisher"):
-        from apps.tagging.engine import is_publisher_known
-        if is_publisher_known(comic.publisher):
-            comic.remove_flag("unknown_publisher")
-
-    # Advance state if needed (to at least tagged)
-    if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
-        comic.state = Comic.STATE_TAGGED
-
-    comic.save()
-
-    matched_count = result.get("matched_count", len(result.get("matched_rulesets", [])))
-    changes_count = result.get("changes_count", len(result.get("changes", [])))
-
-    if matched_count > 0:
-        message = f"Applied {matched_count} ruleset(s), made {changes_count} change(s)"
-    else:
-        message = "No matching rulesets found"
-
-    return JsonResponse({
-        "success": True,
-        "message": message,
-        "matched_rulesets": result.get("matched_rulesets", []),
-        "changes": result.get("changes", []),
-        "new_state": comic.state,
-    })
+    result = workflow.tag(comic, force=True)
+    if not result.success:
+        return JsonResponse(result.to_json(), status=500)
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    return JsonResponse(payload)
 
 
 @require_POST
@@ -3804,20 +3758,11 @@ def _run_action_sync(comic, action, force=False):
         return out
 
     elif action == "tag":
-        from apps.tagging.services import tag_comic as tagging_service_tag_comic
-        state_before = comic.state
-        result = tagging_service_tag_comic(comic)
-        if not result["success"]:
-            return {"success": False, "error": result["message"]}
-        log_batch_entry("tag_all", comic, state_before, comic.state, {"processed": [None, True]})
-        return {
-            "success": True,
-            "message": result["message"],
-            "matched_rulesets": result["matched_rulesets"],
-            "changes": result["changes"],
-            "changes_count": len(result["changes"]),
-            "state": comic.state,
-        }
+        from apps.core import workflow
+        result = workflow.tag(comic)
+        if result.success:
+            return result.to_json()
+        return {"success": False, "error": result.message}
 
     elif action == "format":
         from apps.core import workflow

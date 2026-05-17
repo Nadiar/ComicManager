@@ -127,38 +127,19 @@ def run_smartlist_action_task(self, smart_list_id, action):
 
 
 def _run_tag(comic):
-    """Apply DataManager tagging rules to a comic.
+    """Deprecated: use apps.core.workflow.tag directly. Returns the rule result
+    (matched_rulesets, matched_count, changes, changes_count) or raises."""
+    from apps.core import workflow
 
-    Returns the dict from `apply_datamanager_rules` (matched_rulesets, matched_count,
-    changes, changes_count) so callers can populate UI-result detail without
-    re-running the rules.
-    """
-    from apps.tagging.engine import apply_datamanager_rules
-    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
-
-    snap = snapshot_fields(comic, ["series_group", "main_character_or_team", "state"])
-
-    try:
-        tag_result = apply_datamanager_rules(comic, save=False)
-        comic.custom_values["DataManager_Processed"] = "Yes"
-
-        # Clear unknown_publisher if this publisher is now covered by a ruleset
-        if comic.publisher and comic.has_flag("unknown_publisher"):
-            from apps.tagging.engine import is_publisher_known
-            if is_publisher_known(comic.publisher):
-                comic.remove_flag("unknown_publisher")
-
-        from apps.core.models import Comic
-        if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
-            comic.state = Comic.STATE_TAGGED
-
-        comic.save()
-    except Exception as e:
-        log_batch_entry("tag_all", comic, snap["state"], comic.state, {"error": [None, str(e)]})
-        raise
-
-    log_batch_entry("tag_all", comic, snap["state"], comic.state, diff_fields(comic, snap) or {"processed": [None, True]})
-    return tag_result
+    result = workflow.tag(comic, force=True)
+    if not result.success:
+        raise Exception(result.error or result.message)
+    return {
+        "matched_rulesets": result.detail["matched_rulesets"],
+        "matched_count": result.detail["matched_count"],
+        "changes": result.detail["changes"],
+        "changes_count": result.detail["changes_count"],
+    }
 
 
 def _run_format(comic, _one_shot_max=None, _limited_max=None):

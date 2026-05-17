@@ -567,15 +567,12 @@ def scrape_all_task(self):
 
 @shared_task(bind=True, base=ProgressTask, name="core.tag_all", queue="write")
 def tag_all_task(self):
-    """
-    Apply DataManager rules to all comics in 'tagged' state.
-    """
+    """Apply DataManager rules to every comic in 'tagged' state and advance to 'formatted'."""
     from .models import Comic
-    from apps.dashboard.tasks import _run_tag
+    from apps.core import workflow
 
     comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_TAGGED)
-        .values_list("pk", flat=True)
+        Comic.objects.filter(state=Comic.STATE_TAGGED).values_list("pk", flat=True)
     )
     total = len(comic_ids)
 
@@ -600,18 +597,11 @@ def tag_all_task(self):
         except Comic.DoesNotExist:
             continue
 
-        try:
-            _run_tag(comic)
-            # _run_tag only advances up to STATE_TAGGED; advance to STATE_FORMATTED and log it.
-            comic.refresh_from_db(fields=["state"])
-            if comic.state == Comic.STATE_TAGGED:
-                from .audit import log_batch_entry
-                comic.state = Comic.STATE_FORMATTED
-                comic.save(update_fields=["state", "updated_at"])
-                log_batch_entry("tag_all", comic, Comic.STATE_TAGGED, Comic.STATE_FORMATTED, {})
+        result = workflow.tag(comic, advance_to_formatted=True, force=True)
+        if result.success:
             processed += 1
-        except Exception as e:
-            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
+        elif not result.skipped:
+            errors.append(f"{comic.series} #{comic.number}: {result.message}")
 
         self.update_state(
             state="PROGRESS",
@@ -623,16 +613,12 @@ def tag_all_task(self):
 
 @shared_task(bind=True, base=ProgressTask, name="core.retag_flagged", queue="write")
 def retag_flagged_task(self, flag_name):
-    """
-    Re-tag all comics that have a specific flag (e.g. unknown_publisher).
-    Uses force-tag logic: applies rules regardless of current state.
-    """
+    """Re-tag every comic carrying `flag_name`, regardless of state."""
     from .models import Comic
-    from apps.dashboard.tasks import _run_tag
+    from apps.core import workflow
 
     comic_ids = list(
-        Comic.objects.filter(**{f"flags__{flag_name}": True})
-        .values_list("pk", flat=True)
+        Comic.objects.filter(**{f"flags__{flag_name}": True}).values_list("pk", flat=True)
     )
     total = len(comic_ids)
 
@@ -657,11 +643,11 @@ def retag_flagged_task(self, flag_name):
         except Comic.DoesNotExist:
             continue
 
-        try:
-            _run_tag(comic)
+        result = workflow.tag(comic, force=True)
+        if result.success:
             processed += 1
-        except Exception as e:
-            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
+        elif not result.skipped:
+            errors.append(f"{comic.series} #{comic.number}: {result.message}")
 
         self.update_state(
             state="PROGRESS",

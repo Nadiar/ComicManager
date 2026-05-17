@@ -276,9 +276,76 @@ def scrape(
 
 
 def tag(comic, *, advance_to_formatted=False, force=False) -> ActionResult:
-    """Apply DataManager tagging rules to a comic. When advance_to_formatted=True,
-    the state advances TAGGED -> FORMATTED in the same call. Not yet implemented."""
-    raise NotImplementedError("workflow.tag not yet implemented")
+    """Apply DataManager tagging rules to a comic.
+
+    State gate: COUNTED or TAGGED. force=True bypasses.
+
+    advance_to_formatted=True takes a comic that ends up in TAGGED through to
+    FORMATTED in the same call. The pipeline and tag_all_task pass this so the
+    state advance happens inside one audited operation rather than as a separate
+    follow-up entry.
+
+    detail keys: matched_rulesets, matched_count, changes, changes_count.
+    """
+    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
+    from apps.core.models import Comic
+    from apps.tagging.engine import apply_datamanager_rules, is_publisher_known
+
+    state_before = comic.state
+
+    if not force and comic.state not in (Comic.STATE_COUNTED, Comic.STATE_TAGGED):
+        return ActionResult(
+            action="tag", success=False,
+            message=f"Comic must be in 'counted' or 'tagged' state, but is '{comic.state}'",
+            state_before=state_before, state_after=comic.state, skipped=True,
+        )
+
+    snap = snapshot_fields(comic, ["series_group", "main_character_or_team", "state", "format"])
+
+    try:
+        rule_result = apply_datamanager_rules(comic, save=False)
+        comic.custom_values["DataManager_Processed"] = "Yes"
+
+        if comic.publisher and comic.has_flag("unknown_publisher"):
+            if is_publisher_known(comic.publisher):
+                comic.remove_flag("unknown_publisher")
+
+        if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
+            comic.state = Comic.STATE_TAGGED
+
+        if advance_to_formatted and comic.state == Comic.STATE_TAGGED:
+            comic.state = Comic.STATE_FORMATTED
+
+        comic.save()
+    except Exception as e:
+        log_batch_entry("tag_all", comic, snap["state"], comic.state, {"error": [None, str(e)]})
+        return ActionResult(
+            action="tag", success=False,
+            message=f"Tag failed: {e}",
+            state_before=state_before, state_after=comic.state, error=str(e),
+        )
+
+    changes = diff_fields(comic, snap)
+    log_batch_entry("tag_all", comic, snap["state"], comic.state, changes or {"processed": [None, True]})
+
+    matched_count = rule_result.get("matched_count", len(rule_result.get("matched_rulesets", [])))
+    changes_count = rule_result.get("changes_count", len(rule_result.get("changes", [])))
+    if matched_count > 0:
+        msg = f"Applied {matched_count} ruleset(s), made {changes_count} change(s)"
+    else:
+        msg = "No matching rulesets found"
+
+    return ActionResult(
+        action="tag", success=True, message=msg,
+        state_before=state_before, state_after=comic.state,
+        detail={
+            "matched_rulesets": rule_result.get("matched_rulesets", []),
+            "matched_count": matched_count,
+            "changes": rule_result.get("changes", []),
+            "changes_count": changes_count,
+        },
+        changes=changes,
+    )
 
 
 def format(  # noqa: A001

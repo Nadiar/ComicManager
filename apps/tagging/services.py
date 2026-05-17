@@ -10,105 +10,10 @@ from .engine import apply_datamanager_rules, preview_matching_rules
 from .models import DataManagerRuleset
 
 
-def tag_comic(comic: Comic) -> dict:
-    """
-    Apply DataManager rules to a comic and transition state from 'counted' to 'tagged'.
-    Also supports re-tagging comics already in 'tagged' state without changing state.
-
-    Args:
-        comic: The Comic model instance
-
-    Returns:
-        Dict with:
-        - "success": Whether the operation succeeded
-        - "message": Human-readable status message
-        - "matched_rulesets": List of ruleset names that matched
-        - "changes": List of field changes made
-    """
-    if comic.state not in (Comic.STATE_COUNTED, Comic.STATE_TAGGED):
-        return {
-            "success": False,
-            "message": f"Comic must be in 'counted' or 'tagged' state, but is '{comic.state}'",
-            "matched_rulesets": [],
-            "changes": [],
-        }
-
-    with transaction.atomic():
-        result = apply_datamanager_rules(comic, save=False)
-
-        # Mark as processed by DataManager
-        comic.custom_values["DataManager_Processed"] = "Yes"
-
-        # Clear unknown_publisher if this publisher is now covered by a ruleset
-        if comic.publisher and comic.has_flag("unknown_publisher"):
-            from .engine import is_publisher_known
-            if is_publisher_known(comic.publisher):
-                comic.remove_flag("unknown_publisher")
-
-        # Advance state: counted -> tagged (legacy), tagged -> formatted (new pipeline)
-        if comic.state == Comic.STATE_COUNTED:
-            comic.state = Comic.STATE_TAGGED
-        else:
-            comic.state = Comic.STATE_FORMATTED
-        comic.save()
-
-    matched_count = result["matched_count"]
-    changes_count = result["changes_count"]
-
-    if matched_count > 0:
-        message = f"Applied {matched_count} ruleset(s), made {changes_count} change(s)"
-    else:
-        message = "No matching rulesets found, state advanced"
-
-    return {
-        "success": True,
-        "message": message,
-        "matched_rulesets": result["matched_rulesets"],
-        "changes": result["changes"],
-    }
 
 
-def tag_all_comics() -> dict:
-    """
-    Batch process all comics in 'counted' state.
 
-    Returns:
-        Dict with:
-        - "success": Whether the operation succeeded
-        - "total_processed": Number of comics processed
-        - "total_matched": Number of comics with at least one matching ruleset
-        - "total_changes": Total number of field changes made
-    """
-    comics = Comic.objects.filter(state=Comic.STATE_COUNTED)
-    total_count = comics.count()
 
-    if total_count == 0:
-        return {
-            "success": True,
-            "message": "No comics in 'counted' state to process",
-            "total_processed": 0,
-            "total_matched": 0,
-            "total_changes": 0,
-        }
-
-    processed = 0
-    matched = 0
-    total_changes = 0
-
-    for comic in comics:
-        result = tag_comic(comic)
-        processed += 1
-        if result["matched_rulesets"]:
-            matched += 1
-        total_changes += len(result["changes"])
-
-    return {
-        "success": True,
-        "message": f"Processed {processed} comics, {matched} had matching rules, {total_changes} total changes",
-        "total_processed": processed,
-        "total_matched": matched,
-        "total_changes": total_changes,
-    }
 
 
 def preview_tagging(comic: Comic) -> dict:
