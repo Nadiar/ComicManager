@@ -159,63 +159,17 @@ def _run_format(comic, _one_shot_max=None, _limited_max=None):
 
 
 def _run_organize(comic):
-    """Re-organize a comic to its correct library path, regardless of current state."""
-    import os
-    import shutil
-    from apps.core.models import Comic
-    from apps.organizer.services import preview_organization, LIBRARY_BASE
-    from apps.core.audit import log_batch_entry
+    """Deprecated: use apps.core.workflow.organize directly. Used in force-mode
+    so callers (pipeline, AU re-organize, reorganize_comic view) can re-organize
+    from any state. Raises on failure."""
+    from apps.core import workflow
 
     if not comic.is_digital or not comic.file_path:
         return
 
-    if not os.path.exists(comic.file_path):
-        raise Exception(f"File not found: {comic.file_path}")
-
-    preview = preview_organization(comic)
-    old_path = comic.file_path
-    new_path = preview["new_path"]
-    state_before = comic.state
-
-    if os.path.abspath(old_path) != os.path.abspath(new_path):
-        os.makedirs(os.path.dirname(new_path), exist_ok=True)
-        if os.path.exists(new_path):
-            raise Exception(f"Destination already exists: {new_path}")
-        shutil.move(old_path, new_path)
-
-        # Clean up empty source directories
-        try:
-            old_dir = os.path.dirname(old_path)
-            while old_dir and old_dir != LIBRARY_BASE:
-                if os.path.isdir(old_dir) and not os.listdir(old_dir):
-                    os.rmdir(old_dir)
-                    old_dir = os.path.dirname(old_dir)
-                else:
-                    break
-        except OSError:
-            pass
-
-        comic.file_path = new_path
-        comic.last_organized_path = new_path
-
-    # Advance state to written from any earlier state
-    if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
-                       Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
-                       Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
-        comic.state = Comic.STATE_WRITTEN
-
-    try:
-        comic.needs_reorganize = False
-        comic.expected_path = None
-        comic.save()
-    except Exception as e:
-        log_batch_entry("organize_all", comic, state_before, comic.state, {"error": [None, str(e)]})
-        raise
-
-    changes = {}
-    if old_path != comic.file_path:
-        changes["path"] = [old_path, comic.file_path]
-    log_batch_entry("organize_all", comic, state_before, comic.state, changes or {"processed": [None, True]})
+    result = workflow.organize(comic, force=True)
+    if not result.success:
+        raise Exception(result.error or result.message)
 
 
 def _run_scrape(comic, scraper=None):

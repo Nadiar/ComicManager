@@ -19,22 +19,22 @@ from .template_engine import generate_paths
 LIBRARY_BASE = "/comics/library"
 
 
-def organize_comic(comic: Comic, dry_run: bool = False) -> dict:
+def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> dict:
     """
     Organize a single comic - move file to library location and update state.
 
     Args:
         comic: The Comic model instance
         dry_run: If True, don't actually move files or update state
+        force: If True, bypass the state and is_duplicate gates (used by force_organize
+               and the pipeline). File-existence checks remain enforced.
 
     Returns:
         Dict with organization results
     """
-    # Physical comics have no file to move — just advance state.
-    # They skip deduplication as a required step: advance from formatted or
-    # deduplicated directly to organized.
     if comic.medium == Comic.MEDIUM_PHYSICAL:
-        if not dry_run and comic.state in (Comic.STATE_FORMATTED, Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
+        eligible_states = (Comic.STATE_FORMATTED, Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED)
+        if not dry_run and (force or comic.state in eligible_states):
             comic.state = Comic.STATE_WRITTEN
             comic.save(update_fields=["state"])
         return {
@@ -47,8 +47,7 @@ def organize_comic(comic: Comic, dry_run: bool = False) -> dict:
             "dry_run": dry_run,
         }
 
-    # Check state
-    if comic.state != Comic.STATE_ORGANIZED:
+    if not force and comic.state != Comic.STATE_ORGANIZED:
         return {
             "success": False,
             "message": f"Comic must be in 'move' state, but is '{comic.state}'",
@@ -59,8 +58,7 @@ def organize_comic(comic: Comic, dry_run: bool = False) -> dict:
             "dry_run": dry_run,
         }
 
-    # Duplicate gate: block comics marked as duplicates
-    if comic.is_duplicate:
+    if not force and comic.is_duplicate:
         return {
             "success": False,
             "message": "Comic is marked as duplicate - resolve duplicate group first",

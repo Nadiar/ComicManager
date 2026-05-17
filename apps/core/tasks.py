@@ -712,15 +712,13 @@ def format_all_task(self):
 
 @shared_task(bind=True, base=ProgressTask, name="core.organize_all", queue="organize")
 def organize_all_task(self):
-    """
-    Organize all comics in 'organized' state into the library.
-    """
+    """Organize every comic in 'organized' state into the library."""
+    import errno as _errno
     from .models import Comic
-    from apps.dashboard.tasks import _run_organize
+    from apps.core import workflow
 
     comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_ORGANIZED)
-        .values_list("pk", flat=True)
+        Comic.objects.filter(state=Comic.STATE_ORGANIZED).values_list("pk", flat=True)
     )
     total = len(comic_ids)
 
@@ -745,17 +743,13 @@ def organize_all_task(self):
         except Comic.DoesNotExist:
             continue
 
-        try:
-            _run_organize(comic)
+        result = workflow.organize(comic)
+        if result.success:
             processed += 1
-        except (PermissionError, OSError) as e:
-            import errno as _errno
-            fatal = isinstance(e, PermissionError) or getattr(e, "errno", None) == _errno.ENOSPC
-            err_msg = str(e)
-            errors.append(f"{comic.series} #{comic.number}: {err_msg}")
-            from .audit import log_batch_entry
-            log_batch_entry("organize_error", comic, comic.state, comic.state,
-                            {"error": [None, err_msg]})
+        elif not result.skipped:
+            errors.append(f"{comic.series} #{comic.number}: {result.message}")
+            err = result.error or ""
+            fatal = "Permission" in err or f"errno {_errno.ENOSPC}" in err
             self.update_state(
                 state="PROGRESS",
                 meta={"current": i + 1, "total": total, "processed": processed, "errors": errors},
@@ -763,11 +757,7 @@ def organize_all_task(self):
             if fatal:
                 return {"processed": processed, "total": total, "errors": errors,
                         "cancelled": False, "stopped_early": True}
-        except Exception as e:
-            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
-            from .audit import log_batch_entry
-            log_batch_entry("organize_error", comic, comic.state, comic.state,
-                            {"error": [None, str(e)]})
+            continue
 
         self.update_state(
             state="PROGRESS",
@@ -815,9 +805,11 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
     """
     from .models import Comic
     from apps.core import workflow
-    from apps.dashboard.tasks import (
-        _run_tag, _run_format, _run_organize, _run_write,
-    )
+
+    def _run(action_fn, comic, **kwargs):
+        result = action_fn(comic, **kwargs)
+        if not result.success:
+            raise Exception(result.error or result.message)
 
     total = len(comic_ids)
     if total == 0:
@@ -853,25 +845,21 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
 
         try:
             if action == "scrape":
-                result = workflow.scrape(comic, scraper=scraper, insert_covers=False)
-                if not result.success:
-                    raise Exception(result.error or result.message)
+                _run(workflow.scrape, comic, scraper=scraper, insert_covers=False)
             elif action == "tag":
-                _run_tag(comic)
+                _run(workflow.tag, comic, advance_to_formatted=True, force=True)
             elif action == "format":
-                _run_format(comic)
+                _run(workflow.format, comic, force=True)
             elif action == "organize":
-                _run_organize(comic)
+                _run(workflow.organize, comic, force=True)
             elif action == "write":
-                _run_write(comic)
+                _run(workflow.write, comic, force=True)
             elif action == "force_write":
-                _run_write(comic)
+                _run(workflow.write, comic, force=True)
             elif action == "au_reorganize":
-                _run_tag(comic)
-                comic.refresh_from_db()
-                _run_organize(comic)
-                comic.refresh_from_db()
-                _run_write(comic)
+                _run(workflow.tag, comic, force=True)
+                _run(workflow.organize, comic, force=True)
+                _run(workflow.write, comic, force=True)
             elif action == "accept_flag" and flag_name:
                 comic.accept_flag(flag_name)
                 comic.save(update_fields=["flags", "accepted_flags"])

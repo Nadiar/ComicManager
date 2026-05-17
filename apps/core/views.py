@@ -2614,32 +2614,16 @@ def deduplicate_selected_comics(request):
 
 @require_POST
 def organize_comic(request, pk):
-    """
-    Organize a single comic - move file to library location.
-
-    This is Phase 7 of the workflow: deduplicated -> organized
-    """
-    from apps.organizer.services import organize_comic as organizer_service_organize
+    """Organize a single comic in 'move' state - move file to library location."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-
-    result = organizer_service_organize(comic)
-
-    if not result["success"]:
-        return JsonResponse({
-            "success": False,
-            "error": result["message"]
-        }, status=400)
-
-    return JsonResponse({
-        "success": True,
-        "message": result["message"],
-        "profile": result["profile"],
-        "old_path": result["old_path"],
-        "new_path": result["new_path"],
-        "moved": result["moved"],
-        "state": comic.state,
-    })
+    result = workflow.organize(comic)
+    if result.skipped:
+        return JsonResponse(result.to_json(), status=400)
+    if not result.success:
+        return JsonResponse(result.to_json(), status=400)
+    return JsonResponse(result.to_json())
 
 
 @require_POST
@@ -2663,29 +2647,33 @@ def organize_all_comics(request):
 
 @require_POST
 def reorganize_comic(request, pk):
+    """Re-organize a comic that's already organized, written, or done.
+
+    Done comics run the full tag → organize → write sequence so updated metadata
+    and ComicInfo.xml are both refreshed in one step.
     """
-    Re-organize a comic that's already been organized, written, or done.
-    For done comics, runs the full tag → organize → write pipeline so that
-    updated metadata and ComicInfo.xml are both handled in one step.
-    """
+    from apps.core import workflow
+
     comic = get_object_or_404(Comic, pk=pk)
 
     if comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE):
         return JsonResponse({
             "success": False,
-            "error": f"Comic must be in organized, written, or done state (current: {comic.state})"
+            "error": f"Comic must be in organized, written, or done state (current: {comic.state})",
         }, status=400)
 
     if comic.state == Comic.STATE_DONE:
-        from apps.dashboard.tasks import _run_organize, _run_tag, _run_write
+        old_path = comic.file_path
         try:
-            old_path = comic.file_path
-            _run_tag(comic)
-            comic.refresh_from_db()
-            _run_organize(comic)
-            comic.refresh_from_db()
-            _run_write(comic)
-            comic.refresh_from_db()
+            tag_result = workflow.tag(comic, force=True)
+            if not tag_result.success:
+                raise Exception(tag_result.error or tag_result.message)
+            org_result = workflow.organize(comic, force=True)
+            if not org_result.success:
+                raise Exception(org_result.error or org_result.message)
+            write_result = workflow.write(comic, force=True)
+            if not write_result.success:
+                raise Exception(write_result.error or write_result.message)
             return JsonResponse({
                 "success": True,
                 "moved": comic.file_path != old_path,
@@ -3039,111 +3027,17 @@ def force_format(request, pk):
 
 @require_POST
 def force_organize(request, pk):
-    """
-    Force re-organize a comic (move to correct library path), regardless of current state.
-    """
-    from apps.organizer.services import preview_organization, LIBRARY_BASE
-    import shutil
+    """Force re-organize a comic regardless of state."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-
-    if not comic.is_digital or not comic.file_path:
-        return JsonResponse({
-            "success": False,
-            "error": "Cannot organize physical comics or comics without file path"
-        }, status=400)
-
-    # Verify file exists
-    if not os.path.exists(comic.file_path):
-        return JsonResponse({
-            "success": False,
-            "error": f"File not found: {comic.file_path}"
-        }, status=400)
-
-    # Get the preview to determine destination path
-    try:
-        preview = preview_organization(comic)
-    except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "error": f"Failed to calculate destination: {str(e)}"
-        }, status=500)
-
-    old_path = comic.file_path
-    new_path = preview["new_path"]
-
-    # Check if file needs to move
-    if os.path.abspath(old_path) == os.path.abspath(new_path):
-        # Still advance state even if no move needed
-        if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
-                           Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
-                           Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
-            comic.state = Comic.STATE_WRITTEN
-            comic.save()
-        return JsonResponse({
-            "success": True,
-            "message": "File is already in the correct location",
-            "moved": False,
-            "old_path": old_path,
-            "new_path": new_path,
-            "profile": preview.get("selected_profile", "(fallback)"),
-            "new_state": comic.state,
-        })
-
-    # Perform the move
-    try:
-        # Create destination directory
-        new_folder = os.path.dirname(new_path)
-        os.makedirs(new_folder, exist_ok=True)
-
-        # Handle collision
-        if os.path.exists(new_path):
-            base, ext = os.path.splitext(new_path)
-            counter = 1
-            while os.path.exists(new_path):
-                new_path = f"{base}_{counter}{ext}"
-                counter += 1
-
-        # Move the file
-        shutil.move(old_path, new_path)
-
-        # Try to remove empty source directories
-        try:
-            old_dir = os.path.dirname(old_path)
-            while old_dir and old_dir != LIBRARY_BASE and old_dir != "/comics/untagged":
-                if os.path.isdir(old_dir) and not os.listdir(old_dir):
-                    os.rmdir(old_dir)
-                    old_dir = os.path.dirname(old_dir)
-                else:
-                    break
-        except OSError:
-            pass  # Ignore errors when cleaning up directories
-
-        # Update comic record
-        comic.file_path = new_path
-        comic.last_organized_path = new_path
-        # Advance state if needed (to at least organized)
-        if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
-                           Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
-                           Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
-            comic.state = Comic.STATE_WRITTEN
-        comic.save()
-
-        return JsonResponse({
-            "success": True,
-            "message": "Comic organized",
-            "moved": True,
-            "old_path": old_path,
-            "new_path": new_path,
-            "profile": preview.get("selected_profile", "(fallback)"),
-            "new_state": comic.state,
-        })
-
-    except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "error": f"Failed to move file: {str(e)}"
-        }, status=500)
+    result = workflow.organize(comic, force=True)
+    if not result.success:
+        status = 400 if "physical" in result.message or "without file path" in result.message or "File not found" in result.message else 500
+        return JsonResponse(result.to_json(), status=status)
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    return JsonResponse(payload)
 
 
 @require_POST
@@ -3772,24 +3666,11 @@ def _run_action_sync(comic, action, force=False):
         return {"success": False, "error": result.message}
 
     elif action == "organize":
-        from apps.organizer.services import organize_comic as organizer_service_organize
-        state_before = comic.state
-        result = organizer_service_organize(comic)
-        if not result["success"]:
-            return {"success": False, "error": result["message"]}
-        organize_changes = {}
-        if result.get("moved"):
-            organize_changes["path"] = [result["old_path"], result["new_path"]]
-        log_batch_entry("organize_all", comic, state_before, comic.state, organize_changes)
-        return {
-            "success": True,
-            "message": result["message"],
-            "profile": result["profile"],
-            "old_path": result["old_path"],
-            "new_path": result["new_path"],
-            "moved": result["moved"],
-            "state": comic.state,
-        }
+        from apps.core import workflow
+        result = workflow.organize(comic)
+        if result.success:
+            return result.to_json()
+        return {"success": False, "error": result.message}
 
     elif action == "write":
         from apps.core import workflow

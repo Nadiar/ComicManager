@@ -337,7 +337,7 @@ def reorganize_au_flagged_task(self):
     are still sitting in the generic Alternate Universe folder.
     """
     from apps.core.models import Comic
-    from apps.dashboard.tasks import _run_organize, _run_tag, _run_write
+    from apps.core import workflow
 
     comic_ids = list(
         Comic.objects.filter(
@@ -374,11 +374,15 @@ def reorganize_au_flagged_task(self):
 
         old_path = comic.file_path
         try:
-            _run_tag(comic)
-            comic.refresh_from_db()
-            _run_organize(comic)
-            comic.refresh_from_db()
-            _run_write(comic)
+            tag_res = workflow.tag(comic, force=True)
+            if not tag_res.success:
+                raise Exception(tag_res.error or tag_res.message)
+            org_res = workflow.organize(comic, force=True)
+            if not org_res.success:
+                raise Exception(org_res.error or org_res.message)
+            write_res = workflow.write(comic, force=True)
+            if not write_res.success:
+                raise Exception(write_res.error or write_res.message)
             moved += 1
         except (PermissionError, OSError) as e:
             errors.append(f"{comic.series} #{comic.number}: {str(e)}")

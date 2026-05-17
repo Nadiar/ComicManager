@@ -433,8 +433,81 @@ def format(  # noqa: A001
 
 
 def organize(comic, *, dry_run=False, force=False) -> ActionResult:
-    """Move the comic file to its library location and advance state. Not yet implemented."""
-    raise NotImplementedError("workflow.organize not yet implemented")
+    """Move a comic file to its library location and advance state to STATE_WRITTEN.
+
+    State gate: STATE_ORGANIZED. force=True bypasses both the state gate and the
+    is_duplicate gate (matches legacy force_organize semantics). File-existence
+    and physical-medium handling stay enforced.
+
+    detail keys: profile, old_path, new_path, moved, dry_run.
+    """
+    from apps.core.audit import log_batch_entry
+    from apps.core.models import Comic
+    from apps.organizer.services import organize_comic as _organize_service
+
+    state_before = comic.state
+
+    if comic.medium == Comic.MEDIUM_DIGITAL and (not comic.file_path or not comic.is_digital):
+        return ActionResult(
+            action="organize", success=False,
+            message="Cannot organize physical comics or comics without file path",
+            state_before=state_before, state_after=comic.state,
+        )
+
+    try:
+        result = _organize_service(comic, dry_run=dry_run, force=force)
+    except (PermissionError, OSError) as e:
+        log_batch_entry("organize_error", comic, state_before, comic.state, {"error": [None, str(e)]})
+        return ActionResult(
+            action="organize", success=False,
+            message=f"Failed to move file: {e}",
+            state_before=state_before, state_after=comic.state, error=str(e),
+        )
+    except Exception as e:
+        log_batch_entry("organize_error", comic, state_before, comic.state, {"error": [None, str(e)]})
+        return ActionResult(
+            action="organize", success=False,
+            message=str(e),
+            state_before=state_before, state_after=comic.state, error=str(e),
+        )
+
+    if not result["success"]:
+        # Service-level skip (state gate, duplicate gate). No audit entry, matching
+        # the no-skip-log contract.
+        return ActionResult(
+            action="organize", success=False,
+            message=result["message"],
+            state_before=state_before, state_after=comic.state,
+            skipped=("must be in 'move' state" in result["message"]),
+            detail={
+                "profile": result.get("profile"),
+                "old_path": result.get("old_path"),
+                "new_path": result.get("new_path"),
+                "moved": False,
+                "dry_run": dry_run,
+            },
+        )
+
+    audit_changes = {}
+    if result.get("moved"):
+        audit_changes["path"] = [result.get("old_path"), result.get("new_path")]
+    if comic.state != state_before:
+        audit_changes["state"] = [state_before, comic.state]
+    log_batch_entry("organize_all", comic, state_before, comic.state, audit_changes or {"processed": [None, True]})
+
+    return ActionResult(
+        action="organize", success=True,
+        message=result["message"],
+        state_before=state_before, state_after=comic.state,
+        detail={
+            "profile": result.get("profile"),
+            "old_path": result.get("old_path"),
+            "new_path": result.get("new_path"),
+            "moved": result.get("moved", False),
+            "dry_run": dry_run,
+        },
+        changes=audit_changes,
+    )
 
 
 def write(comic, *, force=False) -> ActionResult:
