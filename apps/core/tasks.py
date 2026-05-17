@@ -14,16 +14,12 @@ from .task_base import ProgressTask, request_cancel, is_cancelled, clear_cancel
 
 @shared_task(bind=True, base=ProgressTask, name="core.write_all_comics", queue="write")
 def write_all_comics_task(self):
-    """
-    Write ComicInfo.xml for all comics in 'written' state.
-    Reports progress via self.update_state().
-    """
+    """Write ComicInfo.xml for every comic in 'written' state."""
     from .models import Comic
-    from .utils import write_comicinfo_xml, validate_comic_for_write
+    from apps.core import workflow
 
     comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_WRITTEN)
-        .values_list("pk", flat=True)
+        Comic.objects.filter(state=Comic.STATE_WRITTEN).values_list("pk", flat=True)
     )
     total = len(comic_ids)
 
@@ -43,43 +39,11 @@ def write_all_comics_task(self):
         except Comic.DoesNotExist:
             continue
 
-        if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
-            validation_errors = validate_comic_for_write(comic)
-            if validation_errors:
-                err_msg = f"Missing required fields: {', '.join(validation_errors)}"
-                errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {err_msg}")
-                from .audit import log_batch_entry
-                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
-                                {"error": [None, err_msg]})
-                self.update_state(
-                    state="PROGRESS",
-                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-                )
-                continue
-
-            success = write_comicinfo_xml(comic.file_path, comic)
-            if not success:
-                errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
-                from .audit import log_batch_entry
-                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
-                                {"error": [None, "Failed to write ComicInfo.xml"]})
-                self.update_state(
-                    state="PROGRESS",
-                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-                )
-                continue
-
-        from django.db.models import F
-        comic.state = Comic.STATE_DONE
-        if comic.flags.get("count_updated"):
-            comic.flags.pop("count_updated", None)
-        with transaction.atomic():
-            comic.save()
-            Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
-        written += 1
-
-        from .audit import log_batch_entry
-        log_batch_entry("write_all", comic, Comic.STATE_WRITTEN, comic.state, {"comicinfo": ["pending", "written"]})
+        result = workflow.write(comic)
+        if result.success:
+            written += 1
+        elif not result.skipped:
+            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
 
         self.update_state(
             state="PROGRESS",
@@ -91,13 +55,10 @@ def write_all_comics_task(self):
 
 @shared_task(bind=True, base=ProgressTask, name="core.write_stale_comics", queue="write")
 def write_stale_comics_task(self):
-    """
-    Write ComicInfo.xml for all comics in 'written' state where the DB has
-    been updated since the last write (updated_at > last_written).
-    Reports progress via self.update_state().
-    """
+    """Re-write ComicInfo.xml for comics whose DB rows changed since the last write
+    (state='written' AND updated_at > last_written)."""
     from .models import Comic
-    from .utils import write_comicinfo_xml, validate_comic_for_write
+    from apps.core import workflow
     from django.db.models import F
 
     comic_ids = list(
@@ -126,39 +87,11 @@ def write_stale_comics_task(self):
         except Comic.DoesNotExist:
             continue
 
-        if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
-            validation_errors = validate_comic_for_write(comic)
-            if validation_errors:
-                err_msg = f"Missing required fields: {', '.join(validation_errors)}"
-                errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {err_msg}")
-                from .audit import log_batch_entry
-                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
-                                {"error": [None, err_msg]})
-                self.update_state(
-                    state="PROGRESS",
-                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-                )
-                continue
-
-            success = write_comicinfo_xml(comic.file_path, comic)
-            if not success:
-                errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
-                from .audit import log_batch_entry
-                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
-                                {"error": [None, "Failed to write ComicInfo.xml"]})
-                self.update_state(
-                    state="PROGRESS",
-                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-                )
-                continue
-
-        with transaction.atomic():
-            comic.save()
-            Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
-        written += 1
-
-        from .audit import log_batch_entry
-        log_batch_entry("write_all", comic, Comic.STATE_WRITTEN, comic.state, {"comicinfo": ["stale", "written"]})
+        result = workflow.write(comic, force=True)
+        if result.success:
+            written += 1
+        elif not result.skipped:
+            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
 
         self.update_state(
             state="PROGRESS",
@@ -170,13 +103,10 @@ def write_stale_comics_task(self):
 
 @shared_task(bind=True, base=ProgressTask, name="core.write_missing_comics", queue="write")
 def write_missing_comics_task(self):
-    """
-    Write ComicInfo.xml for digital comics in 'written' state that have never
-    had ComicInfo.xml written (last_written is null).
-    """
+    """Write ComicInfo.xml for digital comics in 'written' state that have never
+    had ComicInfo.xml written (last_written is NULL)."""
     from .models import Comic
-    from .utils import write_comicinfo_xml, validate_comic_for_write
-    from django.db.models import F
+    from apps.core import workflow
 
     comic_ids = list(
         Comic.objects.filter(
@@ -203,39 +133,11 @@ def write_missing_comics_task(self):
         except Comic.DoesNotExist:
             continue
 
-        if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
-            validation_errors = validate_comic_for_write(comic)
-            if validation_errors:
-                err_msg = f"Missing required fields: {', '.join(validation_errors)}"
-                errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {err_msg}")
-                from .audit import log_batch_entry
-                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
-                                {"error": [None, err_msg]})
-                self.update_state(
-                    state="PROGRESS",
-                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-                )
-                continue
-
-            success = write_comicinfo_xml(comic.file_path, comic)
-            if not success:
-                errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
-                from .audit import log_batch_entry
-                log_batch_entry("write_error", comic, Comic.STATE_WRITTEN, Comic.STATE_WRITTEN,
-                                {"error": [None, "Failed to write ComicInfo.xml"]})
-                self.update_state(
-                    state="PROGRESS",
-                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-                )
-                continue
-
-        with transaction.atomic():
-            comic.save()
-            Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
-        written += 1
-
-        from .audit import log_batch_entry
-        log_batch_entry("write_all", comic, Comic.STATE_WRITTEN, comic.state, {"comicinfo": ["missing", "written"]})
+        result = workflow.write(comic, force=True)
+        if result.success:
+            written += 1
+        elif not result.skipped:
+            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
 
         self.update_state(
             state="PROGRESS",
@@ -247,12 +149,9 @@ def write_missing_comics_task(self):
 
 @shared_task(bind=True, base=ProgressTask, name="core.rewrite_updated_comics", queue="write")
 def rewrite_updated_comics_task(self):
-    """
-    Rewrite ComicInfo.xml for all comics with the count_updated flag.
-    Reports progress via self.update_state().
-    """
+    """Rewrite ComicInfo.xml for digital comics carrying the count_updated flag."""
     from .models import Comic
-    from .utils import write_comicinfo_xml, validate_comic_for_write
+    from apps.core import workflow
 
     comic_ids = list(
         Comic.objects.filter(
@@ -278,33 +177,11 @@ def rewrite_updated_comics_task(self):
         except Comic.DoesNotExist:
             continue
 
-        if comic.file_path and comic.file_path.lower().endswith(".cbz"):
-            validation_errors = validate_comic_for_write(comic)
-            if validation_errors:
-                err_msg = f"Missing required fields: {', '.join(validation_errors)}"
-                errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {err_msg}")
-                from .audit import log_batch_entry
-                log_batch_entry("write_error", comic, comic.state, comic.state,
-                                {"error": [None, err_msg]})
-                self.update_state(
-                    state="PROGRESS",
-                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-                )
-                continue
-
-            success = write_comicinfo_xml(comic.file_path, comic)
-            if not success:
-                errors.append(f"{comic.series} #{comic.number}: Failed to write XML")
-                self.update_state(
-                    state="PROGRESS",
-                    meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-                )
-                continue
-
-        comic.last_written = timezone.now()
-        comic.flags.pop("count_updated", None)
-        comic.save()
-        written += 1
+        result = workflow.write(comic, force=True)
+        if result.success:
+            written += 1
+        elif not result.skipped:
+            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
 
         self.update_state(
             state="PROGRESS",

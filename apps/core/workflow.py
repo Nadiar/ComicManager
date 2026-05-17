@@ -294,5 +294,81 @@ def organize(comic, *, dry_run=False, force=False) -> ActionResult:
 
 
 def write(comic, *, force=False) -> ActionResult:
-    """Write ComicInfo.xml into the comic's CBZ archive and advance to STATE_DONE. Not yet implemented."""
-    raise NotImplementedError("workflow.write not yet implemented")
+    """Write ComicInfo.xml into the comic's CBZ archive and advance to STATE_DONE.
+
+    State gate: STATE_WRITTEN. Validation gate (`validate_comic_for_write`) is
+    always enforced. force=True bypasses the state gate but additionally enforces
+    that the comic is digital with a .cbz file (matches the legacy force_write
+    view). For non-force calls, physical or non-cbz comics are advanced through
+    state without writing any file.
+    """
+    from apps.core.audit import log_batch_entry
+    from apps.core.models import Comic
+    from apps.core.utils import write_comicinfo_xml, validate_comic_for_write
+    from django.db.models import F
+
+    state_before = comic.state
+
+    if not force and comic.state != Comic.STATE_WRITTEN:
+        return ActionResult(
+            action="write", success=False,
+            message=f"Comic must be in 'write' state (current: {comic.state})",
+            state_before=state_before, state_after=comic.state, skipped=True,
+        )
+
+    if force:
+        if not comic.is_digital:
+            return ActionResult(
+                action="write", success=False,
+                message="Cannot write to physical comics",
+                state_before=state_before, state_after=comic.state,
+            )
+        if not comic.file_path or not comic.file_path.lower().endswith(".cbz"):
+            return ActionResult(
+                action="write", success=False,
+                message="Comic has no CBZ file",
+                state_before=state_before, state_after=comic.state,
+            )
+
+    if comic.is_digital:
+        validation_errors = validate_comic_for_write(comic)
+        if validation_errors:
+            err_msg = f"Missing required fields: {', '.join(validation_errors)}"
+            log_batch_entry("write_error", comic, state_before, comic.state, {"error": [None, err_msg]})
+            return ActionResult(
+                action="write", success=False, message=err_msg,
+                state_before=state_before, state_after=comic.state, error=err_msg,
+            )
+
+    if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
+        try:
+            ok = write_comicinfo_xml(comic.file_path, comic)
+        except Exception as e:
+            log_batch_entry("write_error", comic, state_before, comic.state, {"error": [None, str(e)]})
+            return ActionResult(
+                action="write", success=False,
+                message=f"Failed to write ComicInfo.xml: {e}",
+                state_before=state_before, state_after=comic.state, error=str(e),
+            )
+        if not ok:
+            err = "Failed to write ComicInfo.xml"
+            log_batch_entry("write_error", comic, state_before, comic.state, {"error": [None, err]})
+            return ActionResult(
+                action="write", success=False, message=err,
+                state_before=state_before, state_after=comic.state, error=err,
+            )
+
+    if comic.state != Comic.STATE_DONE:
+        comic.state = Comic.STATE_DONE
+    if comic.flags.get("count_updated"):
+        comic.flags.pop("count_updated", None)
+    comic.save()
+    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
+
+    log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
+
+    return ActionResult(
+        action="write", success=True,
+        message="ComicInfo.xml written successfully",
+        state_before=state_before, state_after=comic.state,
+    )

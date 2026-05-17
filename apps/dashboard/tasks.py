@@ -259,38 +259,18 @@ def _run_scrape(comic, scraper=None):
 
 
 def _run_write(comic):
-    """Write ComicInfo.xml to a comic's CBZ file."""
-    from apps.core.models import Comic
-    from apps.core.utils import write_comicinfo_xml
-    from apps.core.audit import log_batch_entry
-    from django.utils import timezone
+    """Deprecated: use apps.core.workflow.write directly. Kept as a shim while
+    callers are migrated. Raises on failure for back-compat with task callers."""
+    from apps.core import workflow
 
     if not comic.is_digital or not comic.file_path:
         return
-
     if not comic.file_path.lower().endswith(".cbz"):
         return
 
-    state_before = comic.state
-
-    try:
-        success = write_comicinfo_xml(comic.file_path, comic)
-        if not success:
-            raise Exception("Failed to write ComicInfo.xml")
-
-        from django.db.models import F
-        comic.state = Comic.STATE_DONE
-
-        if comic.flags.get("count_updated"):
-            comic.flags.pop("count_updated", None)
-
-        comic.save()
-        Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
-    except Exception as e:
-        log_batch_entry("write_all", comic, state_before, comic.state, {"error": [None, str(e)]})
-        raise
-
-    log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
+    result = workflow.write(comic, force=True)
+    if not result.success:
+        raise Exception(result.error or result.message)
 
 
 @shared_task(bind=True, base=ProgressTask, name="dashboard.run_full_pipeline", queue="write")

@@ -2839,56 +2839,18 @@ def rewrite_updated_comics(request):
 
 @require_POST
 def write_comic(request, pk):
-    """
-    Write ComicInfo.xml for a single comic in 'organized' state.
-
-    This updates the ComicInfo.xml inside the CBZ file with the
-    current database values, then advances to 'written' state.
-    """
-    from .utils import write_comicinfo_xml, validate_comic_for_write
-    from django.utils import timezone
+    """Write ComicInfo.xml for a single comic in 'write' state."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
+    result = workflow.write(comic)
 
-    if comic.state != Comic.STATE_WRITTEN:
-        return JsonResponse({
-            "success": False,
-            "error": f"Comic must be in 'write' state (current: {comic.state})"
-        }, status=400)
-
-    validation_errors = validate_comic_for_write(comic)
-    if validation_errors:
-        return JsonResponse({
-            "success": False,
-            "error": f"Missing required fields: {', '.join(validation_errors)}",
-        }, status=400)
-
-    # For digital comics with CBZ files, write the XML
-    if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
-        success = write_comicinfo_xml(comic.file_path, comic)
-        if not success:
-            return JsonResponse({
-                "success": False,
-                "error": "Failed to write ComicInfo.xml"
-            }, status=500)
-
-    # Advance state and record write time
-    from django.db.models import F
-    comic.state = Comic.STATE_DONE
-
-    # Clear the count_updated flag if set
-    if comic.flags.get("count_updated"):
-        comic.flags.pop("count_updated", None)
-
-    comic.save()
-    # Sync last_written to updated_at so the comic is not immediately stale
-    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
-
-    return JsonResponse({
-        "success": True,
-        "message": "ComicInfo.xml written successfully",
-        "state": comic.state,
-    })
+    if result.skipped:
+        return JsonResponse(result.to_json(), status=400)
+    if not result.success:
+        status = 400 if "Missing required fields" in result.message else 500
+        return JsonResponse(result.to_json(), status=status)
+    return JsonResponse(result.to_json())
 
 
 @require_POST
@@ -3373,51 +3335,24 @@ def refresh_credits(request, pk):
 
 @require_POST
 def force_write(request, pk):
-    """
-    Force write ComicInfo.xml for a comic, regardless of current state.
-    """
-    from .utils import write_comicinfo_xml
-    from django.utils import timezone
+    """Force-write ComicInfo.xml regardless of state. Rejects physical comics
+    and comics without a .cbz file."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
+    result = workflow.write(comic, force=True)
 
-    if not comic.is_digital:
-        return JsonResponse({
-            "success": False,
-            "error": "Cannot write to physical comics"
-        }, status=400)
+    if not result.success:
+        status = 400 if (
+            "physical" in result.message
+            or "no CBZ" in result.message
+            or "Missing required fields" in result.message
+        ) else 500
+        return JsonResponse(result.to_json(), status=status)
 
-    if not comic.file_path or not comic.file_path.lower().endswith('.cbz'):
-        return JsonResponse({
-            "success": False,
-            "error": "Comic has no CBZ file"
-        }, status=400)
-
-    success = write_comicinfo_xml(comic.file_path, comic)
-    if not success:
-        return JsonResponse({
-            "success": False,
-            "error": "Failed to write ComicInfo.xml"
-        }, status=500)
-
-    # Advance state to written
-    from django.db.models import F
-    if comic.state != Comic.STATE_DONE:
-        comic.state = Comic.STATE_DONE
-
-    # Clear the count_updated flag if set
-    if comic.flags.get("count_updated"):
-        comic.flags.pop("count_updated", None)
-
-    comic.save()
-    # Sync last_written to updated_at so the comic is not immediately stale
-    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
-
-    return JsonResponse({
-        "success": True,
-        "message": "ComicInfo.xml written successfully",
-        "new_state": comic.state,
-    })
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    return JsonResponse(payload)
 
 
 # =============================================================================
@@ -4036,41 +3971,18 @@ def _run_action_sync(comic, action, force=False):
         }
 
     elif action == "write":
-        from .utils import write_comicinfo_xml, validate_comic_for_write
-        from django.db.models import F as _F
-        if comic.state != Comic.STATE_WRITTEN:
-            return {"success": False, "error": f"Comic must be in 'write' state (current: {comic.state})"}
-        state_before = comic.state
-        validation_errors = validate_comic_for_write(comic)
-        if validation_errors:
-            return {"success": False, "error": f"Missing required fields: {', '.join(validation_errors)}"}
-        if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
-            if not write_comicinfo_xml(comic.file_path, comic):
-                return {"success": False, "error": "Failed to write ComicInfo.xml"}
-        comic.state = Comic.STATE_DONE
-        comic.flags.pop("count_updated", None)
-        comic.save()
-        Comic.objects.filter(pk=comic.pk).update(last_written=_F("updated_at"))
-        log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
-        return {"success": True, "message": "ComicInfo.xml written successfully", "state": comic.state}
+        from apps.core import workflow
+        result = workflow.write(comic)
+        if result.success:
+            return result.to_json()
+        return {"success": False, "error": result.message}
 
     elif action == "force_write":
-        from .utils import write_comicinfo_xml
-        from django.db.models import F as _F
-        if not comic.is_digital:
-            return {"success": False, "error": "Cannot write to physical comics"}
-        if not comic.file_path or not comic.file_path.lower().endswith(".cbz"):
-            return {"success": False, "error": "Comic has no CBZ file"}
-        state_before = comic.state
-        if not write_comicinfo_xml(comic.file_path, comic):
-            return {"success": False, "error": "Failed to write ComicInfo.xml"}
-        if comic.state != Comic.STATE_DONE:
-            comic.state = Comic.STATE_DONE
-        comic.flags.pop("count_updated", None)
-        comic.save()
-        Comic.objects.filter(pk=comic.pk).update(last_written=_F("updated_at"))
-        log_batch_entry("write_all", comic, state_before, comic.state, {"comicinfo": ["pending", "written"]})
-        return {"success": True, "message": "ComicInfo.xml written successfully", "state": comic.state}
+        from apps.core import workflow
+        result = workflow.write(comic, force=True)
+        if result.success:
+            return result.to_json()
+        return {"success": False, "error": result.message}
 
     return {"success": False, "error": f"Unknown action: {action}"}
 
