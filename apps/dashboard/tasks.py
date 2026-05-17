@@ -162,25 +162,19 @@ def _run_tag(comic):
 
 
 def _run_format(comic, _one_shot_max=None, _limited_max=None):
-    """Detect and set format for a comic.
+    """Deprecated: use apps.core.workflow.format directly. Returns the detection
+    dict (old_format, new_format, detected_format, format_changed) or raises on error."""
+    from apps.core import workflow
 
-    Returns the dict from `detect_and_set_format` (old_format, new_format,
-    detected_format, format_changed) so callers can populate UI-result detail
-    without re-running detection.
-    """
-    from apps.core.services import detect_and_set_format
-    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
-
-    snap = snapshot_fields(comic, ["state", "format"])
-
-    try:
-        format_result = detect_and_set_format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max)
-    except Exception as e:
-        log_batch_entry("format_all", comic, snap["state"], comic.state, {"error": [None, str(e)]})
-        raise
-
-    log_batch_entry("format_all", comic, snap["state"], comic.state, diff_fields(comic, snap) or {"processed": [None, True]})
-    return format_result
+    result = workflow.format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max, force=True)
+    if not result.success:
+        raise Exception(result.error or result.message)
+    return {
+        "old_format": result.detail["old_format"],
+        "new_format": result.detail["new_format"],
+        "detected_format": result.detail["detected_format"],
+        "format_changed": result.detail["format_changed"],
+    }
 
 
 def _run_organize(comic):

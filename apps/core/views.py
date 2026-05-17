@@ -2272,65 +2272,16 @@ def _apply_format_detection(comic):
 
 @require_POST
 def format_comic(request, pk):
-    """
-    Apply format detection to a single comic.
+    """Detect format for a comic in 'tagged' or 'formatted' state."""
+    from apps.core import workflow
 
-    This is Phase 5 of the workflow: tagged -> formatted
-    """
     comic = get_object_or_404(Comic, pk=pk)
-
-    if comic.state not in (Comic.STATE_TAGGED, Comic.STATE_FORMATTED):
-        return JsonResponse({
-            "success": False,
-            "error": f"Comic is not in 'tagged' or 'formatted' state (current: {comic.state})"
-        }, status=400)
-
-    old_format = comic.format
-    detected_format = _detect_format(comic)
-
-    if detected_format:
-        comic.format = detected_format
-        comic.flags.pop("missing_format", None)
-    elif not comic.format:
-        comic.flags["missing_format"] = True
-
-    if comic.medium == Comic.MEDIUM_PHYSICAL:
-        comic.state = Comic.STATE_WRITTEN
-    elif comic.state == Comic.STATE_FORMATTED:
-        comic.state = Comic.STATE_DEDUPLICATED
-    else:
-        comic.state = Comic.STATE_FORMATTED
-    comic.save()
-
-    _text = f"{comic.series or ''} {comic.title or ''}"
-    _summary = comic.summary or ""
-    _pages = comic.page_count or 0
-    patterns_checked = [
-        {"pattern": "Director's Cut (text)", "matched": detected_format == "Director's Cut"},
-        {"pattern": "Black & White (text)", "matched": detected_format == "Black & White"},
-        {"pattern": "Omnibus (keyword in title/summary)", "matched": detected_format == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
-        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)", "matched": detected_format == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
-        {"pattern": "TPB (keyword)", "matched": detected_format == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
-        {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected_format == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
-        {"pattern": "Annual (keyword)", "matched": detected_format == "Annual"},
-        {"pattern": "One-Shot (count=1)", "matched": detected_format == "One-Shot"},
-        {"pattern": "Limited Series (count 2-15)", "matched": detected_format == "Limited Series"},
-        {"pattern": "Main Series (count>15)", "matched": detected_format == "Main Series"},
-    ]
-
-    return JsonResponse({
-        "success": True,
-        "old_format": old_format,
-        "new_format": comic.format,
-        "detected_format": detected_format,
-        "format_changed": old_format != comic.format,
-        "patterns_checked": patterns_checked,
-        "series": comic.series,
-        "title": comic.title,
-        "count": comic.count,
-        "page_count": comic.page_count,
-        "state": comic.state,
-    })
+    result = workflow.format(comic)
+    if result.skipped:
+        return JsonResponse(result.to_json(), status=400)
+    if not result.success:
+        return JsonResponse(result.to_json(), status=500)
+    return JsonResponse(result.to_json())
 
 
 @require_POST
@@ -3120,45 +3071,16 @@ def force_tag(request, pk):
 
 @require_POST
 def force_format(request, pk):
-    """
-    Force re-detect format for a comic, regardless of current state.
-    """
-    from .services import detect_and_set_format
+    """Force-detect format for a comic regardless of state."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-    result = detect_and_set_format(comic)
-    detected = result["detected_format"]
-
-    _text = f"{comic.series or ''} {comic.title or ''}"
-    _summary = comic.summary or ""
-    _pages = comic.page_count or 0
-    patterns_checked = [
-        {"pattern": "Director's Cut (text)", "matched": detected == "Director's Cut"},
-        {"pattern": "Black & White (text)", "matched": detected == "Black & White"},
-        {"pattern": "Omnibus (keyword in title/summary)", "matched": detected == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
-        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)", "matched": detected == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
-        {"pattern": "TPB (keyword)", "matched": detected == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
-        {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
-        {"pattern": "Annual (keyword)", "matched": detected == "Annual"},
-        {"pattern": "One-Shot (count=1)", "matched": detected == "One-Shot"},
-        {"pattern": "Limited Series (count 2-15)", "matched": detected == "Limited Series"},
-        {"pattern": "Main Series (count>15)", "matched": detected == "Main Series"},
-    ]
-
-    return JsonResponse({
-        "success": True,
-        "message": f"Format: {comic.format or 'None'}",
-        "old_format": result["old_format"],
-        "new_format": result["new_format"],
-        "detected_format": detected,
-        "format_changed": result["format_changed"],
-        "patterns_checked": patterns_checked,
-        "series": comic.series,
-        "title": comic.title,
-        "count": comic.count,
-        "page_count": comic.page_count,
-        "new_state": comic.state,
-    })
+    result = workflow.format(comic, force=True)
+    if not result.success:
+        return JsonResponse(result.to_json(), status=500)
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    return JsonResponse(payload)
 
 
 @require_POST
@@ -3898,57 +3820,11 @@ def _run_action_sync(comic, action, force=False):
         }
 
     elif action == "format":
-        if comic.state not in (Comic.STATE_TAGGED, Comic.STATE_FORMATTED):
-            return {"success": False, "error": f"Comic is not in 'tagged' or 'formatted' state (current: {comic.state})"}
-        state_before = comic.state
-        old_format = comic.format
-        detected_format = _detect_format(comic)
-        if detected_format:
-            comic.format = detected_format
-            comic.flags.pop("missing_format", None)
-        elif not comic.format:
-            comic.flags["missing_format"] = True
-        if comic.medium == Comic.MEDIUM_PHYSICAL:
-            comic.state = Comic.STATE_WRITTEN
-        elif comic.state == Comic.STATE_FORMATTED:
-            comic.state = Comic.STATE_DEDUPLICATED
-        else:
-            comic.state = Comic.STATE_FORMATTED
-        comic.save()
-        _text = f"{comic.series or ''} {comic.title or ''}"
-        _summary = comic.summary or ""
-        _pages = comic.page_count or 0
-        patterns_checked = [
-            {"pattern": "Director's Cut (text)", "matched": detected_format == "Director's Cut"},
-            {"pattern": "Black & White (text)", "matched": detected_format == "Black & White"},
-            {"pattern": "Omnibus (keyword in title/summary)", "matched": detected_format == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
-            {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)", "matched": detected_format == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
-            {"pattern": "TPB (keyword)", "matched": detected_format == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
-            {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected_format == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
-            {"pattern": "Annual (keyword)", "matched": detected_format == "Annual"},
-            {"pattern": "One-Shot (count=1)", "matched": detected_format == "One-Shot"},
-            {"pattern": "Limited Series (count 2-15)", "matched": detected_format == "Limited Series"},
-            {"pattern": "Main Series (count>15)", "matched": detected_format == "Main Series"},
-        ]
-        audit_changes = {}
-        if old_format != comic.format:
-            audit_changes["format"] = [old_format, comic.format]
-        if comic.state != state_before:
-            audit_changes["state"] = [state_before, comic.state]
-        log_batch_entry("format_all", comic, state_before, comic.state, audit_changes or {"processed": [None, True]})
-        return {
-            "success": True,
-            "old_format": old_format,
-            "new_format": comic.format,
-            "detected_format": detected_format,
-            "format_changed": old_format != comic.format,
-            "patterns_checked": patterns_checked,
-            "series": comic.series,
-            "title": comic.title,
-            "count": comic.count,
-            "page_count": comic.page_count,
-            "state": comic.state,
-        }
+        from apps.core import workflow
+        result = workflow.format(comic)
+        if result.success:
+            return result.to_json()
+        return {"success": False, "error": result.message}
 
     elif action == "organize":
         from apps.organizer.services import organize_comic as organizer_service_organize

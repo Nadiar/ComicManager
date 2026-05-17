@@ -673,18 +673,15 @@ def retag_flagged_task(self, flag_name):
 
 @shared_task(bind=True, base=ProgressTask, name="core.format_all", queue="write")
 def format_all_task(self):
-    """
-    Apply format detection to all comics in 'formatted' state.
-    """
+    """Detect format for every comic in 'formatted' state."""
     from .models import Comic, get_setting
-    from apps.dashboard.tasks import _run_format
+    from apps.core import workflow
 
     one_shot_max = get_setting("one_shot_max_count", 1)
     limited_max = get_setting("limited_series_max_count", 15)
 
     comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_FORMATTED)
-        .values_list("pk", flat=True)
+        Comic.objects.filter(state=Comic.STATE_FORMATTED).values_list("pk", flat=True)
     )
     total = len(comic_ids)
 
@@ -709,11 +706,11 @@ def format_all_task(self):
         except Comic.DoesNotExist:
             continue
 
-        try:
-            _run_format(comic, _one_shot_max=one_shot_max, _limited_max=limited_max)
+        result = workflow.format(comic, _one_shot_max=one_shot_max, _limited_max=limited_max, force=True)
+        if result.success:
             processed += 1
-        except Exception as e:
-            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
+        elif not result.skipped:
+            errors.append(f"{comic.series} #{comic.number}: {result.message}")
 
         self.update_state(
             state="PROGRESS",

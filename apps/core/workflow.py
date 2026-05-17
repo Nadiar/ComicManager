@@ -281,11 +281,88 @@ def tag(comic, *, advance_to_formatted=False, force=False) -> ActionResult:
     raise NotImplementedError("workflow.tag not yet implemented")
 
 
-def format(  # noqa: A001  (shadowing builtin is intentional within this module)
+def format(  # noqa: A001
     comic, *, _one_shot_max=None, _limited_max=None, force=False
 ) -> ActionResult:
-    """Detect and set the comic's format, advancing state per detect_and_set_format. Not yet implemented."""
-    raise NotImplementedError("workflow.format not yet implemented")
+    """Detect and set the comic's format. State advances per detect_and_set_format
+    (which also handles physical-comic short-circuiting to STATE_WRITTEN).
+
+    State gate: STATE_TAGGED or STATE_FORMATTED. force=True bypasses.
+
+    detail keys: old_format, new_format, detected_format, format_changed,
+    patterns_checked, series, title, count, page_count.
+    """
+    import re
+    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
+    from apps.core.models import Comic
+    from apps.core.services import (
+        detect_and_set_format, OMNIBUS_MIN_PAGES, TPB_MIN_PAGES, TPB_ISSUE_RANGE_RE,
+    )
+
+    state_before = comic.state
+
+    if not force and comic.state not in (Comic.STATE_TAGGED, Comic.STATE_FORMATTED):
+        return ActionResult(
+            action="format", success=False,
+            message=f"Comic is not in 'tagged' or 'formatted' state (current: {comic.state})",
+            state_before=state_before, state_after=comic.state, skipped=True,
+        )
+
+    snap = snapshot_fields(comic, ["state", "format"])
+
+    try:
+        detect_result = detect_and_set_format(
+            comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max,
+        )
+    except Exception as e:
+        log_batch_entry("format_all", comic, snap["state"], comic.state, {"error": [None, str(e)]})
+        return ActionResult(
+            action="format", success=False,
+            message=f"Format detection failed: {e}",
+            state_before=state_before, state_after=comic.state, error=str(e),
+        )
+
+    detected = detect_result["detected_format"]
+    text = f"{comic.series or ''} {comic.title or ''}"
+    summary = comic.summary or ""
+    pages = comic.page_count or 0
+    patterns_checked = [
+        {"pattern": "Director's Cut (text)", "matched": detected == "Director's Cut"},
+        {"pattern": "Black & White (text)", "matched": detected == "Black & White"},
+        {"pattern": "Omnibus (keyword in title/summary)",
+         "matched": detected == "Omnibus" and bool(re.search(r"\bOmnibus\b", text + " " + summary, re.IGNORECASE))},
+        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)",
+         "matched": detected == "Omnibus" and pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", text + " " + summary, re.IGNORECASE)},
+        {"pattern": "TPB (keyword)",
+         "matched": detected == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", text, re.IGNORECASE))},
+        {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)",
+         "matched": detected == "TPB" and pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(summary))},
+        {"pattern": "Annual (keyword)", "matched": detected == "Annual"},
+        {"pattern": "One-Shot (count=1)", "matched": detected == "One-Shot"},
+        {"pattern": "Limited Series (count 2-15)", "matched": detected == "Limited Series"},
+        {"pattern": "Main Series (count>15)", "matched": detected == "Main Series"},
+    ]
+
+    changes = diff_fields(comic, snap)
+    log_batch_entry("format_all", comic, snap["state"], comic.state, changes or {"processed": [None, True]})
+
+    return ActionResult(
+        action="format", success=True,
+        message=f"Format: {comic.format or 'None'}",
+        state_before=state_before, state_after=comic.state,
+        detail={
+            "old_format": detect_result["old_format"],
+            "new_format": detect_result["new_format"],
+            "detected_format": detected,
+            "format_changed": detect_result["format_changed"],
+            "patterns_checked": patterns_checked,
+            "series": comic.series,
+            "title": comic.title,
+            "count": comic.count,
+            "page_count": pages,
+        },
+        changes=changes,
+    )
 
 
 def organize(comic, *, dry_run=False, force=False) -> ActionResult:
