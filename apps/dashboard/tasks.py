@@ -20,6 +20,7 @@ def run_smartlist_action_task(self, smart_list_id, action):
         action: One of 'tag', 'format', 'organize', 'write'
     """
     from apps.core.models import Comic
+    from apps.core import workflow
     from apps.dashboard.models import SmartList
     from apps.dashboard.services import build_queryset
 
@@ -62,17 +63,18 @@ def run_smartlist_action_task(self, smart_list_id, action):
 
         try:
             if action == "tag":
-                _run_tag(comic)
-                success_count += 1
+                _ar = workflow.tag(comic, advance_to_formatted=True, force=True)
             elif action == "format":
-                _run_format(comic)
-                success_count += 1
+                _ar = workflow.format(comic, force=True)
             elif action == "organize":
-                _run_organize(comic)
-                success_count += 1
+                _ar = workflow.organize(comic, force=True)
             elif action == "write":
-                _run_write(comic)
-                success_count += 1
+                _ar = workflow.write(comic, force=True)
+            else:
+                continue
+            if not _ar.success:
+                raise Exception(_ar.error or _ar.message)
+            success_count += 1
         except (PermissionError, OSError) as e:
             import errno as _errno
             is_destructive = action in ("organize", "write")
@@ -126,104 +128,25 @@ def run_smartlist_action_task(self, smart_list_id, action):
     }
 
 
-def _run_tag(comic):
-    """Deprecated: use apps.core.workflow.tag directly. Returns the rule result
-    (matched_rulesets, matched_count, changes, changes_count) or raises."""
-    from apps.core import workflow
-
-    result = workflow.tag(comic, force=True)
-    if not result.success:
-        raise Exception(result.error or result.message)
-    return {
-        "matched_rulesets": result.detail["matched_rulesets"],
-        "matched_count": result.detail["matched_count"],
-        "changes": result.detail["changes"],
-        "changes_count": result.detail["changes_count"],
-    }
-
-
-def _run_format(comic, _one_shot_max=None, _limited_max=None):
-    """Deprecated: use apps.core.workflow.format directly. Returns the detection
-    dict (old_format, new_format, detected_format, format_changed) or raises on error."""
-    from apps.core import workflow
-
-    result = workflow.format(comic, _one_shot_max=_one_shot_max, _limited_max=_limited_max, force=True)
-    if not result.success:
-        raise Exception(result.error or result.message)
-    return {
-        "old_format": result.detail["old_format"],
-        "new_format": result.detail["new_format"],
-        "detected_format": result.detail["detected_format"],
-        "format_changed": result.detail["format_changed"],
-    }
-
-
-def _run_organize(comic):
-    """Deprecated: use apps.core.workflow.organize directly. Used in force-mode
-    so callers (pipeline, AU re-organize, reorganize_comic view) can re-organize
-    from any state. Raises on failure."""
-    from apps.core import workflow
-
-    if not comic.is_digital or not comic.file_path:
-        return
-
-    result = workflow.organize(comic, force=True)
-    if not result.success:
-        raise Exception(result.error or result.message)
-
-
-def _run_scrape(comic, scraper=None):
-    """Deprecated: use apps.core.workflow.scrape directly.
-
-    Kept as a shim for the brief window between Phase 1 commits. Returns the
-    raw match object (or raises) for callers that still rely on the old contract.
-    """
-    from apps.core import workflow
-
-    result = workflow.scrape(comic, scraper=scraper, insert_covers=False, force=True)
-    if not result.success:
-        raise Exception(result.error or result.message)
-    return result.detail.get("match_obj")
-
-
-
-def _run_write(comic):
-    """Deprecated: use apps.core.workflow.write directly. Kept as a shim while
-    callers are migrated. Raises on failure for back-compat with task callers."""
-    from apps.core import workflow
-
-    if not comic.is_digital or not comic.file_path:
-        return
-    if not comic.file_path.lower().endswith(".cbz"):
-        return
-
-    result = workflow.write(comic, force=True)
-    if not result.success:
-        raise Exception(result.error or result.message)
-
-
 @shared_task(bind=True, base=ProgressTask, name="dashboard.run_full_pipeline", queue="write")
 def run_full_pipeline_task(self, comic_ids: list):
     """
     Run the full import pipeline on a list of comics in STATE_NEW.
 
-    Steps per comic:
+    Steps per comic, all delegated to apps.core.workflow.* functions:
       1. Accept (proposed values -> confirmed, STATE_NEW -> STATE_IMPORTED)
       2. Scrape (ComicVine local db or API)
-      3. Tag (DataManager rules, STATE_TAGGED)
-      4. Advance STATE_TAGGED -> STATE_FORMATTED (mirrors tag_all_task logic)
-      5. Format detection (STATE_FORMATTED -> STATE_DEDUPLICATED)
-      6. Deduplicate — stops here if comic.is_duplicate is True
-      7. Organize (move file, -> STATE_WRITTEN)
-      8. Write ComicInfo.xml
+      3. Tag (DataManager rules, advance to STATE_FORMATTED in one shot)
+      4. Format detection
+      5. Deduplicate (stops here if comic.is_duplicate is True)
+      6. Organize (move file, advance to STATE_WRITTEN)
+      7. Write ComicInfo.xml
 
     Captures per-step detail (scrape match, tag changes, format patterns, file paths)
     for display in the results modal.
     """
-    import re
     from apps.core.models import Comic
-    from apps.core.audit import log_batch_entry
-    from apps.core.services import OMNIBUS_MIN_PAGES, TPB_MIN_PAGES, TPB_ISSUE_RANGE_RE
+    from apps.core import workflow
     from apps.scraper.comicvine import ComicVineScraper
     from apps.duplicates.services import run_duplicate_detection
 
@@ -299,23 +222,24 @@ def run_full_pipeline_task(self, comic_ids: list):
             # Step 1: Accept
             _step("Accepting")
             if comic.state == Comic.STATE_NEW:
-                from apps.core import workflow
                 accept_result = workflow.accept(comic)
                 if not accept_result.success:
                     raise Exception(accept_result.error or accept_result.message)
 
             # Step 2: Scrape
             _step("Scraping")
-            from apps.core import workflow
             scrape_result = workflow.scrape(comic, scraper=scraper, insert_covers=False, force=True)
             if not scrape_result.success:
                 result["scrape"] = {"matched": False}
                 raise Exception(scrape_result.error or scrape_result.message)
             result["scrape"] = scrape_result.detail["match"]
 
-            # Step 3: Tag
+            # Step 3: Tag (also advances TAGGED -> FORMATTED)
             _step("Tagging")
-            tag_result = _run_tag(comic)
+            tag_action = workflow.tag(comic, advance_to_formatted=True, force=True)
+            if not tag_action.success:
+                raise Exception(tag_action.error or tag_action.message)
+            tag_result = tag_action.detail
             result["tag"] = {
                 "matched_rulesets": tag_result["matched_rulesets"],
                 "matched_count": tag_result["matched_count"],
@@ -330,62 +254,14 @@ def run_full_pipeline_task(self, comic_ids: list):
                 "changes_count": tag_result["changes_count"],
             }
 
-            # Step 4: Advance TAGGED -> FORMATTED (mirrors tag_all_task inline logic)
-            comic.refresh_from_db(fields=["state"])
-            if comic.state == Comic.STATE_TAGGED:
-                comic.state = Comic.STATE_FORMATTED
-                comic.save(update_fields=["state", "updated_at"])
-                log_batch_entry(
-                    "run_pipeline", comic, Comic.STATE_TAGGED, Comic.STATE_FORMATTED, {}
-                )
-
-            # Step 5: Format detection
+            # Step 4: Format detection
             _step("Detecting format")
-            _text = f"{comic.series or ''} {comic.title or ''}"
-            _summary = comic.summary or ""
-            _pages = comic.page_count or 0
+            format_action = workflow.format(comic, force=True)
+            if not format_action.success:
+                raise Exception(format_action.error or format_action.message)
+            result["format"] = dict(format_action.detail)
 
-            format_result = _run_format(comic)
-            detected_format = format_result["detected_format"]
-
-            result["format"] = {
-                "old_format": format_result["old_format"],
-                "new_format": format_result["new_format"],
-                "detected_format": detected_format,
-                "format_changed": format_result["format_changed"],
-                "series": comic.series,
-                "title": comic.title,
-                "count": comic.count,
-                "page_count": _pages,
-                "patterns_checked": [
-                    {"pattern": "Director's Cut (text)",
-                     "matched": detected_format == "Director's Cut"},
-                    {"pattern": "Black & White (text)",
-                     "matched": detected_format == "Black & White"},
-                    {"pattern": "Omnibus (keyword in title/summary)",
-                     "matched": detected_format == "Omnibus" and bool(
-                         re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
-                    {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)",
-                     "matched": detected_format == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not
-                         re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
-                    {"pattern": "TPB (keyword)",
-                     "matched": detected_format == "TPB" and bool(
-                         re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
-                    {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)",
-                     "matched": detected_format == "TPB" and _pages >= TPB_MIN_PAGES and bool(
-                         TPB_ISSUE_RANGE_RE.search(_summary))},
-                    {"pattern": "Annual (keyword)",
-                     "matched": detected_format == "Annual"},
-                    {"pattern": "One-Shot (count=1)",
-                     "matched": detected_format == "One-Shot"},
-                    {"pattern": "Limited Series (count 2-15)",
-                     "matched": detected_format == "Limited Series"},
-                    {"pattern": "Main Series (count>15)",
-                     "matched": detected_format == "Main Series"},
-                ],
-            }
-
-            # Step 6: Deduplicate
+            # Step 5: Deduplicate
             _step("Checking duplicates")
             run_duplicate_detection()
             comic.refresh_from_db()
@@ -406,20 +282,23 @@ def run_full_pipeline_task(self, comic_ids: list):
                 )
                 continue
 
-            # Step 7: Organize — capture old path before moving
+            # Step 6: Organize
             _step("Moving file")
             old_path = comic.file_path
-            _run_organize(comic)
-            comic.refresh_from_db(fields=["file_path"])
+            org_action = workflow.organize(comic, force=True)
+            if not org_action.success:
+                raise Exception(org_action.error or org_action.message)
             result["organize"] = {
                 "old_path": old_path,
                 "new_path": comic.file_path,
                 "moved": old_path != comic.file_path,
             }
 
-            # Step 8: Write ComicInfo.xml
+            # Step 7: Write ComicInfo.xml
             _step("Writing ComicInfo.xml")
-            _run_write(comic)
+            write_action = workflow.write(comic, force=True)
+            if not write_action.success:
+                raise Exception(write_action.error or write_action.message)
 
         except Exception as e:
             result["outcome"] = "error"
