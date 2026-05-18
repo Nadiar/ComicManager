@@ -630,94 +630,44 @@ def convert_cbr(request, pk):
 
 @require_POST
 def accept_comic(request, pk):
-    """
-    Accept a comic and move it from 'new' to 'imported' state.
+    """Accept a STATE_NEW comic: copy proposed values into confirmed fields and
+    advance to STATE_IMPORTED."""
+    from apps.core import workflow
 
-    Copies proposed values to confirmed fields.
-    """
     comic = get_object_or_404(Comic, pk=pk)
-
-    if comic.state != Comic.STATE_NEW:
-        return JsonResponse({
-            "success": False,
-            "error": f"Comic is not in 'new' state (current: {comic.state})"
-        }, status=400)
-
-    # Copy proposed values to confirmed fields
-    comic.series = comic.proposed_series
-    comic.number = comic.proposed_number
-    comic.volume = comic.proposed_volume
-    comic.year = comic.proposed_year
-
-    # Compute cover hashes from the local file if not already set
-    if comic.file_path and not comic.phash:
-        hashes = extract_cover_hashes(comic.file_path)
-        if hashes:
-            comic.phash = hashes.phash_hex
-            comic.ahash = hashes.ahash_hex
-
-    # Advance state
-    comic.state = Comic.STATE_IMPORTED
-    comic.save()
-
-    return JsonResponse({
-        "success": True,
-        "message": f"Accepted: {comic.series} #{comic.number}",
-    })
+    result = workflow.accept(comic)
+    if result.skipped:
+        return JsonResponse(result.to_json(), status=400)
+    if not result.success:
+        return JsonResponse(result.to_json(), status=500)
+    return JsonResponse(result.to_json())
 
 
 @require_POST
 def accept_all_comics(request):
-    """
-    Accept all comics in 'new' state, moving them to 'imported'.
+    """Accept every STATE_NEW comic with a proposed_series. Skips comics carrying
+    any of the optional `skip_flags` (POST-comma-separated)."""
+    from apps.core import workflow
 
-    Only accepts comics that have a proposed_series (skips those with no_series flag).
-    """
-    comics = Comic.objects.filter(state=Comic.STATE_NEW)
-
-    # Optionally filter to only accept comics without problematic flags
-    skip_flags = request.POST.get("skip_flags", "").split(",")
-    skip_flags = [f.strip() for f in skip_flags if f.strip()]
-
+    skip_flags = [f.strip() for f in request.POST.get("skip_flags", "").split(",") if f.strip()]
     accepted = 0
     skipped = 0
 
-    for comic in comics:
-        # Skip comics with no series parsed
+    for comic in Comic.objects.filter(state=Comic.STATE_NEW):
         if not comic.proposed_series:
             skipped += 1
             continue
+        if skip_flags and any(comic.flags.get(f) for f in skip_flags):
+            skipped += 1
+            continue
 
-        # Skip comics with specified flags
-        if skip_flags:
-            has_skip_flag = any(comic.flags.get(f) for f in skip_flags)
-            if has_skip_flag:
-                skipped += 1
-                continue
+        result = workflow.accept(comic)
+        if result.success:
+            accepted += 1
+        else:
+            skipped += 1
 
-        # Copy proposed values to confirmed fields
-        comic.series = comic.proposed_series
-        comic.number = comic.proposed_number
-        comic.volume = comic.proposed_volume
-        comic.year = comic.proposed_year
-
-        # Compute cover hashes from the local file if not already set
-        if comic.file_path and not comic.phash:
-            hashes = extract_cover_hashes(comic.file_path)
-            if hashes:
-                comic.phash = hashes.phash_hex
-                comic.ahash = hashes.ahash_hex
-
-        # Advance state
-        comic.state = Comic.STATE_IMPORTED
-        comic.save()
-        accepted += 1
-
-    return JsonResponse({
-        "success": True,
-        "accepted": accepted,
-        "skipped": skipped,
-    })
+    return JsonResponse({"success": True, "accepted": accepted, "skipped": skipped})
 
 
 @require_POST

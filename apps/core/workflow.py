@@ -62,8 +62,61 @@ class ActionResult:
 
 def accept(comic, *, force=False) -> ActionResult:
     """Accept a STATE_NEW comic: copy proposed_* into confirmed fields, hash the
-    cover, advance to STATE_IMPORTED. Not yet implemented."""
-    raise NotImplementedError("workflow.accept not yet implemented")
+    cover if not already hashed, advance to STATE_IMPORTED.
+
+    State gate: STATE_NEW. force=True bypasses (but accept on a non-NEW comic
+    is a no-op since the proposed values are already confirmed).
+
+    detail keys: series, number, volume, year, phash_set.
+    """
+    from apps.core.audit import log_batch_entry, snapshot_fields, diff_fields
+    from apps.core.models import Comic
+    from apps.scraper.hasher import extract_cover_hashes
+
+    state_before = comic.state
+
+    if not force and comic.state != Comic.STATE_NEW:
+        return ActionResult(
+            action="accept", success=False,
+            message=f"Comic is not in 'new' state (current: {comic.state})",
+            state_before=state_before, state_after=comic.state, skipped=True,
+        )
+
+    snap = snapshot_fields(comic, ["series", "number", "volume", "year", "phash", "state"])
+
+    comic.series = comic.proposed_series
+    comic.number = comic.proposed_number
+    comic.volume = comic.proposed_volume
+    comic.year = comic.proposed_year
+
+    phash_set = False
+    if comic.file_path and not comic.phash:
+        hashes = extract_cover_hashes(comic.file_path)
+        if hashes:
+            comic.phash = hashes.phash_hex
+            comic.ahash = hashes.ahash_hex
+            phash_set = True
+
+    if comic.state == Comic.STATE_NEW:
+        comic.state = Comic.STATE_IMPORTED
+    comic.save()
+
+    changes = diff_fields(comic, snap)
+    log_batch_entry("accept", comic, state_before, comic.state, changes or {"processed": [None, True]})
+
+    return ActionResult(
+        action="accept", success=True,
+        message=f"Accepted: {comic.series} #{comic.number}",
+        state_before=state_before, state_after=comic.state,
+        detail={
+            "series": comic.series,
+            "number": comic.number,
+            "volume": comic.volume,
+            "year": comic.year,
+            "phash_set": phash_set,
+        },
+        changes=changes,
+    )
 
 
 def scrape(
