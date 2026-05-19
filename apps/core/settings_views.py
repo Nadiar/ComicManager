@@ -127,9 +127,11 @@ def settings_log(request):
     paginator = Paginator(entries, 50)
     page_obj = paginator.get_page(request.GET.get("page", 1))
 
+    from .audit import AUDIT_ACTIONS
+
     return render(request, "core/settings_log.html", {
         "page_obj": page_obj,
         "total_count": paginator.count,
         "action_filter": action_filter,
-        "actions": ["scrape_all", "tag_all", "format_all", "deduplicate_all", "organize_all", "write_all", "audit_metadata", "convert_zip", "organize_error", "write_error"],
+        "actions": AUDIT_ACTIONS,
     })

@@ -3589,10 +3589,9 @@ def _run_action_sync(comic, action, force=False):
     Execute a single-comic action synchronously and return a result dict.
     Used by comic_action when show_result=True for a single-comic request.
     """
-    from apps.core.audit import log_batch_entry
+    from apps.core import workflow
 
     if action == "scrape":
-        from apps.core import workflow
         result = workflow.scrape(comic, force=force)
         if result.success:
             return result.to_json()
@@ -3602,35 +3601,30 @@ def _run_action_sync(comic, action, force=False):
         return out
 
     elif action == "tag":
-        from apps.core import workflow
         result = workflow.tag(comic)
         if result.success:
             return result.to_json()
         return {"success": False, "error": result.message}
 
     elif action == "format":
-        from apps.core import workflow
         result = workflow.format(comic)
         if result.success:
             return result.to_json()
         return {"success": False, "error": result.message}
 
     elif action == "organize":
-        from apps.core import workflow
         result = workflow.organize(comic)
         if result.success:
             return result.to_json()
         return {"success": False, "error": result.message}
 
     elif action == "write":
-        from apps.core import workflow
         result = workflow.write(comic)
         if result.success:
             return result.to_json()
         return {"success": False, "error": result.message}
 
     elif action == "force_write":
-        from apps.core import workflow
         result = workflow.write(comic, force=True)
         if result.success:
             return result.to_json()
