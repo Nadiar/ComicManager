@@ -130,25 +130,16 @@ def run_smartlist_action_task(self, smart_list_id, action):
 
 @shared_task(bind=True, base=ProgressTask, name="dashboard.run_full_pipeline", queue="write")
 def run_full_pipeline_task(self, comic_ids: list):
-    """
-    Run the full import pipeline on a list of comics in STATE_NEW.
+    """Celery wrapper around apps.core.pipeline.run_pipeline_for_comic.
 
-    Steps per comic, all delegated to apps.core.workflow.* functions:
-      1. Accept (proposed values -> confirmed, STATE_NEW -> STATE_IMPORTED)
-      2. Scrape (ComicVine local db or API)
-      3. Tag (DataManager rules, advance to STATE_FORMATTED in one shot)
-      4. Format detection
-      5. Deduplicate (stops here if comic.is_duplicate is True)
-      6. Organize (move file, advance to STATE_WRITTEN)
-      7. Write ComicInfo.xml
-
-    Captures per-step detail (scrape match, tag changes, format patterns, file paths)
-    for display in the results modal.
+    Handles cancellation, scraper init (one ComicVineScraper for the whole batch),
+    progress reporting, and result aggregation. The per-comic logic lives in
+    apps.core.pipeline so it stays testable in isolation and can be reused outside
+    Celery.
     """
     from apps.core.models import Comic
-    from apps.core import workflow
+    from apps.core.pipeline import run_pipeline_for_comic
     from apps.scraper.comicvine import ComicVineScraper
-    from apps.duplicates.services import run_duplicate_detection
 
     total = len(comic_ids)
     results = []
@@ -193,117 +184,19 @@ def run_full_pipeline_task(self, comic_ids: list):
             f"{comic.proposed_series or comic.series or '?'} "
             f"#{comic.proposed_number or comic.number or '?'}"
         )
-        result = {
-            "pk": str(comic.pk), "title": title, "outcome": "success",
-            "stopped_at": None, "error": None,
-            "duplicate_of_pk": None, "duplicate_of_title": None,
-            "scrape": None, "tag": None, "format": None, "organize": None,
-        }
 
-        if comic.file_format != "cbz":
-            result["outcome"] = "error"
-            result["error"] = f"Skipped: pipeline only supports CBZ (file is {comic.file_format or 'unknown'})"
-            errors.append(f"{title}: not a CBZ file")
-            results.append(result)
+        def _push_step(label, _i=i, _title=title):
             self.update_state(
                 state="PROGRESS",
-                meta={"current": i + 1, "total": total, "processed": i + 1, "errors": errors},
-            )
-            continue
-
-        def _step(label):
-            self.update_state(
-                state="PROGRESS",
-                meta={"current": i, "total": total, "processed": i, "errors": errors,
-                      "step": label, "comic": title},
+                meta={"current": _i, "total": total, "processed": _i, "errors": errors,
+                      "step": label, "comic": _title},
             )
 
-        try:
-            # Step 1: Accept
-            _step("Accepting")
-            if comic.state == Comic.STATE_NEW:
-                accept_result = workflow.accept(comic)
-                if not accept_result.success:
-                    raise Exception(accept_result.error or accept_result.message)
-
-            # Step 2: Scrape
-            _step("Scraping")
-            scrape_result = workflow.scrape(comic, scraper=scraper, insert_covers=False, force=True)
-            if not scrape_result.success:
-                result["scrape"] = {"matched": False}
-                raise Exception(scrape_result.error or scrape_result.message)
-            result["scrape"] = scrape_result.detail["match"]
-
-            # Step 3: Tag (also advances TAGGED -> FORMATTED)
-            _step("Tagging")
-            tag_action = workflow.tag(comic, advance_to_formatted=True, force=True)
-            if not tag_action.success:
-                raise Exception(tag_action.error or tag_action.message)
-            tag_result = tag_action.detail
-            result["tag"] = {
-                "matched_rulesets": tag_result["matched_rulesets"],
-                "matched_count": tag_result["matched_count"],
-                "changes": [
-                    {
-                        "field": c.get("field", ""),
-                        "action": c.get("action", ""),
-                        "new_value": str(c.get("new_value", "")),
-                    }
-                    for c in tag_result["changes"]
-                ],
-                "changes_count": tag_result["changes_count"],
-            }
-
-            # Step 4: Format detection
-            _step("Detecting format")
-            format_action = workflow.format(comic, force=True)
-            if not format_action.success:
-                raise Exception(format_action.error or format_action.message)
-            result["format"] = dict(format_action.detail)
-
-            # Step 5: Deduplicate
-            _step("Checking duplicates")
-            run_duplicate_detection()
-            comic.refresh_from_db()
-
-            if comic.is_duplicate:
-                dup = comic.duplicate_of
-                result["outcome"] = "duplicate"
-                result["stopped_at"] = "deduplicate"
-                result["duplicate_of_pk"] = str(dup.pk) if dup else None
-                result["duplicate_of_title"] = (
-                    f"{dup.series} #{dup.number}" if dup else "Unknown"
-                )
-                results.append(result)
-                errors.append(f"{title}: duplicate of {result['duplicate_of_title']}")
-                self.update_state(
-                    state="PROGRESS",
-                    meta={"current": i + 1, "total": total, "processed": i + 1, "errors": errors},
-                )
-                continue
-
-            # Step 6: Organize
-            _step("Moving file")
-            old_path = comic.file_path
-            org_action = workflow.organize(comic, force=True)
-            if not org_action.success:
-                raise Exception(org_action.error or org_action.message)
-            result["organize"] = {
-                "old_path": old_path,
-                "new_path": comic.file_path,
-                "moved": old_path != comic.file_path,
-            }
-
-            # Step 7: Write ComicInfo.xml
-            _step("Writing ComicInfo.xml")
-            write_action = workflow.write(comic, force=True)
-            if not write_action.success:
-                raise Exception(write_action.error or write_action.message)
-
-        except Exception as e:
-            result["outcome"] = "error"
-            result["error"] = str(e)
-            errors.append(f"{title}: {str(e)}")
+        result = run_pipeline_for_comic(comic, scraper=scraper, progress_cb=_push_step)
+        if result["outcome"] == "error" and result["error"]:
+            errors.append(f"{title}: {result['error']}")
+        elif result["outcome"] == "duplicate":
+            errors.append(f"{title}: duplicate of {result['duplicate_of_title']}")
 
         results.append(result)
         self.update_state(
