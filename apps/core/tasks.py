@@ -597,8 +597,9 @@ def tag_all_task(self):
         except Comic.DoesNotExist:
             continue
 
-        result = workflow.tag(comic, advance_to_formatted=True, force=True)
+        result = workflow.tag(comic, force=True)
         if result.success:
+            workflow.advance_state(comic, Comic.STATE_FORMATTED)
             processed += 1
         elif not result.skipped:
             errors.append(f"{comic.series} #{comic.number}: {result.message}")
@@ -847,7 +848,7 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
             if action == "scrape":
                 _run(workflow.scrape, comic, scraper=scraper, insert_covers=False)
             elif action == "tag":
-                _run(workflow.tag, comic, advance_to_formatted=True, force=True)
+                _run(workflow.tag, comic, force=True)
             elif action == "format":
                 _run(workflow.format, comic, force=True)
             elif action == "organize":

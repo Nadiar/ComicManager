@@ -2,16 +2,19 @@
 Workflow pipeline orchestrator.
 
 Defines the canonical sequence of workflow actions for one comic:
-    accept -> scrape -> tag(advance_to_formatted=True) -> format
-    -> run_duplicate_detection -> organize(force=True) -> write(force=True)
+    accept -> scrape -> tag -> advance_state(FORMATTED) -> format
+    -> run_duplicate_detection -> organize -> write
+
+Each action runs at its declared state gate. The single advance_state call
+between tag and format covers the only seam where two consecutive actions do
+not share a transition.
 
 The Celery wrapper in apps/dashboard/tasks.py:run_full_pipeline_task loops over
 comic IDs, calls run_pipeline_for_comic for each, and reports progress through
-the optional progress_cb callback.
-
-Keeping the orchestrator out of apps/dashboard/tasks.py means apps/core never
-has to import from apps/dashboard, and any future entry point (a sync UI button,
-a management command) can call the same pipeline without involving Celery.
+the optional progress_cb callback. Keeping the orchestrator in apps/core means
+apps/core never has to import from apps/dashboard, and any future entry point
+(a sync UI button, a management command) can call the same pipeline without
+involving Celery.
 """
 
 from apps.core import workflow
@@ -24,10 +27,15 @@ def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
     progress_cb(label) is called once per step; ignore the call if you don't
     need progress reporting.
 
+    The pipeline relies on each action's natural state gate. Explicit
+    workflow.advance_state hops cover the seams where one action's terminal
+    state is not the next action's starting gate. No force flags are used:
+    the orchestrator is the canonical path, so the gates are sized to fit it.
+
     Per-step semantics:
-      - accept: skipped silently if comic is not in STATE_NEW.
+      - accept: silently skipped if the comic is already past STATE_NEW.
       - scrape: failure raises (caught and recorded as outcome=error).
-      - tag/format/organize/write: each forced; failure raises.
+      - tag/format/organize/write: each runs at its declared state gate.
       - dedupe: runs the global detection, then short-circuits with
         outcome=duplicate if comic.is_duplicate flips to True.
     """
@@ -57,27 +65,25 @@ def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
         if progress_cb:
             progress_cb(label)
 
+    def _run(action_result, label):
+        if not action_result.success:
+            raise Exception(action_result.error or action_result.message)
+        return action_result
+
     try:
         # Step 1: Accept (no-op if already past STATE_NEW)
         _step("Accepting")
         if comic.state == Comic.STATE_NEW:
-            ar = workflow.accept(comic)
-            if not ar.success:
-                raise Exception(ar.error or ar.message)
+            _run(workflow.accept(comic), "accept")
 
-        # Step 2: Scrape
+        # Step 2: Scrape — apply_cv_match leaves state at TAGGED
         _step("Scraping")
-        sr = workflow.scrape(comic, scraper=scraper, insert_covers=False, force=True)
-        if not sr.success:
-            result["scrape"] = {"matched": False}
-            raise Exception(sr.error or sr.message)
+        sr = _run(workflow.scrape(comic, scraper=scraper, insert_covers=False), "scrape")
         result["scrape"] = sr.detail["match"]
 
-        # Step 3: Tag (also advances TAGGED -> FORMATTED)
+        # Step 3: Tag — gate is COUNTED/TAGGED, no advance needed
         _step("Tagging")
-        tr = workflow.tag(comic, advance_to_formatted=True, force=True)
-        if not tr.success:
-            raise Exception(tr.error or tr.message)
+        tr = _run(workflow.tag(comic), "tag")
         td = tr.detail
         result["tag"] = {
             "matched_rulesets": td["matched_rulesets"],
@@ -93,11 +99,12 @@ def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
             "changes_count": td["changes_count"],
         }
 
-        # Step 4: Format detection
+        # Bridge: TAGGED -> FORMATTED so format's gate is satisfied
+        _run(workflow.advance_state(comic, Comic.STATE_FORMATTED), "advance")
+
+        # Step 4: Format detection — FORMATTED -> DEDUPLICATED
         _step("Detecting format")
-        fr = workflow.format(comic, force=True)
-        if not fr.success:
-            raise Exception(fr.error or fr.message)
+        fr = _run(workflow.format(comic), "format")
         result["format"] = dict(fr.detail)
 
         # Step 5: Deduplicate (global pass; check this comic's outcome after)
@@ -114,23 +121,20 @@ def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
             )
             return result
 
-        # Step 6: Organize
+        # Step 6: Organize — gate is ORGANIZED, run_duplicate_detection advances
+        # non-duplicates DEDUPLICATED -> ORGANIZED
         _step("Moving file")
         old_path = comic.file_path
-        org = workflow.organize(comic, force=True)
-        if not org.success:
-            raise Exception(org.error or org.message)
+        _run(workflow.organize(comic), "organize")
         result["organize"] = {
             "old_path": old_path,
             "new_path": comic.file_path,
             "moved": old_path != comic.file_path,
         }
 
-        # Step 7: Write ComicInfo.xml
+        # Step 7: Write ComicInfo.xml — gate is WRITTEN
         _step("Writing ComicInfo.xml")
-        wr = workflow.write(comic, force=True)
-        if not wr.success:
-            raise Exception(wr.error or wr.message)
+        _run(workflow.write(comic), "write")
 
     except Exception as e:
         result["outcome"] = "error"

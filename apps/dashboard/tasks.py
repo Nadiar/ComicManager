@@ -63,7 +63,7 @@ def run_smartlist_action_task(self, smart_list_id, action):
 
         try:
             if action == "tag":
-                _ar = workflow.tag(comic, advance_to_formatted=True, force=True)
+                _ar = workflow.tag(comic, force=True)
             elif action == "format":
                 _ar = workflow.format(comic, force=True)
             elif action == "organize":

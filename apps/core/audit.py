@@ -26,6 +26,7 @@ AUDIT_ACTION_TAG = "tag_all"
 AUDIT_ACTION_FORMAT = "format_all"
 AUDIT_ACTION_ORGANIZE = "organize_all"
 AUDIT_ACTION_WRITE = "write_all"
+AUDIT_ACTION_STATE_ADVANCE = "state_advance"
 
 # Per-action error variants (used for permission/IO failures inside batch tasks).
 AUDIT_ACTION_ORGANIZE_ERROR = "organize_error"
@@ -49,6 +50,7 @@ AUDIT_ACTIONS = [
     AUDIT_ACTION_ORGANIZE_ERROR,
     AUDIT_ACTION_WRITE,
     AUDIT_ACTION_WRITE_ERROR,
+    AUDIT_ACTION_STATE_ADVANCE,
     AUDIT_ACTION_CONVERT_CBR,
     AUDIT_ACTION_CONVERT_ZIP,
     AUDIT_ACTION_DELETE_PAGES,

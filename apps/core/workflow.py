@@ -60,6 +60,85 @@ class ActionResult:
         return out
 
 
+def advance_state(comic, to_state: str, *, force: bool = False) -> ActionResult:
+    """Move a comic from one workflow state to another and audit the transition.
+
+    Use this when an orchestrator (e.g. pipeline, batch task) needs to push a
+    comic between two action steps that don't share a transition. The action
+    functions (tag, format, organize, write) handle their own internal advance;
+    this is the seam between them.
+
+    Without force, only forward transitions defined in `_FORWARD_TRANSITIONS`
+    are allowed (no backwards-jumping). force=True bypasses the legality check
+    but still emits the same audit entry.
+    """
+    from apps.core.audit import log_batch_entry
+    from apps.core.models import Comic
+
+    state_before = comic.state
+
+    if state_before == to_state:
+        return ActionResult(
+            action="advance_state", success=True,
+            message=f"Comic already in '{to_state}'",
+            state_before=state_before, state_after=state_before,
+            skipped=True,
+        )
+
+    if not force and to_state not in _FORWARD_TRANSITIONS.get(state_before, set()):
+        return ActionResult(
+            action="advance_state", success=False,
+            message=f"Illegal state transition: '{state_before}' -> '{to_state}'",
+            state_before=state_before, state_after=state_before,
+            skipped=True,
+        )
+
+    comic.state = to_state
+    comic.save(update_fields=["state", "updated_at"])
+    log_batch_entry("state_advance", comic, state_before, to_state, {"state": [state_before, to_state]})
+
+    return ActionResult(
+        action="advance_state", success=True,
+        message=f"State advanced: {state_before} -> {to_state}",
+        state_before=state_before, state_after=to_state,
+        changes={"state": [state_before, to_state]},
+    )
+
+
+# Permitted forward transitions when advance_state is called without force.
+# Reverse moves and arbitrary jumps require force=True (used by reorganize-from-done
+# and similar admin-initiated paths). Built lazily so the Comic model imports stay
+# scoped per call.
+def _build_forward_transitions():
+    from apps.core.models import Comic
+    return {
+        Comic.STATE_NEW:          {Comic.STATE_IMPORTED},
+        Comic.STATE_IMPORTED:     {Comic.STATE_SCRAPED, Comic.STATE_TAGGED, Comic.STATE_COUNTED},
+        Comic.STATE_SCRAPED:      {Comic.STATE_COUNTED, Comic.STATE_TAGGED},
+        Comic.STATE_COUNTED:      {Comic.STATE_TAGGED},
+        Comic.STATE_TAGGED:       {Comic.STATE_FORMATTED},
+        Comic.STATE_FORMATTED:    {Comic.STATE_DEDUPLICATED},
+        Comic.STATE_DEDUPLICATED: {Comic.STATE_ORGANIZED},
+        Comic.STATE_ORGANIZED:    {Comic.STATE_WRITTEN},
+        Comic.STATE_WRITTEN:      {Comic.STATE_DONE},
+        Comic.STATE_DONE:         set(),
+    }
+
+
+class _LazyTransitions:
+    """Defer Comic import until first use (this module is imported during app load)."""
+    def __init__(self):
+        self._cache = None
+
+    def get(self, key, default=None):
+        if self._cache is None:
+            self._cache = _build_forward_transitions()
+        return self._cache.get(key, default)
+
+
+_FORWARD_TRANSITIONS = _LazyTransitions()
+
+
 def accept(comic, *, force=False) -> ActionResult:
     """Accept a STATE_NEW comic: copy proposed_* into confirmed fields, hash the
     cover if not already hashed, advance to STATE_IMPORTED.
@@ -328,15 +407,15 @@ def scrape(
     )
 
 
-def tag(comic, *, advance_to_formatted=False, force=False) -> ActionResult:
+def tag(comic, *, force=False) -> ActionResult:
     """Apply DataManager tagging rules to a comic.
 
     State gate: COUNTED or TAGGED. force=True bypasses.
 
-    advance_to_formatted=True takes a comic that ends up in TAGGED through to
-    FORMATTED in the same call. The pipeline and tag_all_task pass this so the
-    state advance happens inside one audited operation rather than as a separate
-    follow-up entry.
+    On a non-TAGGED early-state comic the action also advances state to TAGGED
+    (the action's intrinsic transition). For the TAGGED -> FORMATTED hop the
+    pipeline calls workflow.advance_state explicitly, so each transition gets
+    its own audit entry.
 
     detail keys: matched_rulesets, matched_count, changes, changes_count.
     """
@@ -365,9 +444,6 @@ def tag(comic, *, advance_to_formatted=False, force=False) -> ActionResult:
 
         if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
             comic.state = Comic.STATE_TAGGED
-
-        if advance_to_formatted and comic.state == Comic.STATE_TAGGED:
-            comic.state = Comic.STATE_FORMATTED
 
         comic.save()
     except Exception as e:
