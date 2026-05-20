@@ -10,185 +10,115 @@ from .task_base import ProgressTask, request_cancel, is_cancelled, clear_cancel
 
 # =============================================================================
 # Write tasks
+#
+# All four flavors run the same loop with different querysets and force flags.
+# WRITE_QUEUES holds the parameters; _process_write_queue runs the loop. The
+# four shared_task wrappers are kept so existing Celery task names stay
+# registered and external callers (.delay(), URL-bound views) keep working.
 # =============================================================================
+
+def _write_queue_qs(filter_mode):
+    """Return a queryset of comic PKs eligible for the given write filter."""
+    from .models import Comic
+    from django.db.models import F
+
+    if filter_mode == "all":
+        return Comic.objects.filter(state=Comic.STATE_WRITTEN).values_list("pk", flat=True)
+    if filter_mode == "stale":
+        return (
+            Comic.objects.filter(
+                state=Comic.STATE_WRITTEN,
+                last_written__isnull=False,
+            )
+            .filter(updated_at__gt=F("last_written"))
+            .values_list("pk", flat=True)
+        )
+    if filter_mode == "missing":
+        return (
+            Comic.objects.filter(
+                state=Comic.STATE_WRITTEN,
+                medium=Comic.MEDIUM_DIGITAL,
+                last_written__isnull=True,
+            )
+            .order_by("series", "number")
+            .values_list("pk", flat=True)
+        )
+    if filter_mode == "count_updated":
+        return Comic.objects.filter(
+            flags__count_updated=True,
+            medium=Comic.MEDIUM_DIGITAL,
+        ).values_list("pk", flat=True)
+    raise ValueError(f"Unknown write filter_mode: {filter_mode}")
+
+
+# Filter modes that need force=True on workflow.write because the comic may not
+# strictly be in STATE_WRITTEN any more (stale rewrite) or because we want to
+# bypass the gate (count_updated flag, missing-xml backfill).
+_WRITE_FORCE_MODES = {"stale", "missing", "count_updated"}
+
+
+def _process_write_queue(self, filter_mode):
+    """Shared body for every write_*_task. Loops the queryset and calls
+    workflow.write for each comic, with cancellation and progress reporting."""
+    from .models import Comic
+    from apps.core import workflow
+
+    comic_ids = list(_write_queue_qs(filter_mode))
+    total = len(comic_ids)
+
+    if total == 0:
+        return {"written": 0, "total": 0, "errors": [], "cancelled": False}
+
+    force = filter_mode in _WRITE_FORCE_MODES
+    written = 0
+    errors = []
+
+    for i, comic_id in enumerate(comic_ids):
+        if self.is_cancelled():
+            self.clear_cancel()
+            return {"written": written, "total": total, "errors": errors, "cancelled": True}
+
+        try:
+            comic = Comic.objects.get(pk=comic_id)
+        except Comic.DoesNotExist:
+            continue
+
+        result = workflow.write(comic, force=force)
+        if result.success:
+            written += 1
+        elif not result.skipped:
+            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
+
+        self.update_state(
+            state="PROGRESS",
+            meta={"current": i + 1, "total": total, "written": written, "errors": errors},
+        )
+
+    return {"written": written, "total": total, "errors": errors, "cancelled": False}
+
 
 @shared_task(bind=True, base=ProgressTask, name="core.write_all_comics", queue="write")
 def write_all_comics_task(self):
     """Write ComicInfo.xml for every comic in 'written' state."""
-    from .models import Comic
-    from apps.core import workflow
-
-    comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_WRITTEN).values_list("pk", flat=True)
-    )
-    total = len(comic_ids)
-
-    if total == 0:
-        return {"written": 0, "total": 0, "errors": [], "cancelled": False}
-
-    written = 0
-    errors = []
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {"written": written, "total": total, "errors": errors, "cancelled": True}
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        result = workflow.write(comic)
-        if result.success:
-            written += 1
-        elif not result.skipped:
-            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
-
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-        )
-
-    return {"written": written, "total": total, "errors": errors, "cancelled": False}
+    return _process_write_queue(self, "all")
 
 
 @shared_task(bind=True, base=ProgressTask, name="core.write_stale_comics", queue="write")
 def write_stale_comics_task(self):
-    """Re-write ComicInfo.xml for comics whose DB rows changed since the last write
-    (state='written' AND updated_at > last_written)."""
-    from .models import Comic
-    from apps.core import workflow
-    from django.db.models import F
-
-    comic_ids = list(
-        Comic.objects.filter(
-            state=Comic.STATE_WRITTEN,
-            last_written__isnull=False,
-        ).filter(
-            updated_at__gt=F("last_written")
-        ).values_list("pk", flat=True)
-    )
-    total = len(comic_ids)
-
-    if total == 0:
-        return {"written": 0, "total": 0, "errors": [], "cancelled": False}
-
-    written = 0
-    errors = []
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {"written": written, "total": total, "errors": errors, "cancelled": True}
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        result = workflow.write(comic, force=True)
-        if result.success:
-            written += 1
-        elif not result.skipped:
-            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
-
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-        )
-
-    return {"written": written, "total": total, "errors": errors, "cancelled": False}
+    """Re-write comics whose DB rows changed since the last write (updated_at > last_written)."""
+    return _process_write_queue(self, "stale")
 
 
 @shared_task(bind=True, base=ProgressTask, name="core.write_missing_comics", queue="write")
 def write_missing_comics_task(self):
-    """Write ComicInfo.xml for digital comics in 'written' state that have never
-    had ComicInfo.xml written (last_written is NULL)."""
-    from .models import Comic
-    from apps.core import workflow
-
-    comic_ids = list(
-        Comic.objects.filter(
-            state=Comic.STATE_WRITTEN,
-            medium=Comic.MEDIUM_DIGITAL,
-            last_written__isnull=True,
-        ).order_by("series", "number").values_list("pk", flat=True)
-    )
-    total = len(comic_ids)
-
-    if total == 0:
-        return {"written": 0, "total": 0, "errors": [], "cancelled": False}
-
-    written = 0
-    errors = []
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {"written": written, "total": total, "errors": errors, "cancelled": True}
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        result = workflow.write(comic, force=True)
-        if result.success:
-            written += 1
-        elif not result.skipped:
-            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
-
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-        )
-
-    return {"written": written, "total": total, "errors": errors, "cancelled": False}
+    """Write ComicInfo.xml for digital STATE_WRITTEN comics that have never been written."""
+    return _process_write_queue(self, "missing")
 
 
 @shared_task(bind=True, base=ProgressTask, name="core.rewrite_updated_comics", queue="write")
 def rewrite_updated_comics_task(self):
     """Rewrite ComicInfo.xml for digital comics carrying the count_updated flag."""
-    from .models import Comic
-    from apps.core import workflow
-
-    comic_ids = list(
-        Comic.objects.filter(
-            flags__count_updated=True,
-            medium=Comic.MEDIUM_DIGITAL,
-        ).values_list("pk", flat=True)
-    )
-    total = len(comic_ids)
-
-    if total == 0:
-        return {"written": 0, "total": 0, "errors": [], "cancelled": False}
-
-    written = 0
-    errors = []
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {"written": written, "total": total, "errors": errors, "cancelled": True}
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        result = workflow.write(comic, force=True)
-        if result.success:
-            written += 1
-        elif not result.skipped:
-            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
-
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-        )
-
-    return {"written": written, "total": total, "errors": errors, "cancelled": False}
+    return _process_write_queue(self, "count_updated")
 
 
 # =============================================================================
