@@ -167,7 +167,7 @@ def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> 
 
 def reorganize_comic(comic: Comic) -> dict:
     """
-    Re-organize a comic that's already been organized or written.
+    Re-organize a comic that's already been organized, written, or done.
     Moves the file to its current correct location based on organizer profiles.
     Does NOT change workflow state.
 
@@ -177,11 +177,11 @@ def reorganize_comic(comic: Comic) -> dict:
     if comic.medium == Comic.MEDIUM_PHYSICAL:
         return {"success": True, "moved": False, "message": "Physical comic"}
 
-    if comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
+    if comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE):
         return {
             "success": False,
             "moved": False,
-            "error": f"Comic must be organized or written (current: {comic.state})",
+            "error": f"Comic must be organized, written, or done (current: {comic.state})",
         }
 
     preview = preview_organization(comic)

@@ -2601,6 +2601,7 @@ def reorganize_comic(request, pk):
 
     Done comics run the full tag → organize → write sequence so updated metadata
     and ComicInfo.xml are both refreshed in one step.
+    Organized/written comics use workflow.reorganize for a path-only file move.
     """
     from apps.core import workflow
 
@@ -2633,22 +2634,21 @@ def reorganize_comic(request, pk):
         except Exception as e:
             return JsonResponse({"success": False, "error": str(e)}, status=500)
 
-    from apps.organizer.services import reorganize_comic as service_reorganize
-    result = service_reorganize(comic)
+    result = workflow.reorganize(comic)
 
-    if not result["success"]:
+    if not result.success:
         return JsonResponse({
             "success": False,
-            "error": result.get("error", "Unknown error"),
+            "error": result.error or result.message,
         }, status=500)
 
     return JsonResponse({
         "success": True,
-        "message": "Comic reorganized successfully",
-        "old_path": result.get("old_path"),
-        "new_path": result.get("new_path"),
-        "moved": result.get("moved", False),
-        "profile": result.get("profile"),
+        "message": result.message,
+        "old_path": result.detail.get("old_path") if result.detail else None,
+        "new_path": result.detail.get("new_path") if result.detail else None,
+        "moved": result.detail.get("moved", False) if result.detail else False,
+        "profile": result.detail.get("profile") if result.detail else None,
     })
 
 

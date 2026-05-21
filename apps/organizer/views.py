@@ -565,3 +565,24 @@ def start_reorganize_all(request):
         "total": count,
         "message": f"Started reorganizing {count} comics",
     })
+
+
+@require_POST
+def reorganize_single(request, pk):
+    """Move one path-audit comic to its correct location via workflow.reorganize."""
+    from apps.core.models import Comic
+    from apps.core import workflow
+
+    comic = get_object_or_404(Comic, pk=pk)
+    result = workflow.reorganize(comic)
+
+    if not result.success:
+        status = 400 if result.skipped else 500
+        return JsonResponse({"success": False, "error": result.error or result.message}, status=status)
+
+    return JsonResponse({
+        "success": True,
+        "moved": result.detail.get("moved", False) if result.detail else False,
+        "old_path": result.detail.get("old_path") if result.detail else None,
+        "new_path": result.detail.get("new_path") if result.detail else None,
+    })

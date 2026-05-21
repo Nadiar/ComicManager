@@ -89,7 +89,7 @@
     </thead>
     <tbody>
       {% for comic in comics %}
-      <tr id="row-{{ comic.pk }}" class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+      <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
         <td style="padding:8px 12px; font-weight:500;">
           <a href="/comics/{{ comic.pk }}/" class="cm-text-accent">{{ comic.series }}</a>
         </td>
@@ -103,7 +103,7 @@
           <code style="font-size:10.5px; color:var(--cm-warn); word-break:break-all;">{{ comic.expected_path }}</code>
         </td>
         <td style="padding:8px 12px; text-align:right;">
-          <button onclick="reorganizeSingle('{{ comic.pk }}', this)" class="cm-btn sm ghost">Move</button>
+          <button onclick="reorganizeSingle(this)" data-url="{% url 'organizer:reorganize_single' pk=comic.pk %}" class="cm-btn sm ghost">Move</button>
         </td>
       </tr>
       {% endfor %}
@@ -224,17 +224,28 @@ function reorganizeAll(btn) {
   });
 }
 
-async function reorganizeSingle(pk, btn) {
+async function reorganizeSingle(btn) {
+  const url = btn.dataset.url;
   btn.disabled = true;
   btn.textContent = '...';
   try {
-    const resp = await fetch('/comics/' + pk + '/reorganize/', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+    const resp = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
     const data = await resp.json();
     if (data.success) {
-      const row = document.getElementById('row-' + pk);
-      if (row) { row.style.opacity = '0.3'; row.querySelector('button').textContent = 'Done'; }
-    } else { btn.textContent = 'Error'; btn.title = data.error || 'Failed'; setTimeout(() => { btn.textContent = 'Move'; btn.disabled = false; }, 3000); }
-  } catch { btn.textContent = 'Error'; setTimeout(() => { btn.textContent = 'Move'; btn.disabled = false; }, 3000); }
+      btn.closest('tr').style.opacity = '0.3';
+      btn.textContent = 'Done';
+      showMsgToast(data.moved ? 'Comic moved successfully' : 'Already in correct location', 'success');
+    } else {
+      btn.textContent = 'Error';
+      btn.title = data.error || 'Failed';
+      showMsgToast('Move failed: ' + (data.error || 'Unknown error'), 'error');
+      setTimeout(() => { btn.textContent = 'Move'; btn.disabled = false; btn.title = ''; }, 3000);
+    }
+  } catch (e) {
+    btn.textContent = 'Error';
+    showMsgToast('Network error', 'error');
+    setTimeout(() => { btn.textContent = 'Move'; btn.disabled = false; }, 3000);
+  }
 }
 
 (function() {

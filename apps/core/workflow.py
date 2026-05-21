@@ -639,6 +639,71 @@ def organize(comic, *, dry_run=False, force=False) -> ActionResult:
     )
 
 
+def reorganize(comic, *, force=False) -> ActionResult:
+    """Move an already-organized/written/done comic to its current correct path.
+
+    Does NOT advance workflow state. Used by the path-audit page to fix path
+    mismatches without rerunning the full pipeline.
+
+    State gate: STATE_ORGANIZED, STATE_WRITTEN, or STATE_DONE.
+    detail keys: profile, old_path, new_path, moved.
+    """
+    from apps.core.audit import log_batch_entry, AUDIT_ACTION_ORGANIZE, AUDIT_ACTION_ORGANIZE_ERROR
+    from apps.core.models import Comic
+    from apps.organizer.services import reorganize_comic as _reorganize_service
+
+    state_before = comic.state
+
+    if not force and comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE):
+        return ActionResult(
+            action="reorganize", success=False,
+            message=f"Comic must be organized, written, or done (current: {comic.state})",
+            state_before=state_before, state_after=comic.state, skipped=True,
+        )
+
+    try:
+        result = _reorganize_service(comic)
+    except (PermissionError, OSError) as e:
+        log_batch_entry(AUDIT_ACTION_ORGANIZE_ERROR, comic, state_before, comic.state, {"error": [None, str(e)]})
+        return ActionResult(
+            action="reorganize", success=False,
+            message=f"Failed to move file: {e}",
+            state_before=state_before, state_after=comic.state, error=str(e),
+        )
+    except Exception as e:
+        log_batch_entry(AUDIT_ACTION_ORGANIZE_ERROR, comic, state_before, comic.state, {"error": [None, str(e)]})
+        return ActionResult(
+            action="reorganize", success=False,
+            message=str(e),
+            state_before=state_before, state_after=comic.state, error=str(e),
+        )
+
+    if not result["success"]:
+        return ActionResult(
+            action="reorganize", success=False,
+            message=result.get("error", "Reorganize failed"),
+            state_before=state_before, state_after=comic.state,
+        )
+
+    if result.get("moved"):
+        log_batch_entry(
+            AUDIT_ACTION_ORGANIZE, comic, state_before, comic.state,
+            {"path": [result.get("old_path"), result.get("new_path")]},
+        )
+
+    return ActionResult(
+        action="reorganize", success=True,
+        message="Comic moved successfully" if result.get("moved") else "Already in correct location",
+        state_before=state_before, state_after=comic.state,
+        detail={
+            "profile": result.get("profile"),
+            "old_path": result.get("old_path"),
+            "new_path": result.get("new_path"),
+            "moved": result.get("moved", False),
+        },
+    )
+
+
 def write(comic, *, force=False) -> ActionResult:
     """Write ComicInfo.xml into the comic's CBZ archive and advance to STATE_DONE.
 
