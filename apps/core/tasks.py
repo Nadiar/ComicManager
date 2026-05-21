@@ -60,41 +60,15 @@ _WRITE_FORCE_MODES = {"stale", "missing", "count_updated"}
 def _process_write_queue(self, filter_mode):
     """Shared body for every write_*_task. Loops the queryset and calls
     workflow.write for each comic, with cancellation and progress reporting."""
-    from .models import Comic
     from apps.core import workflow
-
-    comic_ids = list(_write_queue_qs(filter_mode))
-    total = len(comic_ids)
-
-    if total == 0:
-        return {"written": 0, "total": 0, "errors": [], "cancelled": False}
+    from .task_base import batch_workflow_run
 
     force = filter_mode in _WRITE_FORCE_MODES
-    written = 0
-    errors = []
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {"written": written, "total": total, "errors": errors, "cancelled": True}
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        result = workflow.write(comic, force=force)
-        if result.success:
-            written += 1
-        elif not result.skipped:
-            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
-
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "written": written, "errors": errors},
-        )
-
-    return {"written": written, "total": total, "errors": errors, "cancelled": False}
+    return batch_workflow_run(
+        self, _write_queue_qs(filter_mode),
+        process=lambda c: workflow.write(c, force=force),
+        count_label="written",
+    )
 
 
 @shared_task(bind=True, base=ProgressTask, name="core.write_all_comics", queue="write")
@@ -500,46 +474,16 @@ def tag_all_task(self):
     """Apply DataManager rules to every comic in 'tagged' state and advance to 'formatted'."""
     from .models import Comic
     from apps.core import workflow
+    from .task_base import batch_workflow_run
 
-    comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_TAGGED).values_list("pk", flat=True)
-    )
-    total = len(comic_ids)
-
-    if total == 0:
-        return {"processed": 0, "total": 0, "errors": [], "cancelled": False}
-
-    processed = 0
-    errors = []
-
-    self.update_state(
-        state="PROGRESS",
-        meta={"current": 0, "total": total, "processed": 0, "errors": []},
-    )
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {"processed": processed, "total": total, "errors": errors, "cancelled": True}
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
+    def _tag_and_advance(comic):
         result = workflow.tag(comic, force=True)
         if result.success:
             workflow.advance_state(comic, Comic.STATE_FORMATTED)
-            processed += 1
-        elif not result.skipped:
-            errors.append(f"{comic.series} #{comic.number}: {result.message}")
+        return result
 
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "processed": processed, "errors": errors},
-        )
-
-    return {"processed": processed, "total": total, "errors": errors, "cancelled": False}
+    comic_ids = Comic.objects.filter(state=Comic.STATE_TAGGED).values_list("pk", flat=True)
+    return batch_workflow_run(self, comic_ids, process=_tag_and_advance)
 
 
 @shared_task(bind=True, base=ProgressTask, name="core.retag_flagged", queue="write")
@@ -547,45 +491,13 @@ def retag_flagged_task(self, flag_name):
     """Re-tag every comic carrying `flag_name`, regardless of state."""
     from .models import Comic
     from apps.core import workflow
+    from .task_base import batch_workflow_run
 
-    comic_ids = list(
-        Comic.objects.filter(**{f"flags__{flag_name}": True}).values_list("pk", flat=True)
+    comic_ids = Comic.objects.filter(**{f"flags__{flag_name}": True}).values_list("pk", flat=True)
+    return batch_workflow_run(
+        self, comic_ids,
+        process=lambda c: workflow.tag(c, force=True),
     )
-    total = len(comic_ids)
-
-    if total == 0:
-        return {"processed": 0, "total": 0, "errors": [], "cancelled": False}
-
-    processed = 0
-    errors = []
-
-    self.update_state(
-        state="PROGRESS",
-        meta={"current": 0, "total": total, "processed": 0, "errors": []},
-    )
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {"processed": processed, "total": total, "errors": errors, "cancelled": True}
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        result = workflow.tag(comic, force=True)
-        if result.success:
-            processed += 1
-        elif not result.skipped:
-            errors.append(f"{comic.series} #{comic.number}: {result.message}")
-
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "processed": processed, "errors": errors},
-        )
-
-    return {"processed": processed, "total": total, "errors": errors, "cancelled": False}
 
 
 @shared_task(bind=True, base=ProgressTask, name="core.format_all", queue="write")
@@ -593,48 +505,16 @@ def format_all_task(self):
     """Detect format for every comic in 'formatted' state."""
     from .models import Comic, get_setting
     from apps.core import workflow
+    from .task_base import batch_workflow_run
 
     one_shot_max = get_setting("one_shot_max_count", 1)
     limited_max = get_setting("limited_series_max_count", 15)
 
-    comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_FORMATTED).values_list("pk", flat=True)
+    comic_ids = Comic.objects.filter(state=Comic.STATE_FORMATTED).values_list("pk", flat=True)
+    return batch_workflow_run(
+        self, comic_ids,
+        process=lambda c: workflow.format(c, _one_shot_max=one_shot_max, _limited_max=limited_max, force=True),
     )
-    total = len(comic_ids)
-
-    if total == 0:
-        return {"processed": 0, "total": 0, "errors": [], "cancelled": False}
-
-    processed = 0
-    errors = []
-
-    self.update_state(
-        state="PROGRESS",
-        meta={"current": 0, "total": total, "processed": 0, "errors": []},
-    )
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {"processed": processed, "total": total, "errors": errors, "cancelled": True}
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        result = workflow.format(comic, _one_shot_max=one_shot_max, _limited_max=limited_max, force=True)
-        if result.success:
-            processed += 1
-        elif not result.skipped:
-            errors.append(f"{comic.series} #{comic.number}: {result.message}")
-
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "processed": processed, "errors": errors},
-        )
-
-    return {"processed": processed, "total": total, "errors": errors, "cancelled": False}
 
 
 # =============================================================================
@@ -643,59 +523,23 @@ def format_all_task(self):
 
 @shared_task(bind=True, base=ProgressTask, name="core.organize_all", queue="organize")
 def organize_all_task(self):
-    """Organize every comic in 'organized' state into the library."""
+    """Organize every comic in 'organized' state into the library. Stops early
+    on permission denied or out-of-disk-space errors."""
     import errno as _errno
     from .models import Comic
     from apps.core import workflow
+    from .task_base import batch_workflow_run
 
-    comic_ids = list(
-        Comic.objects.filter(state=Comic.STATE_ORGANIZED).values_list("pk", flat=True)
+    def _is_fatal(result):
+        err = result.error or ""
+        return "Permission" in err or f"errno {_errno.ENOSPC}" in err
+
+    comic_ids = Comic.objects.filter(state=Comic.STATE_ORGANIZED).values_list("pk", flat=True)
+    return batch_workflow_run(
+        self, comic_ids,
+        process=lambda c: workflow.organize(c),
+        is_fatal=_is_fatal,
     )
-    total = len(comic_ids)
-
-    if total == 0:
-        return {"processed": 0, "total": 0, "errors": [], "cancelled": False}
-
-    processed = 0
-    errors = []
-
-    self.update_state(
-        state="PROGRESS",
-        meta={"current": 0, "total": total, "processed": 0, "errors": []},
-    )
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {"processed": processed, "total": total, "errors": errors, "cancelled": True}
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        result = workflow.organize(comic)
-        if result.success:
-            processed += 1
-        elif not result.skipped:
-            errors.append(f"{comic.series} #{comic.number}: {result.message}")
-            err = result.error or ""
-            fatal = "Permission" in err or f"errno {_errno.ENOSPC}" in err
-            self.update_state(
-                state="PROGRESS",
-                meta={"current": i + 1, "total": total, "processed": processed, "errors": errors},
-            )
-            if fatal:
-                return {"processed": processed, "total": total, "errors": errors,
-                        "cancelled": False, "stopped_early": True}
-            continue
-
-        self.update_state(
-            state="PROGRESS",
-            meta={"current": i + 1, "total": total, "processed": processed, "errors": errors},
-        )
-
-    return {"processed": processed, "total": total, "errors": errors, "cancelled": False}
 
 
 @shared_task(bind=True, base=ProgressTask, name="core.deduplicate_all", queue="organize")

@@ -12,119 +12,60 @@ logger = logging.getLogger(__name__)
 
 @shared_task(bind=True, base=ProgressTask, name="dashboard.smartlist_action", queue="write")
 def run_smartlist_action_task(self, smart_list_id, action):
-    """
-    Run a workflow action on all comics in a Smart List.
+    """Run a workflow action on every comic in a Smart List.
 
-    Args:
-        smart_list_id: UUID of the SmartList
-        action: One of 'tag', 'format', 'organize', 'write'
+    `action` is one of 'tag', 'format', 'organize', 'write'. Comics whose
+    state-gate prevents the action (returned as `result.skipped`) are silently
+    counted as processed-but-not-success. Permission and out-of-disk errors on
+    organize/write stop the loop early.
     """
-    from apps.core.models import Comic
+    from apps.core.models import Comic  # noqa: F401  (used by batch_workflow_run import)
     from apps.core import workflow
+    from apps.core.task_base import batch_workflow_run
     from apps.dashboard.models import SmartList
     from apps.dashboard.services import build_queryset
 
     smart_list = SmartList.objects.get(pk=smart_list_id)
-
-    # Safety: refuse to run on an unfiltered smart list (prevents accidental operations)
     if not smart_list.filters:
+        return {
+            "success": False, "action": action, "processed": 0, "total": 0,
+            "errors": ["Smart list has no filters — refusing to run on entire library"],
+        }
+
+    action_fns = {
+        "tag":      lambda c: workflow.tag(c, force=True),
+        "format":   lambda c: workflow.format(c, force=True),
+        "organize": lambda c: workflow.organize(c, force=True),
+        "write":    lambda c: workflow.write(c, force=True),
+    }
+    if action not in action_fns:
         return {"success": False, "action": action, "processed": 0, "total": 0,
-                "errors": ["Smart list has no filters — refusing to run on entire library"]}
+                "errors": [f"Unsupported smartlist action: {action}"]}
 
-    qs = build_queryset(smart_list)
-    comic_ids = list(qs.values_list("pk", flat=True))
-    total = len(comic_ids)
+    def _is_fatal(result):
+        if action not in ("organize", "write"):
+            return False
+        err = result.error or ""
+        return "Permission" in err or "errno 28" in err  # ENOSPC = 28
 
-    if total == 0:
-        return {"success": True, "action": action, "processed": 0, "total": 0, "errors": []}
-
-    processed = 0
-    success_count = 0
-    errors = []
-
-    self.update_state(
-        state="PROGRESS",
-        meta={"current": 0, "total": total, "action": action, "success_count": 0, "errors": []},
+    qs = build_queryset(smart_list).values_list("pk", flat=True)
+    base = batch_workflow_run(
+        self, qs,
+        process=action_fns[action],
+        count_label="success_count",
+        is_fatal=_is_fatal,
+        extra_meta={"action": action},
     )
-
-    for i, comic_id in enumerate(comic_ids):
-        if self.is_cancelled():
-            self.clear_cancel()
-            return {
-                "success": True, "action": action, "processed": processed,
-                "success_count": success_count, "total": total, "errors": errors,
-                "cancelled": True,
-            }
-
-        try:
-            comic = Comic.objects.get(pk=comic_id)
-        except Comic.DoesNotExist:
-            continue
-
-        try:
-            if action == "tag":
-                _ar = workflow.tag(comic, force=True)
-            elif action == "format":
-                _ar = workflow.format(comic, force=True)
-            elif action == "organize":
-                _ar = workflow.organize(comic, force=True)
-            elif action == "write":
-                _ar = workflow.write(comic, force=True)
-            else:
-                continue
-            if not _ar.success:
-                raise Exception(_ar.error or _ar.message)
-            success_count += 1
-        except (PermissionError, OSError) as e:
-            import errno as _errno
-            is_destructive = action in ("organize", "write")
-            fatal = is_destructive and (
-                isinstance(e, PermissionError) or getattr(e, "errno", None) == _errno.ENOSPC
-            )
-            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
-            if is_destructive:
-                from apps.core.audit import log_batch_entry
-                log_batch_entry(f"{action}_error", comic, comic.state, comic.state,
-                                {"error": [None, str(e)]})
-            processed += 1
-            self.update_state(
-                state="PROGRESS",
-                meta={"current": i + 1, "total": total, "action": action,
-                      "success_count": success_count, "errors": errors},
-            )
-            if fatal:
-                return {
-                    "success": True, "action": action, "processed": processed,
-                    "success_count": success_count, "total": total, "errors": errors,
-                    "cancelled": False, "stopped_early": True,
-                }
-        except Exception as e:
-            errors.append(f"{comic.series} #{comic.number}: {str(e)}")
-            if action in ("organize", "write"):
-                from apps.core.audit import log_batch_entry
-                log_batch_entry(f"{action}_error", comic, comic.state, comic.state,
-                                {"error": [None, str(e)]})
-
-        processed += 1
-        self.update_state(
-            state="PROGRESS",
-            meta={
-                "current": i + 1,
-                "total": total,
-                "action": action,
-                "success_count": success_count,
-                "errors": errors,
-            },
-        )
 
     return {
         "success": True,
         "action": action,
-        "processed": processed,
-        "success_count": success_count,
-        "total": total,
-        "errors": errors,
-        "cancelled": False,
+        "processed": base["total"],
+        "success_count": base["success_count"],
+        "total": base["total"],
+        "errors": base["errors"],
+        "cancelled": base.get("cancelled", False),
+        **({"stopped_early": True} if base.get("stopped_early") else {}),
     }
 
 

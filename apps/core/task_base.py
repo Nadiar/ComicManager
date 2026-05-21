@@ -108,3 +108,83 @@ class ProgressTask(Task):
     def is_paused(self):
         from django.core.cache import cache
         return bool(cache.get(f"task:pause:{self.request.id}"))
+
+
+
+def batch_workflow_run(
+    task,
+    comic_ids,
+    *,
+    process,
+    count_label="processed",
+    is_fatal=None,
+    extra_meta=None,
+):
+    """Run `process(comic)` over `comic_ids` with the standard cancellation,
+    progress-update, and error-accumulation pattern shared by every batch task.
+
+    `task` is the bound Celery `self`. `process` returns an `ActionResult`
+    (success path increments the counter; non-skipped failure adds to errors).
+
+    Optional `is_fatal(action_result) -> bool` short-circuits the loop and
+    returns `stopped_early=True`. Used by organize_all to bail on permission
+    or out-of-space errors.
+
+    `extra_meta` is a dict merged into every progress meta payload — useful
+    for static fields like `api_mode` that don't change mid-loop.
+
+    Returns:
+        {count_label: <count>, "total": <total>, "errors": [...],
+         "cancelled": <bool>, "stopped_early": <bool, only when is_fatal fired>}
+    """
+    from .models import Comic
+
+    comic_ids = list(comic_ids)
+    total = len(comic_ids)
+    extra_meta = extra_meta or {}
+
+    if total == 0:
+        return {count_label: 0, "total": 0, "errors": [], "cancelled": False}
+
+    count = 0
+    errors = []
+
+    task.update_state(
+        state="PROGRESS",
+        meta={"current": 0, "total": total, count_label: 0, "errors": [], **extra_meta},
+    )
+
+    for i, comic_id in enumerate(comic_ids):
+        if task.is_cancelled():
+            task.clear_cancel()
+            return {count_label: count, "total": total, "errors": errors, "cancelled": True}
+
+        try:
+            comic = Comic.objects.get(pk=comic_id)
+        except Comic.DoesNotExist:
+            continue
+
+        result = process(comic)
+        if result.success:
+            count += 1
+        elif not result.skipped:
+            errors.append(f"{comic.series or '?'} #{comic.number or '?'}: {result.message}")
+
+        task.update_state(
+            state="PROGRESS",
+            meta={
+                "current": i + 1,
+                "total": total,
+                count_label: count,
+                "errors": errors,
+                **extra_meta,
+            },
+        )
+
+        if is_fatal and not result.success and is_fatal(result):
+            return {
+                count_label: count, "total": total, "errors": errors,
+                "cancelled": False, "stopped_early": True,
+            }
+
+    return {count_label: count, "total": total, "errors": errors, "cancelled": False}
