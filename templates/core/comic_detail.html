@@ -190,7 +190,7 @@
 </div>
 {% endif %}
 
-{% if comic.state == 'move' or comic.state == 'write' %}
+{% if comic.state == 'move' or comic.state == 'write' or comic.state == 'done' %}
 {% if reorganize_preview %}
 <!-- Re-organize Preview -->
 <div style="border-radius:8px; padding:14px 16px; border:1px solid {% if reorganize_preview.would_move %}var(--cm-info){% else %}var(--cm-ok){% endif %}; background:{% if reorganize_preview.would_move %}var(--cm-info-dim){% else %}var(--cm-ok-dim){% endif %};">
