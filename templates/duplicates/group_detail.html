@@ -125,6 +125,15 @@
             View
           </a>
           <button
+            class="btn btn-xs btn-primary"
+            hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
+            hx-vals='{"action": "keep_and_delete_rest", "comic_id": "{{ item.comic.pk }}"}'
+            hx-target="body"
+            hx-confirm="Keep this comic and DELETE all others in the group?"
+          >
+            Keep &amp; Del Rest
+          </button>
+          <button
             class="btn btn-xs btn-success"
             hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
             hx-vals='{"action": "keep", "comic_id": "{{ item.comic.pk }}"}'

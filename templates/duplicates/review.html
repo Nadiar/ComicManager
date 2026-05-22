@@ -151,7 +151,7 @@ function scanAll(btn) {
       const resp = await fetch('{% url "duplicates:scan_all" %}', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
       const data = await resp.json();
       if (data.success) {
-        btn.textContent = `Found ${data.groups_created} groups`;
+        btn.textContent = `Found ${data.groups_created} groups, ${data.orphans_attached ?? 0} attached`;
         setTimeout(() => location.reload(), 2000);
       } else { btn.textContent = 'Error'; btn.disabled = false; }
     } catch { btn.textContent = 'Error'; btn.disabled = false; }

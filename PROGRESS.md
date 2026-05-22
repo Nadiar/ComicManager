@@ -231,6 +231,7 @@
 - [x] [UI.28] In Comics -> Grid layout: Top left corner of cover should be a select circle, so we can select 1..x comics for bulk actions
 - [x] [UI.29] In Comics -> Grid layout: rightclick a cover should show a custom rightclick form with actions to run. Including a new action where we delete the cover image. This is because some scans have an info sheet on the first page. Current workflow is select comic, go to its details page, select Actions->Manage Pages, delete the first page, save changes. 
 - [x] [UI.30] Filter rail in `/comics/` (`rail=1`) should have toggle in the settings page to be on/off by default for the user. The button on the comics page should still be there to turn it on/off on-demand. 
+- [ ] [UI.31] Change icons in sidebar to better match the links
 
 ## Major Issues / Bugs
 
@@ -374,6 +375,13 @@
 - [x] [RD.23] `/scraper/`
 - [x] [RD.24] `/settings/log/`
 - [x] [RD.25] `view=compact` on `/comics/` should also have 'Columns' setting like `view=table`. 
+- [ ] [RD.26] Comic details page:
+    - [ ] [RD.26a] Right sidebar with 'Actions' have buttons that are just hyperlinks, change them to actual buttons
+    - [ ] [RD.26b] File info box, needs the border to match the normal box.
+    - [ ] [RD.26c] Double check that all values like hash/api/match info exists somehwere
+    - [x] [RD.26d] Remove extra 'View on Comicvine'
+    - [ ] [RD.26e] Add Pipeline History (use Audit log info?)
+
 
 ## Code to Port
 

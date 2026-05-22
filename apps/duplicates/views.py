@@ -5,7 +5,8 @@ Provides UI for reviewing and resolving duplicate groups.
 """
 
 from django.shortcuts import render, get_object_or_404
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
+from django.urls import reverse
 from django.views.decorators.http import require_POST, require_GET
 
 from .models import DuplicateGroup, DuplicateGroupMembership
@@ -195,6 +196,15 @@ def resolve_group_htmx(request, pk):
 
     # Check if group is fully resolved
     if group.status != DuplicateGroup.STATUS_PENDING:
+        # When resolving from the detail page, redirect back to the review list
+        # rather than swapping the card with a dead resolved partial.
+        current_url = request.META.get("HTTP_HX_CURRENT_URL", "")
+        detail_path = reverse("duplicates:group_detail", args=[pk])
+        if detail_path in current_url:
+            response = HttpResponse()
+            response["HX-Redirect"] = reverse("duplicates:review")
+            return response
+
         return render(request, "duplicates/partials/group_resolved.html", {
             "group": group,
             "action": action,
