@@ -405,11 +405,21 @@ def comic_detail(request, pk):
                 comic.save(update_fields=["flags"])
 
     # For digital comics, try to read ComicInfo.xml from the file
+    raw_xml_string = None
     if comic.is_digital and comic.file_path:
         if comic.file_path.lower().endswith('.cbz'):
             xml_data = read_comicinfo_xml(comic.file_path)
             if xml_data is not None:
                 comparison = compare_db_vs_xml(comic, xml_data)
+            try:
+                import zipfile as _zf
+                with _zf.ZipFile(comic.file_path, "r") as _z:
+                    for _name in _z.namelist():
+                        if _name.lower() == "comicinfo.xml":
+                            raw_xml_string = _z.read(_name).decode("utf-8", errors="replace")
+                            break
+            except Exception:
+                pass
 
     # For organized/written comics, show reorganize preview
     if comic.state in (Comic.STATE_WRITTEN, Comic.STATE_DONE):
@@ -460,9 +470,13 @@ def comic_detail(request, pk):
                         "is_main": url == main_cover_url,
                     })
 
+    characters_list = [c.strip() for c in comic.characters.split(",") if c.strip()] if comic.characters else []
+    teams_list = [t.strip() for t in comic.teams.split(",") if t.strip()] if comic.teams else []
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
         "xml_data": xml_data,
+        "raw_xml_string": raw_xml_string,
         "comparison": comparison,
         "reorganize_preview": reorganize_preview,
         "display_custom_values": display_custom_values,
@@ -473,6 +487,8 @@ def comic_detail(request, pk):
         "inducks_country_codes": inducks_country_codes,
         "has_cover": has_cover,
         "physical_covers": physical_covers,
+        "characters_list": characters_list,
+        "teams_list": teams_list,
     })
 
 
