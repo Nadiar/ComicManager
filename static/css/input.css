@@ -173,6 +173,8 @@ html, body {
 .cm-btn.ghost:hover { background: var(--cm-bg-2); color: var(--cm-fg); border-color: transparent; }
 .cm-btn.ok { background: var(--cm-ok); color: #0b1a13; border-color: transparent; font-weight: 600; }
 .cm-btn.ok:hover { filter: brightness(1.08); }
+.cm-btn.err { background: var(--cm-err); color: #fff; border-color: transparent; font-weight: 600; }
+.cm-btn.err:hover { filter: brightness(1.08); }
 .cm-btn.sm { height: 22px; padding: 0 7px; font-size: 11px; border-radius: 4px; }
 .cm-btn.lg { height: 34px; padding: 0 14px; font-size: 13px; }
 
@@ -684,7 +686,7 @@ html, body {
   background: var(--cm-bg-1);
   border: 1px solid var(--cm-border);
   border-radius: 8px;
-  padding: 16px;
+  /* padding: 16px; */
 }
 .cm-card-sm {
   background: var(--cm-bg-2);

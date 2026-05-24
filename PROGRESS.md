@@ -232,6 +232,7 @@
 - [x] [UI.29] In Comics -> Grid layout: rightclick a cover should show a custom rightclick form with actions to run. Including a new action where we delete the cover image. This is because some scans have an info sheet on the first page. Current workflow is select comic, go to its details page, select Actions->Manage Pages, delete the first page, save changes. 
 - [x] [UI.30] Filter rail in `/comics/` (`rail=1`) should have toggle in the settings page to be on/off by default for the user. The button on the comics page should still be there to turn it on/off on-demand. 
 - [ ] [UI.31] Change icons in sidebar to better match the links
+- [ ] [UI.32] Change icons in action bar to better match the links
 
 ## Major Issues / Bugs
 
@@ -288,7 +289,7 @@
 - [x] [BUG.47] Action bar isn't shown in table/hybrid/grid/compact view if navigation = topbar. It works with navigation=sidebar. 
 - [x] [BUG.48] Selecting New/Scrape/Taggning/move/Write in sidebar, then removing the filter from the rail and applying, does not remove the url filter for that stage and still highlights the stage in the sidebar. 
 - [x] [BUG.49] Smartlists using 'is empty' or 'is not empty' doesn't save that filter line, as the field if empty. Also add warning if a filter line is not gonna be saved. All smartlists/filters/etc should warn the user if a filter is not gonna be saved for some reason. 
-- [ ] Correct / new path isn't always shown on the comics details page.  
+- [x] [BUG.50] Correct / new path isn't always shown on the comics details page.  
 
 ## I.N.D.U.C.K.S. Integration
 
@@ -375,12 +376,12 @@
 - [x] [RD.23] `/scraper/`
 - [x] [RD.24] `/settings/log/`
 - [x] [RD.25] `view=compact` on `/comics/` should also have 'Columns' setting like `view=table`. 
-- [ ] [RD.26] Comic details page:
-    - [ ] [RD.26a] Right sidebar with 'Actions' have buttons that are just hyperlinks, change them to actual buttons
-    - [ ] [RD.26b] File info box, needs the border to match the normal box.
-    - [ ] [RD.26c] Double check that all values like hash/api/match info exists somehwere
+- [x] [RD.26] Comic details page:
+    - [x] [RD.26a] Right sidebar with 'Actions' have buttons that are just hyperlinks, change them to actual buttons
+    - [x] [RD.26b] File info box, needs the border to match the normal box.
+    - [x] [RD.26c] Double check that all values like hash/api/match info exists somehwere
     - [x] [RD.26d] Remove extra 'View on Comicvine'
-    - [ ] [RD.26e] Add Pipeline History (use Audit log info?)
+    - [x] [RD.26e] Add Pipeline History (use Audit log info?)
 
 
 ## Code to Port

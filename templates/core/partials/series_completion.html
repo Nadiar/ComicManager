@@ -2,7 +2,7 @@
 <div style="padding:10px 12px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; display:flex; flex-direction:column; gap:6px;">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
     <span class="cm-section-lbl">Series completion</span>
-    <span class="mono tnum" style="font-size:11.5px; color:var(--cm-ok);">{{ data.owned_count }}/{{ data.total_count }} · {{ data.completion }}%</span>
+    <span class="mono cm-btn sm" style="font-size:11.5px; color:var(--cm-ok);"><a href="{% url 'core:series_audit' comic.pk %}">{{ data.owned_count }}/{{ data.total_count }} · {{ data.completion }}% ↗</a></span>
   </div>
   <div class="cm-progress {% if data.completion == 100 %}ok{% endif %}" style="height:6px; border-radius:3px;">
     <span style="width:{{ data.completion }}%; {% if data.completion < 50 %}background:var(--cm-err);{% elif data.completion < 75 %}background:var(--cm-warn);{% elif data.completion < 100 %}background:var(--cm-info);{% endif %}"></span>

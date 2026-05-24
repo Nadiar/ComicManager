@@ -206,23 +206,21 @@
     <div class="cm-card" style="padding:12px;">
       <div class="cm-section-lbl" style="margin-bottom:8px;">Actions</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
-        <button onclick="openDetailScrapeModal()" class="cm-btn primary" style="justify-content:center; font-size:11.5px; grid-column:span 2;">
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          Run Pipeline
-        </button>
-        <a href="/comics/{{ comic.pk }}/edit/" class="cm-btn" style="justify-content:center; font-size:11.5px; text-decoration:none;">
+        <a href="/comics/{{ comic.pk }}/edit/" class="cm-btn primary" style="justify-content:center; font-size:11.5px; text-decoration:none; grid-column:span 2;">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
           Edit
         </a>
-        {% if comic.is_digital and comic.custom_values.scrape_source != "inducks" %}
         <button onclick="openDetailScrapeModal()" class="cm-btn" style="justify-content:center; font-size:11.5px;">
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          Re-scrape
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Scrape
         </button>
-        {% endif %}
         <button onclick="runAction('tag')" id="action-tag" class="cm-btn" style="justify-content:center; font-size:11.5px;">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
-          Re-tag
+          Tag
+        </button>
+        <button onclick="runAction('format')" id="action-write" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Format
         </button>
         {% if comic.is_digital and comic.file_path %}
         <button onclick="runAction('organize')" id="action-organize" class="cm-btn" style="justify-content:center; font-size:11.5px;">
@@ -231,32 +229,38 @@
         </button>
         <button onclick="runAction('write')" id="action-write" class="cm-btn" style="justify-content:center; font-size:11.5px;">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-          Write CBZ
+          Write
+        </button>
+        <button onclick="openPageManager()" id="action-manage-pages" class="cm-btn" style="justify-content:flex-center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Manage Pages
         </button>
         {% endif %}
       </div>
 
       <!-- More actions -->
-      <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--cm-border); display:flex; flex-direction:column; gap:2px;">
+      <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--cm-border); display:grid; grid-template-columns:1fr 1fr; gap:6px;">
         {% if comic.is_digital and comic.file_path %}
-        <button onclick="refreshFileInfo()" id="action-refresh-file-info" class="cm-btn sm ghost" style="justify-content:flex-start; font-size:11px;">Refresh File Info</button>
+        <button onclick="refreshFileInfo()" id="action-refresh-file-info" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Refresh File Info
+        </button>
         {% endif %}
         {% if comic.is_digital and comic.custom_values.scrape_source != "inducks" %}
-        <button onclick="runAction('refresh-credits')" id="action-refresh-credits" class="cm-btn sm ghost" style="justify-content:flex-start; font-size:11px;">Refresh Credits</button>
-        <button onclick="runAction('search-alt-covers')" id="action-search-alt-covers" class="cm-btn sm ghost" style="justify-content:flex-start; font-size:11px;">Search Alt Covers</button>
-        <button onclick="openCvCompareModal()" class="cm-btn sm ghost" style="justify-content:flex-start; font-size:11px;">Compare All Sources</button>
-        {% endif %}
-        {% if comic.is_digital and comic.file_path %}
-        <button onclick="openPageManager()" id="action-manage-pages" class="cm-btn sm ghost" style="justify-content:flex-start; font-size:11px;">Manage Pages</button>
+        <button onclick="runAction('refresh-credits')" id="action-refresh-credits" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Refresh Credits
+        </button>
+        <button onclick="runAction('search-alt-covers')" id="action-search-alt-covers" class="cm-btn" style="justify-content:center; font-size:11.5px;">Search Alt Covers</button>
+        <button onclick="openCvCompareModal()" class="cm-btn" style="justify-content:center; font-size:11.5px;">Compare All Sources</button>
         {% endif %}
         {% if comic.is_physical %}
-        <button onclick="document.getElementById('upload-cover-modal').showModal()" class="cm-btn sm ghost" style="justify-content:flex-start; font-size:11px;">Upload Cover</button>
+        <button onclick="document.getElementById('upload-cover-modal').showModal()" class="cm-btn" style="justify-content:center; font-size:11.5px;">Upload Cover</button>
         {% endif %}
-        {% if comic.is_digital %}
-        <button id="btn-toggle-skip" onclick="toggleScrapeSkip()" class="cm-btn sm ghost" style="justify-content:flex-start; font-size:11px; {% if comic.flags.scrape_skipped %}color:var(--cm-warn);{% endif %}">{% if comic.flags.scrape_skipped %}Un-skip Scraping{% else %}Skip Scraping{% endif %}</button>
-        {% endif %}
-        <a href="{% url 'core:export_json' comic.pk %}" class="cm-btn sm ghost" style="justify-content:flex-start; font-size:11px; text-decoration:none;">Export as JSON</a>
-        <button onclick="deleteComic()" id="action-delete" class="cm-btn sm" style="justify-content:flex-start; font-size:11px; color:var(--cm-err); border-color:transparent; background:transparent;" onmouseenter="this.style.background='var(--cm-err-dim)'" onmouseleave="this.style.background='transparent'">Delete Comic</button>
+        <a href="{% url 'core:export_json' comic.pk %}" class="cm-btn" style="justify-content:center; font-size:11.5px; text-decoration:none;">Export as JSON</a>
+      </div>
+      <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--cm-border); display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <button onclick="deleteComic()" id="action-delete" class="cm-btn err" style="justify-content:center; grid-column:span 2; font-size:11.5px;">Delete Comic</button>
       </div>
     </div>
 
@@ -325,14 +329,14 @@
 </div><!-- /hero outer flex -->
 
 <!-- Tabs -->
-<div class="cm-card">
-  <div style="display:flex; border-bottom:1px solid var(--cm-border); padding:0 14px; overflow-x:auto;">
+<div class="cm-card"">
+  <div style="display:flex; border-bottom:1px solid var(--cm-border); padding:0 14px; flex-wrap:wrap;">
     {% if comparison %}
     <button onclick="switchDetailTab('metadata')" id="detail-tab-btn-metadata" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid var(--cm-accent); background:transparent; color:var(--cm-fg); font-weight:600; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Metadata comparison</button>
     {% endif %}
     <button onclick="switchDetailTab('credits')" id="detail-tab-btn-credits" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Credits</button>
     <button onclick="switchDetailTab('history')" id="detail-tab-btn-history" class="detail-tab-btn" hx-get="{% url 'core:comic_audit_history' comic.pk %}" hx-target="#detail-tab-history" hx-swap="innerHTML" hx-trigger="click once" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Pipeline history</button>
-    <button onclick="switchDetailTab('siblings')" id="detail-tab-btn-siblings" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Other issues in series</button>
+    <button onclick="switchDetailTab('comic-metadata')" id="detail-tab-btn-comic-metadata" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Comic Metadata</button>
     {% if raw_xml_string %}
     <button onclick="switchDetailTab('raw')" id="detail-tab-btn-raw" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Raw XML</button>
     {% endif %}
@@ -400,19 +404,45 @@
     </div>
   </div>
 
-  <!-- Tab: Other issues in series -->
-  <div id="detail-tab-siblings" style="display:none;">
-    <div style="padding:16px;">
-      {% if comic.custom_values.comicvine_volume %}
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-        <div style="font-size:13px; color:var(--cm-fg-2);">Issues in the <strong style="color:var(--cm-fg);">{{ comic.series }}</strong> series</div>
-        <a href="{% url 'core:series_audit' comic.pk %}" class="cm-btn sm" style="text-decoration:none;">View Full Series Audit ↗</a>
+  <!-- Tab: Comic Metadata -->
+  <div id="detail-tab-comic-metadata" style="display:none;">
+    <div style="padding:16px; display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px;">
+      <div>
+        <div class="cm-section-label-accent">Core Info</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          <div><span class="cm-text-muted">Series:</span> <span class="cm-text-primary">{{ comic.series|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Number:</span> <span class="cm-text-primary">{{ comic.number|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Title:</span> <span class="cm-text-primary">{{ comic.title|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Volume:</span> <span class="cm-text-primary">{{ comic.volume|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Count:</span> <span class="cm-text-primary">{{ comic.count|default:"-" }}</span></div>
+        </div>
       </div>
-      <div style="padding:12px 14px; background:var(--cm-bg); border:1px solid var(--cm-border); border-radius:6px; font-size:12px; color:var(--cm-fg-2);">
-        Open the Series Audit for a full grid of owned and missing issues in this volume.
+      <div>
+        <div class="cm-section-label-accent">Publication</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          <div><span class="cm-text-muted">Publisher:</span> <span class="cm-text-primary">{{ comic.publisher|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Year:</span> <span class="cm-text-primary">{{ comic.year|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Month:</span> <span class="cm-text-primary">{{ comic.month|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Format:</span> <span class="cm-text-primary">{{ comic.format|default:"-" }}</span></div>
+        </div>
       </div>
-      {% else %}
-      <div style="font-size:12px; color:var(--cm-fg-3);">No ComicVine series data available. Scrape this comic first to link it to a series.</div>
+      <div>
+        <div class="cm-section-label-accent">System Info</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          <div><span class="cm-text-muted">ID:</span> <code style="font-size:11px;">{{ comic.pk }}</code></div>
+          <div><span class="cm-text-muted">State:</span> <span class="cm-text-primary">{{ comic.state }}</span></div>
+          <div><span class="cm-text-muted">Imported:</span> <span class="mono tnum">{{ comic.imported_at|date:"Y-m-d H:i"|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Updated:</span> <span class="mono tnum">{{ comic.updated_at|date:"Y-m-d H:i"|default:"-" }}</span></div>
+          {% if comic.is_physical %}<div><span class="cm-text-muted">Storage:</span> <span class="cm-text-primary">{{ comic.storage_location|default:"-" }}</span></div>{% endif %}
+        </div>
+      </div>
+      {% if display_custom_values %}
+      <div>
+        <div class="cm-section-label-accent">Custom Values</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          {% for key, value in display_custom_values.items %}<div><span class="cm-text-muted">{{ key }}:</span> <span class="cm-text-primary">{{ value }}</span></div>{% endfor %}
+        </div>
+      </div>
       {% endif %}
     </div>
   </div>
@@ -426,51 +456,6 @@
 
 </div><!-- /tabs card -->
 
-<!-- Comic Metadata (physical or no comparison) -->
-{% if comic.is_physical or not comparison %}
-<div class="cm-card">
-  <div style="font-size:15px; font-weight:700; margin-bottom:14px;">Comic Metadata</div>
-  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px;">
-    <div>
-      <div class="cm-section-label-accent">Core Info</div>
-      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
-        <div><span class="cm-text-muted">Series:</span> <span class="cm-text-primary">{{ comic.series|default:"-" }}</span></div>
-        <div><span class="cm-text-muted">Number:</span> <span class="cm-text-primary">{{ comic.number|default:"-" }}</span></div>
-        <div><span class="cm-text-muted">Title:</span> <span class="cm-text-primary">{{ comic.title|default:"-" }}</span></div>
-        <div><span class="cm-text-muted">Volume:</span> <span class="cm-text-primary">{{ comic.volume|default:"-" }}</span></div>
-        <div><span class="cm-text-muted">Count:</span> <span class="cm-text-primary">{{ comic.count|default:"-" }}</span></div>
-      </div>
-    </div>
-    <div>
-      <div class="cm-section-label-accent">Publication</div>
-      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
-        <div><span class="cm-text-muted">Publisher:</span> <span class="cm-text-primary">{{ comic.publisher|default:"-" }}</span></div>
-        <div><span class="cm-text-muted">Year:</span> <span class="cm-text-primary">{{ comic.year|default:"-" }}</span></div>
-        <div><span class="cm-text-muted">Month:</span> <span class="cm-text-primary">{{ comic.month|default:"-" }}</span></div>
-        <div><span class="cm-text-muted">Format:</span> <span class="cm-text-primary">{{ comic.format|default:"-" }}</span></div>
-      </div>
-    </div>
-    <div>
-      <div class="cm-section-label-accent">System Info</div>
-      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
-        <div><span class="cm-text-muted">ID:</span> <code style="font-size:11px;">{{ comic.pk }}</code></div>
-        <div><span class="cm-text-muted">State:</span> <span class="cm-text-primary">{{ comic.state }}</span></div>
-        <div><span class="cm-text-muted">Imported:</span> <span class="mono tnum">{{ comic.imported_at|date:"Y-m-d H:i"|default:"-" }}</span></div>
-        <div><span class="cm-text-muted">Updated:</span> <span class="mono tnum">{{ comic.updated_at|date:"Y-m-d H:i"|default:"-" }}</span></div>
-        {% if comic.is_physical %}<div><span class="cm-text-muted">Storage:</span> <span class="cm-text-primary">{{ comic.storage_location|default:"-" }}</span></div>{% endif %}
-      </div>
-    </div>
-    {% if display_custom_values %}
-    <div>
-      <div class="cm-section-label-accent">Custom Values</div>
-      <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
-        {% for key, value in display_custom_values.items %}<div><span class="cm-text-muted">{{ key }}:</span> <span class="cm-text-primary">{{ value }}</span></div>{% endfor %}
-      </div>
-    </div>
-    {% endif %}
-  </div>
-</div>
-{% endif %}
 
 <div style="height:80px;"></div>
 
@@ -613,8 +598,8 @@ const csrfToken = '{{ csrf_token }}';
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 
-const _tabDefaultId = '{% if comparison %}metadata{% else %}credits{% endif %}';
-const _allTabs = ['metadata', 'credits', 'history', 'siblings', 'raw'];
+const _tabDefaultId = '{% if comparison %}metadata{% elif comic.is_physical %}comic-metadata{% else %}credits{% endif %}';
+const _allTabs = ['metadata', 'credits', 'history', 'comic-metadata', 'siblings', 'raw'];
 
 function switchDetailTab(name) {
   _allTabs.forEach(p => {
