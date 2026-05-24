@@ -39,6 +39,12 @@ services:
       - ${CV_DB_PATH}:/cv_db/comicvine.db:ro
       - ${CV_MCL_PATH}:/cv_db/latest.mcl:ro
       - ${INDUCKS_DB_PATH}:/cv_db/inducks.db:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.connect(('localhost',8000)); s.close()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     depends_on:
       db:
         condition: service_healthy
@@ -63,10 +69,8 @@ services:
       - ${CV_MCL_PATH}:/cv_db/latest.mcl:ro
       - ${INDUCKS_DB_PATH}:/cv_db/inducks.db:ro
     depends_on:
-      db:
+      web:
         condition: service_healthy
-      redis:
-        condition: service_started
 
   beat:
     image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-latest}
@@ -78,7 +82,5 @@ services:
         --scheduler django_celery_beat.schedulers:DatabaseScheduler
     env_file: .env
     depends_on:
-      db:
+      web:
         condition: service_healthy
-      redis:
-        condition: service_started
