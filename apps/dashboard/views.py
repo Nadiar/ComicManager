@@ -953,9 +953,15 @@ def smartlist_detail(request, pk):
 
     sl = get_object_or_404(SmartList, pk=pk)
 
-    # Use GET col params if provided, else smart list saved columns, else default
+    # Use GET col params if provided, else smart list saved columns, else layout_default, else DEFAULT_COLUMNS
     get_cols = request.GET.getlist("col")
-    active_columns = get_cols if get_cols else (sl.columns if sl.columns else DEFAULT_COLUMNS)
+    if not get_cols:
+        from apps.core.models import get_setting
+        _saved_default = get_setting("layout_default")
+        _default_cols = _saved_default.split(",") if _saved_default else DEFAULT_COLUMNS
+        active_columns = sl.columns if sl.columns else _default_cols
+    else:
+        active_columns = get_cols
 
     # Allow runtime sort override via GET params
     sort = request.GET.get("sort", sl.sort_field or "series")
@@ -1010,6 +1016,21 @@ def smartlist_detail(request, pk):
         "current_dir": sort_dir,
         "query_string": query_string,
     })
+
+
+@require_POST
+def save_smartlist_columns(request, pk):
+    """Save or clear column selection for a SmartList from the detail view."""
+    sl = get_object_or_404(SmartList, pk=pk)
+    if request.POST.get("reset") == "1":
+        sl.columns = []
+    else:
+        cols = request.POST.getlist("col")
+        if not cols:
+            return JsonResponse({"success": False, "error": "No columns selected"})
+        sl.columns = cols
+    sl.save(update_fields=["columns"])
+    return JsonResponse({"success": True})
 
 
 def smartlist_missing(request, pk):

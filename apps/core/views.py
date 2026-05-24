@@ -3353,6 +3353,23 @@ def save_column_layout(request):
     return JsonResponse({"success": True})
 
 
+@require_POST
+def reset_column_layout(request):
+    """Delete the context-specific saved layout, falling back to layout_default."""
+    from .models import Setting
+
+    state = request.POST.get("state")
+    flag = request.POST.get("flag")
+    if state:
+        key = f"layout_state_{state}"
+    elif flag:
+        key = f"layout_flag_{flag}"
+    else:
+        key = "layout_default"
+    Setting.objects.filter(key=key).delete()
+    return JsonResponse({"success": True})
+
+
 # =============================================================================
 # Inline Field Editing (STATE_NEW list)
 # =============================================================================

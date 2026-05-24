@@ -88,7 +88,9 @@
         </label>
         {% endfor %}
       </div>
-      <button type="button" onclick="applyColumnToggle()" class="cm-btn sm primary" style="width:100%; justify-content:center;">Update View</button>
+      <button type="button" onclick="applyColumnToggle()" class="cm-btn sm primary" style="width:100%; justify-content:center;">Save temp</button>
+      <button type="button" onclick="saveSmartlistColumns()" class="cm-btn sm ghost" style="width:100%; justify-content:center; font-size:11px;">Save for current view</button>
+      <button type="button" onclick="resetSmartlistColumns()" class="cm-btn sm ghost" style="width:100%; justify-content:center; font-size:11px; color:var(--cm-fg-3);">Reset to default</button>
     </div>
   </div>
 </div>
@@ -288,6 +290,50 @@ function applyColumnToggle() {
   checked.forEach(c => url.searchParams.append('col', c));
   url.searchParams.delete('page');
   window.location.href = url.toString();
+}
+
+function saveSmartlistColumns() {
+  const cols = [...document.querySelectorAll('.sl-col-toggle:checked')].map(cb => cb.value);
+  if (!cols.length) { showMsgToast('Select at least one column', 'info'); return; }
+  const formData = new FormData();
+  cols.forEach(c => formData.append('col', c));
+  fetch('{% url "dashboard:save_smartlist_columns" smart_list.pk %}', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken() },
+    body: formData,
+  })
+  .then(r => {
+    if (!r.ok) { showMsgToast('Error: HTTP ' + r.status, 'error'); return null; }
+    return r.json();
+  })
+  .then(data => {
+    if (!data) return;
+    if (data.success) { window.location.reload(); }
+    else { showMsgToast('Error: ' + data.error, 'error'); }
+  })
+  .catch(err => showMsgToast('Error: ' + err.toString(), 'error'));
+}
+
+function resetSmartlistColumns() {
+  const params = new URLSearchParams({ reset: '1' });
+  fetch('{% url "dashboard:save_smartlist_columns" smart_list.pk %}', {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  })
+  .then(r => {
+    if (!r.ok) { showMsgToast('Error: HTTP ' + r.status, 'error'); return null; }
+    return r.json();
+  })
+  .then(data => {
+    if (!data) return;
+    if (data.success) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('col');
+      window.location.href = url.toString();
+    } else { showMsgToast('Error: ' + data.error, 'error'); }
+  })
+  .catch(err => showMsgToast('Error: ' + err.toString(), 'error'));
 }
 </script>
 {% endblock %}
