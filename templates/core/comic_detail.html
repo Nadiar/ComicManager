@@ -218,8 +218,8 @@
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
           Tag
         </button>
-        <button onclick="runAction('format')" id="action-write" class="cm-btn" style="justify-content:center; font-size:11.5px;">
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        <button onclick="runAction('format')" id="action-format" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           Format
         </button>
         {% if comic.is_digital and comic.file_path %}
@@ -228,11 +228,11 @@
           Move
         </button>
         <button onclick="runAction('write')" id="action-write" class="cm-btn" style="justify-content:center; font-size:11.5px;">
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
           Write
         </button>
         <button onclick="openPageManager()" id="action-manage-pages" class="cm-btn" style="justify-content:flex-center; font-size:11.5px;">
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
           Manage Pages
         </button>
         {% endif %}
@@ -242,13 +242,13 @@
       <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--cm-border); display:grid; grid-template-columns:1fr 1fr; gap:6px;">
         {% if comic.is_digital and comic.file_path %}
         <button onclick="refreshFileInfo()" id="action-refresh-file-info" class="cm-btn" style="justify-content:center; font-size:11.5px;">
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
           Refresh File Info
         </button>
         {% endif %}
         {% if comic.is_digital and comic.custom_values.scrape_source != "inducks" %}
         <button onclick="runAction('refresh-credits')" id="action-refresh-credits" class="cm-btn" style="justify-content:center; font-size:11.5px;">
-          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
           Refresh Credits
         </button>
         <button onclick="runAction('search-alt-covers')" id="action-search-alt-covers" class="cm-btn" style="justify-content:center; font-size:11.5px;">Search Alt Covers</button>
@@ -296,28 +296,20 @@
     </div>
 
     <!-- Characters & Teams card -->
-    {% if comic.main_character_or_team or characters_list or teams_list %}
+    {% if comic.main_character_or_team or teams_list %}
     <div class="cm-card" style="padding:12px;">
       <div class="cm-section-lbl" style="margin-bottom:8px;">Characters &amp; Teams</div>
       {% if comic.main_character_or_team %}
       <div style="margin-bottom:8px;">
         <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Main Character</div>
-        <span class="cm-chip violet" style="font-size:10.5px;">{{ comic.main_character_or_team }}</span>
-      </div>
-      {% endif %}
-      {% if characters_list %}
-      <div style="{% if comic.main_character_or_team %}border-top:1px solid var(--cm-border); padding-top:8px; margin-bottom:{% if teams_list %}8px{% else %}0{% endif %};{% else %}margin-bottom:{% if teams_list %}8px{% else %}0{% endif %};{% endif %}">
-        <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Characters</div>
-        <div style="display:flex; gap:4px; flex-wrap:wrap;">
-          {% for char in characters_list %}<span class="cm-chip" style="font-size:10.5px;">{{ char }}</span>{% endfor %}
-        </div>
+        <a href="/comics/?char_q={{ comic.main_character_or_team|urlencode }}&char_main_only=1" class="cm-chip violet" style="font-size:10.5px; text-decoration:none;">{{ comic.main_character_or_team }}</a>
       </div>
       {% endif %}
       {% if teams_list %}
-      <div style="{% if characters_list or comic.main_character_or_team %}border-top:1px solid var(--cm-border); padding-top:8px;{% endif %}">
+      <div style="{% if comic.main_character_or_team %}border-top:1px solid var(--cm-border); padding-top:8px;{% endif %}">
         <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Teams</div>
         <div style="display:flex; gap:4px; flex-wrap:wrap;">
-          {% for team in teams_list %}<span class="cm-chip" style="font-size:10.5px;">{{ team }}</span>{% endfor %}
+          {% for team in teams_list %}<a href="/comics/?char_q={{ team|urlencode }}&char_main_only=0" class="cm-chip" style="font-size:10.5px; text-decoration:none;">{{ team }}</a>{% endfor %}
         </div>
       </div>
       {% endif %}
