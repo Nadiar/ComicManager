@@ -39,7 +39,7 @@
           hx-trigger="click"
           hx-target="#comic-results-container"
           hx-swap="innerHTML"
-          hx-include="#filter-form, #rail-form"
+          hx-include="#filter-form, #rail-form, .col-filter-input"
           hx-vals='{"sort":"{{ col_id|get_col_sort }}","dir":"{% if current_sort == col_id|get_col_sort %}{% if current_dir == "asc" %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"}'
           hx-push-url="true"
           hx-indicator="#list-spinner">
@@ -49,6 +49,33 @@
     <span>Flags</span>
     <span>Actions</span>
   </div>
+  {% if col_filters_open %}
+  <div style="display:grid; grid-template-columns:28px {% if prefs.show_covers %}40px {% endif %}{% for col_id in active_columns %}1fr {% endfor %}100px 220px; gap:8px; padding:2px 14px; background:var(--cm-bg-2); border-bottom:1px solid var(--cm-border); position:sticky; top:32px; z-index:3; align-items:center;">
+    <span></span>
+    {% if prefs.show_covers %}<span></span>{% endif %}
+    {% for col_id in active_columns %}
+      {% if col_id in col_filter_skip %}
+      <span></span>
+      {% else %}
+      <input type="text"
+             name="f_{{ col_id }}"
+             value="{{ current_col_filters|get_item:col_id }}"
+             placeholder="…"
+             class="cm-input col-filter-input"
+             style="height:22px; font-size:11px; padding:0 6px; width:100%; min-width:0;"
+             hx-get="/comics/"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#comic-results-container"
+             hx-swap="innerHTML"
+             hx-include="#filter-form, #rail-form, .col-filter-input"
+             hx-push-url="true"
+             hx-indicator="#list-spinner">
+      {% endif %}
+    {% endfor %}
+    <span></span>
+    <span></span>
+  </div>
+  {% endif %}
 
   {% for comic in comics %}
   <div class="cm-list-row" data-pk="{{ comic.pk }}" data-state="{{ comic.state }}" data-medium="{{ comic.medium }}" data-format="{{ comic.file_format|default:'' }}" data-series="{{ comic.series|default:comic.proposed_series|default:''|escapejs }}" data-number="{{ comic.number|default:comic.proposed_number|default:'' }}"
@@ -199,7 +226,7 @@
           hx-trigger="click"
           hx-target="#comic-results-container"
           hx-swap="innerHTML"
-          hx-include="#filter-form, #rail-form"
+          hx-include="#filter-form, #rail-form, .col-filter-input"
           hx-vals='{"sort":"{{ col_id|get_col_sort }}","dir":"{% if current_sort == col_id|get_col_sort %}{% if current_dir == "asc" %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"}'
           hx-push-url="true"
           hx-indicator="#list-spinner">
@@ -208,6 +235,31 @@
     {% endfor %}
     <span>Flags</span>
   </div>
+  {% if col_filters_open %}
+  <div style="display:grid; grid-template-columns:28px {% for col_id in active_columns %}1fr {% endfor %}80px; gap:6px; padding:2px 14px; background:var(--cm-bg-2); border-bottom:1px solid var(--cm-border); position:sticky; top:26px; z-index:3; align-items:center;">
+    <span></span>
+    {% for col_id in active_columns %}
+      {% if col_id in col_filter_skip %}
+      <span></span>
+      {% else %}
+      <input type="text"
+             name="f_{{ col_id }}"
+             value="{{ current_col_filters|get_item:col_id }}"
+             placeholder="…"
+             class="cm-input col-filter-input"
+             style="height:20px; font-size:10px; padding:0 5px; width:100%; min-width:0;"
+             hx-get="/comics/"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#comic-results-container"
+             hx-swap="innerHTML"
+             hx-include="#filter-form, #rail-form, .col-filter-input"
+             hx-push-url="true"
+             hx-indicator="#list-spinner">
+      {% endif %}
+    {% endfor %}
+    <span></span>
+  </div>
+  {% endif %}
   {% for comic in comics %}
   <div class="cm-list-row" data-pk="{{ comic.pk }}" data-state="{{ comic.state }}" data-medium="{{ comic.medium }}" data-format="{{ comic.file_format|default:'' }}" data-series="{{ comic.series|default:comic.proposed_series|default:''|escapejs }}" data-number="{{ comic.number|default:comic.proposed_number|default:'' }}"
        style="display:grid; grid-template-columns:28px {% for col_id in active_columns %}1fr {% endfor %}80px; gap:6px; padding:0 14px; height:26px; align-items:center; border-bottom:1px solid var(--cm-border); font-size:11.5px; cursor:pointer;"

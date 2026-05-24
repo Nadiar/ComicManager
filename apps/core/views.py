@@ -183,7 +183,8 @@ def _build_comic_list_queryset(params):
         else:
             comics = comics.filter(
                 Q(main_character_or_team__icontains=char_q) |
-                Q(characters__icontains=char_q)
+                Q(characters__icontains=char_q) |
+                Q(teams__icontains=char_q)
             )
 
     if state:
@@ -208,6 +209,25 @@ def _build_comic_list_queryset(params):
             comics = comics.filter(year__lte=int(year_max))
         except (ValueError, TypeError):
             pass
+
+    # Per-column text filters (f_<col_id> params)
+    from .utils import COLUMNS_REGISTRY as _CR
+    _NUMERIC_SORTS = {"year", "month", "day", "page_count", "file_size", "id", "count"}
+    _SKIP_SORTS = {"imported_at", "updated_at", "last_written"}
+    for col_id, col_def in _CR.items():
+        val = (params.get(f"f_{col_id}", "") or "").strip()
+        if not val:
+            continue
+        sort_field = col_def["sort"]
+        if sort_field.startswith("custom_values__") or sort_field in _SKIP_SORTS:
+            continue
+        if sort_field in _NUMERIC_SORTS:
+            try:
+                comics = comics.filter(**{sort_field: int(val)})
+            except (ValueError, TypeError):
+                pass
+        else:
+            comics = comics.filter(**{f"{sort_field}__icontains": val})
 
     return comics
 
@@ -253,6 +273,7 @@ def comic_list(request):
         filter_rail_open = request.GET.get("rail") == "1"
     else:
         filter_rail_open = bool(get_setting("filter_rail_default", False))
+    col_filters_open = request.GET.get("col_filters") == "1"
     year_min = request.GET.get("year_min", "")
     year_max = request.GET.get("year_max", "")
 
@@ -357,6 +378,11 @@ def comic_list(request):
         "current_dir": sort_dir,
         "current_view": current_view,
         "filter_rail_open": filter_rail_open,
+        "col_filters_open": col_filters_open,
+        "current_col_filters": {col_id: (request.GET.get(f"f_{col_id}", "") or "") for col_id in COLUMNS_REGISTRY},
+        "col_filter_skip": {"imported", "updated", "last_written", "first_series", "second_series",
+                            "scrape_score", "scrape_source", "cv_issue", "cv_volume",
+                            "dm_processed", "cv_issue_count", "starwars", "has_alt_covers"},
         "current_year_min": year_min,
         "current_year_max": year_max,
         "flag_label": FLAG_LABELS.get(flag, flag),
@@ -470,7 +496,6 @@ def comic_detail(request, pk):
                         "is_main": url == main_cover_url,
                     })
 
-    characters_list = [c.strip() for c in comic.characters.split(",") if c.strip()] if comic.characters else []
     teams_list = [t.strip() for t in comic.teams.split(",") if t.strip()] if comic.teams else []
 
     return render(request, "core/comic_detail.html", {
@@ -487,7 +512,6 @@ def comic_detail(request, pk):
         "inducks_country_codes": inducks_country_codes,
         "has_cover": has_cover,
         "physical_covers": physical_covers,
-        "characters_list": characters_list,
         "teams_list": teams_list,
     })
 

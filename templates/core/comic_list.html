@@ -10,12 +10,17 @@
 <form method="GET" id="filter-form" style="padding:10px 16px; border-bottom:1px solid var(--cm-border); display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--cm-bg-1);">
   {% if not filter_rail_open %}{% if current_flag %}<input type="hidden" name="flag" value="{{ current_flag }}">{% endif %}{% endif %}
   {% if filter_rail_open %}<input type="hidden" name="rail" value="1">{% endif %}
+  {% if col_filters_open %}<input type="hidden" name="col_filters" value="1">{% endif %}
   <input type="hidden" name="view" value="{{ current_view|default:'table' }}" id="form-view-hidden">
 
   <!-- Filter rail toggle -->
   <button type="button" onclick="toggleRail()" class="cm-btn sm{% if filter_rail_open %} primary{% endif %}" style="flex-shrink:0;">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="10" y2="18"/></svg>
     Filters
+  </button>
+  <!-- Column filter row toggle -->
+  <button type="button" onclick="toggleColFilters()" class="cm-btn sm{% if col_filters_open %} primary{% endif %}" style="flex-shrink:0;" title="Column filters">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
   </button>
 
   <!-- Search -->
@@ -28,7 +33,7 @@
            hx-trigger="keyup changed delay:300ms, search"
            hx-target="#comic-results-container"
            hx-swap="innerHTML"
-           hx-include="#filter-form, #rail-form"
+           hx-include="#filter-form, #rail-form, .col-filter-input"
            hx-push-url="true"
            hx-indicator="#list-spinner">
   </div>
@@ -37,16 +42,16 @@
   <div class="cm-seg" style="flex-shrink:0;">
     <button type="button" {% if current_view == 'table' or not current_view %}class="on"{% endif %}
             hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
-            hx-include="#filter-form, #rail-form" hx-vals='{"view":"table"}' hx-push-url="true" hx-indicator="#list-spinner">Table</button>
+            hx-include="#filter-form, #rail-form, .col-filter-input" hx-vals='{"view":"table"}' hx-push-url="true" hx-indicator="#list-spinner">Table</button>
     <button type="button" {% if current_view == 'hybrid' %}class="on"{% endif %}
             hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
-            hx-include="#filter-form, #rail-form" hx-vals='{"view":"hybrid"}' hx-push-url="true" hx-indicator="#list-spinner">Hybrid</button>
+            hx-include="#filter-form, #rail-form, .col-filter-input" hx-vals='{"view":"hybrid"}' hx-push-url="true" hx-indicator="#list-spinner">Hybrid</button>
     <button type="button" {% if current_view == 'grid' %}class="on"{% endif %}
             hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
-            hx-include="#filter-form, #rail-form" hx-vals='{"view":"grid"}' hx-push-url="true" hx-indicator="#list-spinner">Grid</button>
+            hx-include="#filter-form, #rail-form, .col-filter-input" hx-vals='{"view":"grid"}' hx-push-url="true" hx-indicator="#list-spinner">Grid</button>
     <button type="button" {% if current_view == 'compact' %}class="on"{% endif %}
             hx-get="/comics/" hx-trigger="click" hx-target="#comic-results-container" hx-swap="innerHTML"
-            hx-include="#filter-form, #rail-form" hx-vals='{"view":"compact"}' hx-push-url="true" hx-indicator="#list-spinner">Compact</button>
+            hx-include="#filter-form, #rail-form, .col-filter-input" hx-vals='{"view":"compact"}' hx-push-url="true" hx-indicator="#list-spinner">Compact</button>
   </div>
 
   <!-- State filter -->
@@ -55,7 +60,7 @@
           hx-trigger="change"
           hx-target="#comic-results-container"
           hx-swap="innerHTML"
-          hx-include="#filter-form, #rail-form"
+          hx-include="#filter-form, #rail-form, .col-filter-input"
           hx-push-url="true"
           hx-indicator="#list-spinner">
     <option value="">All States</option>
@@ -70,7 +75,7 @@
           hx-trigger="change"
           hx-target="#comic-results-container"
           hx-swap="innerHTML"
-          hx-include="#filter-form, #rail-form"
+          hx-include="#filter-form, #rail-form, .col-filter-input"
           hx-push-url="true"
           hx-indicator="#list-spinner">
     {% if current_state == 'new' %}
@@ -92,7 +97,7 @@
           hx-trigger="change"
           hx-target="#comic-results-container"
           hx-swap="innerHTML"
-          hx-include="#filter-form, #rail-form"
+          hx-include="#filter-form, #rail-form, .col-filter-input"
           hx-push-url="true"
           hx-indicator="#list-spinner">
     <option value="asc" {% if current_dir == 'asc' %}selected{% endif %}>A→Z</option>
@@ -493,6 +498,18 @@ function toggleRail() {
   const url = new URL(window.location.href);
   const currentlyOpen = {% if filter_rail_open %}true{% else %}false{% endif %};
   url.searchParams.set('rail', currentlyOpen ? '0' : '1');
+  url.searchParams.delete('page');
+  window.location.href = url.toString();
+}
+
+function toggleColFilters() {
+  const url = new URL(window.location.href);
+  const currentlyOpen = {% if col_filters_open %}true{% else %}false{% endif %};
+  if (currentlyOpen) {
+    url.searchParams.delete('col_filters');
+  } else {
+    url.searchParams.set('col_filters', '1');
+  }
   url.searchParams.delete('page');
   window.location.href = url.toString();
 }
