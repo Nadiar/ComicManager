@@ -331,7 +331,7 @@
     <button onclick="switchDetailTab('metadata')" id="detail-tab-btn-metadata" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid var(--cm-accent); background:transparent; color:var(--cm-fg); font-weight:600; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Metadata comparison</button>
     {% endif %}
     <button onclick="switchDetailTab('credits')" id="detail-tab-btn-credits" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Credits</button>
-    <button onclick="switchDetailTab('history')" id="detail-tab-btn-history" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Pipeline history</button>
+    <button onclick="switchDetailTab('history')" id="detail-tab-btn-history" class="detail-tab-btn" hx-get="{% url 'core:comic_audit_history' comic.pk %}" hx-target="#detail-tab-history" hx-swap="innerHTML" hx-trigger="click once" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Pipeline history</button>
     <button onclick="switchDetailTab('siblings')" id="detail-tab-btn-siblings" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Other issues in series</button>
     {% if raw_xml_string %}
     <button onclick="switchDetailTab('raw')" id="detail-tab-btn-raw" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Raw XML</button>
@@ -394,29 +394,9 @@
 
   <!-- Tab: Pipeline history -->
   <div id="detail-tab-history" style="display:none;">
-    <div style="padding:16px; display:flex; flex-direction:column; gap:6px;">
-      <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px;">
-        <div style="width:10px; height:10px; border-radius:50%; background:var(--cm-ok); flex-shrink:0;"></div>
-        <span class="mono tnum" style="font-size:11px; color:var(--cm-fg-3); width:130px; flex-shrink:0;">{{ comic.imported_at|date:"Y-m-d H:i"|default:"—" }}</span>
-        <span style="font-size:12.5px; color:var(--cm-fg);">Comic imported</span>
-        <span class="cm-chip" style="font-size:10px; margin-left:auto;">system</span>
-      </div>
-      {% if comic.updated_at != comic.imported_at %}
-      <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px;">
-        <div style="width:10px; height:10px; border-radius:50%; background:var(--cm-accent); flex-shrink:0;"></div>
-        <span class="mono tnum" style="font-size:11px; color:var(--cm-fg-3); width:130px; flex-shrink:0;">{{ comic.updated_at|date:"Y-m-d H:i"|default:"—" }}</span>
-        <span style="font-size:12.5px; color:var(--cm-fg);">Last updated — state: {{ comic.get_state_display }}</span>
-        <span class="cm-chip" style="font-size:10px; margin-left:auto;">system</span>
-      </div>
-      {% endif %}
-      {% if comic.last_written %}
-      <div style="display:flex; align-items:center; gap:10px; padding:8px 12px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px;">
-        <div style="width:10px; height:10px; border-radius:50%; background:var(--cm-info); flex-shrink:0;"></div>
-        <span class="mono tnum" style="font-size:11px; color:var(--cm-fg-3); width:130px; flex-shrink:0;">{{ comic.last_written|date:"Y-m-d H:i:s" }}</span>
-        <span style="font-size:12.5px; color:var(--cm-fg);">Written to CBZ</span>
-        <span class="cm-chip" style="font-size:10px; margin-left:auto;">system</span>
-      </div>
-      {% endif %}
+    <div style="padding:20px 16px; display:flex; align-items:center; gap:8px; color:var(--cm-fg-3); font-size:12px;">
+      <span class="loading loading-spinner loading-xs"></span>
+      Loading history…
     </div>
   </div>
 

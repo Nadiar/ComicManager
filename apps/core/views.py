@@ -492,6 +492,18 @@ def comic_detail(request, pk):
     })
 
 
+def comic_audit_history(request, pk):
+    """HTMX partial: per-comic audit log timeline."""
+    from .audit import get_comic_audit_history
+    comic = get_object_or_404(Comic, pk=pk)
+    entries = get_comic_audit_history(str(comic.pk))
+    return render(request, "core/partials/comic_audit_history.html", {
+        "entries": entries,
+        "comic": comic,
+    })
+
+
+
 @require_POST
 def try_rezip(request, pk):
     """

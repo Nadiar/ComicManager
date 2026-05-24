@@ -104,3 +104,25 @@ def diff_fields(comic, snapshot: dict) -> dict:
         for f, old in snapshot.items()
         if getattr(comic, f) != old
     }
+
+
+def get_comic_audit_history(uuid_str: str) -> list:
+    """Return all audit log entries for a specific comic UUID, newest first."""
+    entries = []
+    path = _log_path()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                    if entry.get("uuid") == uuid_str:
+                        entries.append(entry)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+    except FileNotFoundError:
+        pass
+    entries.reverse()
+    return entries

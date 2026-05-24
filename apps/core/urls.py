@@ -93,6 +93,7 @@ urlpatterns = [
     path("<uuid:pk>/delete/", views.delete_comic, name="delete"),
     path("<uuid:pk>/inline-field/", views.comic_inline_field, name="comic_inline_field"),
     path("<uuid:pk>/rollback/", views.comic_rollback, name="comic_rollback"),
+    path("<uuid:pk>/audit-history/", views.comic_audit_history, name="comic_audit_history"),
     path("<uuid:pk>/accept-flag/", views.accept_flag_view, name="accept_flag"),
     path("<uuid:pk>/unaccept-flag/", views.unaccept_flag_view, name="unaccept_flag"),
 ]
