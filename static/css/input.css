@@ -213,6 +213,9 @@ html, body {
   text-transform: uppercase;
   color: var(--cm-fg-2);
 }
+.cm-card-body {
+  padding: 12px 16px;
+}
 
 /* ── Input ─────────────────────────────────────────────────────────────────── */
 .cm-input {
