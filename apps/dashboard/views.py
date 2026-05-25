@@ -1111,10 +1111,12 @@ def _escape_js(text):
 @require_POST
 def smartlist_run_action(request, pk):
     """
-    Dispatch a Celery task to run a workflow action on all comics in a Smart List.
+    Dispatch a Celery task to run a workflow action on all comics in a Smart List,
+    or on a specific subset if comic_ids is provided.
 
     POST params:
         action: 'tag' | 'format' | 'organize' | 'write'
+        comic_ids: optional comma-separated list of comic PKs to restrict the action
     """
     from celery.result import AsyncResult
 
@@ -1128,19 +1130,27 @@ def smartlist_run_action(request, pk):
     if conflict:
         return conflict
 
-    # Count comics
-    qs = build_queryset(sl)
-    count = qs.count()
+    # Optional: restrict to specific comic IDs selected in the UI
+    comic_ids_raw = request.POST.get("comic_ids", "").strip()
+    comic_ids = [cid.strip() for cid in comic_ids_raw.split(",") if cid.strip()] if comic_ids_raw else None
+
+    if comic_ids is not None:
+        from apps.core.models import Comic as _Comic
+        count = _Comic.objects.filter(pk__in=comic_ids).count()
+    else:
+        qs = build_queryset(sl)
+        count = qs.count()
+
     if count == 0:
         return JsonResponse({
             "success": True,
             "processed": 0,
             "total": 0,
-            "message": "No comics in this smart list",
+            "message": "No comics to process",
         })
 
     from .tasks import run_smartlist_action_task
-    result = run_smartlist_action_task.delay(str(sl.pk), action)
+    result = run_smartlist_action_task.delay(str(sl.pk), action, comic_ids)
     request.session["smartlist_action_task_id"] = result.id
 
     action_labels = {"tag": "Re-tagging", "format": "Re-formatting", "organize": "Re-organizing", "write": "Writing"}

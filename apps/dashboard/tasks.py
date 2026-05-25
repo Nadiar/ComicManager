@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True, base=ProgressTask, name="dashboard.smartlist_action", queue="write")
-def run_smartlist_action_task(self, smart_list_id, action):
-    """Run a workflow action on every comic in a Smart List.
+def run_smartlist_action_task(self, smart_list_id, action, comic_ids=None):
+    """Run a workflow action on every comic in a Smart List, or on comic_ids if provided.
 
     `action` is one of 'tag', 'format', 'organize', 'write'. Comics whose
     state-gate prevents the action (returned as `result.skipped`) are silently
@@ -26,11 +26,6 @@ def run_smartlist_action_task(self, smart_list_id, action):
     from apps.dashboard.services import build_queryset
 
     smart_list = SmartList.objects.get(pk=smart_list_id)
-    if not smart_list.filters:
-        return {
-            "success": False, "action": action, "processed": 0, "total": 0,
-            "errors": ["Smart list has no filters — refusing to run on entire library"],
-        }
 
     action_fns = {
         "tag":      lambda c: workflow.tag(c, force=True),
@@ -48,7 +43,16 @@ def run_smartlist_action_task(self, smart_list_id, action):
         err = result.error or ""
         return "Permission" in err or "errno 28" in err  # ENOSPC = 28
 
-    qs = build_queryset(smart_list).values_list("pk", flat=True)
+    if comic_ids is not None:
+        qs = Comic.objects.filter(pk__in=comic_ids).values_list("pk", flat=True)
+    else:
+        if not smart_list.filters:
+            return {
+                "success": False, "action": action, "processed": 0, "total": 0,
+                "errors": ["Smart list has no filters — refusing to run on entire library"],
+            }
+        qs = build_queryset(smart_list).values_list("pk", flat=True)
+
     base = batch_workflow_run(
         self, qs,
         process=action_fns[action],
