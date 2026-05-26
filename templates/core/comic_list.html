@@ -1015,7 +1015,7 @@ function processNextScrape() {
 }
 
 function scrapeComic(pk, btn) {
-  if (document.getElementById('confirm-scrape-checkbox')?.checked) {
+  if (document.getElementById('confirm-scrape-checkbox')?.checked || btn?.dataset.forceModal === 'true') {
     openListScrapeModal(pk, btn);
   } else {
     window.runAction([pk], 'scrape', { label: 'Scraping', force: isForceScrape });

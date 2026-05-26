@@ -211,7 +211,7 @@
     {% if new_comics_non_cbz > 0 %}
     <div style="padding:7px 16px;background:var(--cm-warn-dim);border-bottom:1px solid var(--cm-border);display:flex;align-items:center;gap:8px;">
       <span style="font-size:11px;color:var(--cm-warn);">{{ new_comics_non_cbz }} file{{ new_comics_non_cbz|pluralize }} need CBR/PDF conversion before they can go through the pipeline.</span>
-      <a href="/comics/?state=new&file_format=cbr" class="cm-btn sm ghost" style="flex-shrink:0;font-size:10px;">View</a>
+      <a href="/comics/?flag=needs_conversion" class="cm-btn sm ghost" style="flex-shrink:0;font-size:10px;">View</a>
     </div>
     {% endif %}
 
