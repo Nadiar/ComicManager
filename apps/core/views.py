@@ -1690,11 +1690,6 @@ def run_full_pipeline(request):
     pks = request.POST.getlist("pks")
     if comic_id:
         comic = get_object_or_404(Comic, pk=comic_id)
-        if comic.state != Comic.STATE_NEW:
-            return JsonResponse(
-                {"success": False, "error": f"Comic is not in new state (current: {comic.state})"},
-                status=400,
-            )
         if comic.file_format != "cbz":
             return JsonResponse(
                 {"success": False, "error": f"Pipeline only supports CBZ files (this is {comic.file_format or 'unknown'})"},

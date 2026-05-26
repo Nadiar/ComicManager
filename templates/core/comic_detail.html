@@ -206,6 +206,12 @@
     <div class="cm-card" style="padding:12px;">
       <div class="cm-section-lbl" style="margin-bottom:8px;">Actions</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        {% if comic.is_digital and comic.file_path %}
+        <button onclick="openPipelineConfirmModal()" id="action-run-pipeline" class="cm-btn ok" style="justify-content:center; font-size:11.5px; grid-column:span 2;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Run Pipeline
+        </button>
+        {% endif %}
         <a href="/comics/{{ comic.pk }}/edit/" class="cm-btn primary" style="justify-content:center; font-size:11.5px; text-decoration:none; grid-column:span 2;">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
           Edit
@@ -234,6 +240,12 @@
         <button onclick="openPageManager()" id="action-manage-pages" class="cm-btn" style="justify-content:flex-center; font-size:11.5px;">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
           Manage Pages
+        </button>
+        {% endif %}
+        {% if comic.state == 'deduplicate' %}
+        <button onclick="runDeduplicate()" id="action-deduplicate" class="cm-btn" style="justify-content:center; font-size:11.5px; grid-column:span 2;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          Deduplicate
         </button>
         {% endif %}
       </div>
@@ -495,6 +507,23 @@
       <div id="organize-result-box" style="border-radius:6px; padding:10px 14px; border:1px solid var(--cm-border);"><span id="organize-result-text"></span></div>
     </div>
     <div style="display:flex; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--cm-border);"><form method="dialog"><button class="cm-btn sm primary" onclick="setTimeout(() => location.reload(), 100)">OK</button></form></div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Pipeline Confirmation Modal -->
+<dialog id="pipeline-confirm-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-md" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:20px;">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 12px;">Run Full Pipeline</h3>
+    <p style="font-size:13px; color:var(--cm-fg-2); margin:0 0 10px;">Runs the full pipeline for this comic: scrape, tag, format, deduplicate, organize, and write.</p>
+    <p style="font-size:12px; color:var(--cm-warn); margin:0 0 16px;">The pipeline stops at deduplication if a duplicate is found, requiring manual review before continuing.</p>
+    <div style="display:flex; justify-content:flex-end; gap:8px; padding-top:14px; border-top:1px solid var(--cm-border);">
+      <form method="dialog"><button class="cm-btn sm ghost">Cancel</button></form>
+      <button class="cm-btn sm ok" onclick="document.getElementById('pipeline-confirm-modal').close(); confirmRunPipeline();">
+        <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Run Pipeline
+      </button>
+    </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
@@ -774,8 +803,9 @@ async function runAction(action) {
     const r = await fetch(actionEndpoints[action], { method: 'POST', headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' } });
     const data = await r.json();
     if (data.task_id) {
-      if (btn) btn.innerHTML = '<span style="color:var(--cm-info);">Running...</span>';
+      if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
       if (window.startTaskPolling) window.startTaskPolling(data.task_id, actionLabels[action] || 'Processing');
+      else if (window.showQuickToast) window.showQuickToast('Task started');
     } else if (data.success) {
       if (btn) btn.innerHTML = '<span style="color:var(--cm-ok);">Done!</span>';
       if (action === 'tag') showTagResultModal(comicTitle, data);
@@ -791,6 +821,65 @@ async function runAction(action) {
     if (btn) btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>';
     showMsgToast('Network error: ' + err.message, 'error');
     setTimeout(() => { if (btn) { btn.innerHTML = origHtml; btn.disabled = false; } }, 2000);
+  }
+}
+
+function openPipelineConfirmModal() {
+  document.getElementById('pipeline-confirm-modal').showModal();
+}
+
+async function confirmRunPipeline() {
+  const btn = document.getElementById('action-run-pipeline');
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Starting...'; btn.disabled = true; }
+  const fd = new FormData();
+  fd.append('comic_id', comicPk);
+  try {
+    const r = await fetch('/comics/run-pipeline/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd });
+    const data = await r.json();
+    if (data.task_id) {
+      if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Pipeline');
+      else if (window.showQuickToast) window.showQuickToast('Pipeline started');
+    } else if (data.success) {
+      if (btn) btn.innerHTML = '<span style="color:var(--cm-ok);">Done!</span>';
+      if (window.showQuickToast) window.showQuickToast(data.message || 'Pipeline complete!');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
+    }
+  } catch (err) {
+    if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+    showMsgToast('Network error: ' + err.message, 'error');
+  }
+}
+
+async function runDeduplicate() {
+  const btn = document.getElementById('action-deduplicate');
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Checking...'; btn.disabled = true; }
+  document.activeElement.blur();
+  const fd = new FormData();
+  fd.append('pks', comicPk);
+  try {
+    const r = await fetch('/comics/deduplicate-selected/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd });
+    const data = await r.json();
+    if (data.success) {
+      if (btn) btn.innerHTML = '<span style="color:var(--cm-ok);">Done!</span>';
+      if (data.groups_created > 0) {
+        if (window.showQuickToast) window.showQuickToast(`${data.groups_created} duplicate group(s) found. Review in the Duplicates section.`);
+      } else {
+        if (window.showQuickToast) window.showQuickToast('No duplicates found. Comic advanced to organized state.');
+      }
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
+    }
+  } catch (err) {
+    if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+    showMsgToast('Network error: ' + err.message, 'error');
   }
 }
 

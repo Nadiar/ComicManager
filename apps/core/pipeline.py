@@ -76,10 +76,16 @@ def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
         if comic.state == Comic.STATE_NEW:
             _run(workflow.accept(comic), "accept")
 
-        # Step 2: Scrape — apply_cv_match leaves state at TAGGED
-        _step("Scraping")
-        sr = _run(workflow.scrape(comic, scraper=scraper, insert_covers=False), "scrape")
-        result["scrape"] = sr.detail["match"]
+        # Step 2: Scrape — only auto-runs from STATE_IMPORTED (natural post-accept state).
+        # For re-runs, caller should use the Scrape button first to pick a match manually;
+        # any state past STATE_COUNTED is reset to STATE_TAGGED so downstream gates work.
+        if comic.state == Comic.STATE_IMPORTED:
+            _step("Scraping")
+            sr = _run(workflow.scrape(comic, scraper=scraper, insert_covers=False), "scrape")
+            result["scrape"] = sr.detail["match"]
+        elif comic.state not in (Comic.STATE_COUNTED, Comic.STATE_TAGGED):
+            comic.state = Comic.STATE_TAGGED
+            comic.save(update_fields=["state"])
 
         # Step 3: Tag — gate is COUNTED/TAGGED, no advance needed
         _step("Tagging")

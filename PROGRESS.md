@@ -231,8 +231,10 @@
 - [x] [UI.28] In Comics -> Grid layout: Top left corner of cover should be a select circle, so we can select 1..x comics for bulk actions
 - [x] [UI.29] In Comics -> Grid layout: rightclick a cover should show a custom rightclick form with actions to run. Including a new action where we delete the cover image. This is because some scans have an info sheet on the first page. Current workflow is select comic, go to its details page, select Actions->Manage Pages, delete the first page, save changes. 
 - [x] [UI.30] Filter rail in `/comics/` (`rail=1`) should have toggle in the settings page to be on/off by default for the user. The button on the comics page should still be there to turn it on/off on-demand. 
-- [ ] [UI.31] Change icons in sidebar to better match the links
-- [ ] [UI.32] Change icons in action bar to better match the links
+- [-] [UI.31] Change icons in sidebar to better match the links
+- [-] [UI.32] Change icons in action bar to better match the links
+- [x] [UI.33] Actions sidebar on comic details page should have a run pipeline button (should let the user confirm the comic, before running the rest of the pipeline[This is not possible with current workflow action. Button is normal pipeline. Use scrape button for confirm scape.]). 
+- [x] [UI.34] Comics details page is missing action buttons for dedupe.
 
 ## Major Issues / Bugs
 
@@ -290,6 +292,13 @@
 - [x] [BUG.48] Selecting New/Scrape/Taggning/move/Write in sidebar, then removing the filter from the rail and applying, does not remove the url filter for that stage and still highlights the stage in the sidebar. 
 - [x] [BUG.49] Smartlists using 'is empty' or 'is not empty' doesn't save that filter line, as the field if empty. Also add warning if a filter line is not gonna be saved. All smartlists/filters/etc should warn the user if a filter is not gonna be saved for some reason. 
 - [x] [BUG.50] Correct / new path isn't always shown on the comics details page.  
+- [ ] [BUG.51] In Comics details view. Pressing 'Write' makes the 'Format' button spin, but the action is 'Write'
+- [ ] [BUG.52] 'New Comics' on dashboard, when the convert button is shown, the view link should go to `/comics/?flag=needs_conversion` and not `/comics/?state=new&file_format=cbr`
+- [ ] [BUG.53] Going to `/comics/?flag=scrape_no_match` and clicking the in-line row button `Scrape` does autoscrape with no confirmation, but the flag is already no match, so we need the manual confirm scrape window.
+- [ ] [BUG.54] Toast actions doesn't batch actions correctly. Starting `Rewrite all` for "Count Updated Issue count changed - needs ComicInfo.xml rewrite" and then running a pipeline scan like from eg. 'New Comics' will replace the toast. When the pipeline is finished and the user dismisses the popup, the page reloads and the old toast for `Rewrite` will appear again. 
+- [x] [BUG.55] On `/smartlists/<uuid>/edit/`, `/tagging/ruleset/<x>/`, `/tagging/ruleset/<x>/edit/`, `/organizer/profiles/<x>/`, `/organizer/profiles/<x>/edit/` we need cm-card to have padding like 8px or something. Match it with other padding locations, check CSS.
+- [ ] [BUG.56] On `/organizer/au-scan/` the progressbar needs to use toast and not on-page bar.
+
 
 ## I.N.D.U.C.K.S. Integration
 
