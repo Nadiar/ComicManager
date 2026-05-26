@@ -35,17 +35,6 @@
   </div>
 </div>
 
-<!-- Progress indicator -->
-<div id="au-progress" style="display:none; padding:12px 16px; border-bottom:1px solid var(--cm-border); background:var(--cm-bg-2);">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:12px;">
-    <span style="font-weight:600;" id="au-progress-label"></span>
-    <span class="cm-text-muted" id="au-progress-count"></span>
-  </div>
-  <div style="background:var(--cm-bg-1); border-radius:3px; height:5px; overflow:hidden;">
-    <div id="au-progress-bar" style="height:100%; background:var(--cm-accent); width:0%; transition:width .3s;"></div>
-  </div>
-  <div id="au-progress-status" style="font-size:11px; color:var(--cm-fg-3); margin-top:4px;"></div>
-</div>
 
 {% if total_flagged == 0 %}
 <div style="padding:48px 16px; text-align:center; color:var(--cm-fg-3); font-size:14px;">
@@ -140,50 +129,6 @@
 {% endif %}
 
 <script>
-var pollTimer = null;
-
-function setProgressBar(pct, color) {
-  var bar = document.getElementById('au-progress-bar');
-  bar.style.width = pct + '%';
-  if (color) bar.style.background = color;
-}
-
-function showProgress(label) {
-  document.getElementById('au-progress').style.display = 'block';
-  document.getElementById('au-progress-label').textContent = label;
-  document.getElementById('au-progress-count').textContent = '';
-  document.getElementById('au-progress-status').textContent = 'Starting...';
-  setProgressBar(0, 'var(--cm-accent)');
-}
-
-function pollProgress(taskId, statusKey) {
-  fetch('/comics/task-progress/' + taskId + '/')
-    .then(r => r.json())
-    .then(data => {
-      if (data.state === 'PROGRESS') {
-        var pct = data.total > 0 ? Math.round((data.current / data.total) * 100) : 0;
-        setProgressBar(pct);
-        document.getElementById('au-progress-count').textContent = data.current + ' / ' + data.total;
-        var errCount = (data.errors && data.errors.length) || 0;
-        document.getElementById('au-progress-status').textContent =
-          (data[statusKey] || 0) + ' ' + statusKey + (errCount > 0 ? ', ' + errCount + ' errors' : '');
-        pollTimer = setTimeout(() => pollProgress(taskId, statusKey), 2000);
-      } else if (data.state === 'SUCCESS') {
-        setProgressBar(100, 'var(--cm-ok)');
-        document.getElementById('au-progress-count').textContent = '';
-        document.getElementById('au-progress-status').textContent = 'Complete! Reloading...';
-        setTimeout(() => location.reload(), 1500);
-      } else if (data.state === 'FAILURE') {
-        setProgressBar(100, 'var(--cm-err)');
-        document.getElementById('au-progress-status').textContent = data.error || 'Task failed';
-      } else {
-        document.getElementById('au-progress-status').textContent = data.state === 'STARTED' ? 'Starting...' : 'Queued...';
-        pollTimer = setTimeout(() => pollProgress(taskId, statusKey), 2000);
-      }
-    })
-    .catch(() => { pollTimer = setTimeout(() => pollProgress(taskId, statusKey), 4000); });
-}
-
 async function runAuScan(btn) {
   btn.disabled = true;
   var orig = btn.textContent;
@@ -193,16 +138,21 @@ async function runAuScan(btn) {
     var data = await resp.json();
     if (data.success && data.task_id) {
       btn.textContent = 'Scanning...';
-      showProgress('Scanning AU comics...');
-      pollProgress(data.task_id, 'flagged');
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Scanning AU comics');
     } else if (data.success) {
-      btn.textContent = data.message || 'Nothing to scan';
-      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000);
+      if (window.showMsgToast) window.showMsgToast(data.message || 'Nothing to scan', 'info');
+      btn.textContent = orig;
+      btn.disabled = false;
     } else {
-      btn.textContent = data.error || 'Error';
-      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000);
+      if (window.showMsgToast) window.showMsgToast(data.error || 'Error starting scan', 'error');
+      btn.textContent = orig;
+      btn.disabled = false;
     }
-  } catch { btn.textContent = 'Error'; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000); }
+  } catch {
+    if (window.showMsgToast) window.showMsgToast('Error starting scan', 'error');
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
 }
 
 function reorganizeAu(btn) {
@@ -215,16 +165,20 @@ function reorganizeAu(btn) {
       var data = await resp.json();
       if (data.success && data.task_id) {
         btn.textContent = 'Reorganizing...';
-        showProgress('Moving AU comics...');
-        pollProgress(data.task_id, 'moved');
+        if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Moving AU comics');
       } else if (data.success) {
-        btn.textContent = data.message || 'Nothing to reorganize';
+        if (window.showMsgToast) window.showMsgToast(data.message || 'Nothing to reorganize', 'info');
         setTimeout(() => location.reload(), 1500);
       } else {
-        btn.textContent = data.error || 'Error';
-        setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000);
+        if (window.showMsgToast) window.showMsgToast(data.error || 'Error starting reorganize', 'error');
+        btn.textContent = orig;
+        btn.disabled = false;
       }
-    } catch { btn.textContent = 'Error'; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 3000); }
+    } catch {
+      if (window.showMsgToast) window.showMsgToast('Error starting reorganize', 'error');
+      btn.textContent = orig;
+      btn.disabled = false;
+    }
   });
 }
 
@@ -256,16 +210,14 @@ function reorganizeSingle(pk, btn) {
 (function() {
   var scanTaskId = "{{ active_au_scan_task_id|escapejs }}";
   var reorgTaskId = "{{ active_reorganize_au_task_id|escapejs }}";
-  if (scanTaskId) {
+  if (scanTaskId && window.startTaskPolling) {
     document.getElementById('au-scan-btn').disabled = true;
     document.getElementById('au-scan-btn').textContent = 'Scanning...';
-    showProgress('Scanning AU comics...');
-    pollProgress(scanTaskId, 'flagged');
-  } else if (reorgTaskId) {
+    window.startTaskPolling(scanTaskId, 'Scanning AU comics');
+  } else if (reorgTaskId && window.startTaskPolling) {
     var btn = document.getElementById('reorganize-au-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Reorganizing...'; }
-    showProgress('Moving AU comics...');
-    pollProgress(reorgTaskId, 'moved');
+    window.startTaskPolling(reorgTaskId, 'Moving AU comics');
   }
 })();
 </script>

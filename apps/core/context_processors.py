@@ -28,3 +28,11 @@ def scraper_settings(request):
             if c.strip()
         ],
     }
+
+
+def nav_settings(request):
+    """Inject navigation visibility settings into every template."""
+    from .models import get_setting
+    return {
+        "show_au_scan": get_setting("show_au_scan", True),
+    }

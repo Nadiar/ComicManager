@@ -123,6 +123,7 @@ def seed_default_settings(sender, **kwargs):
         dict(key="show_series_completion",     label="Show Series Completion",            type="bool", group="Appearance", help_text="Show a progress bar on comic detail pages indicating how complete the series/volume is", value="true"),
         dict(key="hide_zero_maintenance_rows", label="Hide zero-count maintenance rows",  type="bool", group="Appearance", help_text="Hide rows with a count of 0 in the Review & Maintenance card on the dashboard", value="false"),
         dict(key="filter_rail_default",        label="Filter rail open by default",       type="bool", group="Appearance", help_text="Show the filter rail sidebar on the comics list page by default. Can still be toggled on-demand.", value="false"),
+        dict(key="show_au_scan",               label="Show AU Scan in navigation",        type="bool", group="Appearance", help_text="Show the AU Scan link in the sidebar and top navigation. Disable if you don't use the Alternate Universe folder feature.", value="true"),
     ]
 
     for d in defaults:

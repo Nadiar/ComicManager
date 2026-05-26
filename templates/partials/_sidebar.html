@@ -80,10 +80,12 @@
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 12V6a1 1 0 011-1h4l1.5 1.5H13a1 1 0 011 1v4.5a1 1 0 01-1 1H3a1 1 0 01-1-1z"/><path d="M5.5 9.5l1.5 1.5 3.5-3"/></svg>
         <span class="cm-sb-item-label">Path Audit</span>
       </a>
+      {% if show_au_scan %}
       <a href="/organizer/au-scan/" class="cm-sb-item {% if '/organizer/au-scan' in request.path %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5"/><path d="M8 5v3l2 2"/></svg>
         <span class="cm-sb-item-label">AU Scan</span>
       </a>
+      {% endif %}
       <a href="/settings/log/" class="cm-sb-item {% if request.path == '/settings/log/' %}active{% endif %}">
         <svg class="cm-sb-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="1" width="10" height="14" rx="1"/><path d="M5 5h6M5 8h6M5 11h4"/></svg>
         <span class="cm-sb-item-label">Audit Log</span>

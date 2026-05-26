@@ -60,6 +60,7 @@ TEMPLATES = [
                 "apps.core.context_processors.active_tasks",
                 "apps.core.context_processors.user_preferences",
                 "apps.core.context_processors.scraper_settings",
+                "apps.core.context_processors.nav_settings",
             ],
         },
     },

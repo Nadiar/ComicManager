@@ -42,7 +42,7 @@
             <a href="/tagging/publishers/"   class="cm-nav-dd-item">Publishers</a>
             <a href="/organizer/profiles/"   class="cm-nav-dd-item">File Organizer</a>
             <a href="/organizer/path-audit/" class="cm-nav-dd-item">Path Audit</a>
-            <a href="/organizer/au-scan/"    class="cm-nav-dd-item">AU Scan</a>
+            {% if show_au_scan %}<a href="/organizer/au-scan/"    class="cm-nav-dd-item">AU Scan</a>{% endif %}
             <a href="/settings/log/"         class="cm-nav-dd-item">Audit Log</a>
           </div>
         </div>
