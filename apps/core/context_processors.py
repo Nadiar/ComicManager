@@ -5,6 +5,7 @@ def active_tasks(request):
         "active_audit_task_id": request.session.get("audit_task_id", ""),
         "active_reorganize_task_id": request.session.get("reorganize_task_id", ""),
         "active_smartlist_action_task_id": request.session.get("smartlist_action_task_id", ""),
+        "active_pipeline_task_id": request.session.get("pipeline_task_id", ""),
         "active_task_id": request.session.get("active_task_id", ""),
         "active_task_label": request.session.get("active_task_label", ""),
     }

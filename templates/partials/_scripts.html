@@ -3,18 +3,29 @@
   <script src="/static/js/tasks.js"></script>
   <script>
   (function(){
-    var writeTaskId = "{{ active_write_task_id|escapejs }}";
-    var smartlistTaskId = "{{ active_smartlist_action_task_id|escapejs }}";
-    var genericTaskId = "{{ active_task_id|escapejs }}";
-    var genericTaskLabel = "{{ active_task_label|escapejs }}";
+    var candidates = [
+      { id: "{{ active_write_task_id|escapejs }}", label: 'Writing comics' },
+      { id: "{{ active_smartlist_action_task_id|escapejs }}", label: 'Smart list action' },
+      { id: "{{ active_pipeline_task_id|escapejs }}", label: 'Running pipeline' },
+      { id: "{{ active_task_id|escapejs }}", label: "{{ active_task_label|escapejs }}" || 'Processing' },
+    ].filter(function(t) { return t.id && !window._isTaskDone(t.id); });
 
-    if (writeTaskId && !window._isTaskDone(writeTaskId)) {
-      window.startTaskPolling(writeTaskId, 'Writing comics');
-    } else if (smartlistTaskId && !window._isTaskDone(smartlistTaskId)) {
-      window.startTaskPolling(smartlistTaskId, 'Smart list action');
-    } else if (genericTaskId && !window._isTaskDone(genericTaskId)) {
-      window.startTaskPolling(genericTaskId, genericTaskLabel || 'Processing');
-    }
+    if (!candidates.length) return;
+
+    // Verify each candidate's actual state before resuming — clears stale session keys
+    // for tasks that completed while the UI was watching a different task.
+    (async function() {
+      for (var t of candidates) {
+        try {
+          var r = await fetch('/comics/task-progress/' + t.id + '/');
+          var data = await r.json();
+          if (data.state === 'PENDING' || data.state === 'STARTED' || data.state === 'PROGRESS') {
+            window.startTaskPolling(t.id, t.label);
+            return;
+          }
+        } catch(e) {}
+      }
+    })();
   })();
   </script>
   {% include "partials/modals/_scrape.html" %}
