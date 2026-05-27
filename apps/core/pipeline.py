@@ -18,6 +18,7 @@ involving Celery.
 """
 
 from apps.core import workflow
+from apps.core.models import get_setting
 
 
 def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
@@ -81,7 +82,8 @@ def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
         # any state past STATE_COUNTED is reset to STATE_TAGGED so downstream gates work.
         if comic.state == Comic.STATE_IMPORTED:
             _step("Scraping")
-            sr = _run(workflow.scrape(comic, scraper=scraper, insert_covers=False), "scrape")
+            insert_covers = get_setting("pipeline_insert_covers", False)
+            sr = _run(workflow.scrape(comic, scraper=scraper, insert_covers=insert_covers), "scrape")
             result["scrape"] = sr.detail["match"]
         elif comic.state not in (Comic.STATE_COUNTED, Comic.STATE_TAGGED):
             comic.state = Comic.STATE_TAGGED

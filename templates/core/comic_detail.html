@@ -148,12 +148,6 @@
           <div style="padding:8px 12px; background:var(--cm-bg-1);">
             <div class="cm-section-lbl" style="margin-bottom:4px;">File</div>
             <div class="mono" style="font-size:12px; font-weight:500; color:var(--cm-fg); word-break:break-all;">{{ comic.file_path|default:"—" }}</div>
-            <div style="display:flex; gap:10px; margin-top:4px; color:var(--cm-fg-3); font-size:11px; flex-wrap:wrap; align-items:center;">
-              {% if comic.phash %}<span class="mono">sha256:{{ comic.phash|truncatechars:12 }}</span>{% endif %}
-              {% if comic.phash and comic.custom_values.comicvine_issue %}<span>·</span>{% endif %}
-              {% if comic.custom_values.comicvine_issue %}<span class="mono">CV #{{ comic.custom_values.comicvine_issue }}</span>{% endif %}
-              {% if comic.custom_values.cv_match_confidence %}<span>·</span><span style="color:var(--cm-ok);">CV match {{ comic.custom_values.cv_match_confidence }}%</span>{% endif %}
-            </div>
           </div>
         </div>
         {% endif %}
@@ -440,6 +434,18 @@
           {% if comic.is_physical %}<div><span class="cm-text-muted">Storage:</span> <span class="cm-text-primary">{{ comic.storage_location|default:"-" }}</span></div>{% endif %}
         </div>
       </div>
+      {% if comic.is_digital %}
+      <div>
+        <div class="cm-section-label-accent">File Info</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          <div><span class="cm-text-muted">Format:</span> <span class="cm-text-primary">{{ comic.file_format|upper|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Size:</span> <span class="cm-text-primary">{% if comic.file_size %}{{ comic.file_size|filesizeformat }}{% else %}-{% endif %}</span></div>
+          <div><span class="cm-text-muted">Pages:</span> <span class="cm-text-primary">{{ comic.page_count|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">pHash:</span> <code style="font-size:11px; word-break:break-all;">{{ comic.phash|default:"-" }}</code></div>
+          <div><span class="cm-text-muted">aHash:</span> <code style="font-size:11px; word-break:break-all;">{{ comic.ahash|default:"-" }}</code></div>
+        </div>
+      </div>
+      {% endif %}
       {% if display_custom_values %}
       <div>
         <div class="cm-section-label-accent">Custom Values</div>
@@ -759,8 +765,12 @@ async function refreshFileInfo() {
     const r = await fetch(`/comics/${comicPk}/refresh-file-info/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
     const data = await r.json();
     if (data.success) {
-      if (Object.keys(data.updated).length > 0) window.location.reload();
-      else { btn.innerHTML = '<span style="color:var(--cm-ok);">Up to date</span>'; setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2000); }
+      if (Object.keys(data.updated).length > 0) { window.location.reload(); return; }
+      const hs = data.hash_status;
+      const label = hs === 'unavailable' ? 'No cover image' : hs === 'skipped' ? 'No hashes (format)' : 'Up to date';
+      const color = hs === 'unavailable' ? 'var(--cm-warn)' : 'var(--cm-ok)';
+      btn.innerHTML = `<span style="color:${color};">${label}</span>`;
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
     } else { btn.textContent = orig; btn.disabled = false; showMsgToast('Refresh failed: ' + data.error, 'error'); }
   } catch (e) { btn.textContent = orig; btn.disabled = false; showMsgToast('Refresh failed: ' + e.message, 'error'); }
 }

@@ -364,7 +364,7 @@ def scrape_all_task(self):
     Falls back to the ComicVine API when the local comicvine.db is unavailable.
     Stops early if the API budget runs out (API-only mode).
     """
-    from .models import Comic
+    from .models import Comic, get_setting
     from apps.core import workflow
     from apps.scraper.comicvine import ComicVineScraper
     from apps.scraper.cv_sources import is_cv_db_available, check_api_budget, get_api_calls_remaining
@@ -386,6 +386,7 @@ def scrape_all_task(self):
         return {"matched": 0, "failed": 0, "total": 0, "errors": [], "cancelled": False}
 
     db_available = is_cv_db_available()
+    batch_insert_covers = get_setting("batch_insert_covers", False)
     matched = 0
     failed = 0
     errors = []
@@ -423,7 +424,7 @@ def scrape_all_task(self):
         except Comic.DoesNotExist:
             continue
 
-        result = workflow.scrape(comic, scraper=scraper, insert_covers=False)
+        result = workflow.scrape(comic, scraper=scraper, insert_covers=batch_insert_covers)
         if result.success:
             matched += 1
         else:
@@ -578,7 +579,7 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
 
     Supported actions: scrape, tag, format, organize, write, force_write, accept_flag, au_reorganize
     """
-    from .models import Comic
+    from .models import Comic, get_setting
     from apps.core import workflow
 
     def _run(action_fn, comic, **kwargs):
@@ -586,6 +587,7 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
         if not result.success:
             raise Exception(result.error or result.message)
 
+    batch_insert_covers = get_setting("batch_insert_covers", False)
     total = len(comic_ids)
     if total == 0:
         return {"success": True, "action": action, "processed": 0, "success_count": 0,
@@ -620,7 +622,7 @@ def bulk_action_task(self, comic_ids, action, flag_name=None):
 
         try:
             if action == "scrape":
-                _run(workflow.scrape, comic, scraper=scraper, insert_covers=False)
+                _run(workflow.scrape, comic, scraper=scraper, insert_covers=batch_insert_covers)
             elif action == "tag":
                 _run(workflow.tag, comic, force=True)
             elif action == "format":

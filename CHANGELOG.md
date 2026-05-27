@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Cover hashes persisted when hash match finds no candidate**: When hash matching computes cover hashes but finds no candidate within the Hamming distance threshold (or all candidates fail metadata cross-validation), the computed pHash and aHash are now immediately saved to the database. Previously they were only saved as a side effect of applying a match, so they were lost whenever scraping found no match at all.
+
+- **Refresh File Info hash status reporting**: The Refresh File Info action now appends a hash-specific note to its response. CBZ files where the cover image cannot be read report a warning; non-CBZ formats (PDF, CBR) report that cover hashes are not supported for the file format. Previously all cases silently showed "No changes detected".
+
 - **Duplicate Review UX improvements**: (1) Each group card now shows a tip explaining that deleting unwanted comics causes the last one to be auto-kept, and that "Keep & Del Rest" resolves everything in one step. (2) Pressing "Keep" on a comic now automatically sets `format_ok = True` on the winner. (3) Series links in the group card and the "View" button in the group detail page now open in a new tab. (4) The "Keep & Del Rest" confirmation uses the DaisyUI custom modal instead of the browser `confirm()` popup.
 
 - **Comic list column selector alphabetical order**: The "Visible Columns" dropdown now lists columns sorted alphabetically by label, making it easier to find a specific column in long lists.

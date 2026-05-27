@@ -124,9 +124,14 @@ def try_hash_match(comic, scraper, max_distance=10):
     if not hashes:
         return None
 
-    # Store hashes on comic for future deduplication use
+    # Persist hashes immediately so they survive even when no match is found.
+    # apply_cv_match does a full save later, but if scraping finds no match at
+    # all, only flags is saved — the hashes computed here would be lost.
+    hash_changed = comic.phash != hashes.phash_hex or comic.ahash != hashes.ahash_hex
     comic.phash = hashes.phash_hex
     comic.ahash = hashes.ahash_hex
+    if hash_changed:
+        comic.save(update_fields=["phash", "ahash"])
 
     matches = scraper.match_by_hash_fast(
         hashes.phash,

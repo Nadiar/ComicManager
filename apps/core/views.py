@@ -1634,6 +1634,7 @@ def scrape_comic(request, pk):
         inducks_issuecode=inducks_issuecode,
         inducks_storycode=inducks_storycode,
         force=force,
+        insert_covers=get_setting("scrape_insert_covers", True),
     )
 
     if result.skipped:
@@ -2972,15 +2973,17 @@ def force_scrape(request, pk):
     comic = get_object_or_404(Comic, pk=pk)
     stored_id = (comic.custom_values or {}).get("comicvine_issue")
 
+    insert_covers = get_setting("scrape_insert_covers", True)
     result = workflow.scrape(
         comic,
         cv_issue_id=int(stored_id) if stored_id else None,
         force=True,
+        insert_covers=insert_covers,
     )
 
     if not result.success and result.detail.get("matched") is False and stored_id:
         # Stored ID lookup failed; fall back to auto-match while still forced.
-        result = workflow.scrape(comic, force=True)
+        result = workflow.scrape(comic, force=True, insert_covers=insert_covers)
 
     if not result.success:
         if result.detail.get("rate_limited"):
@@ -3166,10 +3169,20 @@ def refresh_file_info(request, pk):
         return JsonResponse({"success": False, "error": result["error"]}, status=404)
 
     updated = result["updated"]
+    hash_status = result.get("hash_status", "skipped")
     count = len(updated)
-    message = f"Refreshed {count} field(s): {', '.join(updated.keys())}." if updated else "No changes detected — file info is already up to date."
 
-    return JsonResponse({"success": True, "updated": updated, "message": message})
+    if updated:
+        message = f"Refreshed {count} field(s): {', '.join(updated.keys())}."
+    else:
+        message = "No changes detected — file info is already up to date."
+
+    if hash_status == "unavailable":
+        message += " Warning: cover image could not be read — hashes not computed."
+    elif hash_status == "skipped":
+        message += " Cover hashes are not supported for this file format."
+
+    return JsonResponse({"success": True, "updated": updated, "hash_status": hash_status, "message": message})
 
 
 # =============================================================================
@@ -3656,7 +3669,7 @@ def _run_action_sync(comic, action, force=False):
     from apps.core import workflow
 
     if action == "scrape":
-        result = workflow.scrape(comic, force=force)
+        result = workflow.scrape(comic, force=force, insert_covers=get_setting("scrape_insert_covers", True))
         if result.success:
             return result.to_json()
         out = {"success": False, "error": result.message}
