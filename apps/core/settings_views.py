@@ -135,3 +135,19 @@ def settings_log(request):
         "action_filter": action_filter,
         "actions": AUDIT_ACTIONS,
     })
+
+
+@require_POST
+def settings_dashboard(request):
+    """HTMX endpoint: save dashboard display preferences, return updated section partial."""
+    from .models import UserPreference
+    from django.shortcuts import render
+
+    prefs = UserPreference.get()
+    prefs.dashboard_hero_style       = request.POST.get("dashboard_hero_style",      prefs.dashboard_hero_style)
+    prefs.dashboard_attention_style  = request.POST.get("dashboard_attention_style", prefs.dashboard_attention_style)
+    prefs.dashboard_show_weekly_card     = "dashboard_show_weekly_card"     in request.POST
+    prefs.dashboard_show_priority_banner = "dashboard_show_priority_banner" in request.POST
+    prefs.save()
+
+    return render(request, "core/_settings_dashboard_section.html", {"prefs": prefs})

@@ -1,0 +1,42 @@
+<div class="cm-card" style="overflow:hidden; flex-shrink:0;">
+  <div class="cm-card-hd">
+    <h3>Workflow Pipeline · Flow</h3>
+    {% if bottleneck %}<span class="cm-chip warn">bottleneck: {{ bottleneck.title }} ({{ bottleneck.count }})</span>{% endif %}
+  </div>
+  <div style="padding-top:20px; background:var(--cm-bg); position:relative;">
+    <div id="flow-nodes" style="display:grid; grid-template-columns:repeat({{ pipeline|length }},1fr); position:relative; height:100px;">
+      <div style="position:absolute; top:50%; transform:translateY(-50%); left:calc(50% / {{ pipeline|length }}); right:calc(50% / {{ pipeline|length }}); height:2px; background:var(--cm-border); z-index:0; pointer-events:none;"></div>
+      {% for stage in pipeline %}
+      <div style="display:flex; align-items:center; justify-content:center; position:relative; z-index:1; isolation:isolate;">
+        <div class="flow-node{% if stage.count > 0 and stage.state != 'done' %} cm-pulse{% endif %}"
+             data-count="{{ stage.count }}"
+             data-state="{{ stage.state }}"
+             style="border-radius:50%; display:flex; align-items:center; justify-content:center; flex-direction:column; cursor:pointer; transition:transform .15s;"
+             onclick="window.location='{{ stage.url }}'"
+             onmouseenter="this.style.transform='scale(1.08)'" onmouseleave="this.style.transform=''">
+          <span class="flow-node-count mono tnum" style="font-weight:700; line-height:1;">{{ stage.count }}</span>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:grid; grid-template-columns:repeat({{ pipeline|length }},1fr); margin-top:6px; padding-bottom:4px;">
+      {% for stage in pipeline %}
+      <div style="text-align:center; font-size:10.5px; font-weight:600; color:var(--cm-fg-2);">{{ stage.title }}</div>
+      {% endfor %}
+    </div>
+  </div>
+  <div style="display:grid; grid-template-columns:repeat({{ pipeline|length }},1fr); border-top:1px solid var(--cm-border);">
+    {% for stage in pipeline %}
+    <div style="padding:8px 10px; {% if not forloop.last %}border-right:1px solid var(--cm-border);{% endif %}">
+      {% if stage.state == "new" %}
+        <button class="cm-btn sm" style="width:100%; justify-content:center;" onclick="runAction('/comics/scan-untagged/', this, 'Scanning')">Scan</button>
+        {% if stage.count > 0 %}<button class="cm-btn sm" style="width:100%; justify-content:center; margin-top:4px;" onclick="runAction('/comics/accept-all/', this, 'Accepting')">Accept</button>{% endif %}
+      {% elif stage.count > 0 and stage.action_url %}
+        <button class="cm-btn sm" style="width:100%; justify-content:center;" onclick="runAction('{{ stage.action_url }}', this, '{{ stage.action }}')">{{ stage.action }}</button>
+      {% else %}
+        <span style="opacity:.4; font-size:11px; color:var(--cm-fg-3);">—</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>

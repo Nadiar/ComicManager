@@ -123,6 +123,7 @@ def seed_default_settings(sender, **kwargs):
         # Deduplication
         dict(key="duplicate_phash_distance", label="Cover Hash max distance", type="int", group="Deduplication", help_text="Maximum pHash Hamming distance for two covers to be considered duplicates (0 = identical, default: 5). Lower values are stricter.", value="5"),
         # Appearance
+        dict(key="owner_name",                  label="Your first name",                   type="text", group="Appearance", help_text="Used in the dashboard greeting ('Good morning, Name.'). Leave blank to show 'there'.", value=""),
         dict(key="show_series_completion",     label="Show Series Completion",            type="bool", group="Appearance", help_text="Show a progress bar on comic detail pages indicating how complete the series/volume is", value="true"),
         dict(key="hide_zero_maintenance_rows", label="Hide zero-count maintenance rows",  type="bool", group="Appearance", help_text="Hide rows with a count of 0 in the Review & Maintenance card on the dashboard", value="false"),
         dict(key="filter_rail_default",        label="Filter rail open by default",       type="bool", group="Appearance", help_text="Show the filter rail sidebar on the comics list page by default. Can still be toggled on-demand.", value="false"),

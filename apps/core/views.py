@@ -1615,6 +1615,7 @@ def scrape_comic(request, pk):
     cv_issue_id = request.POST.get("cv_issue_id") or request.POST.get("issue_id")
     inducks_issuecode = None
     inducks_storycode = None
+    is_batch = False
 
     if not cv_issue_id and request.content_type == "application/json":
         try:
@@ -1625,8 +1626,14 @@ def scrape_comic(request, pk):
                 inducks_storycode = body.get("storycode")
             else:
                 cv_issue_id = body.get("issue_id") or body.get("cv_issue_id")
+            is_batch = bool(body.get("batch"))
         except (json.JSONDecodeError, ValueError):
             pass
+
+    if is_batch:
+        insert_covers = get_setting("batch_insert_covers", False)
+    else:
+        insert_covers = get_setting("scrape_insert_covers", True)
 
     result = workflow.scrape(
         comic,
@@ -1634,7 +1641,7 @@ def scrape_comic(request, pk):
         inducks_issuecode=inducks_issuecode,
         inducks_storycode=inducks_storycode,
         force=force,
-        insert_covers=get_setting("scrape_insert_covers", True),
+        insert_covers=insert_covers,
     )
 
     if result.skipped:

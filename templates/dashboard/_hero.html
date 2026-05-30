@@ -1,0 +1,123 @@
+{% load humanize dashboard_tags %}
+{% if prefs.dashboard_hero_style == "subtle" %}
+
+{# ── Subtle hero ──────────────────────────────────────────────────────────── #}
+<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:10px; padding:18px 24px; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-shrink:0;">
+  <div>
+    <div style="font-size:16px; font-weight:600; letter-spacing:-0.01em;">{{ greeting }}, {{ owner_name|default:"there" }}.</div>
+    <div style="font-size:12.5px; color:var(--cm-fg-2); margin-top:3px;">
+      {{ stats.complete_pct }}% clean ·
+      {% for stage in pipeline %}{% if stage.state == "scrape" and stage.count > 0 %}
+        <b style="color:var(--cm-accent); margin-left:4px;">{{ stage.count }} need scraping</b>
+      {% endif %}{% endfor %}
+      <b style="color:var(--cm-warn);">{{ flagged_count }} flagged</b>
+    </div>
+  </div>
+  <div style="display:flex; gap:0; flex-shrink:0;">
+    <div style="padding:0 18px; display:flex; flex-direction:column; gap:4px;">
+      <span class="cm-section-lbl">Library</span>
+      <span class="mono tnum" style="font-size:22px; font-weight:700; color:var(--cm-fg); letter-spacing:-0.02em; line-height:1;">{{ stats.total|intcomma }}</span>
+      <span style="font-size:11px; color:var(--cm-fg-3);">{{ stats.complete_pct }}% clean</span>
+    </div>
+    <div class="cm-vdiv"></div>
+    <div style="padding:0 18px; display:flex; flex-direction:column; gap:4px;">
+      <span class="cm-section-lbl">In Flight</span>
+      <span class="mono tnum" style="font-size:22px; font-weight:700; color:var(--cm-accent); letter-spacing:-0.02em; line-height:1;">{{ stats.in_flight }}</span>
+      <span style="font-size:11px; color:var(--cm-fg-3);">across 7 stages</span>
+    </div>
+    <div class="cm-vdiv"></div>
+    <div style="padding:0 18px; display:flex; flex-direction:column; gap:4px;">
+      <span class="cm-section-lbl">Needs you</span>
+      <span class="mono tnum" style="font-size:22px; font-weight:700; color:var(--cm-warn); letter-spacing:-0.02em; line-height:1;">{{ flagged_count }}</span>
+      <span style="font-size:11px; color:var(--cm-fg-3);">flagged</span>
+    </div>
+  </div>
+</div>
+
+{% elif prefs.dashboard_hero_style == "bold" %}
+
+{# ── Bold hero ────────────────────────────────────────────────────────────── #}
+<div style="position:relative; overflow:hidden; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:10px; padding:30px 32px 24px; flex-shrink:0;">
+  {# Cover wall background — 18 recent done comics #}
+  <div aria-hidden="true" style="position:absolute; inset:0; opacity:0.18; display:flex; gap:6px; padding:6px; pointer-events:none; mask-image:linear-gradient(180deg, transparent 0%, black 35%, black 65%, transparent 100%); -webkit-mask-image:linear-gradient(180deg, transparent 0%, black 35%, black 65%, transparent 100%);">
+    {% for comic in cover_comics %}
+    <div style="flex:1; transform:translateY({% cycle '-8px' '0px' '4px' '-4px' '8px' '-6px' '2px' '-2px' '-8px' '0px' '4px' '-4px' '8px' '-6px' '2px' '-2px' '-8px' '0px' %}) rotate({% cycle '1.5deg' '-1.5deg' '1deg' '-1deg' '2deg' '-2deg' '0.5deg' '-0.5deg' %});">
+      <img src="/comics/{{ comic.pk }}/thumb/" style="width:100%; height:120px; object-fit:cover; border-radius:2px;" loading="lazy" onerror="this.style.visibility='hidden'" alt="">
+    </div>
+    {% endfor %}
+  </div>
+  <div style="position:relative;">
+    <h1 style="margin:0; font-size:34px; font-weight:700; letter-spacing:-0.03em; line-height:1.05; max-width:720px;">
+      <span style="color:var(--cm-fg);">{{ stats.total|intcomma }}</span>
+      <span style="color:var(--cm-fg-2);">comics.</span>
+    </h1>
+    <div style="margin-top:10px; font-size:14px; color:var(--cm-fg-1); max-width:640px; line-height:1.55;">
+      You're at <b>{{ stats.complete_pct }}%</b> clean.
+      {% for stage in pipeline %}{% if stage.state == "scrape" and stage.count > 0 %}
+        Keep going — {{ stage.count }} scrape{{ stage.count|pluralize }} are the only thing between you and a quiet pipeline.
+      {% endif %}{% endfor %}
+    </div>
+    <div style="margin-top:18px; display:flex; gap:8px;">
+      {% if bottleneck %}
+      <button class="cm-btn primary lg" onclick="runAction('{{ bottleneck.action_url }}', this, '{{ bottleneck.action }}')">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="flex-shrink:0;"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+        Start with the bottleneck
+      </button>
+      {% endif %}
+      <a href="/settings/log/" class="cm-btn lg ghost">View activity →</a>
+    </div>
+  </div>
+</div>
+
+{% else %}
+
+{# ── Editorial hero (default) ─────────────────────────────────────────────── #}
+<div style="position:relative; overflow:hidden; background:radial-gradient(1100px 360px at 8% -10%, color-mix(in oklch, var(--cm-accent) 14%, transparent), transparent 60%), radial-gradient(800px 320px at 95% 110%, color-mix(in oklch, var(--cm-info) 8%, transparent), transparent 55%), var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:10px; padding:28px 32px 22px; flex-shrink:0;">
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:32px;">
+    <div style="min-width:0; flex:1;">
+      <div class="cm-section-lbl" style="color:var(--cm-accent); margin-bottom:10px;">
+      <h1 style="margin:0; font-size:30px; font-weight:700; letter-spacing:-0.025em; line-height:1.1;">
+        {{ greeting }}, {{ owner_name|default:"there" }}.
+      </h1>
+      <div style="margin-top:8px; font-size:15px; color:var(--cm-fg-1); line-height:1.55; max-width:680px; text-wrap:pretty;">
+        You're at <b>{{ stats.complete_pct }}%</b> clean.
+        {% for stage in pipeline %}{% if stage.state == "scrape" and stage.count > 0 %}
+          <b style="color:var(--cm-accent);">{{ stage.count }} scrape{{ stage.count|pluralize }}</b> are blocking the pipeline, and
+        {% endif %}{% endfor %}
+        <b style="color:var(--cm-warn);">{{ flagged_count }} item{{ flagged_count|pluralize }}</b> need your eyes.
+      </div>
+    </div>
+    <div style="display:flex; align-items:flex-start; gap:0; flex-shrink:0;">
+      <div style="padding:0 22px; display:flex; flex-direction:column; gap:4px;">
+        <span class="cm-section-lbl">Library</span>
+        <span class="mono tnum" style="font-size:28px; font-weight:700; color:var(--cm-fg); letter-spacing:-0.02em; line-height:1;">{{ stats.total|intcomma }}</span>
+        <span style="font-size:11px; color:var(--cm-fg-3);">{{ stats.complete_pct }}% clean</span>
+      </div>
+      <div class="cm-vdiv"></div>
+      <div style="padding:0 22px; display:flex; flex-direction:column; gap:4px;">
+        <span class="cm-section-lbl">In Flight</span>
+        <span class="mono tnum" style="font-size:28px; font-weight:700; color:var(--cm-accent); letter-spacing:-0.02em; line-height:1;">{{ stats.in_flight }}</span>
+        <span style="font-size:11px; color:var(--cm-fg-3);">across 7 stages</span>
+      </div>
+      <div class="cm-vdiv"></div>
+      <div style="padding:0 22px; display:flex; flex-direction:column; gap:4px;">
+        <span class="cm-section-lbl">Needs you</span>
+        <span class="mono tnum" style="font-size:28px; font-weight:700; color:var(--cm-warn); letter-spacing:-0.02em; line-height:1;">{{ flagged_count }}</span>
+        <span style="font-size:11px; color:var(--cm-fg-3);">see attention</span>
+      </div>
+    </div>
+  </div>
+
+  {# Library health shelf bar #}
+  <div style="margin-top:22px; display:flex; align-items:center; gap:14px;">
+    <span class="cm-section-lbl" style="flex-shrink:0; text-transform:uppercase; letter-spacing:.06em;">Library health</span>
+    <div style="flex:1; position:relative; height:8px; background:var(--cm-bg); border-radius:999px; overflow:hidden; border:1px solid var(--cm-border);">
+      <div style="position:absolute; left:0; top:0; bottom:0; width:{{ stats.complete_pct }}%; background:linear-gradient(90deg, var(--cm-accent), color-mix(in oklch, var(--cm-accent) 60%, var(--cm-ok)));"></div>
+      <div style="position:absolute; left:{{ stats.complete_pct }}%; top:0; bottom:0; width:1px; background:var(--cm-fg); opacity:.4;"></div>
+    </div>
+    <span class="mono tnum" style="font-size:11.5px; color:var(--cm-fg-2); min-width:80px; text-align:right;">{{ stats.written|intcomma }} / {{ stats.total|intcomma }}</span>
+  </div>
+</div>
+</div>
+
+{% endif %}

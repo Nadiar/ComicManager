@@ -1026,6 +1026,7 @@ function openListScrapeModal(pk, btn) {
   window._currentScrapeBtn = btn;
   openScrapeModal(pk, {
     skipEnabled: true,
+    batch: true,
     onSuccess: function(data) {
       updateRowAfterScrape(btn, data);
       scrapeStats.matched++;

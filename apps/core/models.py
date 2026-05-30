@@ -276,6 +276,14 @@ class UserPreference(models.Model):
     PIPELINE_NEW      = "new"
     PIPELINE_FLOW     = "flow"
 
+    HERO_SUBTLE    = "subtle"
+    HERO_EDITORIAL = "editorial"
+    HERO_BOLD      = "bold"
+
+    ATTENTION_LIST   = "list"
+    ATTENTION_TRIAGE = "triage"
+    ATTENTION_GRID   = "grid"
+
     COLOR_VAR_MAP = {
         "accent": "--cm-accent",
         "bg":     "--cm-bg",
@@ -292,6 +300,11 @@ class UserPreference(models.Model):
     high_contrast      = models.BooleanField(default=False)
     oled               = models.BooleanField(default=False)
     custom_colors      = models.JSONField(default=dict, blank=True)
+
+    dashboard_hero_style           = models.CharField(max_length=16, default=HERO_EDITORIAL)
+    dashboard_attention_style      = models.CharField(max_length=16, default=ATTENTION_LIST)
+    dashboard_show_weekly_card     = models.BooleanField(default=True)
+    dashboard_show_priority_banner = models.BooleanField(default=True)
 
     class Meta:
         verbose_name = "User Preference"

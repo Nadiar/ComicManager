@@ -2,6 +2,7 @@ let _scrapePk = null;
 let _scrapeOnSuccess = null;
 let _scrapeOnSkip = null;
 let _scrapeOnCancel = null;
+let _scrapeBatch = false;
 window._scrapeHandled = false;
 
 let _scrapeApiAllMatches = [];
@@ -16,6 +17,7 @@ function openScrapeModal(pk, opts) {
   _scrapeOnSuccess = opts.onSuccess || function() { location.reload(); };
   _scrapeOnSkip    = opts.onSkip    || null;
   _scrapeOnCancel  = opts.onCancel  || null;
+  _scrapeBatch     = !!(opts.batch);
   window._scrapeHandled = false;
 
   const skipBtn = document.getElementById('scrape-skip-btn');
@@ -355,9 +357,10 @@ function scrapeSelectMatch(issueId, source, issuecode, storycode) {
   window._scrapeHandled = true;
   document.getElementById('scrape-modal').close();
 
-  const payload = source === 'inducks'
+  const base = source === 'inducks'
     ? { source: 'inducks', ...(issuecode ? { issuecode } : {}), ...(storycode ? { storycode } : {}) }
     : { issue_id: issueId };
+  const payload = _scrapeBatch ? { ...base, batch: true } : base;
 
   fetch(`/comics/${_scrapePk}/scrape/`, {
     method: 'POST',

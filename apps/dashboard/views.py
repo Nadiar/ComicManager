@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Count, Q
+from django.utils import timezone
 from apps.core.models import Comic
 from .models import SmartList
 from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS, active_task_conflict
@@ -295,6 +296,192 @@ def index(request):
     cv_status = get_cv_source_status()
     hide_zero_maintenance_rows = get_setting("hide_zero_maintenance_rows", False)
 
+    # ── Editorial dashboard additions ─────────────────────────────────────────
+    from .helpers import get_greeting, get_bottleneck, get_week_history
+    from apps.core.models import UserPreference
+
+    prefs_obj = UserPreference.get()
+
+    owner_name = get_setting("owner_name", "")
+
+    greeting = get_greeting()
+    week_history = get_week_history()
+
+    this_week = sum(week_history[7:])
+    last_week  = sum(week_history[:7])
+    delta      = this_week - last_week
+    delta_pct  = round((delta / max(last_week, 1)) * 100)
+    week_up    = delta >= 0
+
+    # Pre-compute bar data for template (list of dicts with height, color class, opacity)
+    wmax = max(week_history, default=0) or 1
+    week_bars = [
+        {
+            "value":       v,
+            "height_pct":  max(round((v / wmax) * 100), 2),
+            "is_this_week": i >= 7,
+            "is_last":     i == 13,
+        }
+        for i, v in enumerate(week_history)
+    ]
+    # Also compute sparkline bars for pipeline header (same data)
+    sparkline_bars = [
+        {
+            "value":      v,
+            "height_pct": max(round((v / wmax) * 18), 2),
+            "opacity":    round(0.35 + (i / 13) * 0.65, 2),
+        }
+        for i, v in enumerate(week_history)
+    ]
+
+    # Enrich pipeline list with n/title/action_url for the redesigned cards
+    _action_urls = {
+        "new":         "/comics/scan-untagged/",
+        "scrape":      "/comics/scrape-all/",
+        "tagging":     "/comics/tag-all/",
+        "formats":     "/comics/format-all/",
+        "deduplicate": "/comics/deduplicate-all/",
+        "move":        "/comics/organize-all/",
+        "write":       "/comics/write-all/",
+        "done":        "/comics/sync-library-paths/",
+    }
+    _click_urls = {
+        "deduplicate": "/duplicates/",
+        "formats":     "/comics/format/",
+    }
+    for i, stage in enumerate(pipeline):
+        stage["n"] = i + 1
+        stage["title"] = stage["label"][3:]  # strip "N. " prefix
+        stage["action_url"] = _action_urls.get(stage["state"], "")
+        stage["url"] = _click_urls.get(stage["state"], f"/comics/?state={stage['state']}")
+
+    bottleneck = get_bottleneck(pipeline)
+
+    # 18-cover sample for Bold hero background (use latest done comics with covers)
+    cover_comics = list(
+        Comic.objects.filter(state=Comic.STATE_DONE)
+        .order_by("-last_written")[:18]
+    )
+
+    # Ranked attention queue (triage: severity then count)
+    _sev_order = {"err": 0, "warn": 1, "info": 2}
+    active_review = [item for item in review_queue
+                     if item["flag"] not in ("count_mismatch", "format_mismatch_in_volume",
+                                             "cv_volume_conflict") and item.get("action") != "reformat"]
+    active_review_with_count = [item for item in active_review if item["count"] > 0]
+    ranked_review = sorted(active_review_with_count,
+                           key=lambda x: (_sev_order.get(x["sev"], 3), -x["count"]))
+    active_review_items = active_review_with_count
+
+    from django.urls import reverse as _reverse
+    maintenance_items = [
+        {
+            "flag": "count_mismatch",
+            "label": "Count Mismatch",
+            "description": "Comics in same volume disagree on issue count",
+            "count": count_mismatch_count,
+            "sev": "warn",
+            "link": "/comics/?flag=count_mismatch",
+            "action_url": "/comics/detect-count-mismatches/",
+            "action_label": "Detect",
+            "action_progress": "",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "format_mismatch_in_volume",
+            "label": "Format Mismatch",
+            "description": "Same CV volume has conflicting formats",
+            "count": format_mismatch_count,
+            "sev": "warn",
+            "link": "/comics/?flag=format_mismatch_in_volume",
+            "action_url": "/comics/detect-format-conflicts/",
+            "action_label": "Detect",
+            "action_progress": "",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "cv_volume_conflict",
+            "label": "CV Volume Conflict",
+            "description": "Same Series+Volume linked to different CV volumes",
+            "count": cv_volume_conflict_count,
+            "sev": "warn",
+            "link": "/comics/?flag=cv_volume_conflict",
+            "action_url": None,
+            "action_label": None,
+            "action_progress": "",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "needs_reformat",
+            "label": "Format Upgrade",
+            "description": "Issue count changed — format should be upgraded",
+            "count": needs_reformat_count,
+            "sev": "warn",
+            "link": "/comics/format/",
+            "action_url": "/comics/reformat-flagged/",
+            "action_label": "Re-format",
+            "action_progress": "Re-formatting",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "duplicates",
+            "label": "Duplicates",
+            "description": "Pending duplicate groups",
+            "count": dup_total,
+            "sev": "warn",
+            "link": _reverse("duplicates:review"),
+            "action_url": None,
+            "action_label": None,
+            "action_progress": "",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "needs_reorganize",
+            "label": "Needs Re-organize",
+            "description": "Metadata changed since last organize",
+            "count": needs_reorganize_count,
+            "sev": "info",
+            "link": _reverse("organizer:path_audit"),
+            "action_url": _reverse("organizer:start_reorganize_all"),
+            "action_label": "Re-organize",
+            "action_progress": "Re-organizing",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "stale",
+            "label": "Stale Metadata",
+            "description": "DB updated after last ComicInfo.xml write",
+            "count": stale_count,
+            "sev": "info",
+            "link": _reverse("core:list") + "?state=write",
+            "action_url": _reverse("core:write_stale"),
+            "action_label": "Write Stale",
+            "action_progress": "Writing stale",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "missing_comicinfo",
+            "label": "Missing ComicInfo",
+            "description": "Written comics never had ComicInfo.xml written",
+            "count": missing_comicinfo_count,
+            "sev": "info",
+            "link": None,
+            "action_url": _reverse("core:write_missing"),
+            "action_label": "Write Missing",
+            "action_progress": "Writing missing",
+            "is_maintenance": True,
+        },
+    ]
+    maintenance_items_with_count = [i for i in maintenance_items if i["count"] > 0]
+    maintenance_items_count = sum(i["count"] for i in maintenance_items)
+
+    # Triage combined list: active items first (sorted), then maintenance items (sorted)
+    # Maintenance items go after all active items so rank numbers have no gaps when maintenance is hidden.
+    ranked_all = (
+        sorted(active_review_with_count, key=lambda x: (_sev_order.get(x["sev"], 3), -x["count"])) +
+        sorted(maintenance_items_with_count, key=lambda x: (_sev_order.get(x["sev"], 3), -x["count"]))
+    )
+
     return render(request, "dashboard/index.html", {
         "stats": stats,
         "pipeline": pipeline,
@@ -318,6 +505,24 @@ def index(request):
         "new_comics_non_cbz": new_comics_non_cbz,
         "zero_day_hours": zero_day_hours,
         "new_comics_0day_count": new_comics_0day_count,
+        # editorial dashboard
+        "greeting":       greeting,
+        "owner_name":     owner_name,
+        "week_history":   week_history,
+        "week_bars":      week_bars,
+        "sparkline_bars": sparkline_bars,
+        "this_week":      this_week,
+        "last_week":      last_week,
+        "delta_pct":      abs(delta_pct),
+        "week_up":        week_up,
+        "bottleneck":     bottleneck,
+        "cover_comics":   cover_comics,
+        "ranked_review":             ranked_review,
+        "active_review_items":       active_review_items,
+        "maintenance_items":         maintenance_items,
+        "maintenance_items_with_count": maintenance_items_with_count,
+        "maintenance_items_count":   maintenance_items_count,
+        "ranked_all":                ranked_all,
     })
 
 

@@ -1,0 +1,7 @@
+{% if maintenance_items_count > 0 %}
+<button class="cm-btn sm" onclick="toggleAttentionMaintenance(this)"
+        data-label-show="+ {{ maintenance_items_count }} maintenance"
+        data-label-hide="&minus; hide maintenance">
+  + {{ maintenance_items_count }} maintenance
+</button>
+{% endif %}

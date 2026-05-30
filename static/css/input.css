@@ -246,6 +246,13 @@ html, body {
 .cm-row:hover { background: var(--cm-bg-2); }
 .cm-row.selected { background: var(--cm-accent-dim); }
 
+/* ── Vertical divider ──────────────────────────────────────────────────────── */
+.cm-vdiv { width: 1px; align-self: stretch; background: var(--cm-border); margin: 4px 0; flex-shrink: 0; }
+
+/* ── Hoverable rows / cards ────────────────────────────────────────────────── */
+.cm-hoverable { cursor: pointer; transition: background .12s; }
+.cm-hoverable:hover { background: var(--cm-bg-2); }
+
 /* ── Progress bar ──────────────────────────────────────────────────────────── */
 .cm-progress {
   position: relative;

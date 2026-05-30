@@ -1,0 +1,44 @@
+<div class="cm-card" style="overflow:hidden; flex-shrink:0;">
+  <div class="cm-card-hd" style="padding:12px 18px; display:flex; align-items:center; justify-content:space-between;">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <h3 style="margin:0;">Workflow Pipeline</h3>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span style="font-size:11px; color:var(--cm-fg-3);">14d throughput</span>
+      <div style="display:flex; align-items:flex-end; gap:2px; height:18px;">
+        {% for bar in sparkline_bars %}
+        <span style="display:inline-block; width:3px; height:{{ bar.height_pct }}px; max-height:18px; min-height:2px; background:var(--cm-accent); opacity:{{ bar.opacity }}; border-radius:1px;"></span>
+        {% endfor %}
+      </div>
+      <span class="mono tnum" style="font-size:11px; color:var(--cm-fg-2);">+{{ this_week }} this wk</span>
+    </div>
+  </div>
+  <div style="display:flex; height:124px; background:var(--cm-bg);">
+    {% for stage in pipeline %}
+    <div class="pipe-seg {% if stage.count > 0 and stage.state != 'done' %}active{% elif stage.state == 'done' %}done{% endif %}"
+         onclick="{% if stage.state == 'done' %}return false{% else %}window.location='{{ stage.url }}'{% endif %}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="mono" style="font-size:10px; color:var(--cm-fg-3); width:10px;">{{ stage.n }}</span>
+          <span style="font-size:11.5px; font-weight:600; color:var(--cm-fg);">{{ stage.title }}</span>
+        </div>
+        {% if stage.count > 0 and stage.state != "done" %}
+        <span class="cm-dot cm-pulse" style="color:var(--cm-accent); flex-shrink:0; margin-top:2px;"></span>
+        {% endif %}
+      </div>
+      <div style="font-size:10.5px; color:var(--cm-fg-3); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ stage.description }}</div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:auto;">
+        <span class="mono tnum" style="font-size:19px; font-weight:700; color:{% if stage.count == 0 %}var(--cm-fg-3){% elif stage.state == 'done' %}var(--cm-ok){% else %}var(--cm-accent){% endif %};">{{ stage.count }}</span>
+        {% if stage.state == "new" %}
+          <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
+            <button class="cm-btn sm" style="background:var(--cm-accent); color:var(--cm-accent-fg); border-color:transparent; font-weight:600;" onclick="event.stopPropagation(); runAction('/comics/scan-untagged/', this, 'Scanning')">Scan for New</button>
+            {% if stage.count > 0 %}<button class="cm-btn sm" onclick="event.stopPropagation(); runAction('/comics/accept-all/', this, 'Accepting')">Accept All</button>{% endif %}
+          </div>
+        {% elif stage.count > 0 and stage.action_url %}
+          <button class="cm-btn sm" style="{% if stage.state != 'done' %}background:var(--cm-accent); color:var(--cm-accent-fg);{% else %}background:var(--cm-bg-2);{% endif %} border-color:transparent; font-weight:600;" onclick="event.stopPropagation(); runAction('{{ stage.action_url }}', this, '{{ stage.action }}')">{{ stage.action }}</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
