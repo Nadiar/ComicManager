@@ -207,14 +207,11 @@ def index(request):
     needs_reorganize_count = Comic.objects.filter(needs_reorganize=True).count()
 
     # Stale metadata queue (written before but DB updated since)
-    from django.db.models import BooleanField, Case, F, Value, When
-    stale_count = Comic.objects.annotate(
-        is_stale=Case(
-            When(last_written__isnull=False, updated_at__gt=F("last_written"), then=Value(True)),
-            default=Value(False),
-            output_field=BooleanField(),
-        )
-    ).filter(is_stale=True).count()
+    from django.db.models import F
+    stale_count = Comic.objects.filter(
+        last_written__isnull=False,
+        updated_at__gt=F("last_written"),
+    ).count()
 
     # Maintenance: duplicates
     from apps.duplicates.models import DuplicateGroup
@@ -453,7 +450,7 @@ def index(request):
             "description": "DB updated after last ComicInfo.xml write",
             "count": stale_count,
             "sev": "info",
-            "link": _reverse("core:list") + "?state=write",
+            "link": _reverse("core:list") + "?stale=1",
             "action_url": _reverse("core:write_stale"),
             "action_label": "Write Stale",
             "action_progress": "Writing stale",

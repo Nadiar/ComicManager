@@ -133,6 +133,7 @@ def _build_comic_list_queryset(params):
     format_filter = format_list[0] if len(format_list) == 1 else ""
     medium = params.get("medium", "") or ""
     needs_reformat = params.get("needs_reformat", "") or ""
+    stale = params.get("stale", "") or ""
     year_min = params.get("year_min", "") or ""
     year_max = params.get("year_max", "") or ""
 
@@ -199,6 +200,9 @@ def _build_comic_list_queryset(params):
         comics = comics.filter(**{f"flags__{flag}": True})
     if needs_reformat:
         comics = comics.filter(needs_reformat=True)
+    if stale:
+        from django.db.models import F as _F
+        comics = comics.filter(last_written__isnull=False, updated_at__gt=_F("last_written"))
     if year_min:
         try:
             comics = comics.filter(year__gte=int(year_min))

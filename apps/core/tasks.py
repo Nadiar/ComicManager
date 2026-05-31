@@ -27,10 +27,9 @@ def _write_queue_qs(filter_mode):
     if filter_mode == "stale":
         return (
             Comic.objects.filter(
-                state=Comic.STATE_WRITTEN,
                 last_written__isnull=False,
+                updated_at__gt=F("last_written"),
             )
-            .filter(updated_at__gt=F("last_written"))
             .values_list("pk", flat=True)
         )
     if filter_mode == "missing":
