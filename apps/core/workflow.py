@@ -752,6 +752,19 @@ def write(comic, *, force=False) -> ActionResult:
             )
 
     if comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz"):
+        # Insert any alt covers that were deferred from scrape time
+        pending_urls = comic.custom_values.pop("pending_alt_cover_urls", None)
+        if pending_urls and comic.custom_values.get("HasAltCovers") != "Yes":
+            from apps.core.cbz_utils import insert_variant_covers
+            from apps.core.cover_cache import invalidate_comic_pages
+            inserted = insert_variant_covers(comic.file_path, pending_urls)
+            if inserted > 0:
+                comic.custom_values["HasAltCovers"] = "Yes"
+                comic.custom_values["AltCoverCount"] = inserted
+                if comic.page_count:
+                    comic.page_count += inserted
+                invalidate_comic_pages(comic.pk)
+
         try:
             ok = write_comicinfo_xml(comic.file_path, comic)
         except Exception as e:

@@ -350,9 +350,9 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
     STATE_COUNTED, and propagates the issue count to other comics in the volume.
 
     Args:
-        insert_covers: If False, skip variant cover insertion into the CBZ.
-                       Always pass False during batch scraping to avoid extracting
-                       and recompressing every CBZ file (major performance gain).
+        insert_covers: If True, download and insert variant covers into the CBZ now.
+                       If False, store the cover URLs in custom_values so the write
+                       step can insert them later (avoids CBZ extraction during scraping).
     """
     from apps.core.models import Comic
     from apps.core.utils import html_to_text
@@ -427,25 +427,29 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
     comic.custom_values["scrape_source"] = match.match_type
     comic.custom_values["scrape_score"] = str(match.match_score)
 
-    # Insert variant covers into the CBZ if available (skip during batch scraping)
-    if (insert_covers
-            and comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz")
+    # Handle variant covers for digital CBZ comics that haven't had covers inserted yet
+    if (comic.is_digital and comic.file_path and comic.file_path.lower().endswith(".cbz")
             and match.cover_urls and comic.custom_values.get("HasAltCovers") != "Yes"):
-        variants = []
+        unique_urls = []
         seen_urls = set()
         for url in match.cover_urls:
             if url and url not in seen_urls:
-                variants.append(url)
+                unique_urls.append(url)
                 seen_urls.add(url)
-        if variants:
-            inserted = insert_variant_covers(comic.file_path, variants)
-            if inserted > 0:
-                comic.custom_values["HasAltCovers"] = "Yes"
-                comic.custom_values["AltCoverCount"] = inserted
-                if comic.page_count:
-                    comic.page_count += inserted
-                from apps.core.cover_cache import invalidate_comic_pages
-                invalidate_comic_pages(comic.pk)
+
+        if unique_urls:
+            if insert_covers:
+                inserted = insert_variant_covers(comic.file_path, unique_urls)
+                if inserted > 0:
+                    comic.custom_values["HasAltCovers"] = "Yes"
+                    comic.custom_values["AltCoverCount"] = inserted
+                    if comic.page_count:
+                        comic.page_count += inserted
+                    from apps.core.cover_cache import invalidate_comic_pages
+                    invalidate_comic_pages(comic.pk)
+            else:
+                # Defer insertion to write time
+                comic.custom_values["pending_alt_cover_urls"] = unique_urls
 
     comic.remove_flag("scrape_no_match")
     comic.remove_flag("scrape_error")
