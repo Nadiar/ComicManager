@@ -13,7 +13,10 @@
       {{ total_tagged }} comic{{ total_tagged|pluralize }} in tagged state{% if total_reformat %} · {{ total_reformat }} need{{ total_reformat|pluralize:",s" }} re-formatting{% endif %}
     </p>
   </div>
-  <a href="/" class="cm-btn sm ghost" cm-no-underline">Back to Dashboard</a>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <button class="cm-btn sm ghost" onclick="runDetectFormatUpgrades(this)">Detect Format Upgrades</button>
+    <a href="/" class="cm-btn sm ghost" cm-no-underline">Back to Dashboard</a>
+  </div>
 </div>
 
 <div style="padding:16px; display:flex; flex-direction:column; gap:12px;">
@@ -82,7 +85,7 @@
 
 <!-- Format groups -->
 {% for group in format_groups %}
-<div class="cm-card">
+<div class="cm-card" style="padding:16px;">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
     <div>
       <div style="font-size:15px; font-weight:700;">{{ group.name }}</div>
@@ -138,4 +141,27 @@
 
 </div>
 </div>
+
+<script>
+function runDetectFormatUpgrades(btn) {
+  showConfirm('Scan all count-based comics for format upgrades?', async () => {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Scanning...';
+    try {
+      const resp = await fetch('{% url "core:detect_format_upgrades" %}', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+      const data = await resp.json();
+      if (data.task_id) {
+        btn.textContent = 'Running...';
+        if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Detecting format upgrades');
+      } else {
+        btn.textContent = data.error || 'Error';
+        btn.disabled = false;
+      }
+    } catch {
+      btn.textContent = 'Error';
+      btn.disabled = false;
+    }
+  });
+}
+</script>
 {% endblock %}
