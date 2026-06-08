@@ -1,0 +1,63 @@
+<div id="task-health-section" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:18px 20px;">
+  <div style="font-size:14px; font-weight:600; color:var(--cm-fg-1); margin-bottom:4px;">Task Health</div>
+  <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">Finds tasks that are stuck in a running state but no longer executing.</p>
+
+  {% if not checked %}
+    <button class="cm-btn sm ghost"
+            hx-get="{% url 'settings:task_health_check' %}"
+            hx-target="#task-health-section"
+            hx-swap="outerHTML">
+      Check for stuck tasks
+    </button>
+
+  {% elif just_cleared %}
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+      <span class="cm-chip ok">Cleared {{ cleared_count }} stuck task{{ cleared_count|pluralize }}</span>
+    </div>
+    <button class="cm-btn sm ghost"
+            hx-get="{% url 'settings:task_health_check' %}"
+            hx-target="#task-health-section"
+            hx-swap="outerHTML">
+      Check again
+    </button>
+
+  {% elif stuck_tasks %}
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+      {% for t in stuck_tasks %}
+      <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; font-size:12px;">
+        <span class="cm-chip warn">{{ t.status }}</span>
+        <code style="color:var(--cm-fg-1); flex:1;">{{ t.task_name|default:"unknown" }}</code>
+        <span style="color:var(--cm-fg-3);">last seen {{ t.date_done|timesince }} ago</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button class="cm-btn sm err"
+              hx-post="{% url 'settings:task_health_clear' %}"
+              hx-target="#task-health-section"
+              hx-swap="outerHTML"
+              hx-confirm="Force-stop {{ stuck_tasks|length }} stuck task{{ stuck_tasks|length|pluralize }}? This marks them as failed and clears the progress toast."
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        Force stop all
+      </button>
+      <button class="cm-btn sm ghost"
+              hx-get="{% url 'settings:task_health_check' %}"
+              hx-target="#task-health-section"
+              hx-swap="outerHTML">
+        Refresh
+      </button>
+    </div>
+
+  {% else %}
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+      <span class="cm-chip ok">No stuck tasks</span>
+      <span style="font-size:12px; color:var(--cm-fg-3);">All tasks have completed normally.</span>
+    </div>
+    <button class="cm-btn sm ghost"
+            hx-get="{% url 'settings:task_health_check' %}"
+            hx-target="#task-health-section"
+            hx-swap="outerHTML">
+      Check again
+    </button>
+  {% endif %}
+</div>

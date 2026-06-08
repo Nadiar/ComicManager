@@ -151,3 +151,34 @@ def settings_dashboard(request):
     prefs.save()
 
     return render(request, "core/_settings_dashboard_section.html", {"prefs": prefs})
+
+
+def task_health_check(request):
+    from django_celery_results.models import TaskResult
+    stuck = list(
+        TaskResult.objects.exclude(status__in=["SUCCESS", "FAILURE", "REVOKED"])
+        .order_by("-date_done")
+    )
+    return render(request, "core/_settings_tasks_section.html", {
+        "stuck_tasks": stuck,
+        "checked": True,
+        "just_cleared": False,
+        "cleared_count": 0,
+    })
+
+
+@require_POST
+def task_health_clear(request):
+    from django_celery_results.models import TaskResult
+    from .task_base import request_cancel
+    stuck = TaskResult.objects.exclude(status__in=["SUCCESS", "FAILURE", "REVOKED"])
+    count = stuck.count()
+    for t in stuck:
+        request_cancel(t.task_id)
+    stuck.update(status="FAILURE")
+    return render(request, "core/_settings_tasks_section.html", {
+        "stuck_tasks": [],
+        "checked": True,
+        "just_cleared": True,
+        "cleared_count": count,
+    })

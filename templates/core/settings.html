@@ -211,6 +211,8 @@
 
   {% include "core/_settings_dashboard_section.html" %}
 
+  {% include "core/_settings_tasks_section.html" %}
+
   <!-- Settings groups -->
   <form method="post" action="/settings/update/" style="display:flex; flex-direction:column; gap:16px;">
     {% csrf_token %}
