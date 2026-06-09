@@ -197,7 +197,14 @@ def _build_comic_list_queryset(params):
     if medium:
         comics = comics.filter(medium=medium)
     if flag:
-        comics = comics.filter(**{f"flags__{flag}": True})
+        flag_list = [f.strip() for f in flag.split(",") if f.strip()]
+        if len(flag_list) == 1:
+            comics = comics.filter(**{f"flags__{flag_list[0]}": True})
+        else:
+            flag_q = Q()
+            for f in flag_list:
+                flag_q |= Q(**{f"flags__{f}": True})
+            comics = comics.filter(flag_q)
     if needs_reformat:
         comics = comics.filter(needs_reformat=True)
     if stale:
