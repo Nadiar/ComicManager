@@ -318,7 +318,7 @@
 <dialog id="bulk-delete-modal" class="modal">
   <div class="modal-box" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); max-width:380px;">
     <h3 style="font-weight:700; font-size:16px; margin-bottom:8px;">Delete comics?</h3>
-    <p style="font-size:13px; color:var(--cm-fg-2); margin:0;">Delete <strong id="bulk-delete-count">0</strong> comic(s)? Records are removed from ComicManager — files on disk are not deleted.</p>
+    <p style="font-size:13px; color:var(--cm-fg-2); margin:0;">Delete <strong id="bulk-delete-count">0</strong> comic(s)? Comics and their files will be permanently deleted from disk. This cannot be undone.</p>
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:20px;">
       <button class="cm-btn sm ghost" onclick="document.getElementById('bulk-delete-modal').close()">Cancel</button>
       <button class="cm-btn sm" style="color:var(--cm-err); border-color:var(--cm-err);" onclick="executeBulkDelete()">Delete</button>
@@ -1696,6 +1696,7 @@ function _escHtml(str) {
     <div class="gctx-item" id="gctx-pipeline">Run Pipeline</div>
     <div class="gctx-sep"></div>
     <div class="gctx-item danger" id="gctx-delete-cover">Delete Cover</div>
+    <div class="gctx-item danger" id="gctx-delete-comic">Delete Comic</div>
     <div class="gctx-footer" id="gctx-stage-label"></div>
   `;
   document.body.appendChild(menu);
@@ -1849,6 +1850,36 @@ function _escHtml(str) {
           })
           .catch(() => window.showMsgToast('Delete cover failed', 'error'));
         }
+      );
+    });
+  });
+
+  document.getElementById('gctx-delete-comic').addEventListener('click', function(e) {
+    _act(e, (pk, row) => {
+      const series = row?.dataset.series || 'this comic';
+      const number = row?.dataset.number;
+      const label  = series + (number ? ' #' + number : '');
+      showConfirm(
+        `Delete "${label}" and remove the file from disk? This cannot be undone.`,
+        function() {
+          fetch(`/comics/${pk}/delete/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() },
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data.success) {
+              row.style.transition = 'opacity 0.3s';
+              row.style.opacity = '0';
+              setTimeout(() => row.remove(), 300);
+            } else {
+              window.showMsgToast('Delete failed: ' + (data.error || 'unknown error'), 'error');
+            }
+          })
+          .catch(() => window.showMsgToast('Delete failed', 'error'));
+        },
+        'Delete',
+        true
       );
     });
   });

@@ -3669,14 +3669,28 @@ def comic_download(request, pk):
 
 
 @require_POST
-@require_POST
 def bulk_delete_comics(request):
-    """Delete a specific set of comics by PK list (from bulk selection)."""
+    """Hard delete comics: remove files from disk AND delete DB records."""
     pks = request.POST.getlist("pks")
     if not pks:
         return JsonResponse({"error": "No comics selected"}, status=400)
-    deleted, _ = Comic.objects.filter(pk__in=pks).delete()
-    return JsonResponse({"deleted": deleted})
+    comics = list(Comic.objects.filter(pk__in=pks))
+    errors = []
+    for comic in comics:
+        if comic.file_path and os.path.exists(comic.file_path):
+            try:
+                os.remove(comic.file_path)
+                parent_dir = os.path.dirname(comic.file_path)
+                while parent_dir and parent_dir not in ("/comics", "/comics/library", "/comics/untagged"):
+                    if os.path.isdir(parent_dir) and not os.listdir(parent_dir):
+                        os.rmdir(parent_dir)
+                        parent_dir = os.path.dirname(parent_dir)
+                    else:
+                        break
+            except OSError as e:
+                errors.append(str(e))
+    Comic.objects.filter(pk__in=pks).delete()
+    return JsonResponse({"deleted": len(comics), "errors": errors})
 
 
 def _run_action_sync(comic, action, force=False):
