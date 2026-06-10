@@ -10,10 +10,11 @@
     <a href="{% url 'dashboard:smartlist_detail' smart_list.pk %}" class="btn btn-ghost">Cancel</a>
   </div>
 
-  <div class="alert alert-warning">
-    <div class="space-y-1">
-      <p class="font-semibold">Some filters in "{{ smart_list.name }}" cannot be represented in standard CBL format:</p>
-      <ul class="list-disc list-inside text-sm mt-2">
+  <div style="background:var(--cm-warn-dim); border:1px solid var(--cm-warn); border-radius:8px; padding:14px 18px; display:flex; align-items:flex-start; gap:10px; color:var(--cm-warn); font-size:13px; font-weight:500;">
+    <span style="font-size:16px; line-height:1; flex-shrink:0;">⚠</span>
+    <div>
+      <div>Some filters in "{{ smart_list.name }}" cannot be represented in standard CBL format:</div>
+      <ul style="margin:6px 0 0; padding-left:16px; font-weight:400;">
         {% for w in warnings %}
         <li>{{ w }}</li>
         {% endfor %}

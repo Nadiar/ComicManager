@@ -11,11 +11,12 @@
     <a href="/comics/?medium=physical" class="btn btn-ghost btn-sm ml-auto">Back to Physical Comics</a>
   </div>
 
-  <div class="alert alert-info">
+  <div style="background:var(--cm-info-dim); border:1px solid var(--cm-info); border-radius:8px; padding:14px 18px; display:flex; align-items:flex-start; gap:10px; color:var(--cm-info); font-size:13px; font-weight:500;">
+    <span style="font-size:16px; line-height:1; flex-shrink:0;">ℹ</span>
     <div>
-      <p class="font-semibold">CSV Format</p>
-      <p class="text-sm mt-1">Required column: <code>series</code>. Optional columns: <code>number, volume, year, publisher, format, title, notes</code></p>
-      <p class="text-sm mt-1">First row must be a header row. UTF-8 encoding (BOM optional).</p>
+      <div>CSV Format</div>
+      <div style="font-weight:400; margin-top:4px;">Required column: <code>series</code>. Optional columns: <code>number, volume, year, publisher, format, title, notes</code></div>
+      <div style="font-weight:400; margin-top:2px;">First row must be a header row. UTF-8 encoding (BOM optional).</div>
     </div>
   </div>
 

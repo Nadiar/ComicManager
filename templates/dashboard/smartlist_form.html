@@ -339,8 +339,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const dropped = countDroppedFilters();
     if (dropped > 0) {
       const plural = dropped === 1 ? 'filter' : 'filters';
-      const ok = confirm(`${dropped} ${plural} won't be saved because the value field is empty. Continue saving without ${dropped === 1 ? 'it' : 'them'}?`);
-      if (!ok) { e.preventDefault(); return; }
+      e.preventDefault();
+      showConfirm(
+        `${dropped} ${plural} won't be saved because the value field is empty. Continue saving without ${dropped === 1 ? 'it' : 'them'}?`,
+        () => {
+          document.getElementById('filters-json').value = JSON.stringify(serializeFilters());
+          document.querySelector('form[method="POST"]').submit();
+        },
+        'Continue'
+      );
+      return;
     }
     document.getElementById('filters-json').value = JSON.stringify(serializeFilters());
   });

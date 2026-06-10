@@ -90,7 +90,7 @@
     {% endif %}
   </div>
   {% empty %}
-  <div style="padding:36px 18px; text-align:center;"><span class="cm-chip ok">Triage queue is empty — all clear</span></div>
+  <div style="padding:36px 18px; text-align:center;"><span class="cm-chip ok">Triage queue is empty. All clear.</span></div>
   {% endfor %}
 </div>
 
@@ -120,7 +120,7 @@
     </div>
   </div>
   {% empty %}
-  <div style="padding:36px 18px; text-align:center;"><span class="cm-chip ok">All clear — nothing needs attention</span></div>
+  <div style="padding:36px 18px; text-align:center;"><span class="cm-chip ok">All clear. Nothing needs attention.</span></div>
   {% endfor %}
   {% for item in maintenance_items_with_count %}
   <div data-maintenance data-display="grid"

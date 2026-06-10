@@ -10,10 +10,11 @@
     <a href="{% url 'dashboard:smartlist_import_cbl' %}" class="btn btn-ghost">Cancel</a>
   </div>
 
-  <div class="alert alert-warning">
+  <div style="background:var(--cm-warn-dim); border:1px solid var(--cm-warn); border-radius:8px; padding:14px 18px; display:flex; align-items:flex-start; gap:10px; color:var(--cm-warn); font-size:13px; font-weight:500;">
+    <span style="font-size:16px; line-height:1; flex-shrink:0;">⚠</span>
     <div>
-      <p class="font-semibold">Some fields in "{{ cbl_name }}" are not recognised as standard ComicManager filter fields.</p>
-      <p class="text-sm mt-1">Select the correct internal field for each, or choose "Skip" to drop those filters from the import.</p>
+      <div>Some fields in "{{ cbl_name }}" are not recognised as standard ComicManager filter fields.</div>
+      <div style="font-weight:400; margin-top:4px;">Select the correct internal field for each, or choose "Skip" to drop those filters from the import.</div>
     </div>
   </div>
 

@@ -23,7 +23,8 @@
       </p>
 
       {% if total_rulesets > 0 %}
-      <div class="alert alert-warning mb-4">
+      <div style="background:var(--cm-warn-dim); border:1px solid var(--cm-warn); border-radius:8px; padding:14px 18px; display:flex; align-items:center; gap:10px; color:var(--cm-warn); font-size:13px; font-weight:500; margin-bottom:16px;">
+        <span style="font-size:16px; line-height:1;">⚠</span>
         <span>You currently have {{ total_rulesets }} rulesets in the database.</span>
       </div>
       {% endif %}
