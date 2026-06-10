@@ -6,13 +6,13 @@ ComicManager supports several comic archive formats. Some formats require conver
 
 ## Supported Formats
 
-| Extension | Handling |
-|-----------|----------|
-| `.cbz` | Native format. No conversion needed |
-| `.cbr` | Flagged for conversion on import. Convert via the Review Queue or dashboard |
-| `.cb7` | Flagged for conversion on import. Convert via the Review Queue or dashboard |
-| `.zip` | Flagged for manual one-click conversion (see below) |
-| `.pdf` | Flagged for review. PDFs cannot be processed through the standard pipeline |
+| Extension | Flag set on import | Conversion method | Pipeline |
+|-----------|-------------------|-------------------|---------|
+| `.cbz` | None | None | Full pipeline |
+| `.cbr` | `needs_conversion` | Convert button (detail page or dashboard bulk action) | Full pipeline after conversion |
+| `.cb7` | `needs_conversion` | Convert button (detail page or dashboard bulk action) | Full pipeline after conversion |
+| `.zip` | `is_zip` | One-click rename — no repacking required | Full pipeline after rename |
+| `.pdf` | `is_pdf` | External conversion required | Not supported |
 
 ---
 

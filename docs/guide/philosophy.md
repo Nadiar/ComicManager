@@ -24,7 +24,7 @@ Every written file includes a `ComicInfo.xml` embedded in the CBZ archive. The s
 ComicManager supports two external metadata sources. No other sources will be added.
 
 - **ComicVine**: the primary source for most comics. Requires a local database file (`comicvine.db` + `latest.mcl`) or an API key. The `latest.mcl` file is updated daily and available at [gitea.baerentsen.space](https://gitea.baerentsen.space/FrederikBaerentsen/ComicRack_Scripts/src/branch/master/Update%20Missing).
-- **I.N.D.U.C.K.S.**: a great alternative to ComicVine for for Disney comics. The database is built from the official ISV export at [inducks.org/inducks/isv.tgz](https://inducks.org/inducks/isv.tgz). You need to extract the archive and build the SQLite database yourself using the `createtables.sql` included in the archive. Do not open issues on this repository asking for how to create the database.
+- **I.N.D.U.C.K.S.**: a great alternative to ComicVine for Disney comics. The database is built from the official ISV export at [inducks.org/inducks/isv.tgz](https://inducks.org/inducks/isv.tgz). You need to extract the archive and build the SQLite database yourself using the `createtables.sql` included in the archive. Do not open issues on this repository asking for how to create the database.
 
 ---
 

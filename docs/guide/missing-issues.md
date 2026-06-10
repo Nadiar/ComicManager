@@ -2,21 +2,29 @@
 
 The Series Audit compares your library against ComicVine's complete issue list for a volume, showing exactly which issues you own and which you are missing.
 
-![Missing Issues Comparison](/series_audit.png)
+![Series Audit Overview](/series_audit.png)
+
+![Missing Issues Comparison](/series_audit1.png)
+
+![Series Audit Detail](/series_audit2.png)
 
 ## How It Works
 
 Series Audit requires a local ComicVine data source (either `comicvine.db` or `latest.mcl`). It queries that source for the full issue list of a volume, then cross-references your library by matching `comicvine_volume` and `comicvine_issue` IDs stored in each comic's custom values.
 
-**Data source precedence:**
+**What you get depends on which data sources are mounted:**
 
-1. `comicvine.db`: Full metadata including cover images, titles, and cover dates.
-2. `latest.mcl`: Issue IDs and numbers only, no cover images.
-3. Neither available: the audit page shows an unavailability notice.
+| `comicvine.db` | `latest.mcl` | Result |
+|---|---|---|
+| Yes | Any | Full audit: series info, issue list, and cover images |
+| No | Yes | Partial audit: series info and issue list, no cover images |
+| No | No | Series Audit is unavailable |
+
+`comicvine.db` takes precedence when both are present. If only `latest.mcl` is available, missing issues show a placeholder instead of a cover image. See [Getting Started](/guide/getting-started) for how to mount these files.
 
 ## Accessing Series Audit
 
-**From a comic detail page:** Open any scraped comic and click the **Detials** button under **Series Completion**. The audit loads for the ComicVine volume linked to that comic.
+**From a comic detail page:** Open any scraped comic and click the **Details** button under **Series Completion**. The audit loads for the ComicVine volume linked to that comic.
 
 **By URL:** Navigate to `/comics/<pk>/series-audit/` for a comic-anchored view, or `/comics/series-audit/volume/<cv_volume_id>/` to open the audit by ComicVine volume ID directly.
 
@@ -28,8 +36,6 @@ Series Audit requires a local ComicVine data source (either `comicvine.db` or `l
 - **Filter tabs**: Toggle between **All**, **Owned**, and **Missing** to focus on what you need.
 
 ## Series Completion Widget
-
-![](/series_audit3.png)
 
 A compact version of the audit appears as a progress bar on the comic detail page. It loads via HTMX and shows the owned/missing split for the volume at a glance. This widget can be disabled under **Settings**.
 

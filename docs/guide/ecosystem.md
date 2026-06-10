@@ -78,7 +78,7 @@ services:
     image: gitea.baerentsen.space/frederikbaerentsen/comicmanager:latest
     user: "${UID}:${GID}"
     restart: unless-stopped
-    command: gunicorn comicmanager.wsgi:application --bind 0.0.0.0:8000 --workers 4
+    command: daphne -b 0.0.0.0 -p 8000 comicmanager.asgi:application
     ports:
       - "8381:8000"
     env_file: comicmanager/.env
@@ -227,12 +227,17 @@ Running this compose file expects the following folder structure on your host:
 
 ---
 
-## What Each Tool Does Not Do
+## Responsibility Matrix
 
-Understanding the boundaries prevents confusion:
+| Responsibility | ComicManager | ComicOPDS | ComicTracker |
+|----------------|:---:|:---:|:---:|
+| Import and tag comic files | Yes | No | No |
+| Organize and rename files | Yes | No | No |
+| Write metadata into CBZ | Yes | No | No |
+| Serve comics via OPDS | No | Yes | No |
+| Cache page images for streaming | No | Yes | No |
+| Track reading progress | No | No | Yes |
+| Rate comics and suggest next issue | No | No | Yes |
+| Modify files on disk | Yes | No | No |
 
-- **ComicManager** does not serve comics to readers and does not track what you have read. Its job ends when the file is written.
-- **ComicOPDS** does not modify files or track reading progress. It is a read-only index and streaming server.
-- **ComicTracker** does not move or rename files. It only reads the library and writes to its own `tracker.db`.
-
-This separation means each tool can be updated or replaced independently without affecting the others.
+Each tool reads and writes only within its own domain. This means any one of them can be updated or replaced without affecting the others.

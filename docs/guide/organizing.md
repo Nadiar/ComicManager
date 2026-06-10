@@ -24,12 +24,19 @@ Go to **Organizer** and click **Import Profile**. Upload your `.lop` file and ch
 Go to **Organizer** and click **Export Profiles**. This downloads a `.lop` file generated from the current database state. It includes profiles you created or edited in the UI, not just the originally imported file.
 
 ::: warning Compatibility note
-ComicManager-specific features (indexed credit fields like `{<writer[1][l]>}`, and conditions using `FileNameOnly`, `FilePath`, `FileExtension`) are not recognized by ComicRack's Library Organizer. If any of your profiles use these features, the exported `.lop` file will open in ComicRack but those conditions or template tokens will not work correctly. Profiles that only use standard fields and variables will round-trip without issues.
+ComicManager-specific features (indexed credit fields like `{<writer[1][l]>}`) are not recognized by ComicRack's Library Organizer. If any of your profiles use these features, the exported `.lop` file will open in ComicRack but those template tokens will not work correctly. Profiles that only use standard fields and variables will round-trip without issues.
 :::
 
 ### Reordering Profiles
 
 ComicManager evaluates profiles **top-to-bottom**, applying the first profile whose conditions match a comic. Drag the handle on the left of any row to reorder profiles and control which rules take priority. Changes are saved automatically.
+
+### Duplicating and Toggling Profiles
+
+Each profile row has two additional actions:
+
+- **Duplicate**: Creates an identical copy of the profile with " (copy)" appended to the name. Use this to create a variant of an existing profile without starting from scratch.
+- **Toggle**: Enables or disables the profile inline without opening the edit form. Disabled profiles are skipped during organization but remain in the list for later use.
 
 ---
 
@@ -69,7 +76,17 @@ Over time, your library structure might change or metadata might be updated afte
 - **`needs_reorganize` flag**: Whenever a core metadata field (like Series, Publisher, or Format) changes on a comic that is already in the `Organized` or `Written` state, ComicManager sets this flag. The comic appears in the Maintenance tab of your dashboard so you can safely move it to its new, correct path.
 - **Scan Path Audit**: A manual tool to scan your entire library and compare current file paths with the "Expected" paths based on your organization profile. It identifies any comics that are in the wrong location or have the wrong filename.
 
+::: info Path Audit scope
+Path Audit only considers comics in the **Write to CBZ** or **Done** states. Comics still in earlier pipeline stages are excluded, they will be organized as they progress through the pipeline naturally.
+:::
+
 ![Path Audit Tool](/path_audit.png)
+
+### AU Scan — Alternate Universe Re-organization
+
+Comics that were organized without a `main_character_or_team` set can land in a generic "Alternate Universe" folder as a fallback. If tagging rules later assign a main character to those comics, they need to be moved to the correct folder.
+
+The **AU Scan** (under **Workflow → AU Scan**) handles this automatically. Run it after any tagging pass that might have assigned new main characters. It detects AU-folder comics that now have a main character, flags them `needs_reorganize`, and lets you re-organize them in bulk. 
 
 ---
 
@@ -88,6 +105,13 @@ Each organizer profile can have one or more matching conditions that control whi
 | `MainCharacterOrTeam` | Text | `Batman` |
 | `Count` | Numeric | `12` |
 | `Page Count` | Numeric | `120` |
+
+**Condition mode:** Each condition set has a **mode** toggle:
+
+- **Only**: The profile applies only to comics that match the conditions (include filter).
+- **Do not**: The profile applies to all comics *except* those that match the conditions (exclude filter).
+
+Use "Do not" to create a catch-all profile that handles everything except, for example, a specific publisher or format that has its own profile higher in the list.
 
 **Text operators:** `Is`, `IsAnyOf`, `Contains`, `StartsWith`, `Not`, `NotContains`, and their variants.
 
@@ -437,6 +461,52 @@ Star Wars/General/TPB/Star Wars Legends Epic Collection (2015)/Star Wars Legends
 ```
 
 ---
+
+## Post-Move Options
+
+Each organization profile has three optional post-move behaviors:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| **Remove empty folder** | On | After moving a file, delete the source folder if it is now empty. Keeps the untagged directory tidy. |
+| **Auto-space fields** | Off | Automatically add spaces around template field values where spacing would otherwise depend on whether the field is empty. |
+| **Replace multiple spaces** | Off | Collapse consecutive spaces in the final path into a single space. Useful when optional fields are empty and leave a gap. |
+
+## Illegal Character Mapping
+
+Each profile has a configurable mapping of characters that are illegal or problematic in file paths. When the computed path contains any of these characters, they are replaced according to the map before the file is moved.
+
+Default replacements:
+
+| Character | Replaced with |
+|-----------|--------------|
+| `:` | ` -` |
+| `/` | `-` |
+| `*` | `` (removed) |
+| `?` | `` (removed) |
+| `"` | `'` |
+| `<` | `` (removed) |
+| `>` | `` (removed) |
+| `\|` | `-` |
+| `\\` | `-` |
+
+These defaults handle the characters that Windows and most filesystems forbid in filenames. You can customize the mapping per profile from the profile edit form.
+
+## Per-Comic Path Preview
+
+Before organizing in bulk, you can preview the expected destination path for a single comic. Open the comic detail page and look for the **Expected Path** line in the Organization section. This shows exactly where the file would be moved under the current active profile, including all variable substitutions and character replacements.
+
+## Syncing Library Paths
+
+If you move files outside of ComicManager (for example, reorganizing your library manually or migrating to a new drive), the database records will still point to the old paths. Use **Sync Paths** to reconcile:
+
+1. From the Dashboard pipeline, click **Sync Paths** on the Done stage, or navigate directly to `/comics/sync-library-paths/`.
+2. ComicManager scans every comic in the Done state whose recorded `file_path` does not exist on disk.
+3. For each missing file, it computes the expected organized path from your active profile and checks whether the file exists there.
+4. If found, the database record is updated to the new path. If not found, the comic is left in place for manual review.
+5. Duplicate database entries found during the scan are also removed automatically.
+
+Run Sync Paths after any external library reorganization or after migrating to a new storage location.
 
 ## Physical Comics
 

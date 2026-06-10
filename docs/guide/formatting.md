@@ -10,15 +10,17 @@ The "Format" field is a key piece of metadata for how you'll eventually organize
 
 ComicManager can automatically assign any of these nine formats:
 
-- **Director's Cut**: Series or title contains "Director's Cut".
-- **Black & White**: Series or title contains "Black & White" or "B&W".
-- **Omnibus**: "Omnibus" appears anywhere in the series, title, or summary. Also applied when page count is 500 or more and no other collection keyword matched.
-- **TPB**: "TPB" or "Trade Paperback" in the series, title, or summary. Also applied when page count is 80 or more and the summary describes a collected issue range (e.g. "Collects #1-5", "#2-#8", "#1, 2, 3, 4", or "features the following issues").
-- **Annual**: Series or title contains "Annual".
-- **Preview**: Series or title contains "Preview" or "Previews". Catches preview comics and Previews catalog issues that would otherwise be mis-tagged as regular series issues.
-- **One-Shot**: A standalone single-issue series (`count = 1` with a low issue number).
-- **Limited Series**: A series with a known, finite run (`count 2–15`), where issue numbers are also in a low range.
-- **Main Series**: An ongoing publication with 16 or more issues (`count > 15`), or a continuation/renumbered series where `count ≤ 15` but issue numbers are higher than 15.
+| Format | Trigger type | Signal |
+|--------|-------------|--------|
+| Director's Cut | Keyword | "Director's Cut" in series or title |
+| Black & White | Keyword | "Black & White" or "B&W" in series or title |
+| Omnibus | Keyword or page count | "Omnibus" in series, title, or summary; or page count ≥ 500 |
+| TPB | Keyword or page count | "TPB" / "Trade Paperback" in series, title, or summary; or page count ≥ 80 with a collection phrase in the summary |
+| Annual | Keyword | "Annual" in series or title |
+| Preview | Keyword | "Preview" or "Previews" in series or title |
+| One-Shot | Issue count | `count = 1` with a low issue number |
+| Limited Series | Issue count | `count` between 2 and 15 with a low issue number |
+| Main Series | Issue count | `count > 15`, or any count with issue numbers above 15 (continuation / renumbered series) |
 
 The count thresholds for One-Shot, Limited Series, and Main Series are configurable under **Settings**.
 
@@ -109,3 +111,40 @@ Set when comics in your library share the same ComicVine Volume ID but have diff
 
 ### `cv_volume_conflict`
 Set when two comics have the same Series, Volume, and Format but are linked to different ComicVine Volume IDs. This usually indicates a bad scrape where a comic was matched to the wrong series. Can also be permanently dismissed via "Accept Conflict".
+
+---
+
+## Format Review Page
+
+The **Format Review** page (`/comics/format/`) groups your comics by detected format. Each group shows a count badge and an **Accept All** button that confirms every comic in that group in one click. Expanding a group shows the individual comics so you can confirm or override them one at a time.
+
+Comics flagged `needs_reformat` appear in a dedicated group at the top with a per-row **Accept Re-format** button.
+
+### Detect Format Conflicts
+
+Click **Detect Format Conflicts** to sweep the entire library and set `format_mismatch_in_volume` and `cv_volume_conflict` flags across all comics where the format or ComicVine volume assignment is inconsistent within a volume. Run this after any bulk re-scrape or tagging pass.
+
+### Detect Format Upgrades
+
+Click **Detect Format Upgrades** to re-run format detection on every already-formatted comic and flag any whose auto-detected result differs from the value currently stored. Comics where the result changed are flagged `needs_reformat` and appear in the Format Review page for your review. Use this after adjusting the One-Shot or Limited Series count thresholds in Settings, or after a bulk re-scrape that updated issue counts.
+
+---
+
+## Manually Assignable Formats
+
+The formats listed above are the ones the auto-detector can produce. The following formats can be assigned manually from the comic detail or edit page but are never output by auto-detection:
+
+| Format | Description | Exempt from `number` validation |
+|--------|-------------|:---:|
+| `Hard Cover` | Hardcover collected edition | Yes |
+| `Absolute Edition` | Oversized deluxe hardcover | Yes |
+| `Graphic Novel` | Original graphic novel (not a reprint collection) | Yes |
+| `HC` | Abbreviation for Hard Cover | Yes |
+| `Special` | One-off special outside main series numbering | No |
+| `Giant-Size` | Giant-sized special format issue | No |
+| `King-Size` | King-sized special format issue | No |
+| `Deluxe` | Deluxe edition | No |
+
+Formats exempt from `number` validation will not be blocked at the Write phase if the `number` field is empty. This matters for collected editions that have no meaningful issue number. See [Writing Files](/guide/writing) for validation details.
+
+Once assigned manually, use **Confirm Format** on the detail page to lock the format so future re-format runs do not overwrite it.

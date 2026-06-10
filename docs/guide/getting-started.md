@@ -31,6 +31,7 @@ Open `.env` and set the required variables:
 | `SECRET_KEY` | Django secret key. Change to a long random string. |
 | `DB_PASSWORD` | PostgreSQL password. |
 | `PORT` | Host port for the web interface. Default: `8381`. |
+| `ALLOWED_HOSTS` | Optional. Hostnames or IPs the UI may be accessed on. Add your server's address if you open ComicManager from another machine. Default: `localhost,127.0.0.1`. |
 | `UNTAGGED_DIR` | Host path for incoming comics. Default: `./untagged`. |
 | `LIBRARY_DIR` | Host path for your organised library. Default: `./Comics`. |
 
@@ -39,7 +40,7 @@ Open `.env` and set the required variables:
 ## 3. Create required directories
 
 ```bash
-mkdir -p untagged Comics data/postgres data/redis data/covers data/static data/logs
+mkdir -p untagged Comics data/postgres data/redis data/covers data/logs
 ```
 
 ### Optional: local database files
@@ -65,10 +66,12 @@ docker compose ps
 
 ---
 
-## 5. Run migrations
+## 5. Watch the first start
+
+Database migrations and static files are applied automatically when the `web` container starts. Watch the progress with:
 
 ```bash
-docker compose exec web python manage.py migrate
+docker compose logs -f web
 ```
 
 ---
@@ -87,13 +90,45 @@ Go to **Settings** and configure at minimum:
 
 ## 7. Your first import
 
-1. Drop `.cbz`, `.cbr`, or `.zip` files into your `UNTAGGED_DIR` folder.
+1. Drop `.cbz`, `.cbr`, `.cb7`, or `.pdf` files into your `UNTAGGED_DIR` folder.
 2. From the Dashboard, click **Scan Untagged**.
 3. Comics appear in the **New** state and the pipeline begins.
 
 ::: tip
 Watch the progress toasts in the bottom-right corner for live status on any background task.
 :::
+
+### CLI import commands
+
+**`scan_untagged`** — scans the untagged drop folder and imports new files into the New state:
+
+```bash
+docker compose exec web python manage.py scan_untagged [flags]
+```
+
+| Flag | What it does |
+|------|-------------|
+| _(none)_ | Scan the configured untagged folder and import any new files |
+| `--dry-run` | Preview what would be imported without writing anything |
+| `--path /alt/path` | Override the scan folder (default: `/comics/untagged`) |
+| `--no-cleanup` | Skip removing database records for files that no longer exist on disk |
+
+---
+
+**`import_library`** — scans an existing tagged CBZ library and imports every file into the database at the Written state by reading its embedded `ComicInfo.xml`. This is the primary migration path for users coming from ComicRack or another manager:
+
+```bash
+docker compose exec web python manage.py import_library [flags]
+```
+
+| Flag | What it does |
+|------|-------------|
+| _(none)_ | Import all CBZ files found under the configured library path |
+| `--dry-run` | Preview what would be imported without writing anything |
+| `--path /comics/library` | Override the library path (default: `/comics/library`) |
+| `--comicdb /path/to/ComicDb.xml` | Enrich imports with ComicRack's database (see below) |
+
+The `--comicdb` flag accepts ComicRack's `ComicDb.xml` and enriches each imported comic with data that `ComicInfo.xml` does not carry: Tags, Teams, Locations, `MainCharacterOrTeam`, `SeriesGroup`, and `CustomValuesStore` entries. This is the only way to preserve that data on import.
 
 ---
 
@@ -102,8 +137,9 @@ Watch the progress toasts in the bottom-right corner for live status on any back
 ```bash
 docker compose pull
 docker compose up -d
-docker compose exec web python manage.py migrate
 ```
+
+Migrations run automatically on restart.
 
 ---
 
@@ -120,3 +156,18 @@ git clone https://gitea.baerentsen.space/FrederikBaerentsen/ComicManager.git
 cd ComicManager
 docker compose up -d
 ```
+
+---
+
+## Troubleshooting
+
+### Worker security warning on startup
+
+The `worker` container may log warnings like:
+
+```
+SecurityWarning: An entry for the specified gid or egid was not found.
+SecurityWarning: You're running the worker with superuser privileges
+```
+
+This is a false positive. Celery cannot resolve the numeric `GID` to a name because Alpine-based containers have a minimal `/etc/group`. The worker is running as the uid/gid you set in `.env` not as root. The warnings are safe to ignore.

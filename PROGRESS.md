@@ -292,12 +292,12 @@
 - [x] [BUG.48] Selecting New/Scrape/Taggning/move/Write in sidebar, then removing the filter from the rail and applying, does not remove the url filter for that stage and still highlights the stage in the sidebar. 
 - [x] [BUG.49] Smartlists using 'is empty' or 'is not empty' doesn't save that filter line, as the field if empty. Also add warning if a filter line is not gonna be saved. All smartlists/filters/etc should warn the user if a filter is not gonna be saved for some reason. 
 - [x] [BUG.50] Correct / new path isn't always shown on the comics details page.  
-- [ ] [BUG.51] In Comics details view. Pressing 'Write' makes the 'Format' button spin, but the action is 'Write'
-- [ ] [BUG.52] 'New Comics' on dashboard, when the convert button is shown, the view link should go to `/comics/?flag=needs_conversion` and not `/comics/?state=new&file_format=cbr`
-- [ ] [BUG.53] Going to `/comics/?flag=scrape_no_match` and clicking the in-line row button `Scrape` does autoscrape with no confirmation, but the flag is already no match, so we need the manual confirm scrape window.
+- [x] [BUG.51] In Comics details view. Pressing 'Write' makes the 'Format' button spin, but the action is 'Write'
+- [x] [BUG.52] 'New Comics' on dashboard, when the convert button is shown, the view link should go to `/comics/?flag=needs_conversion` and not `/comics/?state=new&file_format=cbr`
+- [x] [BUG.53] Going to `/comics/?flag=scrape_no_match` and clicking the in-line row button `Scrape` does autoscrape with no confirmation, but the flag is already no match, so we need the manual confirm scrape window.
 - [ ] [BUG.54] Toast actions doesn't batch actions correctly. Starting `Rewrite all` for "Count Updated Issue count changed - needs ComicInfo.xml rewrite" and then running a pipeline scan like from eg. 'New Comics' will replace the toast. When the pipeline is finished and the user dismisses the popup, the page reloads and the old toast for `Rewrite` will appear again. 
 - [x] [BUG.55] On `/smartlists/<uuid>/edit/`, `/tagging/ruleset/<x>/`, `/tagging/ruleset/<x>/edit/`, `/organizer/profiles/<x>/`, `/organizer/profiles/<x>/edit/` we need cm-card to have padding like 8px or something. Match it with other padding locations, check CSS.
-- [ ] [BUG.56] On `/organizer/au-scan/` the progressbar needs to use toast and not on-page bar.
+- [x] [BUG.56] On `/organizer/au-scan/` the progressbar needs to use toast and not on-page bar.
 
 
 ## I.N.D.U.C.K.S. Integration
@@ -354,6 +354,8 @@
 - [x] [FI.3] Resolved by redesigning `try_api_metadata_match` to use a 3-call volume-based strategy: /search returns credits inline via /issue on the final call, so there is no separate budget-gated credits fetch. Full credits are always included or the entire match is skipped.
 - [ ] [FI.8] Add a configurable setting to control whether CBR/CB7 files are flagged `needs_conversion` on import. Currently flagging is unconditional. Implementation: re-introduce a setting (e.g. `import_convert_cbr`), read it in `services.py` and `scan_untagged.py`, and only set the flag when enabled.
 - [ ] [FI.9] Extend `snapshot_fields` / `diff_fields` (in `apps/core/audit.py`) to handle nested dict-key paths like `comic.custom_values["comicvine_issue"]` with audit-key renaming, so scrape audit code can declare one shared field list and avoid the inline `before_cv_issue` / `before_cv_volume` currently in `_run_scrape`, `scrape_comic`, and `force_scrape`.
+- [ ] [FI.10] When multiple tasks are running concurrently (e.g. a re-write batch from the dashboard Maintenance tab and a separate `/organizer/au-scan/` Run Scan), the toast notification shows only the most recent task and silently replaces the previous one. Instead, show a running task count in the toast header and cycle or stack the active task statuses so the user can see all in-progress operations at once.
+- [ ] [FI.11] The `/organizer/au-scan/` Run Scan progress counter stays at 0 until the full scan completes. The number of candidates is known up front, so the toast should update after each candidate is checked rather than only at the end.
 
 ## Redesign 
 

@@ -10,6 +10,16 @@ After a successful scrape, the comic advances to the **Tagging** phase regardles
 
 ComicManager supports multiple operating modes depending on what files you have available. Check your current mode under **Settings → Scraping**.
 
+| Feature | Mode 1: Full DB | Mode 2: API Only | Mode 3: INDUCKS |
+|---------|:-:|:-:|:-:|
+| Cover hash matching | Yes (local) | No | No |
+| Metadata matching | Yes (local) | No | Yes (local) |
+| ComicVine API fallback | Optional | Yes (required) | No |
+| Series Audit | Yes | With `latest.mcl` | No |
+| Variant cover fetching | Yes | Yes | No |
+| Batch scraping | Yes | Yes | Manual only |
+| Required file | `comicvine.db` | API key in Settings | `inducks.db` |
+
 ### Mode 1: ComicVine Full DB (Recommended)
 
 Place `comicvine.db` (a SQLite export of the ComicVine index) at `data/comicvine.db`. This is the fastest and most accurate mode because:
@@ -21,7 +31,7 @@ Place `comicvine.db` (a SQLite export of the ComicVine index) at `data/comicvine
 ::: info Where to get comicvine.db
 A proof-of-concept offline ComicVine database was posted here: [An offline ComicVine tagger (r/comicrackusers)](https://old.reddit.com/r/comicrackusers/comments/1q7rex8/here_it_is_an_offline_comicvine_tagger_for/)
 
-This is a static and not an actively maintained project. To keep it up to date you need to write your own scraper against the ComicVine API. I have no affiliation with that project and cannot provide support for it. If you don't have the database, use API mode instead (Mode 3). It works fine, just slower and subject to rate limits. Do not open issues on this repository asking where to get the database.
+This is a static and not an actively maintained project. To keep it up to date you need to write your own scraper against the ComicVine API. I have no affiliation with that project and cannot provide support for it. If you don't have the database, use API mode instead (Mode 2). It works fine, just slower and subject to rate limits. Do not open issues on this repository asking where to get the database.
 :::
 
 ### Mode 2: ComicVine API Only (with optional MCL for Series Audit)
@@ -48,7 +58,11 @@ Go to **Settings** and check the **ComicVine Data Sources** section. Each data s
 The active scraping mode is shown below, for example: `Scraping mode: Full local DB`.
 :::
 
-### Mode 4: I.N.D.U.C.K.S. (Disney/European Comics)
+### Mode 3: I.N.D.U.C.K.S. (Disney/European Comics)
+
+::: warning 
+I.N.D.U.C.K.S. support is experimental and there will be bugs as the workflow is tailored to ComicVine. 
+:::
 
 For Disney and other *Duck* related comics not typically well-covered by ComicVine, ComicManager integrates with the I.N.D.U.C.K.S. database.
 Place `inducks.db` (generated from ISV flat files) at `data/inducks.db`.
@@ -66,7 +80,9 @@ Before matching begins, ComicManager computes two perceptual hashes of the local
 
 Hashes are computed when a comic is accepted from the New stage (via the Accept button, Accept All, or Run Full Pipeline). The first page of the CBZ is read and both a perceptual hash (pHash) and an average hash (aHash) are saved to the database.
 
-If hashes are missing when Layer 3 API matching runs, they are computed on the fly at that point as a fallback.
+Hash matching also saves hashes to the database as soon as they are computed during scraping, even when no candidate is found within the distance threshold or all candidates fail metadata cross-validation. This ensures hashes are always persisted after the first scrape attempt.
+
+If hashes are missing when the CV API matching runs, they are computed on the fly at that point as a fallback.
 
 Physical comics and comics without a readable CBZ cover will have no hashes stored, which is handled gracefully throughout the pipeline.
 
@@ -167,11 +183,15 @@ After hash candidates are found, they are cross-validated against the comic's pa
 - **Series name**: both sides are normalised (lowercase, punctuation stripped) and compared for exact match, substring containment, or shared first word. If both the comic's series and the candidate's series are known but share no resemblance at all, the candidate is disqualified. Issue number alone is too ambiguous (every series has a #1) to auto-apply a match.
 
 The match is scored:
-- **Score 0**: Issue number mismatches OR both series names are known but share no resemblance. Candidate discarded.
-- **Score 1**: Issue number matches, no series name available to validate against.
-- **Score 2**: Issue number + partial or substring series match.
-- **Score 3**: Issue number + exact series match, OR issue number + partial series + year within ±2.
-- **Score 4**: Issue number + exact series match + year within ±2.
+
+| Score | Issue number | Series name | Year | Result |
+|-------|-------------|-------------|------|--------|
+| 0 | Mismatch, OR both names known but no resemblance | — | — | Discarded |
+| 1 | Matches | Not available to validate | Any | Accepted |
+| 2 | Matches | Partial or substring match | Any | Accepted |
+| 3 | Matches | Exact match | Any | Accepted |
+| 3 | Matches | Partial match | Within ±2 | Accepted |
+| 4 | Matches | Exact match | Within ±2 | Accepted (best) |
 
 Only candidates with score > 0 are accepted. The highest-scoring candidate wins; ties are broken by lowest combined hash distance.
 
@@ -210,6 +230,13 @@ Comics with blocking flags (e.g. `is_pdf`, `low_page_count`, `needs_conversion`,
 You can also trigger batch scraping from the command line:
 ```bash
 docker compose exec web python manage.py scrape
+docker compose exec web python manage.py scrape --dry-run             # preview matches without writing
+docker compose exec web python manage.py scrape --limit 50            # process at most 50 comics
+docker compose exec web python manage.py scrape --comic-id <uuid>     # scrape a single comic by UUID
+docker compose exec web python manage.py scrape --method hash         # hash-only matching (no metadata fallback)
+docker compose exec web python manage.py scrape --method metadata     # metadata-only matching (no hash)
+docker compose exec web python manage.py scrape --method both         # use both methods (default)
+docker compose exec web python manage.py scrape --max-distance 10     # override Hamming distance threshold
 ```
 :::
 
@@ -319,12 +346,30 @@ The comic advances to **Tagging**.
 
 ## Variant Covers
 
-After a ComicVine match is applied, ComicManager automatically fetches all variant cover images for the issue from ComicVine and inserts them into the CBZ file after the primary cover page.
+After a ComicVine match is applied, ComicManager can automatically fetch all variant cover images for the issue from ComicVine and insert them into the CBZ file after the primary cover page.
 *(Note: physical comics download covers and cache them locally but do not write to files.)*
 
 This happens only once per comic (tracked via `custom_values.HasAltCovers = "Yes"`). If variants were already inserted, re-scraping will skip this step.
 
 The variant count is stored in `custom_values.AltCoverCount` and the total `page_count` is updated accordingly.
+
+### Immediate vs. deferred insertion
+
+Inserting covers during scraping is expensive: every matched CBZ must be fully extracted, the cover images downloaded, and the archive recompressed. To avoid this cost at scale, each scrape context has its own setting in **Settings > Scraping**:
+
+| Setting | Default | When it applies |
+|---------|---------|-----------------|
+| `scrape_insert_covers` | `true` | Scraping a single comic manually from the UI |
+| `batch_insert_covers` | `false` | Batch scrape (both auto and "Confirm each" modes) |
+| `pipeline_insert_covers` | `false` | When the full pipeline runs its scrape step |
+
+When a setting is **enabled**, covers are downloaded and inserted into the CBZ immediately after the match is applied.
+
+When a setting is **disabled**, the cover URLs are saved in `custom_values.pending_alt_cover_urls` and no CBZ manipulation happens at scrape time. The **Write** step then picks them up: covers are inserted during the same CBZ pass that writes `ComicInfo.xml`, so the extraction and recompression cost is paid only once. If a comic is re-scraped before it reaches Write, the pending URLs are simply replaced with the new match's URLs.
+
+::: tip Recommended for large batches
+Keep all three settings disabled when processing large batches or omnibuses. Scraping stays fast and covers are inserted efficiently at Write time.
+:::
 
 ::: info I.N.D.U.C.K.S. comics
 INDUCKS-sourced comics do not support variant cover fetching. The "Find Alt Covers" action is disabled for them.

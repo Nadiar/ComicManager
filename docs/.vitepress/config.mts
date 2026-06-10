@@ -25,6 +25,8 @@ export default defineConfig({
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Philosophy & Scope', link: '/guide/philosophy' },
           { text: 'Searching & Filtering', link: '/guide/searching' },
+          { text: 'Comic Detail Page', link: '/guide/comic-detail' },
+          { text: 'Appearance & Display', link: '/guide/appearance' },
           { text: 'Smart Lists', link: '/guide/smart-lists' },
           { text: 'Physical Comics', link: '/guide/physical-comics' }
         ]
@@ -44,6 +46,7 @@ export default defineConfig({
       {
         text: 'Advanced Features',
         items: [
+          { text: 'Flags', link: '/guide/flags' },
           { text: 'Audit Log & Rollback', link: '/guide/audit-log' },
           { text: 'CBZ Page Manager', link: '/guide/page-manager' },
           { text: 'Missing Issues Detection', link: '/guide/missing-issues' },

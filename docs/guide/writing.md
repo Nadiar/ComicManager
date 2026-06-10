@@ -19,7 +19,7 @@ By embedding a standardized **`ComicInfo.xml`** file inside your digital comic f
 Running **Write All** in the dashboard starts a Celery task that handles the XML insertion in the background.
 
 - **Non-Destructive Writing**: ComicManager adds or updates the `ComicInfo.xml` file inside your CBZ/CBR without modifying your story pages.
-- **Required Field Validation**: ComicManager enforces data integrity before writing. It will block a write and log an error if essential fields are missing. Required fields are `series`, `publisher`, and `number` (unless the format is a numberless type like TPB, Omnibus, or Graphic Novel). I.N.D.U.C.K.S. story-only comics are exempt from the `number` and `publisher` requirements since those fields are legitimately absent for standalone stories.
+- **Required Field Validation**: ComicManager enforces data integrity before writing. It will block a write and log an error if essential fields are missing. Required fields are `series`, `publisher`, and `number` (unless the format is a numberless type like TPB, Omnibus, Graphic Novel, Hard Cover, or Absolute Edition). I.N.D.U.C.K.S. story-only comics are exempt from the `number` and `publisher` requirements since those fields are legitimately absent for standalone stories.
 - **Error Logging**: Any failure during the write process (corrupted file, failed validation) is safely logged to the **Batch Audit Log** as a `write_error`.
 - **Progress Tracking**: Real-time progress bars and toast notifications keep you informed about the status of your batch writing.
 
@@ -34,6 +34,14 @@ ComicManager tracks exactly when `ComicInfo.xml` was last written using a `last_
 - **Missing ComicInfo.xml Widget**: Surface comics that are in the Written state but somehow lost their internal XML (or had it manually removed).
 
 This lets you comfortably edit data knowing that you can just click **Write Stale** later to sync all changes back into the physical files at once.
+
+### Write Count-Updated
+
+When a new scrape brings back a different issue count for a volume, already-written comics in that volume are flagged `count_updated`. The **Write Count-Updated** action (`/comics/rewrite-updated/`) rewrites only the issue count field in their `ComicInfo.xml` without touching anything else. This is faster and safer than a full re-write. The flag clears as soon as the write succeeds. The action is available from the Maintenance section of the dashboard.
+
+### Write Missing ComicInfo
+
+Comics in the Written state that have somehow lost their `ComicInfo.xml` (for example, if the file was replaced externally) are surfaced by the **Missing ComicInfo** widget in the Maintenance tab. Click **Write Missing** to trigger `/comics/write-missing/`, which writes `ComicInfo.xml` into every comic in this state that is missing it. No metadata changes are made; only the XML file is (re)created.
 
 ## ComicInfo.xml Advanced Features
 

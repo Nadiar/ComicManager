@@ -49,6 +49,7 @@ download_isv.sh_server
 
 # Screenshots
 Screenshot_*.png
+/*.png
 
 # Docker Compose files (not needed inside image)
 docker-compose.yml

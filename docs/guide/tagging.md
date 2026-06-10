@@ -63,14 +63,23 @@ Duplicate rulesets (same name + group path) are skipped automatically.
 
 Go to **Tagging** and click **Export DataManager**. This downloads a `.dat` file generated from the current database state. It includes all rulesets, including ones you created or edited in the UI, not just the originally imported file. The exported file can be re-imported into ComicManager or used as a backup.
 
+## Ruleset Duplicate
+
+Each ruleset row has a **Duplicate** button that creates an identical copy with " (copy)" appended to the name. Use this to build a variant of an existing ruleset without starting from scratch, then edit the conditions or actions on the copy.
+
 ## Publisher Management
 
 ComicManager helps you track which publishers are covered by your enabled rulesets via the **Publishers** page (`/tagging/publishers/`).
+
+![Publisher management](/unknown_pub.png)
+
+![Unknown publisher detail](/unknown_pub1.png)
 
 - **Known publishers**: publishers explicitly matched by `Is` or `IsAnyOf` conditions in your enabled rulesets.
 - **Uncovered publishers**: publishers present in your library that are not handled by any enabled ruleset.
 - **`unknown_publisher` flag**: after scraping, comics whose publisher is not covered by any ruleset get flagged and appear in the Review Queue.
 - **Create from Publisher**: click an uncovered publisher to instantly generate a new ruleset pre-filled with the publisher name, group path set to "Publishers to keep", a matching `Publisher Is` condition, and a `SetValue` action that writes the publisher name back. You can click Save immediately and the ruleset is ready to use.
+- **Re-tag All**: on the `?flag=unknown_publisher` comic list, a **Re-tag All** button re-runs tagging only on comics carrying the `unknown_publisher` flag. Use this after adding a new publisher ruleset to clear the flag in one step without re-tagging your whole library.
 
 ## Batch Operations and Audit Log
 
@@ -86,32 +95,32 @@ Rules can match and modify the following fields:
 
 **Standard metadata fields:**
 
-| Field Name | Description |
-|------------|-------------|
-| `Series` | Comic series name |
-| `Title` | Issue title |
-| `Publisher` | Publisher name |
-| `Writer` | Writer credits |
-| `Format` | Format type (Main Series, TPB, One-Shot, etc.) |
-| `Volume` | Volume number |
-| `Notes` | Notes field |
-| `Number` | Issue number |
-| `Year` | Publication year |
-| `Tags` | Tags |
-| `Original Format` | Original format from source data |
-| `FileName` | Full path including filename and extension |
-| `FileNameOnly` | Filename and extension only (no directory) — ComicManager only |
-| `FilePath` | Directory path only (no filename) — ComicManager only |
-| `FileExtension` | File extension without leading dot (e.g. `cbz`) — ComicManager only |
+| Field Name | Description | DataManager compatible |
+|------------|-------------|:---:|
+| `Series` | Comic series name | Yes |
+| `Title` | Issue title | Yes |
+| `Publisher` | Publisher name | Yes |
+| `Writer` | Writer credits | Yes |
+| `Format` | Format type (Main Series, TPB, One-Shot, etc.) | Yes |
+| `Volume` | Volume number | Yes |
+| `Notes` | Notes field | Yes |
+| `Number` | Issue number | Yes |
+| `Year` | Publication year | Yes |
+| `Tags` | Tags | Yes |
+| `Original Format` | Original format from source data | Yes |
+| `FileName` | Full path including filename and extension | Yes |
+| `FileNameOnly` | Filename and extension only (no directory) | **No** |
+| `FilePath` | Directory path only (no filename) | **No** |
+| `FileExtension` | File extension without leading dot (e.g. `cbz`) | **No** |
 
-> **Compatibility note:** `FileNameOnly`, `FilePath`, and `FileExtension` are ComicManager-specific fields not recognized by Library Organizer. If you use any of them in a ruleset, the exported `.lop` file will not be importable into Library Organizer. Rulesets that only use standard fields (everything above those three) export to `.lop` files that work in both ComicManager and Library Organizer.
+Rulesets that use only the compatible fields export to `.dat` files that work in both ComicManager and DataManager. Using `FileNameOnly`, `FilePath`, or `FileExtension` makes the export ComicManager-only.
 
 **Organizational fields:**
 
-| Field Name | Description |
-|------------|-------------|
-| `SeriesGroup` | Series group classification |
-| `MainCharacterOrTeam` | Primary character or team |
+| Field Name | Description | DataManager compatible |
+|------------|-------------|:---:|
+| `SeriesGroup` | Series group classification | Yes |
+| `MainCharacterOrTeam` | Primary character or team | Yes |
 
 **Custom value fields** (stored in the comic's `custom_values` JSON):
 

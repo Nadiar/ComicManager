@@ -14,8 +14,11 @@ Configure how ComicManager interacts with external metadata sources.
 |---------|---------|-------------|
 | `cv_api_key` | _(empty)_ | Your ComicVine API key. Required if you are not using a local `comicvine.db`. Get one at comicvine.gamespot.com/api/ |
 | `scrape_api_fallback` | `false` | When `comicvine.db` is present but returns no match, also try the ComicVine API. Uses your API budget (3 calls per comic). |
-| `scrape_0day_hours` | `24` | Currently unused. Reserved for future use. |
+| `scrape_0day_hours` | `24` | Window (in hours) used by the **Last Xh** button on the dashboard New Comics card. Clicking that button runs the full pipeline only on comics imported within this window. Useful for processing today's new arrivals without touching the backlog. |
 | `scrape_hash_threshold` | `8` | Maximum Hamming distance for a pHash cover match to be accepted. Lower = stricter. Range: 0 (exact) to ~20 (loose). |
+| `scrape_insert_covers` | `true` | Insert variant covers immediately when scraping a single comic manually. If disabled, cover URLs are saved and inserted at Write time instead. |
+| `batch_insert_covers` | `false` | Insert variant covers immediately during a batch scrape (both auto and "Confirm each" modes). Slow at scale — each CBZ is extracted and recompressed. If disabled, cover URLs are saved and inserted at Write time instead. |
+| `pipeline_insert_covers` | `false` | Insert variant covers immediately when the pipeline runs its scrape step. If disabled, cover URLs are saved and inserted at Write time instead. |
 | `inducks_enabled` | `false` | Show the INDUCKS search option in the scrape modal (for Disney/European comics). |
 | `inducks_username` | _(empty)_ | Currently unused. Reserved for future use. |
 | `inducks_password` | _(empty)_ | Currently unused. Reserved for future use. |
@@ -65,14 +68,31 @@ Control how the Formatter categorizes series based on their issue counts.
 
 ---
 
+## Deduplication
+
+Control how duplicate detection works.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `duplicate_phash_distance` | `5` | Maximum pHash Hamming distance for two covers to be considered duplicates. `0` = identical pixels only; higher values catch more near-duplicates. Default `5` is a good balance for most collections. |
+
+---
+
 ## Appearance
 
 Customize the user interface behavior.
 
 | Setting | Default | Description |
 |---------|---------|-------------|
+| `owner_name` | _(empty)_ | Your first name. Used in the dashboard greeting. |
 | `show_series_completion` | `true` | Show a series/volume completion progress bar on comic detail pages. |
 | `hide_zero_maintenance_rows` | `false` | Hide rows with a count of 0 in the Review & Maintenance card on the dashboard. |
+| `filter_rail_default` | `false` | Show the filter rail sidebar on the comics list page by default. When disabled you can still open it on demand with the Filter button. |
+| `show_au_scan` | `true` | Show the AU Scan link in the sidebar and top navigation. Disable if you do not use the Alternate Universe folder feature. |
+
+::: tip Display preferences
+Theme, color scheme, nav layout, table density, and the dashboard card toggles (the "This Week" activity chart and the priority banner) are configured per-user in **Settings** (`/settings/`), not here. See [Appearance & Display Settings](/guide/appearance).
+:::
 
 ---
 
@@ -84,3 +104,19 @@ The Settings UI shows a live **System Status** readout that confirms whether the
 - **I.N.D.U.C.K.S. DB**: `data/inducks.db`
 
 If these files are missing, scraping will fall back to live ComicVine API calls (slower, subject to rate limits).
+
+---
+
+## Task Health
+
+The **Task Health** section (also on the Settings page) lets you detect and recover from stuck background tasks.
+
+A task becomes stuck when a worker is killed mid-execution or a container is restarted while a task is running. The task leaves a `PROGRESS` record in the database with no live worker behind it. The progress toast in the UI keeps showing because it polls that stale record.
+
+**Check for stuck tasks** scans the database for any task not in a terminal state (`SUCCESS`, `FAILURE`, or `REVOKED`) and lists them with their name, status, and how long ago they were last seen.
+
+**Force stop all** marks all stuck tasks as `FAILURE` in the database and sends a cooperative cancel signal to each task ID. Once cleared, the progress toast dismisses on the next poll.
+
+::: tip When to use this
+If a progress toast is stuck after restarting the worker container, open Settings and use Task Health to clear it. Purging the Celery queue (`celery purge`) only clears tasks waiting to start — it does not affect tasks already picked up by a worker.
+:::
