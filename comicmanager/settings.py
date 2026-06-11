@@ -7,6 +7,14 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 DEBUG = os.environ.get("DEBUG", "False") == "True"
 ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# Refuse to run in production with the known development key.
+if not DEBUG and SECRET_KEY == "dev-secret-key-change-in-production":
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured(
+        "SECRET_KEY is not set. Add SECRET_KEY=<long random string> to your .env file."
+    )
+
 INSTALLED_APPS = [
     "daphne",
     "django.contrib.admin",

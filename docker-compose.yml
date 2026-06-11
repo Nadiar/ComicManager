@@ -11,7 +11,7 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U comicmanager"]
+      test: ["CMD-SHELL", "pg_isready -U comicmanager -d comicmanager"]
       interval: 10s
       retries: 5
 
@@ -24,7 +24,7 @@ services:
     command: redis-server --save 60 1 --loglevel warning
 
   web:
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO:-gitea.baerentsen.space/frederikbaerentsen}/comicmanager:${IMAGE_TAG:-latest}
     user: "${UID}:${GID}"
     restart: unless-stopped
     command: daphne -b 0.0.0.0 -p 8000 comicmanager.asgi:application
@@ -36,9 +36,11 @@ services:
       - ${LIBRARY_DIR:-./Comics}:/comics/library
       - ./data/covers:/app/cover_cache
       - ./data/logs:/app/logs
-      - ${CV_DB_PATH}:/cv_db/comicvine.db:ro
-      - ${CV_MCL_PATH}:/cv_db/latest.mcl:ro
-      - ${INDUCKS_DB_PATH}:/cv_db/inducks.db:ro
+      # Optional local data sources. Uncomment the lines below if you have
+      # the files in ./data/ (see the Scraping guide for details).
+      # - ${CV_DB_PATH:-./data/comicvine.db}:/cv_db/comicvine.db:ro
+      # - ${CV_MCL_PATH:-./data/latest.mcl}:/cv_db/latest.mcl:ro
+      # - ${INDUCKS_DB_PATH:-./data/inducks.db}:/cv_db/inducks.db:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.connect(('localhost',8000)); s.close()\""]
       interval: 10s
@@ -52,7 +54,7 @@ services:
         condition: service_started
 
   worker:
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO:-gitea.baerentsen.space/frederikbaerentsen}/comicmanager:${IMAGE_TAG:-latest}
     user: "${UID}:${GID}"
     restart: unless-stopped
     command: >
@@ -65,15 +67,17 @@ services:
       - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
       - ${LIBRARY_DIR:-./Comics}:/comics/library
       - ./data/logs:/app/logs
-      - ${CV_DB_PATH}:/cv_db/comicvine.db:ro
-      - ${CV_MCL_PATH}:/cv_db/latest.mcl:ro
-      - ${INDUCKS_DB_PATH}:/cv_db/inducks.db:ro
+      # Optional local data sources. Uncomment the lines below if you have
+      # the files in ./data/ (see the Scraping guide for details).
+      # - ${CV_DB_PATH:-./data/comicvine.db}:/cv_db/comicvine.db:ro
+      # - ${CV_MCL_PATH:-./data/latest.mcl}:/cv_db/latest.mcl:ro
+      # - ${INDUCKS_DB_PATH:-./data/inducks.db}:/cv_db/inducks.db:ro
     depends_on:
       web:
         condition: service_healthy
 
   beat:
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO:-gitea.baerentsen.space/frederikbaerentsen}/comicmanager:${IMAGE_TAG:-latest}
     user: "${UID}:${GID}"
     restart: unless-stopped
     command: >
