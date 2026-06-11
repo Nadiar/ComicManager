@@ -870,6 +870,72 @@ html, body {
 }
 .cm-checkbox-err input[type="checkbox"] { accent-color: var(--cm-err); }
 
+/* ── Alerts ────────────────────────────────────────────────────────────────── */
+.cm-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--cm-bg-2);
+  border: 1px solid var(--cm-border);
+  color: var(--cm-fg-1);
+}
+.cm-alert.ok   { background: var(--cm-ok-dim);   border-color: var(--cm-ok);   color: var(--cm-ok); }
+.cm-alert.warn { background: var(--cm-warn-dim); border-color: var(--cm-warn); color: var(--cm-warn); }
+.cm-alert.err  { background: var(--cm-err-dim);  border-color: var(--cm-err);  color: var(--cm-err); }
+.cm-alert.info { background: var(--cm-info-dim); border-color: var(--cm-info); color: var(--cm-info); }
+
+/* ── File input ────────────────────────────────────────────────────────────── */
+.cm-file { font-size: 12px; color: var(--cm-fg-1); }
+.cm-file::file-selector-button {
+  height: 28px;
+  padding: 0 10px;
+  margin-right: 10px;
+  background: var(--cm-bg-2);
+  border: 1px solid var(--cm-border);
+  border-radius: 5px;
+  color: var(--cm-fg);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.cm-file::file-selector-button:hover { background: var(--cm-bg-3); }
+
+/* ── Native <progress> element (value set from JS) ─────────────────────────── */
+progress.cm-progress-el {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--cm-bg-3);
+  overflow: hidden;
+}
+progress.cm-progress-el::-webkit-progress-bar   { background: var(--cm-bg-3); border-radius: 999px; }
+progress.cm-progress-el::-webkit-progress-value { background: var(--cm-accent); border-radius: 999px; }
+progress.cm-progress-el::-moz-progress-bar      { background: var(--cm-accent); border-radius: 999px; }
+progress.cm-progress-el.ok::-webkit-progress-value { background: var(--cm-ok); }
+progress.cm-progress-el.ok::-moz-progress-bar      { background: var(--cm-ok); }
+
+/* ── Large circular icon button (lightbox navigation) ──────────────────────── */
+.cm-icon-btn.lg {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .35);
+  color: #fff;
+  border-color: transparent;
+}
+.cm-icon-btn.lg:hover { background: rgba(0, 0, 0, .6); color: #fff; }
+
+/* Unlayered .hidden shim: cm-* component classes are unlayered and would
+   otherwise override Tailwind's layered display:none utility. */
+.hidden { display: none !important; }
+
 /* DaisyUI compatibility shims — used by JS-generated rule/condition form elements */
 .select-bordered, .input-bordered, .textarea-bordered {
   border: 1px solid var(--cm-border);
