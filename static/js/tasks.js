@@ -113,7 +113,7 @@
     }
     errorList.innerHTML = errors.map(function(e) {
       var safe = e.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      return '<div class="text-xs text-error/80 font-mono leading-tight" title="' + safe + '">' + safe + '</div>';
+      return '<div class="text-xs font-mono leading-tight" style="color:var(--cm-err); opacity:.85;" title="' + safe + '">' + safe + '</div>';
     }).join('');
     errorList.classList.remove('hidden');
   }
@@ -207,8 +207,7 @@
     status.textContent = 'Starting...';
     count.textContent = '0%';
     bar.value = 0;
-    bar.classList.remove('progress-success', 'progress-error');
-    bar.classList.add('progress-primary');
+    bar.classList.remove('ok', 'err');
     pollProgress();
   }
 
@@ -232,16 +231,13 @@
           hideCancel();
           if (r.cancelled) {
             labelEl.textContent = taskLabel + ' cancelled';
-            bar.classList.remove('progress-primary');
-            bar.classList.add('progress-error');
+            bar.classList.add('err');
           } else if (r.stopped_early) {
             labelEl.textContent = taskLabel + ' stopped early';
-            bar.classList.remove('progress-primary');
-            bar.classList.add('progress-error');
+            bar.classList.add('err');
           } else {
             labelEl.textContent = taskLabel + ' complete!';
-            bar.classList.remove('progress-primary');
-            bar.classList.add('progress-success');
+            bar.classList.add('ok');
           }
           count.textContent = '';
           status.textContent = successText(r);
@@ -267,8 +263,7 @@
           hideCancel();
           labelEl.textContent = taskLabel + ' failed';
           status.textContent = data.error || 'Unknown error';
-          bar.classList.remove('progress-primary');
-          bar.classList.add('progress-error');
+          bar.classList.add('err');
           activeTaskId = null;
           if (actionQueue.length > 0) {
             setTimeout(processNextAction, 800);
@@ -316,8 +311,8 @@
   window.showQuickToast = function(message, type) {
     labelEl.textContent = message;
     bar.value = 100;
-    bar.classList.remove('progress-primary', 'progress-error', 'progress-success');
-    bar.classList.add(type === 'error' ? 'progress-error' : 'progress-success');
+    bar.classList.remove('ok', 'err');
+    bar.classList.add(type === 'error' ? 'err' : 'ok');
     count.textContent = '';
     hideDismiss();
     showErrors(null);
@@ -363,13 +358,13 @@
           var r = msg.result || {};
           if (r.cancelled) {
             labelEl.textContent = taskLabel + ' cancelled';
-            bar.classList.remove('progress-primary'); bar.classList.add('progress-error');
+            bar.classList.add('err');
           } else if (r.stopped_early) {
             labelEl.textContent = taskLabel + ' stopped early';
-            bar.classList.remove('progress-primary'); bar.classList.add('progress-error');
+            bar.classList.add('err');
           } else {
             labelEl.textContent = taskLabel + ' complete!';
-            bar.classList.remove('progress-primary'); bar.classList.add('progress-success');
+            bar.classList.add('ok');
           }
           count.textContent = '';
           status.textContent = successText(r);
@@ -394,7 +389,7 @@
           hideCancel();
           labelEl.textContent = taskLabel + ' failed';
           status.textContent = msg.error || 'Unknown error';
-          bar.classList.remove('progress-primary'); bar.classList.add('progress-error');
+          bar.classList.add('err');
           activeTaskId = null;
           if (actionQueue.length > 0) {
             setTimeout(processNextAction, 800);

@@ -23,8 +23,8 @@ window.showMsgToast = function(message, type) {
   var toast = document.getElementById('msg-toast');
   var inner = document.getElementById('msg-toast-inner');
   document.getElementById('msg-toast-text').textContent = message;
-  inner.className = 'alert shadow-lg max-w-sm' +
-    (type === 'error' ? ' alert-error' : type === 'success' ? ' alert-success' : ' alert-info');
+  inner.className = 'cm-alert shadow-lg max-w-sm' +
+    (type === 'error' ? ' err' : type === 'success' ? ' ok' : ' info');
   toast.classList.remove('hidden');
   if (_msgToastTimer) clearTimeout(_msgToastTimer);
   _msgToastTimer = setTimeout(function() {

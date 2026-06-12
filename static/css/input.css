@@ -920,6 +920,8 @@ progress.cm-progress-el::-webkit-progress-value { background: var(--cm-accent); 
 progress.cm-progress-el::-moz-progress-bar      { background: var(--cm-accent); border-radius: 999px; }
 progress.cm-progress-el.ok::-webkit-progress-value { background: var(--cm-ok); }
 progress.cm-progress-el.ok::-moz-progress-bar      { background: var(--cm-ok); }
+progress.cm-progress-el.err::-webkit-progress-value { background: var(--cm-err); }
+progress.cm-progress-el.err::-moz-progress-bar      { background: var(--cm-err); }
 
 /* ── Large circular icon button (lightbox navigation) ──────────────────────── */
 .cm-icon-btn.lg {

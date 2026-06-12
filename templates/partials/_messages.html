@@ -1,7 +1,7 @@
     {% if messages %}
     <div class="p-4 space-y-2">
       {% for message in messages %}
-      <div class="alert alert-{{ message.tags|default:'info' }}">
+      <div class="cm-alert {% if 'success' in message.tags %}ok{% elif 'warning' in message.tags %}warn{% elif 'error' in message.tags %}err{% else %}info{% endif %}">
         <span>{{ message }}</span>
       </div>
       {% endfor %}
