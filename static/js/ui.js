@@ -18,6 +18,16 @@ window.showConfirm = function(message, onConfirm, label, danger) {
   modal.showModal();
 };
 
+// Route HTMX hx-confirm dialogs through the custom confirm modal instead of
+// the native browser confirm.
+document.addEventListener('htmx:confirm', function(evt) {
+  var question = evt.detail.question;
+  if (!question) return;
+  evt.preventDefault();
+  var danger = /delete|cannot be undone|force-stop/i.test(question);
+  window.showConfirm(question, function() { evt.detail.issueRequest(true); }, 'Confirm', danger);
+});
+
 var _msgToastTimer = null;
 window.showMsgToast = function(message, type) {
   var toast = document.getElementById('msg-toast');
