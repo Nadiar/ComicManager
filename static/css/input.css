@@ -923,16 +923,15 @@ progress.cm-progress-el.ok::-moz-progress-bar      { background: var(--cm-ok); }
 progress.cm-progress-el.err::-webkit-progress-value { background: var(--cm-err); }
 progress.cm-progress-el.err::-moz-progress-bar      { background: var(--cm-err); }
 
-/* ── Large circular icon button (lightbox navigation) ──────────────────────── */
-.cm-icon-btn.lg {
-  width: 40px;
-  height: 40px;
+/* ── Icon button variants (lightbox and image overlays) ────────────────────── */
+.cm-icon-btn.lg { width: 40px; height: 40px; }
+.cm-icon-btn.dark {
   border-radius: 50%;
   background: rgba(0, 0, 0, .35);
   color: #fff;
   border-color: transparent;
 }
-.cm-icon-btn.lg:hover { background: rgba(0, 0, 0, .6); color: #fff; }
+.cm-icon-btn.dark:hover { background: rgba(0, 0, 0, .6); color: #fff; border-color: transparent; }
 
 /* Unlayered .hidden shim: cm-* component classes are unlayered and would
    otherwise override Tailwind's layered display:none utility. */

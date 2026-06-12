@@ -8,7 +8,7 @@
 
   {% if is_format %}
   <select name="value"
-          class="select select-xs select-bordered w-full max-w-xs"
+          class="cm-input w-full max-w-xs"
           autofocus>
     <option value="">-</option>
     {% for choice in format_choices %}
@@ -19,19 +19,19 @@
   <input type="number"
          name="value"
          value="{{ current_value }}"
-         class="input input-xs input-bordered w-20"
+         class="cm-input w-20"
          autofocus>
   {% else %}
   <input type="text"
          name="value"
          value="{{ current_value }}"
-         class="input input-xs input-bordered w-full max-w-xs"
+         class="cm-input w-full max-w-xs"
          autofocus>
   {% endif %}
 
-  <button type="submit" class="btn btn-xs btn-success" title="Save">&#10003;</button>
+  <button type="submit" class="cm-btn sm ok" title="Save">&#10003;</button>
   <button type="button"
-          class="btn btn-xs btn-ghost"
+          class="cm-btn sm ghost"
           title="Cancel"
           hx-get="{% url 'core:comic_inline_field' comic.id %}?field={{ field }}&cancel=1"
           hx-target="closest [hx-get]"
