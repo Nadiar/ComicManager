@@ -8,72 +8,67 @@
 
   <div class="flex justify-between items-center">
     <h1 class="text-3xl font-bold">Import File Organizer Profiles</h1>
-    <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Cancel</a>
+    <a href="{% url 'organizer:profile_list' %}" class="cm-btn ghost cm-no-underline">Cancel</a>
   </div>
 
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">Import .lop File</h2>
-      <p class="text-base-content/60">
+  <div class="cm-card">
+    <div class="cm-card-body">
+      <h2 style="font-size:15px; font-weight:700; margin:0 0 4px;">Import .lop File</h2>
+      <p class="cm-text-muted">
         Upload a ComicRack Library Organizer profile file (.lop) to import profiles.
       </p>
 
       <form method="post" enctype="multipart/form-data" class="space-y-4 mt-4">
         {% csrf_token %}
 
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Select .lop file</span>
-          </label>
+        <div>
+          <label class="cm-label">Select .lop file</label>
           <input
             type="file"
             name="lop_file"
             accept=".lop,.xml"
-            class="file-input file-input-bordered w-full"
+            class="cm-file w-full"
             required
           >
         </div>
 
         {% if existing_count > 0 %}
-        <div style="background:var(--cm-warn-dim); border:1px solid var(--cm-warn); border-radius:8px; padding:14px 18px; display:flex; align-items:center; gap:10px; color:var(--cm-warn); font-size:13px; font-weight:500;">
+        <div class="cm-alert warn">
           <span style="font-size:16px; line-height:1;">⚠</span>
           <span>You have {{ existing_count }} existing profile(s).</span>
         </div>
 
-        <div class="form-control">
-          <label class="cursor-pointer label justify-start gap-4">
+        <div>
+          <label class="cm-checkbox-row cm-checkbox-err">
             <input
               type="checkbox"
               name="clear_existing"
               checked
-              class="checkbox checkbox-warning"
             >
-            <span class="label-text">Delete existing profiles before import</span>
+            <span>Delete existing profiles before import</span>
           </label>
-          <label class="label">
-            <span class="label-text-alt text-base-content/60">
-              If unchecked, imported profiles will be added alongside existing ones
-            </span>
-          </label>
+          <div style="font-size:11px; color:var(--cm-fg-3); margin-top:3px;">
+            If unchecked, imported profiles will be added alongside existing ones
+          </div>
         </div>
         {% endif %}
 
         <div class="flex gap-2">
-          <button type="submit" class="btn btn-primary">Import</button>
-          <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Cancel</a>
+          <button type="submit" class="cm-btn primary">Import</button>
+          <a href="{% url 'organizer:profile_list' %}" class="cm-btn ghost cm-no-underline">Cancel</a>
         </div>
       </form>
     </div>
   </div>
 
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">About .lop Files</h2>
-      <p class="text-sm text-base-content/60">
+  <div class="cm-card">
+    <div class="cm-card-body">
+      <h2 style="font-size:15px; font-weight:700; margin:0 0 4px;">About .lop Files</h2>
+      <p class="text-sm cm-text-muted">
         The .lop (Library Organizer Profile) file is an XML format used by ComicRack
         to define how comics should be organized into folders. Each profile contains:
       </p>
-      <ul class="list-disc list-inside text-sm text-base-content/60 mt-2 space-y-1">
+      <ul class="list-disc list-inside text-sm cm-text-muted mt-2 space-y-1">
         <li>Folder and file templates with placeholders</li>
         <li>Matching rules to determine which comics use this profile</li>
         <li>Character replacement mappings for filesystem safety</li>

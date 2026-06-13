@@ -1,45 +1,45 @@
-<div class="overflow-x-auto">
-  <table class="table table-sm table-zebra">
+<div class="cm-overflow-x">
+  <table class="cm-table">
     <thead>
-      <tr>
-        <th>Series</th>
-        <th>#</th>
-        <th>Count</th>
-        <th>Title</th>
-        <th>Publisher</th>
-        <th>Current Format</th>
-        <th>State</th>
+      <tr class="cm-divider">
+        <th class="cm-th">Series</th>
+        <th class="cm-th">#</th>
+        <th class="cm-th">Count</th>
+        <th class="cm-th">Title</th>
+        <th class="cm-th">Publisher</th>
+        <th class="cm-th">Current Format</th>
+        <th class="cm-th">State</th>
       </tr>
     </thead>
     <tbody>
       {% for comic in comics %}
-      <tr class="hover">
-        <td class="font-medium">
-          <a href="{% url 'core:detail' comic.pk %}" class="link link-primary">
+      <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+        <td class="font-medium" style="padding:6px 10px;">
+          <a href="{% url 'core:detail' comic.pk %}" class="cm-text-accent">
             {{ comic.series|default:"-" }}
           </a>
         </td>
-        <td>{{ comic.number|default:"-" }}</td>
-        <td>{{ comic.count|default:"-" }}</td>
-        <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
-        <td>{{ comic.publisher|default:"-" }}</td>
-        <td>
+        <td style="padding:6px 10px;">{{ comic.number|default:"-" }}</td>
+        <td style="padding:6px 10px;">{{ comic.count|default:"-" }}</td>
+        <td class="max-w-xs truncate" style="padding:6px 10px;">{{ comic.title|default:"-" }}</td>
+        <td style="padding:6px 10px;">{{ comic.publisher|default:"-" }}</td>
+        <td style="padding:6px 10px;">
           {% if comic.format %}
-          <span class="badge badge-sm badge-outline">{{ comic.format }}</span>
+          <span class="cm-chip">{{ comic.format }}</span>
           {% else %}
-          <span class="text-base-content/40">-</span>
+          <span class="cm-text-muted">-</span>
           {% endif %}
         </td>
-        <td>
-          <span class="badge badge-sm badge-info">{{ comic.state }}</span>
+        <td style="padding:6px 10px;">
+          <span class="cm-chip info">{{ comic.state }}</span>
           {% if comic.needs_reformat %}
-          <span class="badge badge-sm badge-warning">needs reformat</span>
+          <span class="cm-chip warn">needs reformat</span>
           {% endif %}
         </td>
       </tr>
       {% empty %}
       <tr>
-        <td colspan="7" class="text-center py-4 text-base-content/50">
+        <td colspan="7" class="text-center py-4 cm-text-muted">
           No comics in this group
         </td>
       </tr>
