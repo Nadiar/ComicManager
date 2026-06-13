@@ -7,10 +7,10 @@
 <div class="space-y-6 max-w-2xl">
   <div class="flex justify-between items-center">
     <h1 class="text-3xl font-bold">Import CBL — Map Fields</h1>
-    <a href="{% url 'dashboard:smartlist_import_cbl' %}" class="btn btn-ghost">Cancel</a>
+    <a href="{% url 'dashboard:smartlist_import_cbl' %}" class="cm-btn ghost cm-no-underline">Cancel</a>
   </div>
 
-  <div style="background:var(--cm-warn-dim); border:1px solid var(--cm-warn); border-radius:8px; padding:14px 18px; display:flex; align-items:flex-start; gap:10px; color:var(--cm-warn); font-size:13px; font-weight:500;">
+  <div class="cm-alert warn">
     <span style="font-size:16px; line-height:1; flex-shrink:0;">⚠</span>
     <div>
       <div>Some fields in "{{ cbl_name }}" are not recognised as standard ComicManager filter fields.</div>
@@ -25,14 +25,12 @@
     <input type="hidden" name="cbl_filters" value="{{ cbl_filters }}" />
     <input type="hidden" name="cbl_warnings" value="{{ cbl_warnings }}" />
 
-    <div class="card bg-base-200">
-      <div class="card-body space-y-4">
+    <div class="cm-card">
+      <div class="cm-card-body space-y-4">
         {% for field in unknown_fields %}
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text font-mono text-sm">{{ field }}</span>
-          </label>
-          <select name="mapping_{{ field }}" class="select select-bordered w-full">
+        <div>
+          <label class="cm-label font-mono">{{ field }}</label>
+          <select name="mapping_{{ field }}" class="cm-input w-full">
             <option value="">Skip filters using this field</option>
             <optgroup label="— Map to —">
             {% for value, label in field_options %}
@@ -49,8 +47,8 @@
     </div>
 
     <div class="flex gap-2 justify-end mt-4">
-      <a href="{% url 'dashboard:smartlist_import_cbl' %}" class="btn btn-ghost">Cancel</a>
-      <button type="submit" class="btn btn-primary">Import</button>
+      <a href="{% url 'dashboard:smartlist_import_cbl' %}" class="cm-btn ghost cm-no-underline">Cancel</a>
+      <button type="submit" class="cm-btn primary">Import</button>
     </div>
   </form>
 </div>

@@ -7,10 +7,10 @@
 <div class="space-y-6 max-w-xl">
   <div class="flex justify-between items-center">
     <h1 class="text-3xl font-bold">Export CBL</h1>
-    <a href="{% url 'dashboard:smartlist_detail' smart_list.pk %}" class="btn btn-ghost">Cancel</a>
+    <a href="{% url 'dashboard:smartlist_detail' smart_list.pk %}" class="cm-btn ghost cm-no-underline">Cancel</a>
   </div>
 
-  <div style="background:var(--cm-warn-dim); border:1px solid var(--cm-warn); border-radius:8px; padding:14px 18px; display:flex; align-items:flex-start; gap:10px; color:var(--cm-warn); font-size:13px; font-weight:500;">
+  <div class="cm-alert warn">
     <span style="font-size:16px; line-height:1; flex-shrink:0;">⚠</span>
     <div>
       <div>Some filters in "{{ smart_list.name }}" cannot be represented in standard CBL format:</div>
@@ -22,22 +22,22 @@
     </div>
   </div>
 
-  <div class="card bg-base-200">
-    <div class="card-body space-y-4">
+  <div class="cm-card">
+    <div class="cm-card-body space-y-4">
       <div class="flex gap-4 items-start">
         <div class="flex-1">
           <p class="font-semibold">ComicRack-safe</p>
-          <p class="text-sm text-base-content/70">Standard CBL format. Unsupported filters are skipped. Works in ComicRack and ComicManager.</p>
+          <p class="text-sm cm-text-muted">Standard CBL format. Unsupported filters are skipped. Works in ComicRack and ComicManager.</p>
         </div>
-        <button type="button" class="btn btn-outline" onclick="downloadAndBack('?mode=comicrak')">Download</button>
+        <button type="button" class="cm-btn" onclick="downloadAndBack('?mode=comicrak')">Download</button>
       </div>
-      <div class="divider my-0"></div>
+      <div class="cm-divider"></div>
       <div class="flex gap-4 items-start">
         <div class="flex-1">
           <p class="font-semibold">Complete</p>
-          <p class="text-sm text-base-content/70">All filters preserved. Can be re-imported into ComicManager without any data loss. Not compatible with ComicRack.</p>
+          <p class="text-sm cm-text-muted">All filters preserved. Can be re-imported into ComicManager without any data loss. Not compatible with ComicRack.</p>
         </div>
-        <button type="button" class="btn btn-primary" onclick="downloadAndBack('?mode=complete')">Download</button>
+        <button type="button" class="cm-btn primary" onclick="downloadAndBack('?mode=complete')">Download</button>
       </div>
     </div>
   </div>
