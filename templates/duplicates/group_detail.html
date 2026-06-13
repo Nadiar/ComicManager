@@ -9,26 +9,26 @@
   <!-- Header -->
   <div class="flex justify-between items-center">
     <div>
-      <div class="text-sm breadcrumbs mb-2">
-        <ul>
-          <li><a href="{% url 'duplicates:review' %}">Duplicate Review</a></li>
-          <li>{{ group.match_key|truncatechars:40 }}</li>
-        </ul>
+      <div style="font-size:11px; color:var(--cm-fg-3); margin-bottom:8px;">
+        <a href="{% url 'duplicates:review' %}" class="cm-no-underline" style="color:var(--cm-fg-3);">Duplicate Review</a>
+        <span style="margin:0 4px;">/</span>
+        {{ group.match_key|truncatechars:40 }}
       </div>
       <h1 class="text-2xl font-bold">{{ group.match_key }}</h1>
-      <p class="text-base-content/70">
+      <p class="cm-text-muted">
         {{ group.get_detection_method_display }} &bull;
         {{ comics|length }} comic{{ comics|length|pluralize }} pending
         {% if group.status != 'pending' %}
-        &bull; <span class="badge badge-success">{{ group.get_status_display }}</span>
+        &bull; <span class="cm-chip ok">{{ group.get_status_display }}</span>
         {% endif %}
       </p>
     </div>
     <div class="flex gap-2">
-      <a href="{% url 'duplicates:review' %}" class="btn btn-ghost btn-sm">Back to Review</a>
+      <a href="{% url 'duplicates:review' %}" class="cm-btn sm ghost cm-no-underline">Back to Review</a>
       {% if group.status == 'pending' %}
       <button
-        class="btn btn-info btn-sm"
+        class="cm-btn sm"
+        style="color:var(--cm-info); border-color:var(--cm-info);"
         hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
         hx-vals='{"action": "keep_all"}'
         hx-target="body"
@@ -44,9 +44,9 @@
   <!-- Side-by-side comparison cards -->
   <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
     {% for item in comics %}
-    <div class="card bg-base-200 shadow-lg">
+    <div class="cm-card">
       <figure class="px-4 pt-4">
-        <div class="bg-base-300 rounded-lg w-full aspect-[2/3] flex items-center justify-center overflow-hidden">
+        <div class="w-full aspect-[2/3] flex items-center justify-center overflow-hidden" style="background:var(--cm-bg-2); border-radius:6px;">
           {% if item.comic.file_path %}
           <img
             src="{% url 'core:cover' item.comic.pk %}"
@@ -59,37 +59,37 @@
           {% endif %}
         </div>
       </figure>
-      <div class="card-body p-4">
-        <h2 class="card-title text-base">
+      <div class="cm-card-body">
+        <h2 style="font-size:15px; font-weight:700; margin:0 0 8px;">
           {{ item.comic.series|default:"Unknown" }}
           {% if item.comic.number %}#{{ item.comic.number }}{% endif %}
         </h2>
 
         <div class="text-sm space-y-1">
           <div class="flex justify-between">
-            <span class="text-base-content/60">Volume:</span>
+            <span class="cm-text-muted">Volume:</span>
             <span>{{ item.comic.volume|default:"-" }}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-base-content/60">Publisher:</span>
+            <span class="cm-text-muted">Publisher:</span>
             <span>{{ item.comic.publisher|default:"-" }}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-base-content/60">Format:</span>
+            <span class="cm-text-muted">Format:</span>
             <span>
               {% if item.comic.format %}
-              <span class="badge badge-sm">{{ item.comic.format }}</span>
+              <span class="cm-chip" style="font-size:10.5px;">{{ item.comic.format }}</span>
               {% else %}-{% endif %}
             </span>
           </div>
           <div class="flex justify-between">
-            <span class="text-base-content/60">CV Issue:</span>
+            <span class="cm-text-muted">CV Issue:</span>
             <span class="font-mono text-xs">
               {{ item.comic.custom_values.comicvine_issue|default:"-" }}
             </span>
           </div>
           <div class="flex justify-between">
-            <span class="text-base-content/60">File Size:</span>
+            <span class="cm-text-muted">File Size:</span>
             <span>
               {% if item.comic.file_size %}
               {% widthratio item.comic.file_size 1048576 1 %} MB
@@ -97,35 +97,36 @@
             </span>
           </div>
           <div class="flex justify-between">
-            <span class="text-base-content/60">Pages:</span>
+            <span class="cm-text-muted">Pages:</span>
             <span>{{ item.comic.page_count|default:"-" }}</span>
           </div>
           <div class="flex justify-between">
-            <span class="text-base-content/60">Scrape Source:</span>
+            <span class="cm-text-muted">Scrape Source:</span>
             <span>
               {% if item.comic.custom_values.scrape_source %}
-              <span class="badge badge-xs">{{ item.comic.custom_values.scrape_source }}</span>
+              <span class="cm-chip cm-text-xs">{{ item.comic.custom_values.scrape_source }}</span>
               {% else %}-{% endif %}
             </span>
           </div>
           {% if item.membership.phash_distance is not None %}
           <div class="flex justify-between">
-            <span class="text-base-content/60">Hash Distance:</span>
+            <span class="cm-text-muted">Hash Distance:</span>
             <span>{{ item.membership.phash_distance }}</span>
           </div>
           {% endif %}
         </div>
 
-        <div class="text-xs text-base-content/50 mt-2 truncate" title="{{ item.comic.file_path }}">
+        <div class="text-xs cm-text-muted mt-2 truncate" title="{{ item.comic.file_path }}">
           {{ item.comic.file_path|default:"No file" }}
         </div>
 
-        <div class="card-actions justify-end mt-4">
-          <a href="{% url 'core:detail' item.comic.pk %}" class="btn btn-xs btn-ghost" target="_blank" rel="noopener noreferrer">
+        <div class="flex justify-end flex-wrap gap-1.5 mt-4">
+          <a href="{% url 'core:detail' item.comic.pk %}" class="cm-btn sm ghost cm-no-underline" target="_blank" rel="noopener noreferrer">
             View
           </a>
           <button
-            class="btn btn-xs btn-primary"
+            class="cm-btn sm ghost"
+            style="border-color:var(--cm-ok); color:var(--cm-ok);"
             hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
             hx-vals='{"action": "keep_and_delete_rest", "comic_id": "{{ item.comic.pk }}"}'
             hx-target="body"
@@ -134,7 +135,8 @@
             Keep &amp; Del Rest
           </button>
           <button
-            class="btn btn-xs btn-success"
+            class="cm-btn sm"
+            style="color:var(--cm-ok); border-color:var(--cm-ok);"
             hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
             hx-vals='{"action": "keep", "comic_id": "{{ item.comic.pk }}"}'
             hx-target="body"
@@ -142,7 +144,8 @@
             Keep
           </button>
           <button
-            class="btn btn-xs btn-warning"
+            class="cm-btn sm"
+            style="color:var(--cm-warn); border-color:var(--cm-warn);"
             hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
             hx-vals='{"action": "requeue", "comic_id": "{{ item.comic.pk }}"}'
             hx-target="body"
@@ -151,7 +154,8 @@
             Re-Q
           </button>
           <button
-            class="btn btn-xs btn-error"
+            class="cm-btn sm"
+            style="color:var(--cm-err); border-color:var(--cm-err);"
             hx-post="{% url 'duplicates:resolve_htmx' group.pk %}"
             hx-vals='{"action": "delete", "comic_id": "{{ item.comic.pk }}"}'
             hx-target="body"
@@ -164,7 +168,7 @@
     </div>
     {% empty %}
     <div class="col-span-full">
-      <div style="background:var(--cm-ok-dim); border:1px solid var(--cm-ok); border-radius:8px; padding:14px 18px; display:flex; align-items:center; gap:10px; color:var(--cm-ok); font-size:13px; font-weight:500;">
+      <div class="cm-alert ok">
         <span style="font-size:16px; line-height:1;">✓</span>
         <span>All comics in this group have been resolved.</span>
       </div>
@@ -172,7 +176,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <div style="background:var(--cm-ok-dim); border:1px solid var(--cm-ok); border-radius:8px; padding:14px 18px; display:flex; align-items:center; gap:10px; color:var(--cm-ok); font-size:13px; font-weight:500;">
+  <div class="cm-alert ok">
     <span style="font-size:16px; line-height:1;">✓</span>
     <span>
       This duplicate group has been {{ group.get_status_display|lower }}.

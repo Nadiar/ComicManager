@@ -10,72 +10,72 @@
   <div class="flex justify-between items-center">
     <div>
       <h1 class="text-3xl font-bold">Resolution History</h1>
-      <p class="text-base-content/70">Audit log of duplicate resolution decisions</p>
+      <p class="cm-text-muted">Audit log of duplicate resolution decisions</p>
     </div>
-    <a href="{% url 'duplicates:review' %}" class="btn btn-ghost btn-sm">Back to Review</a>
+    <a href="{% url 'duplicates:review' %}" class="cm-btn sm ghost cm-no-underline">Back to Review</a>
   </div>
 
   {% if resolutions %}
-  <div class="overflow-x-auto">
-    <table class="table table-zebra w-full">
+  <div class="cm-overflow-x">
+    <table class="cm-table">
       <thead>
-        <tr>
-          <th>Time</th>
-          <th>Action</th>
-          <th>Detection</th>
-          <th>Match Key</th>
-          <th>Comic</th>
-          <th>By</th>
+        <tr class="cm-divider">
+          <th class="cm-th">Time</th>
+          <th class="cm-th">Action</th>
+          <th class="cm-th">Detection</th>
+          <th class="cm-th">Match Key</th>
+          <th class="cm-th">Comic</th>
+          <th class="cm-th">By</th>
         </tr>
       </thead>
       <tbody>
         {% for res in resolutions %}
-        <tr class="hover">
-          <td class="whitespace-nowrap">
+        <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          <td class="whitespace-nowrap" style="padding:6px 10px;">
             {{ res.resolved_at|date:"Y-m-d H:i" }}
           </td>
-          <td>
+          <td style="padding:6px 10px;">
             {% if res.action == 'keep' %}
-            <span class="badge badge-success">Keep</span>
+            <span class="cm-chip ok">Keep</span>
             {% elif res.action == 'requeue' %}
-            <span class="badge badge-warning">Re-queue</span>
+            <span class="cm-chip warn">Re-queue</span>
             {% elif res.action == 'delete' %}
-            <span class="badge badge-error">Delete</span>
+            <span class="cm-chip err">Delete</span>
             {% elif res.action == 'keep_all' %}
-            <span class="badge badge-info">Keep All</span>
+            <span class="cm-chip info">Keep All</span>
             {% else %}
-            <span class="badge">{{ res.action }}</span>
+            <span class="cm-chip">{{ res.action }}</span>
             {% endif %}
           </td>
-          <td>
+          <td style="padding:6px 10px;">
             {% if res.detection_method == 'cv_id' %}
-            <span class="badge badge-sm badge-outline">CV ID</span>
+            <span class="cm-chip">CV ID</span>
             {% elif res.detection_method == 'metadata' %}
-            <span class="badge badge-sm badge-outline">Metadata</span>
+            <span class="cm-chip">Metadata</span>
             {% elif res.detection_method == 'phash' %}
-            <span class="badge badge-sm badge-outline">pHash</span>
+            <span class="cm-chip">pHash</span>
             {% else %}
             {{ res.detection_method }}
             {% endif %}
           </td>
-          <td class="max-w-xs truncate" title="{{ res.match_key }}">
+          <td class="max-w-xs truncate" style="padding:6px 10px;" title="{{ res.match_key }}">
             {{ res.match_key|truncatechars:40 }}
           </td>
-          <td class="max-w-xs truncate" title="{{ res.comic_str }}">
+          <td class="max-w-xs truncate" style="padding:6px 10px;" title="{{ res.comic_str }}">
             {% if res.comic_str %}
             {{ res.comic_str|truncatechars:40 }}
             {% else %}
-            <span class="text-base-content/50">-</span>
+            <span class="cm-text-muted">-</span>
             {% endif %}
           </td>
-          <td>{{ res.resolved_by }}</td>
+          <td style="padding:6px 10px;">{{ res.resolved_by }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% else %}
-  <div style="background:var(--cm-info-dim); border:1px solid var(--cm-info); border-radius:8px; padding:14px 18px; display:flex; align-items:center; gap:10px; color:var(--cm-info); font-size:13px; font-weight:500;">
+  <div class="cm-alert info">
     <span style="font-size:16px; line-height:1;">ℹ</span>
     <span>No resolution history yet.</span>
   </div>
