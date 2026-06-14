@@ -171,3 +171,22 @@ SecurityWarning: You're running the worker with superuser privileges
 ```
 
 This is a false positive. Celery cannot resolve the numeric `GID` to a name because Alpine-based containers have a minimal `/etc/group`. The worker is running as the uid/gid you set in `.env` not as root. The warnings are safe to ignore.
+
+### Redis memory overcommit warning
+
+The `redis` container may log:
+
+```
+WARNING Memory overcommit must be enabled! Without it, a background save or
+replication may fail under low memory condition.
+```
+
+This is a kernel setting on the Docker host, not something a container can change. Fixing it is entirely optional: ComicManager only keeps transient data in Redis (task queue, cache, API rate counters), so nothing important is lost even if a background save fails. The app runs fine with the warning present, just like the Celery warning above.
+
+If you want to silence it anyway, run this on the host:
+
+```bash
+sudo sysctl vm.overcommit_memory=1
+```
+
+To persist it across reboots, add `vm.overcommit_memory = 1` to `/etc/sysctl.conf`.
