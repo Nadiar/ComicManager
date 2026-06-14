@@ -281,7 +281,7 @@
 - [x] [BUG.37] On the comic detail page, the "Write to file" action under Actions does not advance the comic state after writing. The comic remains in the "Write to CBZ" state instead of moving to the written state.
 - [x] [BUG.38] Run Path Audit progress bar does not stretch to fill the full width of its container box.
 - [x] [BUG.39] New, Scrape, Tagging, Move Files, Write to CBZ all live at `/comics/?state=X`. Since active detection uses `request.path`, all five match `/comics/` and highlight the "Comics" item instead of the individual workflow step. Fix: pass the active state name via a template context variable and compare against `request.GET.state` in the sidebar.
-- [ ] [BUG.40] Redis warning in Docker: WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.
+- [x] [BUG.40] Redis warning in Docker: WARNING Memory overcommit must be enabled!
 - [x] [BUG.41] When a comic has been tagged the audit log shows rollback to 'To Count', but that stage does not work anymore. 
 - [x] [BUG.42] If I'm using Hybrid/Grid/Compact view and use the 'x Clear' button, the view resets to Table. Is it possible that the view isn't a url variable? 
 - [x] [BUG.43] When in Grid view theres sometimes a small exclamationmark on a comic, when hovering we want to see what the issue is, eg. CBR file or ZIP or PDF or whatever it could be. or maybe the flag? 
@@ -295,7 +295,7 @@
 - [x] [BUG.51] In Comics details view. Pressing 'Write' makes the 'Format' button spin, but the action is 'Write'
 - [x] [BUG.52] 'New Comics' on dashboard, when the convert button is shown, the view link should go to `/comics/?flag=needs_conversion` and not `/comics/?state=new&file_format=cbr`
 - [x] [BUG.53] Going to `/comics/?flag=scrape_no_match` and clicking the in-line row button `Scrape` does autoscrape with no confirmation, but the flag is already no match, so we need the manual confirm scrape window.
-- [ ] [BUG.54] Toast actions doesn't batch actions correctly. Starting `Rewrite all` for "Count Updated Issue count changed - needs ComicInfo.xml rewrite" and then running a pipeline scan like from eg. 'New Comics' will replace the toast. When the pipeline is finished and the user dismisses the popup, the page reloads and the old toast for `Rewrite` will appear again. 
+- [ ] [BUG.54] Toast actions doesn't batch actions correctly. Starting `Rewrite all` for "Count Updated Issue count changed - needs ComicInfo.xml rewrite" and then running a pipeline scan like from eg. 'New Comics' will replace the toast. When the pipeline is finished and the user dismisses the popup, the page reloads and the old toast for `Rewrite` will appear again. Same underlying work as FI.10 (multi-task toast).
 - [x] [BUG.55] On `/smartlists/<uuid>/edit/`, `/tagging/ruleset/<x>/`, `/tagging/ruleset/<x>/edit/`, `/organizer/profiles/<x>/`, `/organizer/profiles/<x>/edit/` we need cm-card to have padding like 8px or something. Match it with other padding locations, check CSS.
 - [x] [BUG.56] On `/organizer/au-scan/` the progressbar needs to use toast and not on-page bar.
 
@@ -355,7 +355,7 @@
 - [ ] [FI.8] Add a configurable setting to control whether CBR/CB7 files are flagged `needs_conversion` on import. Currently flagging is unconditional. Implementation: re-introduce a setting (e.g. `import_convert_cbr`), read it in `services.py` and `scan_untagged.py`, and only set the flag when enabled.
 - [ ] [FI.9] Extend `snapshot_fields` / `diff_fields` (in `apps/core/audit.py`) to handle nested dict-key paths like `comic.custom_values["comicvine_issue"]` with audit-key renaming, so scrape audit code can declare one shared field list and avoid the inline `before_cv_issue` / `before_cv_volume` currently in `_run_scrape`, `scrape_comic`, and `force_scrape`.
 - [ ] [FI.10] When multiple tasks are running concurrently (e.g. a re-write batch from the dashboard Maintenance tab and a separate `/organizer/au-scan/` Run Scan), the toast notification shows only the most recent task and silently replaces the previous one. Instead, show a running task count in the toast header and cycle or stack the active task statuses so the user can see all in-progress operations at once.
-- [ ] [FI.11] The `/organizer/au-scan/` Run Scan progress counter stays at 0 until the full scan completes. The number of candidates is known up front, so the toast should update after each candidate is checked rather than only at the end.
+- [ ] [FI.11] The `/organizer/au-scan/` Run Scan progress counter stays at 0 until the full scan completes. Root cause identified (2026-06): in `scan_au_paths_task` the skip paths hit `continue` before the end-of-loop `update_state`, and most candidates are skipped, so no progress is ever reported. Fix: report progress on every iteration including all skip paths (e.g. a small `_report()` helper called before each `continue` and at loop end).
 
 ## Redesign 
 
@@ -393,6 +393,8 @@
     - [x] [RD.26c] Double check that all values like hash/api/match info exists somehwere
     - [x] [RD.26d] Remove extra 'View on Comicvine'
     - [x] [RD.26e] Add Pipeline History (use Audit log info?)
+- [ ] [RD.27] Migrate the three JS form builders off the DaisyUI to `cm-*` components: `templates/tagging/ruleset_form.html`, `templates/dashboard/smartlist_form.html`, `templates/organizer/profile_form.html`. This seems to be the last remaining DaisyUI. Remember the server-rendered rule rows in `ruleset_form.html` must stay visually identical to its JS-generated rows.
+- [ ] [RD.28] After RD.27, prune the now-unused DaisyUI from `static/css/input.css`
 
 
 ## Code to Port
