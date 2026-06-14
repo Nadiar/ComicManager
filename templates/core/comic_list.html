@@ -183,8 +183,8 @@
   {% if current_state == 'move' and comics %}<button type="button" class="cm-btn sm" onclick="organizeAllComics(this)">Organize All</button>{% endif %}
   {% if current_state == 'write' and comics %}<button type="button" class="cm-btn sm" onclick="writeAllComics(this)">Write All</button>{% endif %}
   {% if current_medium == 'physical' %}
-  <a href="{% url 'physical:import_csv' %}" class="cm-btn sm" cm-no-underline">CSV Import</a>
-  <a href="{% url 'physical:add' %}" class="cm-btn sm primary" cm-no-underline">+ Physical</a>
+  <a href="{% url 'physical:import_csv' %}" class="cm-btn sm cm-no-underline">CSV Import</a>
+  <a href="{% url 'physical:add' %}" class="cm-btn sm primary cm-no-underline">+ Physical</a>
   {% endif %}
 </div>
 
@@ -809,22 +809,21 @@ function acceptAllComics(btn) {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-neutral');
+      btn.classList.remove('ok');
       btn.innerHTML = `Done (${data.accepted} accepted, ${data.skipped} skipped)`;
 
       // Reload page after 1.5 seconds to show updated data
       setTimeout(() => window.location.reload(), 1500);
     } else {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-error');
+      btn.classList.remove('ok');
+      btn.classList.add('err');
       btn.innerHTML = 'Error';
       btn.disabled = false;
     }
   })
   .catch(err => {
-    btn.classList.remove('btn-success');
-    btn.classList.add('btn-error');
+    btn.classList.remove('ok');
+    btn.classList.add('err');
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
@@ -847,15 +846,14 @@ function acceptComic(pk, btn) {
     if (data.success) {
       // Update the row to show success
       const row = btn.closest('.cm-list-row');
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-neutral');
+      btn.classList.remove('ok');
       btn.innerHTML = 'Accepted';
 
       // Update state badge
       const stateBadge = row?.querySelector('.cm-chip');
       if (stateBadge) {
-        stateBadge.classList.remove('badge-warning');
-        stateBadge.classList.add('badge-info');
+        stateBadge.classList.remove('warn');
+        stateBadge.classList.add('info');
         stateBadge.textContent = 'Scrape';
       }
 
@@ -865,16 +863,16 @@ function acceptComic(pk, btn) {
         row.style.opacity = '0.4';
       }
     } else {
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-error');
+      btn.classList.remove('ok');
+      btn.classList.add('err');
       btn.innerHTML = 'Error';
       btn.title = data.error;
       btn.disabled = false;
     }
   })
   .catch(err => {
-    btn.classList.remove('btn-success');
-    btn.classList.add('btn-error');
+    btn.classList.remove('ok');
+    btn.classList.add('err');
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
@@ -896,14 +894,12 @@ async function toggleSkipComic(pk, btn) {
       const scrapeBtn = btn.closest('.cm-list-row')?.querySelector('button[onclick^="scrapeComic"]');
       if (data.skipped) {
         btn.textContent = 'Un-skip';
-        btn.classList.remove('btn-ghost', 'btn-outline');
-        btn.classList.add('btn-warning');
+        btn.style.color = 'var(--cm-warn)';
         btn.title = 'Remove skip flag — include in batch scraping';
         if (scrapeBtn) scrapeBtn.dataset.scrapeSkipped = 'true';
       } else {
         btn.textContent = 'Skip';
-        btn.classList.remove('btn-warning');
-        btn.classList.add('btn-ghost', 'btn-outline');
+        btn.style.color = '';
         btn.title = 'Skip this comic in batch scraping';
         if (scrapeBtn) delete scrapeBtn.dataset.scrapeSkipped;
       }
@@ -968,13 +964,11 @@ function scrapeAllComics(btn) {
     .then(response => response.json())
     .then(data => {
       if (data.task_id) {
-        btn.classList.remove('btn-secondary');
-        btn.classList.add('btn-info');
+        btn.style.color = 'var(--cm-info)'; btn.style.borderColor = 'var(--cm-info)';
         btn.innerHTML = 'Running...';
         if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Scraping comics');
       } else if (data.success) {
-        btn.classList.remove('btn-secondary');
-        btn.classList.add('btn-success');
+        btn.classList.add('ok');
         btn.innerHTML = 'Done';
         setTimeout(() => window.location.reload(), 1500);
       } else {
@@ -996,8 +990,7 @@ function processNextScrape() {
   if (scrapeQueue.length === 0) {
     // Done with all comics
     if (currentScrapeBtn) {
-      currentScrapeBtn.classList.remove('btn-secondary');
-      currentScrapeBtn.classList.add('btn-success');
+      currentScrapeBtn.classList.add('ok');
       currentScrapeBtn.innerHTML = `Done (${scrapeStats.matched} matched, ${scrapeStats.skipped} skipped)`;
     }
     setTimeout(() => window.location.reload(), 1500);
@@ -1034,8 +1027,7 @@ function openListScrapeModal(pk, btn) {
     },
     onSkip: function() {
       if (btn) {
-        btn.classList.remove('btn-secondary');
-        btn.classList.add('btn-warning');
+        btn.style.color = 'var(--cm-warn)'; btn.style.borderColor = 'var(--cm-warn)';
         btn.innerHTML = 'Skipped';
       }
       scrapeStats.skipped++;
@@ -1044,8 +1036,7 @@ function openListScrapeModal(pk, btn) {
     onCancel: function() {
       if (scrapeQueue.length > 0) {
         if (btn) {
-          btn.classList.remove('btn-secondary');
-          btn.classList.add('btn-warning');
+          btn.style.color = 'var(--cm-warn)'; btn.style.borderColor = 'var(--cm-warn)';
           btn.innerHTML = 'Skipped';
         }
         scrapeStats.skipped++;
@@ -1059,8 +1050,7 @@ function openListScrapeModal(pk, btn) {
 function updateRowAfterScrape(btn, data) {
   const row = btn.closest('.cm-list-row');
   if (btn) {
-    btn.classList.remove('btn-secondary');
-    btn.classList.add('btn-success');
+    btn.classList.add('ok');
     btn.innerHTML = 'Done';
   }
   if (!row) {
@@ -1069,7 +1059,7 @@ function updateRowAfterScrape(btn, data) {
   }
 
   // Update state badge
-  const stateBadge = row.querySelector('td[data-col="state"] .badge');
+  const stateBadge = row.querySelector('td[data-col="state"] .cm-chip');
   if (stateBadge) {
     stateBadge.textContent = 'Tag';
   }
@@ -1145,8 +1135,7 @@ function convertComic(pk, btn) {
     if (data.success) {
       // Update the row to show success
       const row = btn.closest('.cm-list-row');
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-success');
+      btn.classList.add('ok');
       btn.innerHTML = 'Done';
 
       // Remove the needs_conversion badge
@@ -1158,8 +1147,7 @@ function convertComic(pk, btn) {
       });
     } else {
       const errMsg = data.error || 'Conversion failed';
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-error');
+      btn.classList.add('err');
       btn.innerHTML = 'Error';
       btn.title = errMsg;
       btn.disabled = false;
@@ -1168,8 +1156,7 @@ function convertComic(pk, btn) {
   })
   .catch(err => {
     const errMsg = err.toString();
-    btn.classList.remove('btn-primary');
-    btn.classList.add('btn-error');
+    btn.classList.add('err');
     btn.innerHTML = 'Error';
     btn.title = errMsg;
     btn.disabled = false;
@@ -1189,24 +1176,21 @@ function convertZipComic(pk, btn) {
   .then(data => {
     if (data.success) {
       const row = btn.closest('.cm-list-row');
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-success');
+      btn.classList.add('ok');
       btn.innerHTML = 'Done';
       const badges = row?.querySelectorAll('.cm-chip.err') ?? [];
       badges.forEach(badge => {
         if (badge.textContent === 'is_zip') badge.remove();
       });
     } else {
-      btn.classList.remove('btn-primary');
-      btn.classList.add('btn-error');
+      btn.classList.add('err');
       btn.innerHTML = 'Error';
       btn.title = data.error;
       btn.disabled = false;
     }
   })
   .catch(err => {
-    btn.classList.remove('btn-primary');
-    btn.classList.add('btn-error');
+    btn.classList.add('err');
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
@@ -1237,14 +1221,14 @@ function deleteComic(pk, btn) {
           row.style.opacity = '0';
           setTimeout(() => row.remove(), 300);
         } else {
-          btn.classList.add('btn-error');
+          btn.classList.add('err');
           btn.innerHTML = 'Error';
           btn.title = data.error || 'Delete failed';
           btn.disabled = false;
         }
       })
       .catch(err => {
-        btn.classList.add('btn-error');
+        btn.classList.add('err');
         btn.innerHTML = 'Error';
         btn.title = err.toString();
         btn.disabled = false;
@@ -1280,25 +1264,21 @@ function retagFlagged(btn, flagName) {
   .then(response => response.json())
   .then(data => {
     if (data.task_id) {
-      btn.classList.remove('btn-accent');
-      btn.classList.add('btn-info');
+      btn.style.color = 'var(--cm-info)'; btn.style.borderColor = 'var(--cm-info)';
       btn.innerHTML = 'Running...';
       if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Re-tagging comics');
     } else if (data.success) {
-      btn.classList.remove('btn-accent');
-      btn.classList.add('btn-success');
+      btn.classList.add('ok');
       btn.innerHTML = 'Done';
       setTimeout(() => window.location.reload(), 1500);
     } else {
-      btn.classList.remove('btn-accent');
-      btn.classList.add('btn-error');
+      btn.classList.add('err');
       btn.innerHTML = data.error || 'Error';
       btn.disabled = false;
     }
   })
   .catch(err => {
-    btn.classList.remove('btn-accent');
-    btn.classList.add('btn-error');
+    btn.classList.add('err');
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
@@ -1317,20 +1297,17 @@ function fixCountMismatches(btn) {
   .then(response => response.json())
   .then(data => {
     if (data.success) {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-success');
+      btn.classList.add('ok');
       btn.innerHTML = `Done (${data.updated} updated)`;
       setTimeout(() => window.location.reload(), 1500);
     } else {
-      btn.classList.remove('btn-info');
-      btn.classList.add('btn-error');
+      btn.classList.add('err');
       btn.innerHTML = data.error || 'Error';
       btn.disabled = false;
     }
   })
   .catch(err => {
-    btn.classList.remove('btn-info');
-    btn.classList.add('btn-error');
+    btn.classList.add('err');
     btn.innerHTML = 'Error';
     btn.title = err.toString();
     btn.disabled = false;
@@ -1522,8 +1499,8 @@ function _pollPipelineCompletion(taskId, btn) {
         _openPipelineModal(data.result || {});
         if (btn) {
           btn.innerHTML = 'Done';
-          btn.classList.remove('btn-primary');
-          btn.classList.add('btn-success');
+          btn.classList.remove('primary');
+          btn.classList.add('ok');
         }
       } else if (data.state === 'FAILURE') {
         if (btn) {
