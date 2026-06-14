@@ -7,6 +7,14 @@ export default defineConfig({
   markdown: {
     config: (md) => {
       md.use(lightbox, {})
+      const defaultImageRender = md.renderer.rules.image!
+      md.renderer.rules.image = (tokens, idx, options, env, self) => {
+        const token = tokens[idx]
+        const alt = token.content
+        const rendered = defaultImageRender(tokens, idx, options, env, self)
+        if (!alt) return rendered
+        return `${rendered}<span class="img-caption">${alt}</span>`
+      }
     }
   },
 
