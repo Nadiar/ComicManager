@@ -1,3 +1,5 @@
+import time
+
 from celery import Task
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -52,7 +54,35 @@ class ProgressTask(Task):
     """
     abstract = True
 
+    # Minimum seconds between PROGRESS updates per task. Fast batch loops
+    # (e.g. path audit over 40k comics) otherwise emit ~60 updates/sec,
+    # overflowing the websocket channel buffers and writing a result row
+    # to Postgres for every single item.
+    progress_interval = 0.5
+
+    def _progress_throttled(self, task_id, meta):
+        """Return True if this PROGRESS update should be dropped.
+
+        The first update (current == 0) and the final one (current >= total)
+        are always emitted so the UI gets the total immediately and finishes
+        at 100%.
+        """
+        current = meta.get("current", 0)
+        total = meta.get("total", 0)
+        if current <= 0 or (total and current >= total):
+            return False
+        now = time.monotonic()
+        last_id, last_at = getattr(self, "_last_progress", (None, 0.0))
+        if last_id == task_id and now - last_at < self.progress_interval:
+            return True
+        self._last_progress = (task_id, now)
+        return False
+
     def update_state(self, task_id=None, state=None, meta=None, **kwargs):
+        if state == "PROGRESS" and isinstance(meta, dict):
+            actual_id = task_id or self.request.id
+            if self._progress_throttled(actual_id, meta):
+                return
         super().update_state(task_id=task_id, state=state, meta=meta, **kwargs)
         if state == "PROGRESS" and isinstance(meta, dict):
             actual_id = task_id or self.request.id

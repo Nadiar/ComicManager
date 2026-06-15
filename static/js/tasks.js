@@ -131,6 +131,13 @@
       if (data.cleared > 0) parts.push(data.cleared + ' cleared');
       return parts.length ? parts.join(', ') : (data.current || 0) + ' checked';
     }
+    if (data.mismatched !== undefined && data.matched !== undefined) {
+      var parts = [];
+      if (data.mismatched > 0) parts.push(data.mismatched + ' mismatched');
+      if (data.matched > 0) parts.push(data.matched + ' matched');
+      if (data.errors && data.errors.length > 0) parts.push(data.errors.length + ' errors');
+      return parts.length ? parts.join(', ') : (data.current || 0) + ' checked';
+    }
     if (data.action) {
       var actionLabel = {tag: 'tagged', format: 'formatted', organize: 'organized', write: 'written'}[data.action] || 'processed';
       return (data.success_count || 0) + ' ' + actionLabel +
@@ -162,6 +169,13 @@
       var parts = [];
       if (r.flagged > 0) parts.push(r.flagged + ' flagged');
       if (r.cleared > 0) parts.push(r.cleared + ' cleared');
+      return (parts.length ? parts.join(', ') : 'No changes') + ' (of ' + (r.total || 0) + ' checked)';
+    }
+    if (r.mismatched !== undefined && r.matched !== undefined) {
+      var parts = [];
+      if (r.mismatched > 0) parts.push(r.mismatched + ' mismatched');
+      if (r.matched > 0) parts.push(r.matched + ' matched');
+      if (r.errors && r.errors.length > 0) parts.push(r.errors.length + ' errors');
       return (parts.length ? parts.join(', ') : 'No changes') + ' (of ' + (r.total || 0) + ' checked)';
     }
     if (r.action) {
