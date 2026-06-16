@@ -11,7 +11,7 @@ ComicManager supports several comic archive formats. Some formats require conver
 | `.cbz` | None | None | Full pipeline |
 | `.cbr` | `needs_conversion` | Convert button (detail page or dashboard bulk action) | Full pipeline after conversion |
 | `.cb7` | `needs_conversion` | Convert button (detail page or dashboard bulk action) | Full pipeline after conversion |
-| `.zip` | `is_zip` | One-click rename — no repacking required | Full pipeline after rename |
+| `.zip` | `is_zip` | One-click rename. No repacking required | Full pipeline after rename |
 | `.pdf` | `is_pdf` | External conversion required | Not supported |
 
 ---

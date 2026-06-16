@@ -18,8 +18,8 @@ If a batch action fails or produces unwanted results, use the **Rollback** featu
 | Button | Resets to state | What it clears |
 |--------|----------------|----------------|
 | **To New** | New (phase 1) | ComicVine IDs, scrape score, scrape source, scrape flags (`scrape_no_match`, `scrape_error`, `scrape_error_detail`, `metadata_mismatch`) |
-| **To Scrape** | Scrape (phase 2) | Same as To New — use this when you want to re-scrape without losing the accepted proposed values |
-| **To Tagging** | Tagging (phase 4) | Format only — ComicVine metadata is preserved; use this to re-run tagging rules after editing a ruleset |
+| **To Scrape** | Scrape (phase 2) | Same as To New. Use this when you want to re-scrape without losing the accepted proposed values |
+| **To Tagging** | Tagging (phase 4) | Format only. ComicVine metadata is preserved; use this to re-run tagging rules after editing a ruleset |
 
 ## Accessing the Log
 
@@ -52,8 +52,8 @@ Check this file after any large import to review files that could not be process
 Each log entry shows a **before/after diff** of the fields that changed. For example:
 
 - A scrape entry shows the fields that changed: `series`, `publisher`, `cv_issue`, and `cv_volume` when values differed before and after the match. If the scrape failed, the entry shows `result: null -> no_match`. When the failure was caused by a Layer 3 cover hash rejection, a `reason` field is also included (e.g. `reason: null -> cover hash mismatch (phash dist 42, ahash dist 38)`).
-- An organize entry shows `file: ["/comics/untagged/Batman #1.cbz", "/comics/library/DC Comics/Batman (2011)/Batman #001.cbz"]` — the old path and the new path as a two-element array.
+- An organize entry shows `file: ["/comics/untagged/Batman #1.cbz", "/comics/library/DC Comics/Batman (2011)/Batman #001.cbz"]`: the old path and the new path as a two-element array.
 - A write entry shows which ComicInfo.xml fields were embedded.
 - A `convert_zip` entry shows the old `.zip` path and the new `.cbz` path.
 
-For `organize_error` and `write_error` entries (shown with a red badge), the diff contains the error message returned by the file system or XML writer. Use this to diagnose why a file could not be moved or written — common causes include permission errors, disk-full conditions, or path length limits on the host filesystem.
+For `organize_error` and `write_error` entries (shown with a red badge), the diff contains the error message returned by the file system or XML writer. Use this to diagnose why a file could not be moved or written. Common causes include permission errors, disk-full conditions, or path length limits on the host filesystem.

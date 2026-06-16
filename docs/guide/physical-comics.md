@@ -16,10 +16,10 @@ Physical comics skip the file-handling stages since there is no file to move or 
 
 | Pipeline stage | Digital | Physical |
 |----------------|:-------:|:--------:|
-| New (filename parse) | Yes | No — entry created manually |
+| New (filename parse) | Yes | No. Entry created manually |
 | Scrape (ComicVine match) | Yes | Yes |
 | Cover caching | In CBZ | Downloaded to cover cache |
-| Variant Gallery | Yes | Yes — select the cover you own |
+| Variant Gallery | Yes | Yes. Select the cover you own |
 | Tagging (DataManager rules) | Yes | Yes |
 | Add Formats | Yes | Yes |
 | Deduplicate | Yes | Yes (digital+physical pair is never a duplicate) |

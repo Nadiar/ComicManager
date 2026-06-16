@@ -82,7 +82,7 @@ Path Audit only considers comics in the **Write to CBZ** or **Done** states. Com
 
 ![Path Audit Tool](/path_audit.png)
 
-### AU Scan — Alternate Universe Re-organization
+### AU Scan: Alternate Universe Re-organization
 
 Comics that were organized without a `main_character_or_team` set can land in a generic "Alternate Universe" folder as a fallback. If tagging rules later assign a main character to those comics, they need to be moved to the correct folder.
 
@@ -259,16 +259,16 @@ Result: `Batman v2 (2014).cbz`, or `Batman (2014).cbz` if no volume is set.
 
 ---
 
-### TPB Profile Setup — Multi-volume vs Standalone
+### TPB Profile Setup: Multi-volume vs Standalone
 
 TPB collections come in two shapes:
 
-- **Multi-volume series** — a run of numbered trade paperbacks (e.g. Spider-Gwen TPB #001, #002, #003). These should be grouped into a series subfolder so they stay together.
-- **Standalone collected editions** — a single TPB with no numbered siblings (e.g. Moon Knight by MacKay). A subfolder adds no value; the writer name in the filename makes it instantly recognisable.
+- **Multi-volume series**: a run of numbered trade paperbacks (e.g. Spider-Gwen TPB #001, #002, #003). These should be grouped into a series subfolder so they stay together.
+- **Standalone collected editions**: a single TPB with no numbered siblings (e.g. Moon Knight by MacKay). A subfolder adds no value; the writer name in the filename makes it instantly recognisable.
 
 The `Count` field (the total issue count from ComicVine) is the discriminator. Create two profiles and set their priorities so the more specific one is evaluated first.
 
-**Profile 1 — TPB multi-volume (lower priority number = evaluated first)**
+**Profile 1: TPB multi-volume (lower priority number = evaluated first)**
 
 Matching rule: `Format is TPB` AND `Count greater than 1`
 
@@ -283,7 +283,7 @@ Marvel/Earth/Spider-Gwen/TPB/Spider-Gwen (2017)/Spider-Gwen #001 [February, 2017
 Marvel/Earth/Spider-Gwen/TPB/Spider-Gwen (2017)/Spider-Gwen #002 [January, 2018].cbz
 ```
 
-**Profile 2 — TPB standalone (higher priority number = fallback)**
+**Profile 2: TPB standalone (higher priority number = fallback)**
 
 Matching rule: `Format is TPB` (catches all remaining TPBs that did not match Profile 1)
 

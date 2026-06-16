@@ -42,8 +42,8 @@ ComicManager is one part of a three-tool ecosystem for managing, serving, and tr
 
 The two key shared resources are:
 
-- `/Comics` — the organized library folder. ComicManager writes here. ComicOPDS and ComicTracker both read from here.
-- `comicopds/data/` — ComicOPDS's data folder. It contains `library.db` (the indexed catalog) and `pages/` (cached page images from OPDS streaming). ComicTracker mounts this folder read-only to know what is in your library and to detect reading progress when you stream pages.
+- `/Comics`: the organized library folder. ComicManager writes here. ComicOPDS and ComicTracker both read from here.
+- `comicopds/data/`: ComicOPDS's data folder. It contains `library.db` (the indexed catalog) and `pages/` (cached page images from OPDS streaming). ComicTracker mounts this folder read-only to know what is in your library and to detect reading progress when you stream pages.
 
 ---
 

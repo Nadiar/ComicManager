@@ -17,7 +17,7 @@ Configure how ComicManager interacts with external metadata sources.
 | `scrape_0day_hours` | `24` | Window (in hours) used by the **Last Xh** button on the dashboard New Comics card. Clicking that button runs the full pipeline only on comics imported within this window. Useful for processing today's new arrivals without touching the backlog. |
 | `scrape_hash_threshold` | `8` | Maximum Hamming distance for a pHash cover match to be accepted. Lower = stricter. Range: 0 (exact) to ~20 (loose). |
 | `scrape_insert_covers` | `true` | Insert variant covers immediately when scraping a single comic manually. If disabled, cover URLs are saved and inserted at Write time instead. |
-| `batch_insert_covers` | `false` | Insert variant covers immediately during a batch scrape (both auto and "Confirm each" modes). Slow at scale — each CBZ is extracted and recompressed. If disabled, cover URLs are saved and inserted at Write time instead. |
+| `batch_insert_covers` | `false` | Insert variant covers immediately during a batch scrape (both auto and "Confirm each" modes). Slow at scale. Each CBZ is extracted and recompressed. If disabled, cover URLs are saved and inserted at Write time instead. |
 | `pipeline_insert_covers` | `false` | Insert variant covers immediately when the pipeline runs its scrape step. If disabled, cover URLs are saved and inserted at Write time instead. |
 | `inducks_enabled` | `false` | Show the INDUCKS search option in the scrape modal (for Disney/European comics). |
 | `inducks_username` | _(empty)_ | Currently unused. Reserved for future use. |

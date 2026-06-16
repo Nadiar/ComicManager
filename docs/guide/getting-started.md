@@ -100,7 +100,7 @@ Watch the progress toasts in the bottom-right corner for live status on any back
 
 ### CLI import commands
 
-**`scan_untagged`** — scans the untagged drop folder and imports new files into the New state:
+**`scan_untagged`**: scans the untagged drop folder and imports new files into the New state:
 
 ```bash
 docker compose exec web python manage.py scan_untagged [flags]
@@ -115,7 +115,7 @@ docker compose exec web python manage.py scan_untagged [flags]
 
 ---
 
-**`import_library`** — scans an existing tagged CBZ library and imports every file into the database at the Written state by reading its embedded `ComicInfo.xml`. This is the primary migration path for users coming from ComicRack or another manager:
+**`import_library`**: scans an existing tagged CBZ library and imports every file into the database at the Written state by reading its embedded `ComicInfo.xml`. This is the primary migration path for users coming from ComicRack or another manager:
 
 ```bash
 docker compose exec web python manage.py import_library [flags]

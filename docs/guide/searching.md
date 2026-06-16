@@ -51,30 +51,13 @@ You can narrow results further by embedding structured tokens anywhere in the se
 
 Tokens can be combined freely with each other and with regular text:
 
-```
-Batgirl #10
-```
-Returns all Batgirl comics with issue number 10.
-
-```
-Batman (1940)
-```
-Returns Batman comics from the 1940 volume year.
-
-```
-Batman V2017 #15 (2016)
-```
-Returns Batman Volume 2017, issue 15, year 2016.
-
-```
-#10
-```
-Returns every comic with issue number 10 (no text filter applied).
-
-```
-Grant Morrison V2000
-```
-Returns comics with "Grant Morrison" in any credit field, filtered to volume 2000.
+| Query | What it returns |
+|-------|----------------|
+| `Batgirl #10` | All Batgirl comics with issue number 10 |
+| `Batman (1940)` | Batman comics published in 1940 |
+| `Batman V2017 #15 (2016)` | Batman Volume 2017, issue 15, year 2016 |
+| `#10` | Every comic with issue number 10 (no text filter applied) |
+| `Grant Morrison V2000` | Comics with "Grant Morrison" in any credit field, filtered to volume 2000 |
 
 ::: tip
 Tokens are case-insensitive. `v2`, `V2`, and `V2` all work the same way.
@@ -89,15 +72,15 @@ The `char_q` filter narrows comics by character or team name. You can reach it d
 | `/comics/?char_q=Batman&char_main_only=1` | Comics where Batman is the designated main character or team (solo books, not crossovers) |
 | `/comics/?char_q=Batman&char_main_only=0` | All comics where Batman appears in any character, team, or main character field |
 
-On the comic detail page, every chip in the **Characters & Teams** card is a link that runs the appropriate query automatically — clicking a main character chip uses `char_main_only=1`, clicking a character or team chip uses `char_main_only=0`.
+On the comic detail page, every chip in the **Characters & Teams** card is a link that runs the appropriate query automatically. Clicking a main character chip uses `char_main_only=1`, clicking a character or team chip uses `char_main_only=0`.
 
 ---
 
 ## Column Filter Row
 
-Click the **funnel icon** button in the toolbar to reveal a filter input directly beneath each column header. Each input narrows the list to rows that contain your text in that column, and multiple column filters stack as AND conditions.
+Click the **funnel icon** button in the toolbar to reveal a filter input directly beneath each column header. Each input does a case-insensitive contains match, so typing `Night` will match "Nightwing", "Knight", "midnight", and anything else with that substring. Multiple column filters stack as AND conditions.
 
-- Filters apply live with a 300 ms debounce — no need to press Enter.
+- Filters apply live with a 300 ms debounce, so no need to press Enter.
 - All active filters are included in the URL, so filtered views are bookmarkable and shareable.
 - Clicking the funnel button again hides the row; the filters remain active in the URL until you clear the inputs or navigate away.
 - The filter row appears in **Table** and **Compact** view modes only. Hybrid and Grid views have no column headers.
