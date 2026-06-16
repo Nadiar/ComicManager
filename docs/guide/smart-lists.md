@@ -12,14 +12,13 @@ Create Smart Lists to keep track of specific parts of your collection:
 
 ## Creating a Smart List
 
-1. Go to the **Smart List Index** and click **New Smart List**.
+1. Go to `/smartlists/` and click **New Smart List**.
 2. Add filter criteria (field, lookup, and value). You can filter on almost any field, including custom values and dates.
 3. Use **Add OR Group** to create a sub-group where any condition can match (e.g. format is One-Shot OR TPB). Top-level filters are always combined with AND.
 4. Choose sorting options (ascending/descending).
 5. Select which columns to display in the list view.
-6. Enable **Show on Dashboard** to track progress at a glance.
-7. Optionally set an **Icon** to visually distinguish the list in the sidebar and index page.
-8. Optionally link a **ComicVine Volume** to enable the Missing Issues comparison for this list (see below).
+6. Optionally set an **Icon** to visually distinguish the list in the sidebar and index page.
+7. Optionally link a **ComicVine Volume** to enable the Missing Issues comparison for this list (see below).
 
 ## Filter Fields
 
