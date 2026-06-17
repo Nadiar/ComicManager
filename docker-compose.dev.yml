@@ -2,7 +2,7 @@ services:
 
   web:
     build: .                          # build locally instead of pulling image
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-dev}
+    image: ${IMAGE_REPO}/comicmanager:dev   # locally built dev image, kept separate from the pulled prod tag
     command: >
       python manage.py runserver 0.0.0.0:8000
     environment:
@@ -21,7 +21,7 @@ services:
 
   worker:
     build: .
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-dev}
+    image: ${IMAGE_REPO}/comicmanager:dev   # locally built dev image, kept separate from the pulled prod tag
     command: >
       celery -A comicmanager worker
         --loglevel=debug
@@ -40,7 +40,7 @@ services:
 
   beat:
     build: .
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-dev}
+    image: ${IMAGE_REPO}/comicmanager:dev   # locally built dev image, kept separate from the pulled prod tag
     environment:
       - DEBUG=True
     volumes:

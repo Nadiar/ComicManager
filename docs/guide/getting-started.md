@@ -145,7 +145,7 @@ Migrations run automatically on restart.
 
 ## Development mode
 
-Clone the repo and start normally. The `docker-compose.override.yml` is loaded automatically and:
+Clone the repo and start with the dev compose file. Plain `docker compose up` runs the production setup (it pulls the published image), so development needs `docker-compose.dev.yml` passed explicitly. It:
 
 - Builds the image from source instead of pulling it
 - Mounts the repo into the container for hot reload via the Django dev server
@@ -154,8 +154,10 @@ Clone the repo and start normally. The `docker-compose.override.yml` is loaded a
 ```bash
 git clone https://gitea.baerentsen.space/FrederikBaerentsen/ComicManager.git
 cd ComicManager
-docker compose up -d
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 ```
+
+To save typing, set `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` in your `.env` so plain `docker compose` commands use both files.
 
 ---
 
