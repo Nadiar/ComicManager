@@ -19,6 +19,7 @@ export default defineConfig({
   },
 
   themeConfig: {
+    outline: { level: [2, 4] },
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
@@ -71,6 +72,9 @@ export default defineConfig({
         ]
       }
     ],
+    search: {
+      provider: 'local'
+    },
     socialLinks: [
       { icon: 'github', link: 'https://gitea.baerentsen.space/FrederikBaerentsen/ComicManager' }
     ]
