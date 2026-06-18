@@ -1,5 +1,13 @@
 services:
 
+  # Build the migration runner from source too, so dev migrates with the
+  # working-tree code instead of the pulled prod image.
+  migrate:
+    build: .
+    image: ${IMAGE_REPO}/comicmanager:dev
+    environment:
+      - DEBUG=True
+
   web:
     build: .                          # build locally instead of pulling image
     image: ${IMAGE_REPO}/comicmanager:dev   # locally built dev image, kept separate from the pulled prod tag
