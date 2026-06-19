@@ -7,6 +7,8 @@ services:
     image: ${IMAGE_REPO}/comicmanager:dev
     environment:
       - DEBUG=True
+    volumes:
+      - .:/app                        # migrate against working-tree code, like web/worker
 
   web:
     build: .                          # build locally instead of pulling image
