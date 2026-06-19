@@ -109,14 +109,22 @@ If these files are missing, scraping will fall back to live ComicVine API calls 
 
 ## Task Health
 
-The **Task Health** section (also on the Settings page) lets you detect and recover from stuck background tasks.
+The **Task Health** section (also on the Settings page) lets you detect and recover from two kinds of background-task problems: stuck tasks and corrupt results.
+
+**Check tasks** scans the database for both and lists what it finds. Each entry shows the task name, status, and how long ago it was last seen.
+
+### Stuck tasks
 
 A task becomes stuck when a worker is killed mid-execution or a container is restarted while a task is running. The task leaves a `PROGRESS` record in the database with no live worker behind it. The progress toast in the UI keeps showing because it polls that stale record.
 
-**Check for stuck tasks** scans the database for any task not in a terminal state (`SUCCESS`, `FAILURE`, or `REVOKED`) and lists them with their name, status, and how long ago they were last seen.
+The check lists any task not in a terminal state (`SUCCESS`, `FAILURE`, or `REVOKED`). **Force stop all** marks those tasks as `FAILURE` in the database and sends a cooperative cancel signal to each task ID. Once cleared, the progress toast dismisses on the next poll.
 
-**Force stop all** marks all stuck tasks as `FAILURE` in the database and sends a cooperative cancel signal to each task ID. Once cleared, the progress toast dismisses on the next poll.
+### Corrupt results
+
+A corrupt result is a finished task whose stored outcome can no longer be read. This happens when a task fails with an exception that could not be serialized cleanly, leaving a result record the task system cannot decode. Polling such a task would otherwise return a server error every time, with no way for you to clear it.
+
+The check lists any failed task whose stored result fails to decode. **Delete corrupt results** removes those broken records from the database so progress polling stops failing for them. The underlying task is already finished, so nothing is interrupted.
 
 ::: tip When to use this
-If a progress toast is stuck after restarting the worker container, open Settings and use Task Health to clear it. Purging the Celery queue (`celery purge`) only clears tasks waiting to start — it does not affect tasks already picked up by a worker.
+If a progress toast is stuck after restarting the worker container, open Settings and use Task Health to clear it. If a task page returns a server error every time it polls for progress, that task has a corrupt result: run Check tasks and use Delete corrupt results to clear it. Purging the Celery queue (`celery purge`) only clears tasks waiting to start, so it does not affect tasks already picked up by a worker.
 :::
