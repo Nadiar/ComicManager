@@ -2913,21 +2913,41 @@ def task_progress(request, task_id):
     from celery.result import AsyncResult
 
     result = AsyncResult(task_id)
-    response = {"task_id": task_id, "state": result.state}
 
-    if result.state == "PROGRESS":
-        info = result.info or {}
-        response.update(info)
-        response["current"] = info.get("current", 0)
-        response["total"] = info.get("total", 0)
-    elif result.state == "SUCCESS":
-        response["result"] = result.result
+    # Reading state/result deserializes the stored meta. A task that stored a
+    # malformed exception payload (missing 'exc_type') makes celery raise while
+    # decoding, which would 500 this endpoint on every poll. Treat any decode
+    # failure as a terminal failure so the frontend stops polling cleanly.
+    try:
+        state = result.state
+    except Exception:
         _clear_task_session(request, task_id)
-    elif result.state == "FAILURE":
-        response["error"] = str(result.result)
+        return JsonResponse({
+            "task_id": task_id,
+            "state": "FAILURE",
+            "error": "Task result could not be read (corrupt or expired).",
+        })
+
+    response = {"task_id": task_id, "state": state}
+
+    try:
+        if state == "PROGRESS":
+            info = result.info or {}
+            response.update(info)
+            response["current"] = info.get("current", 0)
+            response["total"] = info.get("total", 0)
+        elif state == "SUCCESS":
+            response["result"] = result.result
+            _clear_task_session(request, task_id)
+        elif state == "FAILURE":
+            response["error"] = str(result.result)
+            _clear_task_session(request, task_id)
+        elif state == "STARTED":
+            response.update({"current": 0, "total": 0})
+    except Exception:
         _clear_task_session(request, task_id)
-    elif result.state == "STARTED":
-        response.update({"current": 0, "total": 0})
+        response["state"] = "FAILURE"
+        response["error"] = "Task result could not be read (corrupt or expired)."
 
     return JsonResponse(response)
 

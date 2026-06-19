@@ -11,4 +11,5 @@ urlpatterns = [
     path("dashboard/", settings_views.settings_dashboard, name="dashboard"),
     path("tasks/check/", settings_views.task_health_check, name="task_health_check"),
     path("tasks/clear/", settings_views.task_health_clear, name="task_health_clear"),
+    path("tasks/clear-corrupt/", settings_views.task_health_clear_corrupt, name="task_health_clear_corrupt"),
 ]

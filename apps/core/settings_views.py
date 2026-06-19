@@ -153,6 +153,34 @@ def settings_dashboard(request):
     return render(request, "core/_settings_dashboard_section.html", {"prefs": prefs})
 
 
+def _find_corrupt_task_results(limit=2000):
+    """Return TaskResult rows whose stored result can no longer be decoded.
+
+    Only exception-state rows can fail to decode (celery only converts the
+    stored result back into an exception for those statuses), so we scope the
+    scan to them. A row counts as corrupt when reading its state/result raises,
+    e.g. a stored exception payload missing 'exc_type'. Polling such a task
+    500s the progress endpoint, and the user has no other way to clear it.
+    """
+    from celery.result import AsyncResult
+    from django_celery_results.models import TaskResult
+
+    corrupt = []
+    rows = (
+        TaskResult.objects
+        .filter(status__in=["FAILURE", "RETRY", "REVOKED"])
+        .order_by("-date_done")[:limit]
+    )
+    for t in rows:
+        try:
+            res = AsyncResult(t.task_id)
+            _ = res.state
+            _ = res.result
+        except Exception:
+            corrupt.append(t)
+    return corrupt
+
+
 def task_health_check(request):
     from django_celery_results.models import TaskResult
     stuck = list(
@@ -161,6 +189,7 @@ def task_health_check(request):
     )
     return render(request, "core/_settings_tasks_section.html", {
         "stuck_tasks": stuck,
+        "corrupt_tasks": _find_corrupt_task_results(),
         "checked": True,
         "just_cleared": False,
         "cleared_count": 0,
@@ -178,6 +207,28 @@ def task_health_clear(request):
     stuck.update(status="FAILURE")
     return render(request, "core/_settings_tasks_section.html", {
         "stuck_tasks": [],
+        "corrupt_tasks": _find_corrupt_task_results(),
+        "checked": True,
+        "just_cleared": True,
+        "cleared_count": count,
+    })
+
+
+@require_POST
+def task_health_clear_corrupt(request):
+    """Delete task result rows whose stored payload can no longer be decoded."""
+    from django_celery_results.models import TaskResult
+    corrupt = _find_corrupt_task_results()
+    task_ids = [t.task_id for t in corrupt]
+    count = len(task_ids)
+    if task_ids:
+        TaskResult.objects.filter(task_id__in=task_ids).delete()
+    return render(request, "core/_settings_tasks_section.html", {
+        "stuck_tasks": list(
+            TaskResult.objects.exclude(status__in=["SUCCESS", "FAILURE", "REVOKED"])
+            .order_by("-date_done")
+        ),
+        "corrupt_tasks": [],
         "checked": True,
         "just_cleared": True,
         "cleared_count": count,

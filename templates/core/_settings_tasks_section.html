@@ -1,28 +1,26 @@
 <div id="task-health-section" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:18px 20px;">
   <div style="font-size:14px; font-weight:600; color:var(--cm-fg-1); margin-bottom:4px;">Task Health</div>
-  <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">Finds tasks that are stuck in a running state but no longer executing.</p>
+  <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">Finds tasks stuck in a running state, and tasks whose stored result is corrupt and breaks progress polling.</p>
 
   {% if not checked %}
     <button class="cm-btn sm ghost"
             hx-get="{% url 'settings:task_health_check' %}"
             hx-target="#task-health-section"
             hx-swap="outerHTML">
-      Check for stuck tasks
+      Check tasks
     </button>
 
-  {% elif just_cleared %}
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-      <span class="cm-chip ok">Cleared {{ cleared_count }} stuck task{{ cleared_count|pluralize }}</span>
+  {% else %}
+    {% if just_cleared %}
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+      <span class="cm-chip ok">Cleared {{ cleared_count }} task{{ cleared_count|pluralize }}</span>
     </div>
-    <button class="cm-btn sm ghost"
-            hx-get="{% url 'settings:task_health_check' %}"
-            hx-target="#task-health-section"
-            hx-swap="outerHTML">
-      Check again
-    </button>
+    {% endif %}
 
-  {% elif stuck_tasks %}
-    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+    {# Stuck tasks: running but no longer executing #}
+    <div style="font-size:12px; font-weight:600; color:var(--cm-fg-2); margin-bottom:6px;">Stuck tasks</div>
+    {% if stuck_tasks %}
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
       {% for t in stuck_tasks %}
       <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; font-size:12px;">
         <span class="cm-chip warn">{{ t.status }}</span>
@@ -31,7 +29,7 @@
       </div>
       {% endfor %}
     </div>
-    <div style="display:flex; gap:8px; align-items:center;">
+    <div style="margin-bottom:18px;">
       <button class="cm-btn sm err"
               hx-post="{% url 'settings:task_health_clear' %}"
               hx-target="#task-health-section"
@@ -40,19 +38,41 @@
               hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
         Force stop all
       </button>
-      <button class="cm-btn sm ghost"
-              hx-get="{% url 'settings:task_health_check' %}"
+    </div>
+    {% else %}
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
+      <span class="cm-chip ok">No stuck tasks</span>
+    </div>
+    {% endif %}
+
+    {# Corrupt tasks: stored result cannot be decoded, breaks polling #}
+    <div style="font-size:12px; font-weight:600; color:var(--cm-fg-2); margin-bottom:6px;">Corrupt results</div>
+    {% if corrupt_tasks %}
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+      {% for t in corrupt_tasks %}
+      <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; font-size:12px;">
+        <span class="cm-chip err">{{ t.status }}</span>
+        <code style="color:var(--cm-fg-1); flex:1;">{{ t.task_name|default:"unknown" }}</code>
+        <span style="color:var(--cm-fg-3);">{{ t.date_done|timesince }} ago</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div style="margin-bottom:14px;">
+      <button class="cm-btn sm err"
+              hx-post="{% url 'settings:task_health_clear_corrupt' %}"
               hx-target="#task-health-section"
-              hx-swap="outerHTML">
-        Refresh
+              hx-swap="outerHTML"
+              hx-confirm="Delete {{ corrupt_tasks|length }} corrupt task result{{ corrupt_tasks|length|pluralize }}? This removes the broken rows so progress polling stops failing."
+              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+        Delete corrupt results
       </button>
     </div>
-
-  {% else %}
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-      <span class="cm-chip ok">No stuck tasks</span>
-      <span style="font-size:12px; color:var(--cm-fg-3);">All tasks have completed normally.</span>
+    {% else %}
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+      <span class="cm-chip ok">No corrupt results</span>
     </div>
+    {% endif %}
+
     <button class="cm-btn sm ghost"
             hx-get="{% url 'settings:task_health_check' %}"
             hx-target="#task-health-section"
