@@ -271,6 +271,21 @@ def get_simple_value(comic: Comic, field: str, profile: OrganizerProfile) -> str
     return comic.custom_values.get(field, "")
 
 
+def _pad_number(value: Any, pad_width: int) -> str:
+    """Zero-pad the leading integer of an issue number, preserving any decimal or suffix.
+
+    Examples: '23.1' -> '023.1', '7' -> '007', '0' -> '000', '1.MU' -> '001.MU'.
+    Values with no leading integer (e.g. '½') are returned unchanged.
+    """
+    if not value:
+        return ""
+    value = str(value).strip()
+    match = re.match(r"^(\d+)(.*)$", value)
+    if match:
+        return match.group(1).zfill(pad_width) + match.group(2)
+    return value
+
+
 def get_padded_value(comic: Comic, field: str, pad_width: int, profile: OrganizerProfile) -> str:
     """Get a field value with padding/default handling."""
     field_lower = field.lower()
@@ -283,28 +298,12 @@ def get_padded_value(comic: Comic, field: str, pad_width: int, profile: Organize
             return "0" if pad_width == 0 else ""
         return str(value)
 
-    # For number fields, pad with zeros
+    # For number fields, pad with zeros while preserving any decimal/suffix part
     if field_lower == "number":
-        value = comic.number
-        if value:
-            # Try to pad as integer
-            try:
-                num = int(float(value))
-                return str(num).zfill(pad_width)
-            except (ValueError, TypeError):
-                # Not a number, return as-is
-                return value
-        return ""
+        return _pad_number(comic.number, pad_width)
 
     if field_lower == "altnumber":
-        value = comic.custom_values.get("AlternateNumber", "")
-        if value:
-            try:
-                num = int(float(value))
-                return str(num).zfill(pad_width)
-            except (ValueError, TypeError):
-                return value
-        return ""
+        return _pad_number(comic.custom_values.get("AlternateNumber", ""), pad_width)
 
     # Default behavior for other fields
     return get_simple_value(comic, field, profile)
