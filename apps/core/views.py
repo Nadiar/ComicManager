@@ -2703,10 +2703,11 @@ def reorganize_comic(request, pk):
     result = workflow.reorganize(comic)
 
     if not result.success:
+        status = 409 if result.detail and result.detail.get("conflict") else 500
         return JsonResponse({
             "success": False,
             "error": result.error or result.message,
-        }, status=500)
+        }, status=status)
 
     return JsonResponse({
         "success": True,
@@ -3071,7 +3072,12 @@ def force_organize(request, pk):
     comic = get_object_or_404(Comic, pk=pk)
     result = workflow.organize(comic, force=True)
     if not result.success:
-        status = 400 if "physical" in result.message or "without file path" in result.message or "File not found" in result.message else 500
+        if result.detail and result.detail.get("conflict"):
+            status = 409
+        elif "physical" in result.message or "without file path" in result.message or "File not found" in result.message:
+            status = 400
+        else:
+            status = 500
         return JsonResponse(result.to_json(), status=status)
     payload = result.to_json()
     payload["new_state"] = result.state_after

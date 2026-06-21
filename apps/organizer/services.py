@@ -19,6 +19,28 @@ from .template_engine import generate_paths
 LIBRARY_BASE = "/comics/library"
 
 
+class FileOverwriteError(Exception):
+    """Raised when a move would overwrite an existing, different file.
+
+    A move must never silently clobber another comic's file. Callers surface
+    this as a failure so the conflict is reported instead of causing data loss.
+    """
+
+
+def _safe_move(old_path: str, new_path: str) -> None:
+    """Move old_path to new_path, refusing to overwrite a different existing file.
+
+    If new_path already exists and is not the same file as old_path, raise
+    FileOverwriteError rather than letting shutil.move clobber it.
+    """
+    if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
+        raise FileOverwriteError(
+            f"Refusing to overwrite existing file: {new_path} "
+            f"(would clobber it with {old_path})"
+        )
+    shutil.move(old_path, new_path)
+
+
 def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> dict:
     """
     Organize a single comic - move file to library location and update state.
@@ -100,15 +122,6 @@ def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> 
     new_folder = os.path.join(base, folder_path)
     new_path = os.path.join(new_folder, filename + file_ext)
 
-    # Check if destination already exists (avoid overwrite)
-    if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
-        # Add unique suffix
-        base_name = filename
-        counter = 1
-        while os.path.exists(new_path):
-            new_path = os.path.join(new_folder, f"{base_name}_{counter}{file_ext}")
-            counter += 1
-
     # Perform the move (or simulate)
     moved = False
     error = None
@@ -118,9 +131,9 @@ def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> 
             # Create destination directory
             os.makedirs(new_folder, exist_ok=True)
 
-            # Move the file
+            # Move the file (refuses to overwrite a different existing file)
             if os.path.abspath(old_path) != os.path.abspath(new_path):
-                shutil.move(old_path, new_path)
+                _safe_move(old_path, new_path)
                 moved = True
 
                 # Try to remove empty source directories
@@ -142,11 +155,24 @@ def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> 
                 comic.state = Comic.STATE_WRITTEN
                 comic.save()
 
+        except FileOverwriteError as e:
+            return {
+                "success": False,
+                "message": str(e),
+                "error": str(e),
+                "conflict": True,
+                "profile": profile_name,
+                "old_path": old_path,
+                "new_path": new_path,
+                "moved": False,
+                "dry_run": dry_run,
+            }
         except Exception as e:
             error = str(e)
             return {
                 "success": False,
                 "message": f"Failed to move file: {error}",
+                "error": error,
                 "profile": profile_name,
                 "old_path": old_path,
                 "new_path": new_path,
@@ -209,7 +235,7 @@ def reorganize_comic(comic: Comic) -> dict:
         new_folder = os.path.dirname(new_path)
         os.makedirs(new_folder, exist_ok=True)
 
-        shutil.move(old_path, new_path)
+        _safe_move(old_path, new_path)
 
         # Clean up empty source directories
         try:
@@ -238,6 +264,8 @@ def reorganize_comic(comic: Comic) -> dict:
             "profile": preview["selected_profile"],
         }
 
+    except FileOverwriteError as e:
+        return {"success": False, "moved": False, "error": str(e), "conflict": True}
     except PermissionError:
         raise
     except OSError as e:

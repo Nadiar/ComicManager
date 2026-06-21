@@ -577,7 +577,12 @@ def reorganize_single(request, pk):
     result = workflow.reorganize(comic)
 
     if not result.success:
-        status = 400 if result.skipped else 500
+        if result.detail and result.detail.get("conflict"):
+            status = 409
+        elif result.skipped:
+            status = 400
+        else:
+            status = 500
         return JsonResponse({"success": False, "error": result.error or result.message}, status=status)
 
     return JsonResponse({
