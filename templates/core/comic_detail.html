@@ -824,7 +824,17 @@ async function runAction(action) {
       else { if (window.showQuickToast) window.showQuickToast(data.message || 'Done!'); else setTimeout(() => location.reload(), 800); }
     } else {
       if (btn) btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>';
-      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
+      if (r.status === 409 && window.showResultToast) {
+        window.showResultToast({
+          label: 'Move blocked — file conflict',
+          status: 'See batch log for details',
+          success: false,
+          errors: [data.error || 'Unknown error'],
+          showLog: true,
+        });
+      } else {
+        showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
+      }
       setTimeout(() => { if (btn) { btn.innerHTML = origHtml; btn.disabled = false; } }, 2000);
     }
   } catch (err) {

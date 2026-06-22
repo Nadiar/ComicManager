@@ -177,16 +177,25 @@ async function reorganizeSingle(btn) {
     if (data.success) {
       btn.closest('tr').style.opacity = '0.3';
       btn.textContent = 'Done';
-      showMsgToast(data.moved ? 'Comic moved successfully' : 'Already in correct location', 'success');
+      window.showResultToast({
+        label: data.moved ? 'Comic moved successfully' : 'Already in correct location',
+        success: true,
+      });
     } else {
       btn.textContent = 'Error';
       btn.title = data.error || 'Failed';
-      showMsgToast('Move failed: ' + (data.error || 'Unknown error'), 'error');
+      window.showResultToast({
+        label: 'Move failed',
+        status: resp.status === 409 ? 'File conflict — see batch log' : '',
+        success: false,
+        errors: [data.error || 'Unknown error'],
+        showLog: true,
+      });
       setTimeout(() => { btn.textContent = 'Move'; btn.disabled = false; btn.title = ''; }, 3000);
     }
   } catch (e) {
     btn.textContent = 'Error';
-    showMsgToast('Network error', 'error');
+    window.showResultToast({ label: 'Network error', success: false });
     setTimeout(() => { btn.textContent = 'Move'; btn.disabled = false; }, 3000);
   }
 }

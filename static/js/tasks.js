@@ -16,6 +16,7 @@
   var dismissBtn = document.getElementById('task-dismiss-btn');
   var errorList = document.getElementById('task-error-list');
   var logLink = document.getElementById('task-log-link');
+  var spinner = document.getElementById('task-spinner');
 
   var actionQueue = [];
 
@@ -69,6 +70,8 @@
   function hideDismiss() { dismissBtn.classList.add('hidden'); }
   function showLogLink() { logLink.classList.remove('hidden'); }
   function hideLogLink() { logLink.classList.add('hidden'); }
+  function showSpinner() { if (spinner) spinner.classList.remove('hidden'); }
+  function hideSpinner() { if (spinner) spinner.classList.add('hidden'); }
 
   function markTaskDone(taskId) {
     try {
@@ -213,6 +216,7 @@
     cancelBtn.textContent = 'Cancel';
     cancelBtn.disabled = false;
     showToast();
+    showSpinner();
     showCancel();
     hideDismiss();
     hideLogLink();
@@ -320,6 +324,34 @@
       _doRefreshOrReload();
     }
     _taskUsedCallback = false;
+  };
+
+  // Show a one-shot result in the standard task toast (no polling): filled bar,
+  // optional error list, audit-log link, and a persistent Dismiss button.
+  // Used by synchronous actions (e.g. single-comic Move) so they match the
+  // look of background Celery tasks instead of a fast-vanishing alert.
+  // opts: { label, status, success, errors: [str], showLog }
+  window.showResultToast = function(opts) {
+    opts = opts || {};
+    // Never clobber a toast that is actively tracking a running task.
+    if (activeTaskId) {
+      if (window.showMsgToast) window.showMsgToast(opts.label || '', opts.success ? 'success' : 'error');
+      return;
+    }
+    hideSpinner();
+    labelEl.textContent = opts.label || '';
+    bar.value = 100;
+    bar.classList.remove('ok', 'err');
+    bar.classList.add(opts.success ? 'ok' : 'err');
+    count.textContent = '';
+    status.textContent = opts.status || '';
+    hideCancel();
+    showErrors(opts.errors && opts.errors.length ? opts.errors : null);
+    if (opts.showLog) showLogLink(); else hideLogLink();
+    showDismiss();
+    // Dismiss should just close the toast (no surprise page reload).
+    _taskUsedCallback = true;
+    showToast();
   };
 
   window.showQuickToast = function(message, type) {
