@@ -3736,8 +3736,13 @@ def _run_action_sync(comic, action, force=False):
         return out
 
     elif action == "tag":
+        was_tagged = comic.state == Comic.STATE_TAGGED
         result = workflow.tag(comic)
         if result.success:
+            # A comic already in the tagging stage exits to the format stage,
+            # matching tag_all_task and the pipeline's TAGGED -> FORMATTED bridge.
+            if was_tagged:
+                workflow.advance_state(comic, Comic.STATE_FORMATTED)
             return result.to_json()
         return {"success": False, "error": result.message}
 
