@@ -1121,30 +1121,31 @@ function convertAllComics(btn) {
 }
 
 function convertComic(pk, btn) {
+  const doConvert = async () => {
+    const r = await fetch(`/comics/${pk}/convert/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCsrfToken() },
+    });
+    return r.json();
+  };
+
+  // If a task is already running, queue this convert so it runs after — the
+  // server rejects concurrent tasks, so firing immediately would 409.
+  if (window.isTaskActive && window.isTaskActive()) {
+    if (window.enqueueAction) window.enqueueAction(doConvert, 'Converting file', btn);
+    return;
+  }
+
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
 
-  fetch(`/comics/${pk}/convert/`, {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    }
-  })
-  .then(response => response.json())
+  doConvert()
   .then(data => {
-    if (data.success) {
-      // Update the row to show success
-      const row = btn.closest('.cm-list-row');
-      btn.classList.add('ok');
-      btn.innerHTML = 'Done';
-
-      // Remove the needs_conversion badge
-      const badges = row?.querySelectorAll('.cm-chip.err') ?? [];
-      badges.forEach(badge => {
-        if (badge.textContent === 'needs_conversion') {
-          badge.remove();
-        }
-      });
+    if (data.task_id) {
+      btn.innerHTML = 'Converting...';
+      if (window.startTaskPolling) {
+        window.startTaskPolling(data.task_id, 'Converting file');
+      }
     } else {
       const errMsg = data.error || 'Conversion failed';
       btn.classList.add('err');

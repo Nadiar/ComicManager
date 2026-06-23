@@ -19,20 +19,30 @@
   var spinner = document.getElementById('task-spinner');
 
   var actionQueue = [];
+  var batchTotal = 0;   // total tasks in the current sequential batch
+  var batchDone = 0;    // tasks finished so far in the current batch
 
   function updateQueueIndicator() {
     if (!queueStatus) return;
-    if (actionQueue.length === 0) {
+    if (batchTotal > 1) {
+      var current = Math.min(batchDone + 1, batchTotal);
+      queueStatus.textContent = 'Task ' + current + ' of ' + batchTotal;
+      queueStatus.classList.remove('hidden');
+    } else {
       queueStatus.classList.add('hidden');
       queueStatus.textContent = '';
-    } else {
-      queueStatus.textContent = actionQueue.length === 1 ? '1 more task queued' : actionQueue.length + ' more tasks queued';
-      queueStatus.classList.remove('hidden');
     }
+  }
+
+  function resetBatch() {
+    batchTotal = 0;
+    batchDone = 0;
+    updateQueueIndicator();
   }
 
   async function processNextAction() {
     if (actionQueue.length === 0) {
+      resetBatch();
       showDismiss();
       return;
     }
@@ -44,9 +54,14 @@
       if (data && data.task_id) {
         startPolling(data.task_id, next.label);
       } else {
+        // Queued task failed to start — count it as done so the batch counter
+        // keeps advancing, then move on.
+        batchDone++;
+        if (next.btn) { next.btn.textContent = (data && data.error) ? 'Error' : 'Skipped'; }
         processNextAction();
       }
     } catch (err) {
+      batchDone++;
       processNextAction();
     }
   }
@@ -55,6 +70,7 @@
 
   window.enqueueAction = function(actionFn, label, btn) {
     actionQueue.push({ action: actionFn, label: label, btn: btn || null });
+    batchTotal++;
     updateQueueIndicator();
     if (btn) {
       btn.textContent = 'Queued';
@@ -208,6 +224,9 @@
   }
 
   function startPolling(taskId, toastLabel, onComplete) {
+    // A task starting while no batch is in progress begins a new batch.
+    // Continuation calls from processNextAction keep the existing batch counts.
+    if (batchTotal === 0) { batchTotal = 1; batchDone = 0; }
     _taskOnComplete = onComplete || null;
     _taskUsedCallback = false;
     activeTaskId = taskId;
@@ -223,9 +242,13 @@
     showErrors(null);
     labelEl.textContent = taskLabel + '...';
     status.textContent = 'Starting...';
-    count.textContent = '0%';
-    bar.value = 0;
+    // Seed the bar at the batch baseline so a continuing batch doesn't snap
+    // back to 0% between tasks.
+    var basePct = batchTotal > 1 ? Math.round((batchDone / batchTotal) * 100) : 0;
+    count.textContent = basePct + '%';
+    bar.value = basePct;
     bar.classList.remove('ok', 'err');
+    updateQueueIndicator();
     pollProgress();
   }
 
@@ -236,17 +259,22 @@
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.state === 'PROGRESS') {
-          var pct = data.total > 0 ? Math.round((data.current / data.total) * 100) : 0;
+          var taskFrac = data.total > 0 ? (data.current / data.total) : 0;
+          // For a multi-task batch the bar tracks overall progress across all
+          // tasks; for a single task it tracks that task's own progress.
+          var pct = batchTotal > 1
+            ? Math.round(((batchDone + taskFrac) / batchTotal) * 100)
+            : Math.round(taskFrac * 100);
           bar.value = pct;
           count.textContent = pct + '%';
           status.textContent = (data.current && data.total ? data.current + ' / ' + data.total + ' — ' : '') + progressText(data);
           setTimeout(pollProgress, POLL_INTERVAL);
 
         } else if (data.state === 'SUCCESS') {
-          bar.value = 100;
           var r = data.result || {};
           markTaskDone(activeTaskId);
           hideCancel();
+          batchDone++;
           if (r.cancelled) {
             labelEl.textContent = taskLabel + ' cancelled';
             bar.classList.add('err');
@@ -263,9 +291,16 @@
           showLogLink();
           activeTaskId = null;
           if (actionQueue.length > 0) {
+            // More tasks queued: hold the bar at the batch baseline (not 100%)
+            // and advance the "Task X of Y" counter before the next one starts.
+            bar.classList.remove('ok', 'err');
+            bar.value = Math.round((batchDone / batchTotal) * 100);
+            updateQueueIndicator();
             status.textContent = 'Starting next task...';
             setTimeout(processNextAction, 800);
           } else {
+            bar.value = 100;
+            resetBatch();
             if (_taskOnComplete) {
               var cb = _taskOnComplete;
               _taskOnComplete = null;
@@ -279,13 +314,16 @@
         } else if (data.state === 'FAILURE') {
           markTaskDone(activeTaskId);
           hideCancel();
+          batchDone++;
           labelEl.textContent = taskLabel + ' failed';
           status.textContent = data.error || 'Unknown error';
           bar.classList.add('err');
           activeTaskId = null;
           if (actionQueue.length > 0) {
+            updateQueueIndicator();
             setTimeout(processNextAction, 800);
           } else {
+            resetBatch();
             showDismiss();
           }
 
@@ -318,7 +356,7 @@
 
   window.dismissTaskToast = function() {
     actionQueue = [];
-    updateQueueIndicator();
+    resetBatch();
     hideToast();
     if (!_taskUsedCallback) {
       _doRefreshOrReload();

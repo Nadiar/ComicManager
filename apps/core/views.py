@@ -590,14 +590,16 @@ def toggle_scrape_skip(request, pk):
 @require_POST
 def convert_cbr(request, pk):
     """
-    Convert a CBR/CB7 file to CBZ format.
+    Dispatch a Celery task to convert a single CBR/CB7 file to CBZ format.
 
-    Extracts the archive to a temp directory, then repacks as a ZIP file
-    with the same name but .cbz extension.
+    Running in the background lets the task toast track progress and keeps the
+    request from blocking on the extract/repack work.
     """
+    from .tasks import convert_cbr_task
+
     comic = get_object_or_404(Comic, pk=pk)
 
-    # Validate this is a convertible file
+    # Validate this is a convertible file before queueing any work
     if comic.file_format not in ("cbr", "cb7"):
         return JsonResponse({
             "success": False,
@@ -610,85 +612,19 @@ def convert_cbr(request, pk):
             "error": "Source file not found"
         }, status=404)
 
-    original_path = Path(comic.file_path)
-    new_path = original_path.with_suffix(".cbz")
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
-    # If a CBZ already exists alongside the CBR, the previous conversion created the
-    # file but failed to update the database record. Recover by updating the DB and
-    # deleting the original CBR instead of returning an error.
-    if new_path.exists():
-        try:
-            zipfile.ZipFile(new_path, "r").close()  # validate it's a real zip
-        except zipfile.BadZipFile:
-            new_path.unlink()  # corrupted — delete and let the conversion proceed
-        else:
-            # Valid CBZ exists: update the record and clean up the CBR
-            from django.db import IntegrityError
-            from .audit import log_batch_entry
-            try:
-                comic.file_path = str(new_path)
-                comic.file_format = "cbz"
-                comic.flags.pop("needs_conversion", None)
-                comic.save()
-            except IntegrityError as e:
-                err_msg = f"CBZ already assigned to another comic: {new_path.name}"
-                log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                                {"error": [None, err_msg]})
-                return JsonResponse({"success": False, "error": err_msg}, status=409)
-            if original_path.exists():
-                original_path.unlink()
-            log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                            {"path": [str(original_path), str(new_path)]})
-            return JsonResponse({
-                "success": True,
-                "message": f"Recovered existing CBZ: {new_path.name}",
-                "new_path": str(new_path),
-            })
-
-    try:
-        import patoolib
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            patoolib.extract_archive(str(original_path), outdir=temp_dir, verbosity=-1)
-
-            with zipfile.ZipFile(new_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                for root, dirs, files in os.walk(temp_dir):
-                    dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__MACOSX"]
-                    for file in sorted(files):
-                        if file.startswith(".") or file == "Thumbs.db":
-                            continue
-                        file_path = Path(root) / file
-                        arc_path = file_path.relative_to(temp_dir)
-                        zf.write(file_path, arc_path)
-
-        old_path_str = comic.file_path
-        comic.file_path = str(new_path)
-        comic.file_format = "cbz"
-        comic.flags.pop("needs_conversion", None)
-        comic.save()
-        original_path.unlink()
-
-        from .audit import log_batch_entry
-        log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                        {"path": [old_path_str, str(new_path)]})
-
-        return JsonResponse({
-            "success": True,
-            "message": f"Converted to {new_path.name}",
-            "new_path": str(new_path),
-        })
-
-    except Exception as e:
-        if new_path.exists():
-            new_path.unlink()
-        err_msg = str(e)
-        from .audit import log_batch_entry
-        log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                        {"error": [None, err_msg]})
-        return JsonResponse({
-            "success": False,
-            "error": err_msg,
-        }, status=500)
+    task = convert_cbr_task.delay(str(comic.pk))
+    request.session["active_task_id"] = task.id
+    request.session["active_task_label"] = "Converting file"
+    return JsonResponse({
+        "success": True,
+        "task_id": task.id,
+        "total": 1,
+        "message": "Converting file in background",
+    })
 
 
 @require_POST
