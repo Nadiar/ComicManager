@@ -5,6 +5,7 @@ Provides read, write, and comparison functionality for ComicInfo.xml
 files embedded in CBZ archives.
 """
 
+import fcntl
 import os
 import re
 import shutil
@@ -595,11 +596,56 @@ def validate_comic_for_write(comic) -> list[str]:
     return errors
 
 
+# Linux FICLONE ioctl: reflink-clone one file into another. On copy-on-write
+# filesystems (btrfs, XFS) this is near-instant and consumes no extra space,
+# because the clone shares the original's data blocks until one side is written.
+_FICLONE = 0x40049409
+
+
+def _try_reflink(src: str, dst: str) -> bool:
+    """Reflink-clone src onto dst. Returns True on success, False if the
+    filesystem does not support reflinks (e.g. ext4) or src/dst differ in
+    device. Never falls back to a byte copy: callers choose what to do when a
+    cheap clone is not available."""
+    try:
+        with open(src, "rb") as s, open(dst, "wb") as d:
+            fcntl.ioctl(d.fileno(), _FICLONE, s.fileno())
+        shutil.copystat(src, dst)
+        return True
+    except OSError:
+        return False
+
+
+def _patch_comicinfo_entry(zip_path: str, xml_bytes: bytes) -> None:
+    """Replace (or add) the ComicInfo.xml entry in an existing archive using
+    ZIP append mode. Page images are never read, decompressed, or recompressed.
+
+    Append mode does not overwrite an existing entry of the same name; it would
+    write a duplicate. Drop any stale ComicInfo.xml from the in-memory directory
+    first (match case-insensitively, since casing varies across taggers) so the
+    rewritten central directory points only at the new entry."""
+    with zipfile.ZipFile(zip_path, "a", zipfile.ZIP_DEFLATED) as zf:
+        for info in [i for i in zf.infolist()
+                     if i.filename.lower() == "comicinfo.xml"]:
+            zf.NameToInfo.pop(info.filename, None)
+            zf.filelist.remove(info)
+        zf.writestr("ComicInfo.xml", xml_bytes)
+
+
 def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
     """
     Write/update ComicInfo.xml inside a CBZ file.
 
-    Creates a new archive with the updated XML, preserving all other files.
+    Patches only the ComicInfo.xml entry: the page images are never read,
+    decompressed, or recompressed, so this stays cheap even on multi-gigabyte
+    archives. Two paths, picked by what the filesystem supports:
+
+    - CoW filesystems (btrfs/XFS): patch a near-free reflink clone in the same
+      directory, then atomically swap it over the original. Fast and crash-safe.
+    - Other filesystems (e.g. ext4): patch the archive in place. Still fast (no
+      O(size) copy), but not crash-atomic. Page data is never rewritten, so an
+      interrupted write leaves the images intact and recoverable (try_rezip_cbz).
+
     Returns True on success, False on failure.
     """
     if not cbz_path or not os.path.exists(cbz_path):
@@ -607,32 +653,29 @@ def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
 
     try:
         # Generate new XML content (pass cbz_path for Pages element)
-        xml_content = generate_comicinfo_xml(comic, cbz_path=cbz_path)
+        xml_bytes = generate_comicinfo_xml(comic, cbz_path=cbz_path).encode("utf-8")
 
-        # Create a temporary file for the new archive
-        fd, tmp_path = tempfile.mkstemp(suffix=".cbz")
+        # Probe for a cheap reflink clone in the same directory (so a later
+        # os.replace stays on one filesystem). If it works, patch the clone and
+        # swap atomically; the original is untouched until then.
+        fd, tmp_path = tempfile.mkstemp(suffix=".cbz", dir=os.path.dirname(cbz_path))
         os.close(fd)
-
         try:
-            with zipfile.ZipFile(cbz_path, "r") as zf_in:
-                with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf_out:
-                    # Copy all files except ComicInfo.xml
-                    for item in zf_in.namelist():
-                        if item.lower() != "comicinfo.xml":
-                            zf_out.writestr(item, zf_in.read(item))
-
-                    # Write new ComicInfo.xml
-                    zf_out.writestr("ComicInfo.xml", xml_content.encode("utf-8"))
-
-            # Replace original with new file
-            shutil.move(tmp_path, cbz_path)
-            return True
-
+            if _try_reflink(cbz_path, tmp_path):
+                _patch_comicinfo_entry(tmp_path, xml_bytes)
+                os.replace(tmp_path, cbz_path)
+                return True
         except Exception:
-            # Clean up temp file on error
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
             raise
+        # No reflink available: drop the empty probe file and patch in place
+        # rather than paying for a full O(size) byte copy.
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+        _patch_comicinfo_entry(cbz_path, xml_bytes)
+        return True
 
     except (zipfile.BadZipFile, OSError, PermissionError):
         return False
