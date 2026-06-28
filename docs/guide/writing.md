@@ -25,6 +25,26 @@ Running **Write All** in the dashboard starts a Celery task that handles the XML
 
 ---
 
+## In-Place Writing and Performance
+
+When ComicManager writes `ComicInfo.xml`, it patches **only** the metadata entry inside the archive. Your page images are never read, decompressed, or recompressed. This is why writing metadata into a multi-gigabyte omnibus takes a fraction of a second instead of several minutes, and it is what makes **Write All** and **Write Stale** practical across tens of thousands of files.
+
+How the write is applied depends on the filesystem your library lives on. ComicManager detects this automatically and there is nothing to configure.
+
+### On copy-on-write filesystems (btrfs, XFS)
+
+On a copy-on-write filesystem, ComicManager makes an instant, space-free clone of the archive, patches the clone, and then atomically swaps it into place. The clone shares the original's data blocks, so even a 2 GB file is cloned with no real copying.
+
+This path is **crash-safe**: if the machine loses power or the process is killed at any point during the write, you are always left with either the complete old file or the complete new file. The original is never in a half-written state.
+
+### On other filesystems (ext4 and similar)
+
+On filesystems without copy-on-write support, a cheap clone is not available, so ComicManager patches the archive in place. This is still fast, because it only rewrites the small `ComicInfo.xml` entry and the archive's index, not the page images. ComicManager deliberately avoids copying the whole file, which on a large archive would mean gigabytes of needless disk I/O on every write.
+
+The trade-off is that an in-place write is **not atomic**. The only moment of risk is the split second while the archive index is being rewritten. If the machine loses power or the process is hard-killed in that exact window, the index can be left incomplete. Your page images are never rewritten, so they stay physically intact inside the file, but the archive may need a repair tool to rebuild its index before it opens again. In normal operation, including ordinary application errors and graceful shutdowns, this cannot happen.
+
+---
+
 ## Stale Metadata and Maintenance
 
 After a comic has been written, you might continue to edit its metadata in ComicManager (e.g. correcting a typo, changing a genre tag).
