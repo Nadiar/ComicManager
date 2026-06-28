@@ -237,7 +237,9 @@
     showToast();
     showSpinner();
     showCancel();
-    hideDismiss();
+    // Dismiss stays available in every state (including queued/running) so a
+    // toast can always be cleared, even one pinned to a stuck/forgotten task.
+    showDismiss();
     hideLogLink();
     showErrors(null);
     labelEl.textContent = taskLabel + '...';
@@ -355,6 +357,17 @@
   };
 
   window.dismissTaskToast = function() {
+    // Stop any in-flight polling and forget the task on the server so the
+    // resume block can't re-inject it on the next page load.
+    var dismissedId = activeTaskId;
+    activeTaskId = null;
+    if (dismissedId) {
+      var csrfToken = document.cookie.match(/csrftoken=([^;]+)/);
+      fetch('/comics/task-dismiss/' + dismissedId + '/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrfToken ? csrfToken[1] : ''},
+      }).catch(function() {});
+    }
     actionQueue = [];
     resetBatch();
     hideToast();

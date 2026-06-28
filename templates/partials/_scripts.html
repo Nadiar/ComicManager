@@ -19,7 +19,12 @@
         try {
           var r = await fetch('/comics/task-progress/' + t.id + '/');
           var data = await r.json();
-          if (data.state === 'PENDING' || data.state === 'STARTED' || data.state === 'PROGRESS') {
+          // Only resume a task the worker is actually running. In the django-db
+          // result backend a forgotten or cleaned-up id is indistinguishable
+          // from a freshly queued one: both report PENDING. Resuming PENDING is
+          // what pins a "Queued..." toast forever, so we never resume on it.
+          // The task-progress fetch above also drops the stale session key.
+          if (data.state === 'STARTED' || data.state === 'PROGRESS') {
             window.startTaskPolling(t.id, t.label);
             return;
           }

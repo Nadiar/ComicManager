@@ -2881,6 +2881,12 @@ def task_progress(request, task_id):
             _clear_task_session(request, task_id)
         elif state == "STARTED":
             response.update({"current": 0, "total": 0})
+        elif state in ("PENDING", "REVOKED"):
+            # With the django-db result backend a PENDING id is either a
+            # forgotten/cleaned-up task or one that never wrote a result, so it
+            # will never progress. Drop it from the session so the resume block
+            # stops re-injecting it on every page load. REVOKED is terminal too.
+            _clear_task_session(request, task_id)
     except Exception:
         _clear_task_session(request, task_id)
         response["state"] = "FAILURE"
@@ -2904,6 +2910,17 @@ def _clear_task_session(request, task_id):
             del request.session[key]
             if key == "active_task_id":
                 request.session.pop("active_task_label", None)
+
+
+@require_POST
+def dismiss_task(request, task_id):
+    """
+    Drop a task ID from the session so a dismissed toast never comes back.
+    Unlike cancel, this makes no attempt to stop the worker; it only forgets
+    the id locally so a stuck/forgotten toast is always recoverable.
+    """
+    _clear_task_session(request, task_id)
+    return JsonResponse({"success": True})
 
 
 @require_POST
