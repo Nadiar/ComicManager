@@ -1686,8 +1686,7 @@ def _populate_missing_counts():
     Find comics with a comicvine_volume but null count,
     and populate count from the CV SQLite DB.
     """
-    import sqlite3
-    from django.conf import settings
+    from apps.scraper.cv_sources import fetch_cv_volume_counts
 
     comics = Comic.objects.filter(
         count__isnull=True,
@@ -1708,27 +1707,7 @@ def _populate_missing_counts():
         if vid:
             volume_ids.add(int(vid))
 
-    # Batch query CV DB for count_of_issues
-    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
-    volume_counts = {}
-    try:
-        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
-        cursor = conn.cursor()
-        # Chunk into batches of 500 to avoid large IN clauses
-        volume_id_list = list(volume_ids)
-        for i in range(0, len(volume_id_list), 500):
-            chunk = volume_id_list[i:i + 500]
-            placeholders = ",".join("?" * len(chunk))
-            cursor.execute(
-                f"SELECT id, count_of_issues FROM cv_volume WHERE id IN ({placeholders})",
-                chunk,
-            )
-            for row in cursor.fetchall():
-                if row[1] is not None:
-                    volume_counts[row[0]] = row[1]
-        conn.close()
-    except Exception:
-        pass
+    volume_counts = fetch_cv_volume_counts(volume_ids)
 
     populated = 0
     failed = 0
@@ -1919,10 +1898,7 @@ def fix_count_mismatches(request):
     Unlike populate_counts_task, this overwrites existing count values.
     Then re-runs mismatch detection to clear resolved flags.
     """
-    from apps.scraper.cv_sources import is_cv_db_available
-    import sqlite3
-
-    from django.conf import settings
+    from apps.scraper.cv_sources import is_cv_db_available, fetch_cv_volume_counts
 
     if not is_cv_db_available():
         return JsonResponse({"success": False, "error": "ComicVine database not available"}, status=400)
@@ -1938,21 +1914,7 @@ def fix_count_mismatches(request):
 
     # Batch-fetch counts from CV DB
     volume_ids = {int(c.custom_values["comicvine_volume"]) for c in comics if c.custom_values.get("comicvine_volume")}
-    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
-    volume_counts = {}
-    try:
-        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
-        cursor = conn.cursor()
-        for i in range(0, len(volume_ids), 500):
-            chunk = list(volume_ids)[i:i + 500]
-            placeholders = ",".join("?" * len(chunk))
-            cursor.execute(f"SELECT id, count_of_issues FROM cv_volume WHERE id IN ({placeholders})", chunk)
-            for row in cursor.fetchall():
-                if row[1] is not None:
-                    volume_counts[row[0]] = row[1]
-        conn.close()
-    except Exception as e:
-        return JsonResponse({"success": False, "error": f"CV DB error: {e}"}, status=500)
+    volume_counts = fetch_cv_volume_counts(volume_ids)
 
     updated = 0
     for comic in comics:

@@ -876,14 +876,11 @@ def audit_metadata_task(self):
 @shared_task(bind=True, base=ProgressTask, name="core.populate_counts", queue="write")
 def populate_counts_task(self):
     """
-    Populate missing issue counts from CV SQLite DB, then detect count mismatches.
-    Wraps the synchronous _populate_missing_counts() and _detect_count_mismatches()
-    helpers into a cancellable background task with progress reporting.
+    Populate missing issue counts from CV SQLite DB, then detect count mismatches,
+    as a cancellable background task with progress reporting.
     """
     from .models import Comic
-    from apps.scraper.cv_sources import is_cv_db_available
-    import sqlite3
-    from django.conf import settings
+    from apps.scraper.cv_sources import is_cv_db_available, fetch_cv_volume_counts
 
     if not is_cv_db_available():
         return {"success": False, "error": "ComicVine database not available."}
@@ -923,25 +920,7 @@ def populate_counts_task(self):
         if vid:
             volume_ids.add(int(vid))
 
-    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
-    volume_counts = {}
-    try:
-        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
-        cursor = conn.cursor()
-        volume_id_list = list(volume_ids)
-        for i in range(0, len(volume_id_list), 500):
-            chunk = volume_id_list[i:i + 500]
-            placeholders = ",".join("?" * len(chunk))
-            cursor.execute(
-                f"SELECT id, count_of_issues FROM cv_volume WHERE id IN ({placeholders})",
-                chunk,
-            )
-            for row in cursor.fetchall():
-                if row[1] is not None:
-                    volume_counts[row[0]] = row[1]
-        conn.close()
-    except Exception:
-        return {"success": False, "error": "Failed to query ComicVine database."}
+    volume_counts = fetch_cv_volume_counts(volume_ids)
 
     populated = 0
     failed = 0
