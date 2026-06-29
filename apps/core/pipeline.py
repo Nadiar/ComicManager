@@ -37,11 +37,11 @@ def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
       - accept: silently skipped if the comic is already past STATE_NEW.
       - scrape: failure raises (caught and recorded as outcome=error).
       - tag/format/organize/write: each runs at its declared state gate.
-      - dedupe: runs the global detection, then short-circuits with
-        outcome=duplicate if comic.is_duplicate flips to True.
+      - dedupe: checks this comic against the library, then short-circuits
+        with outcome=duplicate if comic.is_duplicate flips to True.
     """
     from apps.core.models import Comic
-    from apps.duplicates.services import run_duplicate_detection
+    from apps.duplicates.services import run_duplicate_detection_for_comics
 
     title = (
         f"{comic.proposed_series or comic.series or '?'} "
@@ -89,6 +89,20 @@ def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
             comic.state = Comic.STATE_TAGGED
             comic.save(update_fields=["state"])
 
+        # Count fallback: scrape fills count from the match, but a match without
+        # an issue count (or a comic scraped some other way) leaves it null. The
+        # phase-by-phase workflow has a "Populate Counts" step for this; mirror
+        # it here so pipeline comics don't end up count-null. Single-volume
+        # lookup, no global mismatch scan (that stays a separate maintenance op).
+        vid = comic.custom_values.get("comicvine_volume")
+        if comic.count is None and vid:
+            from apps.scraper.cv_sources import fetch_cv_volume_counts
+            count = fetch_cv_volume_counts([vid]).get(int(vid))
+            if count is not None:
+                comic.count = count
+                comic.custom_values["comicvine_issue_count"] = str(count)
+                comic.save(update_fields=["count", "custom_values"])
+
         # Step 3: Tag — gate is COUNTED/TAGGED, no advance needed
         _step("Tagging")
         tr = _run(workflow.tag(comic), "tag")
@@ -115,9 +129,12 @@ def run_pipeline_for_comic(comic, *, scraper=None, progress_cb=None) -> dict:
         fr = _run(workflow.format(comic), "format")
         result["format"] = dict(fr.detail)
 
-        # Step 5: Deduplicate (global pass; check this comic's outcome after)
+        # Step 5: Deduplicate — check only this comic against the library.
+        # The old code ran a full library-wide scan once per comic in the loop;
+        # scoping it to this comic does the same work N times less and routes
+        # through the same path as the "Deduplicate Selected" button.
         _step("Checking duplicates")
-        run_duplicate_detection()
+        run_duplicate_detection_for_comics([comic.pk])
         comic.refresh_from_db()
         if comic.is_duplicate:
             dup = comic.duplicate_of
