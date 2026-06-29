@@ -131,6 +131,8 @@ Two buttons appear at the top of the Duplicate Review page.
 
 **Scan All Comics**: A recovery tool. Scans every ungrouped digital comic regardless of its workflow state. Does not change any states. Use this when comics have already passed through the pipeline without being caught, for example after enabling duplicate detection on an existing library or after running the orphan attachment pass.
 
+You can also run detection on a specific selection of comics from the comic list. This compares each selected comic against the whole library and applies the same orphan attachment and group consolidation as a full run, so deduplicating a subset produces the same grouping those comics would get from the normal pipeline.
+
 ---
 
 ## Resolving Duplicates

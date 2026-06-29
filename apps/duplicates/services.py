@@ -569,6 +569,26 @@ def _consolidate_pending_groups() -> int:
 # ============================================================================
 
 
+def _run_all_detectors(pool: list) -> tuple[list, dict]:
+    """Run every duplicate-detection method over `pool`.
+
+    Returns the combined list of groups plus a per-method count breakdown
+    so callers that report statistics don't have to repeat the four calls.
+    """
+    by_cv_id = detect_duplicates_by_cv_id(pool)
+    by_metadata = detect_duplicates_by_metadata(pool)
+    by_phash = detect_duplicates_by_phash(pool)
+    by_filename = detect_duplicates_by_filename(pool)
+    all_groups = by_cv_id + by_metadata + by_phash + by_filename
+    counts = {
+        "by_cv_id": len(by_cv_id),
+        "by_metadata": len(by_metadata),
+        "by_phash": len(by_phash),
+        "by_filename": len(by_filename),
+    }
+    return all_groups, counts
+
+
 def run_duplicate_detection_for_comics(comic_pks: list) -> dict:
     """
     Run duplicate detection for a specific set of comics.
@@ -593,18 +613,22 @@ def run_duplicate_detection_for_comics(comic_pks: list) -> dict:
 
     comparison_pool = candidates + library_comics
 
-    cv_groups = detect_duplicates_by_cv_id(comparison_pool)
-    meta_groups = detect_duplicates_by_metadata(comparison_pool)
-    phash_groups = detect_duplicates_by_phash(comparison_pool)
-    filename_groups = detect_duplicates_by_filename(comparison_pool)
-
-    all_groups = cv_groups + meta_groups + phash_groups + filename_groups
+    all_groups, _ = _run_all_detectors(comparison_pool)
 
     candidates_with_groups = set()
     for group in all_groups:
         for membership in group.memberships.all():
             if membership.comic_id in candidate_pks:
                 candidates_with_groups.add(membership.comic_id)
+
+    # Attach any remaining ungrouped candidates to existing pending groups, then
+    # merge groups that share members. Without this the selected path produced
+    # un-consolidated, orphan-laden groups that the full scan would have cleaned
+    # up — same comics, different grouping depending on the entry point.
+    still_ungrouped = [c for c in candidates if c.pk not in candidates_with_groups]
+    orphan_pks = _attach_orphans_to_pending_groups(still_ungrouped)
+    candidates_with_groups |= orphan_pks
+    merged = _consolidate_pending_groups()
 
     from apps.core.audit import log_batch_entry
 
@@ -625,6 +649,8 @@ def run_duplicate_detection_for_comics(comic_pks: list) -> dict:
         "message": f"Detection complete: {len(all_groups)} duplicate groups found",
         "total_comics": len(candidates),
         "groups_created": len(all_groups),
+        "orphans_attached": len(orphan_pks),
+        "groups_merged": merged,
         "advanced": advanced,
     }
 
@@ -674,12 +700,7 @@ def run_duplicate_detection() -> dict:
     )
 
     # Run detection methods on the full pool
-    cv_groups = detect_duplicates_by_cv_id(comparison_pool)
-    meta_groups = detect_duplicates_by_metadata(comparison_pool)
-    phash_groups = detect_duplicates_by_phash(comparison_pool)
-    filename_groups = detect_duplicates_by_filename(comparison_pool)
-
-    all_groups = cv_groups + meta_groups + phash_groups + filename_groups
+    all_groups, method_counts = _run_all_detectors(comparison_pool)
     logger.info(f"run_duplicate_detection: created {len(all_groups)} total groups")
 
     # Collect IDs of candidates that ended up in groups
@@ -723,10 +744,7 @@ def run_duplicate_detection() -> dict:
         "message": f"Detection complete: {len(all_groups)} duplicate groups found",
         "total_comics": len(candidates),
         "groups_created": len(all_groups),
-        "by_cv_id": len(cv_groups),
-        "by_metadata": len(meta_groups),
-        "by_phash": len(phash_groups),
-        "by_filename": len(filename_groups),
+        **method_counts,
         "advanced": advanced,
     }
 
@@ -757,12 +775,7 @@ def scan_all_for_duplicates() -> dict:
         }
 
     # Run detection methods
-    cv_groups = detect_duplicates_by_cv_id(comics)
-    meta_groups = detect_duplicates_by_metadata(comics)
-    phash_groups = detect_duplicates_by_phash(comics)
-    filename_groups = detect_duplicates_by_filename(comics)
-
-    all_groups = cv_groups + meta_groups + phash_groups + filename_groups
+    all_groups, method_counts = _run_all_detectors(comics)
     logger.info(f"scan_all_for_duplicates: created {len(all_groups)} total groups")
 
     # After creating new groups, attach any still-ungrouped comics to existing
@@ -788,10 +801,7 @@ def scan_all_for_duplicates() -> dict:
         "groups_created": len(all_groups),
         "orphans_attached": len(orphan_pks),
         "groups_merged": merged,
-        "by_cv_id": len(cv_groups),
-        "by_metadata": len(meta_groups),
-        "by_phash": len(phash_groups),
-        "by_filename": len(filename_groups),
+        **method_counts,
     }
 
 
