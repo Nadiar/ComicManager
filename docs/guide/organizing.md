@@ -90,6 +90,12 @@ The **AU Scan** (under **Workflow → AU Scan**) handles this automatically. Run
 
 ---
 
+## The Default Profile
+
+Every install includes a built-in **Default** profile at the lowest priority, so it is evaluated last. It has no matching conditions, which means it catches any comic that none of your own profiles match and files it as `Publisher/Series (Volume)/Series #Number (Year)`. This guarantees every organized comic runs through the same path generation and illegal-character handling as the rest of your profiles, rather than a separate fallback path.
+
+You can edit, reorder, or disable the Default profile like any other. If you delete it, ComicManager recreates it the next time a comic needs organizing so there is always a catch-all.
+
 ## Profile Matching Conditions
 
 Each organizer profile can have one or more matching conditions that control which comics the profile applies to. A profile with no conditions matches all comics.

@@ -41,6 +41,30 @@ def _safe_move(old_path: str, new_path: str) -> None:
     shutil.move(old_path, new_path)
 
 
+DEFAULT_PROFILE_NAME = "Default"
+
+
+def get_default_profile() -> OrganizerProfile:
+    """The catch-all profile used when a comic matches no user profile.
+
+    Seeded by a data migration, but recreated here if it was deleted so that
+    organizing never falls back to a second, divergent path builder — there is
+    exactly one path pipeline (generate_paths/sanitize_filename) for every comic.
+    """
+    profile, _ = OrganizerProfile.objects.get_or_create(
+        name=DEFAULT_PROFILE_NAME,
+        defaults={
+            "priority": 9999,  # evaluated last; only catches what nothing else does
+            "is_enabled": True,
+            "folder_template": "<publisher>/<series>{ (<volume>)}",
+            "file_template": "<series>{ #<number>}{ (<year>)}",
+            "base_folder": LIBRARY_BASE,
+            "exclude_rules": {},
+        },
+    )
+    return profile
+
+
 def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> dict:
     """
     Organize a single comic - move file to library location and update state.
@@ -103,18 +127,12 @@ def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> 
             "dry_run": dry_run,
         }
 
-    # Find matching profile
-    profile = find_matching_profile(comic)
-
-    if profile is None:
-        # Use fallback path if no profile matches
-        folder_path, filename = generate_fallback_path(comic)
-        profile_name = "(fallback)"
-        base = LIBRARY_BASE
-    else:
-        folder_path, filename = generate_paths(comic, profile)
-        profile_name = profile.name
-        base = profile.base_folder or LIBRARY_BASE
+    # Find matching profile, falling back to the catch-all default profile so
+    # every comic runs through the same generate_paths pipeline.
+    profile = find_matching_profile(comic) or get_default_profile()
+    folder_path, filename = generate_paths(comic, profile)
+    profile_name = profile.name
+    base = profile.base_folder or LIBRARY_BASE
 
     # Build full destination path
     old_path = comic.file_path
@@ -277,67 +295,6 @@ def reorganize_comic(comic: Comic) -> dict:
         return {"success": False, "moved": False, "error": str(e)}
 
 
-def generate_fallback_path(comic: Comic) -> tuple[str, str]:
-    """
-    Generate a fallback path when no profile matches.
-
-    Returns:
-        Tuple of (folder_path, filename)
-    """
-    # Simple fallback: Publisher/Series (Volume)/
-    publisher = comic.publisher or "Unknown Publisher"
-    series = comic.series or "Unknown Series"
-    volume = comic.volume
-
-    # Sanitize for filesystem
-    publisher = sanitize_segment(publisher)
-    series = sanitize_segment(series)
-
-    if volume:
-        folder = f"{publisher}/{series} ({volume})"
-    else:
-        folder = f"{publisher}/{series}"
-
-    # Filename: Series #Number (Year)
-    number = comic.number or ""
-    year = comic.year or ""
-
-    if number and year:
-        filename = f"{series} #{number} ({year})"
-    elif number:
-        filename = f"{series} #{number}"
-    else:
-        filename = series
-
-    filename = sanitize_segment(filename)
-
-    return (folder, filename)
-
-
-def sanitize_segment(text: str) -> str:
-    """Sanitize a path segment for the filesystem."""
-    # Replace illegal characters
-    replacements = {
-        ':': ' - ',
-        '/': '',
-        '\\': '',
-        '<': '[',
-        '>': ']',
-        '|': '!',
-        '"': "'",
-        '*': '',
-        '?': '',
-    }
-    for char, replacement in replacements.items():
-        text = text.replace(char, replacement)
-
-    # Collapse multiple spaces
-    import re
-    text = re.sub(r' +', ' ', text)
-
-    return text.strip()
-
-
 def organize_all_comics(dry_run: bool = False) -> dict:
     """
     Batch organize all ready comics.
@@ -415,15 +372,11 @@ def preview_organization(comic: Comic) -> dict:
             selected_profile = OrganizerProfile.objects.get(id=pm["profile_id"])
             break
 
-    # Generate paths
-    if selected_profile:
-        folder_path, filename = generate_paths(comic, selected_profile)
-        profile_name = selected_profile.name
-        base = selected_profile.base_folder or LIBRARY_BASE
-    else:
-        folder_path, filename = generate_fallback_path(comic)
-        profile_name = "(fallback)"
-        base = LIBRARY_BASE
+    # Generate paths; fall back to the catch-all default profile.
+    profile = selected_profile or get_default_profile()
+    folder_path, filename = generate_paths(comic, profile)
+    profile_name = profile.name
+    base = profile.base_folder or LIBRARY_BASE
 
     # Build full paths
     old_path = comic.file_path
