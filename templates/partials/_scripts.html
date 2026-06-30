@@ -4,9 +4,6 @@
   <script>
   (function(){
     var candidates = [
-      { id: "{{ active_write_task_id|escapejs }}", label: 'Writing comics' },
-      { id: "{{ active_smartlist_action_task_id|escapejs }}", label: 'Smart list action' },
-      { id: "{{ active_pipeline_task_id|escapejs }}", label: 'Running pipeline' },
       { id: "{{ active_task_id|escapejs }}", label: "{{ active_task_label|escapejs }}" || 'Processing' },
     ].filter(function(t) { return t.id && !window._isTaskDone(t.id); });
 

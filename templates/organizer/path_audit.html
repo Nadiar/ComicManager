@@ -203,14 +203,14 @@ async function reorganizeSingle(btn) {
 (function() {
   var auditTaskId = "{{ active_audit_task_id|escapejs }}";
   var reorgTaskId = "{{ active_reorganize_task_id|escapejs }}";
+  // The global toast (partials/_scripts.html) resumes the running task on page
+  // load; here we only reflect that state on this page's own buttons.
   if (auditTaskId) {
     document.getElementById('audit-btn').disabled = true;
     document.getElementById('audit-btn').textContent = 'Auditing...';
-    if (window.startTaskPolling) window.startTaskPolling(auditTaskId, 'Path audit');
   } else if (reorgTaskId) {
     var btn = document.getElementById('reorganize-all-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Reorganizing...'; }
-    if (window.startTaskPolling) window.startTaskPolling(reorgTaskId, 'Reorganizing comics');
   }
 })();
 </script>

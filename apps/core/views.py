@@ -1631,15 +1631,11 @@ def run_full_pipeline(request):
     Processes each comic through: accept, scrape, tag, format, deduplicate, organize, write.
     Stops per-comic at deduplication if a duplicate is found.
     """
-    from celery.result import AsyncResult
     from apps.dashboard.tasks import run_full_pipeline_task
 
-    active = request.session.get("pipeline_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse(
-            {"success": False, "error": "Pipeline is already running", "task_id": active},
-            status=409,
-        )
+    conflict = active_task_conflict(request, error="A pipeline is already running")
+    if conflict:
+        return conflict
 
     comic_id = request.POST.get("comic_id")
     pks = request.POST.getlist("pks")
@@ -1677,7 +1673,8 @@ def run_full_pipeline(request):
                                  "message": "No eligible CBZ comics in new state"})
 
     result = run_full_pipeline_task.delay(comic_ids)
-    request.session["pipeline_task_id"] = result.id
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Running pipeline"
     return JsonResponse({"success": True, "task_id": result.id, "total": len(comic_ids)})
 
 
@@ -2650,7 +2647,7 @@ def rewrite_updated_comics(request):
     from celery.result import AsyncResult
 
     # Shares session key with write-all
-    conflict = active_task_conflict(request, session_key="write_task_id", error="A write task is already running")
+    conflict = active_task_conflict(request)
     if conflict:
         return conflict
 
@@ -2668,7 +2665,8 @@ def rewrite_updated_comics(request):
 
     from .tasks import rewrite_updated_comics_task
     result = rewrite_updated_comics_task.delay()
-    request.session["write_task_id"] = result.id
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Rewriting updated comics"
 
     return JsonResponse({
         "success": True,
@@ -2702,7 +2700,7 @@ def write_all_comics(request):
     """
     from celery.result import AsyncResult
 
-    conflict = active_task_conflict(request, session_key="write_task_id", error="A write task is already running")
+    conflict = active_task_conflict(request)
     if conflict:
         return conflict
 
@@ -2717,7 +2715,8 @@ def write_all_comics(request):
 
     from .tasks import write_all_comics_task
     result = write_all_comics_task.delay()
-    request.session["write_task_id"] = result.id
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Writing comics"
 
     return JsonResponse({
         "success": True,
@@ -2736,7 +2735,7 @@ def write_stale_comics(request):
     from celery.result import AsyncResult
     from django.db.models import F
 
-    conflict = active_task_conflict(request, session_key="write_task_id", error="A write task is already running")
+    conflict = active_task_conflict(request)
     if conflict:
         return conflict
 
@@ -2755,7 +2754,8 @@ def write_stale_comics(request):
 
     from .tasks import write_stale_comics_task
     result = write_stale_comics_task.delay()
-    request.session["write_task_id"] = result.id
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Writing stale comics"
 
     return JsonResponse({
         "success": True,
@@ -2773,7 +2773,7 @@ def write_missing_comics(request):
     """
     from celery.result import AsyncResult
 
-    conflict = active_task_conflict(request, session_key="write_task_id", error="A write task is already running")
+    conflict = active_task_conflict(request)
     if conflict:
         return conflict
 
@@ -2793,7 +2793,8 @@ def write_missing_comics(request):
 
     from .tasks import write_missing_comics_task
     result = write_missing_comics_task.delay()
-    request.session["write_task_id"] = result.id
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Writing missing comics"
 
     return JsonResponse({
         "success": True,
@@ -2858,20 +2859,10 @@ def task_progress(request, task_id):
 
 
 def _clear_task_session(request, task_id):
-    """Remove a completed/failed task ID from all session slots."""
-    session_keys = (
-        "write_task_id",
-        "audit_task_id",
-        "reorganize_task_id",
-        "smartlist_action_task_id",
-        "pipeline_task_id",
-        "active_task_id",
-    )
-    for key in session_keys:
-        if request.session.get(key) == task_id:
-            del request.session[key]
-            if key == "active_task_id":
-                request.session.pop("active_task_label", None)
+    """Remove a completed/failed task ID from the active-task session slot."""
+    if request.session.get("active_task_id") == task_id:
+        del request.session["active_task_id"]
+        request.session.pop("active_task_label", None)
 
 
 @require_POST
@@ -3290,6 +3281,10 @@ def search_alt_covers(request, pk):
 
     if not variants:
         return JsonResponse({"success": False, "error": "No new alternate covers found"})
+
+    conflict = active_task_conflict(request)
+    if conflict:
+        return conflict
 
     from .tasks import search_alt_covers_task
     result = search_alt_covers_task.delay(str(comic.pk), variants)

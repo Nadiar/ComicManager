@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST, require_GET
 from django.contrib import messages
 
 from apps.core.models import Comic
+from apps.core.utils import active_task_conflict
 
 from .models import OrganizerProfile
 from .parser import export_lop_profiles, import_profiles
@@ -403,17 +404,9 @@ def path_audit(request):
 @require_POST
 def start_audit(request):
     """Dispatch Celery task to audit all organized/written comic paths."""
-    from celery.result import AsyncResult
-
-    active_task_id = request.session.get("audit_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "An audit task is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    conflict = active_task_conflict(request, error="An audit task is already running")
+    if conflict:
+        return conflict
 
     count = Comic.objects.filter(
         state__in=[Comic.STATE_WRITTEN, Comic.STATE_DONE],
@@ -431,6 +424,8 @@ def start_audit(request):
 
     result = audit_paths_task.delay()
     request.session["audit_task_id"] = result.id
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Path audit"
 
     return JsonResponse({
         "success": True,
@@ -445,17 +440,9 @@ def start_au_scan(request):
     """Dispatch Celery task to scan organized AU comics for path mismatches."""
     from django.db.models import Q
 
-    from celery.result import AsyncResult
-
-    active_task_id = request.session.get("au_scan_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "An AU scan task is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    conflict = active_task_conflict(request, error="An AU scan task is already running")
+    if conflict:
+        return conflict
 
     count = Comic.objects.filter(
         Q(main_character_or_team__isnull=True) | Q(main_character_or_team=""),
@@ -475,6 +462,8 @@ def start_au_scan(request):
 
     result = scan_au_paths_task.delay()
     request.session["au_scan_task_id"] = result.id
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Scanning AU comics"
 
     return JsonResponse({
         "success": True,
@@ -487,17 +476,9 @@ def start_au_scan(request):
 @require_POST
 def start_reorganize_au(request):
     """Dispatch Celery task to reorganize AU-flagged comics."""
-    from celery.result import AsyncResult
-
-    active_task_id = request.session.get("reorganize_au_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A reorganize AU task is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    conflict = active_task_conflict(request, error="A reorganize AU task is already running")
+    if conflict:
+        return conflict
 
     count = Comic.objects.filter(
         needs_reorganize=True,
@@ -518,6 +499,8 @@ def start_reorganize_au(request):
 
     result = reorganize_au_flagged_task.delay()
     request.session["reorganize_au_task_id"] = result.id
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Moving AU comics"
 
     return JsonResponse({
         "success": True,
@@ -530,17 +513,9 @@ def start_reorganize_au(request):
 @require_POST
 def start_reorganize_all(request):
     """Dispatch Celery task to reorganize all flagged comics."""
-    from celery.result import AsyncResult
-
-    active_task_id = request.session.get("reorganize_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A reorganize task is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    conflict = active_task_conflict(request, error="A reorganize task is already running")
+    if conflict:
+        return conflict
 
     count = Comic.objects.filter(
         needs_reorganize=True,
@@ -558,6 +533,8 @@ def start_reorganize_all(request):
 
     result = reorganize_all_flagged_task.delay()
     request.session["reorganize_task_id"] = result.id
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = "Reorganizing comics"
 
     return JsonResponse({
         "success": True,

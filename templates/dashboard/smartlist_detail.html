@@ -258,10 +258,8 @@ function runSmartListAction(action) {
   });
 }
 
-(function() {
-  const activeTaskId = '{{ active_smartlist_action_task_id }}';
-  if (activeTaskId && window.startTaskPolling) window.startTaskPolling(activeTaskId, 'Processing');
-})();
+// A running smart-list action is resumed by the global toast
+// (partials/_scripts.html), which now tracks the single active task id.
 
 // Clear checkbox selection after page reload so stale state doesn't persist
 window.addEventListener('pageshow', () => {

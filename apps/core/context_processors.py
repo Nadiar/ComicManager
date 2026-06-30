@@ -1,11 +1,12 @@
 def active_tasks(request):
-    """Inject active background task IDs into template context."""
+    """Inject the active background task into template context.
+
+    All dispatchers now lock on a single `active_task_id` (one batch at a time),
+    so the global toast only needs that one id and its label. Pages that show
+    per-button state (e.g. the organizer audit page) pass their own task ids
+    through their view context.
+    """
     return {
-        "active_write_task_id": request.session.get("write_task_id", ""),
-        "active_audit_task_id": request.session.get("audit_task_id", ""),
-        "active_reorganize_task_id": request.session.get("reorganize_task_id", ""),
-        "active_smartlist_action_task_id": request.session.get("smartlist_action_task_id", ""),
-        "active_pipeline_task_id": request.session.get("pipeline_task_id", ""),
         "active_task_id": request.session.get("active_task_id", ""),
         "active_task_label": request.session.get("active_task_label", ""),
     }

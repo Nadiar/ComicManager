@@ -210,14 +210,14 @@ function reorganizeSingle(pk, btn) {
 (function() {
   var scanTaskId = "{{ active_au_scan_task_id|escapejs }}";
   var reorgTaskId = "{{ active_reorganize_au_task_id|escapejs }}";
-  if (scanTaskId && window.startTaskPolling) {
+  // The global toast (partials/_scripts.html) resumes the running task on page
+  // load; here we only reflect that state on this page's own buttons.
+  if (scanTaskId) {
     document.getElementById('au-scan-btn').disabled = true;
     document.getElementById('au-scan-btn').textContent = 'Scanning...';
-    window.startTaskPolling(scanTaskId, 'Scanning AU comics');
-  } else if (reorgTaskId && window.startTaskPolling) {
+  } else if (reorgTaskId) {
     var btn = document.getElementById('reorganize-au-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Reorganizing...'; }
-    window.startTaskPolling(reorgTaskId, 'Moving AU comics');
   }
 })();
 </script>

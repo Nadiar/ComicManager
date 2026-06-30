@@ -1328,7 +1328,7 @@ def smartlist_run_action(request, pk):
     if action not in ("tag", "format", "organize", "write"):
         return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
 
-    conflict = active_task_conflict(request, session_key="smartlist_action_task_id", error="An action is already running")
+    conflict = active_task_conflict(request)
     if conflict:
         return conflict
 
@@ -1353,9 +1353,10 @@ def smartlist_run_action(request, pk):
 
     from .tasks import run_smartlist_action_task
     result = run_smartlist_action_task.delay(str(sl.pk), action, comic_ids)
-    request.session["smartlist_action_task_id"] = result.id
 
     action_labels = {"tag": "Re-tagging", "format": "Re-formatting", "organize": "Re-organizing", "write": "Writing"}
+    request.session["active_task_id"] = result.id
+    request.session["active_task_label"] = f"{action_labels.get(action, action)} comics"
     return JsonResponse({
         "success": True,
         "task_id": result.id,
