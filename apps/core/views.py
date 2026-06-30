@@ -2067,22 +2067,6 @@ def populate_counts_all(request):
 
 
 @require_POST
-def tag_comic(request, pk):
-    """Apply DataManager rules to a single comic in 'counted' or 'tagged' state."""
-    from apps.core import workflow
-
-    comic = get_object_or_404(Comic, pk=pk)
-    result = workflow.tag(comic)
-    if result.skipped:
-        return JsonResponse(result.to_json(), status=400)
-    if not result.success:
-        return JsonResponse(result.to_json(), status=500)
-    payload = result.to_json()
-    payload["state"] = result.state_after
-    return JsonResponse(payload)
-
-
-@require_POST
 def tag_all_comics(request):
     """
     Dispatch a Celery task to apply DataManager rules to all comics in 'counted' state.
@@ -2166,20 +2150,6 @@ def _apply_format_detection(comic):
     else:
         comic.state = Comic.STATE_FORMATTED
     comic.save()
-
-
-@require_POST
-def format_comic(request, pk):
-    """Detect format for a comic in 'tagged' or 'formatted' state."""
-    from apps.core import workflow
-
-    comic = get_object_or_404(Comic, pk=pk)
-    result = workflow.format(comic)
-    if result.skipped:
-        return JsonResponse(result.to_json(), status=400)
-    if not result.success:
-        return JsonResponse(result.to_json(), status=500)
-    return JsonResponse(result.to_json())
 
 
 @require_POST
@@ -2524,20 +2494,6 @@ def deduplicate_selected_comics(request):
 
 
 @require_POST
-def organize_comic(request, pk):
-    """Organize a single comic in 'move' state - move file to library location."""
-    from apps.core import workflow
-
-    comic = get_object_or_404(Comic, pk=pk)
-    result = workflow.organize(comic)
-    if result.skipped:
-        return JsonResponse(result.to_json(), status=400)
-    if not result.success:
-        return JsonResponse(result.to_json(), status=400)
-    return JsonResponse(result.to_json())
-
-
-@require_POST
 def organize_all_comics(request):
     """
     Dispatch a Celery task to organize all comics in 'deduplicated' state.
@@ -2674,22 +2630,6 @@ def rewrite_updated_comics(request):
         "total": count,
         "message": f"Started rewriting {count} comics in background",
     })
-
-
-@require_POST
-def write_comic(request, pk):
-    """Write ComicInfo.xml for a single comic in 'write' state."""
-    from apps.core import workflow
-
-    comic = get_object_or_404(Comic, pk=pk)
-    result = workflow.write(comic)
-
-    if result.skipped:
-        return JsonResponse(result.to_json(), status=400)
-    if not result.success:
-        status = 400 if "Missing required fields" in result.message else 500
-        return JsonResponse(result.to_json(), status=status)
-    return JsonResponse(result.to_json())
 
 
 @require_POST
@@ -3631,56 +3571,37 @@ def bulk_delete_comics(request):
 
 def _run_action_sync(comic, action, force=False):
     """
-    Execute a single-comic action synchronously and return a result dict.
-    Used by comic_action when show_result=True for a single-comic request.
+    Execute a single-comic action synchronously and return the workflow
+    ActionResult as a dict (``to_json()``). Used by comic_action when
+    show_result is set for a single-comic request.
+
+    Always returns the full envelope — including ``skipped``, ``message`` and
+    ``rate_limited`` — so the caller can tell "nothing to do" apart from a real
+    failure instead of collapsing both into a generic error.
     """
     from apps.core import workflow
 
     if action == "scrape":
         result = workflow.scrape(comic, force=force, insert_covers=get_setting("scrape_insert_covers", True))
-        if result.success:
-            return result.to_json()
-        out = {"success": False, "error": result.message}
-        if result.detail.get("rate_limited"):
-            out["rate_limited"] = True
-        return out
-
     elif action == "tag":
         was_tagged = comic.state == Comic.STATE_TAGGED
-        result = workflow.tag(comic)
-        if result.success:
-            # A comic already in the tagging stage exits to the format stage,
-            # matching tag_all_task and the pipeline's TAGGED -> FORMATTED bridge.
-            if was_tagged:
-                workflow.advance_state(comic, Comic.STATE_FORMATTED)
-            return result.to_json()
-        return {"success": False, "error": result.message}
-
+        result = workflow.tag(comic, force=force)
+        # A comic already in the tagging stage exits to the format stage,
+        # matching tag_all_task and the pipeline's TAGGED -> FORMATTED bridge.
+        if result.success and was_tagged:
+            workflow.advance_state(comic, Comic.STATE_FORMATTED)
     elif action == "format":
-        result = workflow.format(comic)
-        if result.success:
-            return result.to_json()
-        return {"success": False, "error": result.message}
-
+        result = workflow.format(comic, force=force)
     elif action == "organize":
-        result = workflow.organize(comic)
-        if result.success:
-            return result.to_json()
-        return {"success": False, "error": result.message}
-
+        result = workflow.organize(comic, force=force)
     elif action == "write":
-        result = workflow.write(comic)
-        if result.success:
-            return result.to_json()
-        return {"success": False, "error": result.message}
-
+        result = workflow.write(comic, force=force)
     elif action == "force_write":
         result = workflow.write(comic, force=True)
-        if result.success:
-            return result.to_json()
-        return {"success": False, "error": result.message}
+    else:
+        return {"success": False, "error": f"Unknown action: {action}"}
 
-    return {"success": False, "error": f"Unknown action: {action}"}
+    return result.to_json()
 
 
 @require_POST
@@ -3714,7 +3635,12 @@ def comic_action(request):
         comic = get_object_or_404(Comic, pk=pks[0])
         result = _run_action_sync(comic, action, force=force)
         if not result["success"]:
-            return JsonResponse({"success": False, "error": result.get("error", "Action failed")}, status=400)
+            return JsonResponse({
+                "success": False,
+                "error": result.get("error") or result.get("message", "Action failed"),
+                "skipped": result.get("skipped", False),
+                "rate_limited": result.get("rate_limited", False),
+            }, status=400)
         return JsonResponse({"success": True, "result": result, "modal_type": action})
 
     # Celery task path

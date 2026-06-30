@@ -65,12 +65,8 @@ urlpatterns = [
     path("<uuid:pk>/scrape/inducks-search/", views.inducks_search, name="inducks_search"),
     path("<uuid:pk>/cv-compare/", views.cv_compare, name="cv_compare"),
     path("<uuid:pk>/search-alt-covers/", views.search_alt_covers, name="search_alt_covers"),
-    path("<uuid:pk>/tag/", views.tag_comic, name="tag"),
     path("<uuid:pk>/tag/preview/", views.tag_preview, name="tag_preview"),
-    path("<uuid:pk>/format/", views.format_comic, name="format"),
-    path("<uuid:pk>/organize/", views.organize_comic, name="organize"),
     path("<uuid:pk>/reorganize/", views.reorganize_comic, name="reorganize"),
-    path("<uuid:pk>/write/", views.write_comic, name="write"),
     # Force actions (re-run workflow steps regardless of state)
     path("<uuid:pk>/force-scrape/", views.force_scrape, name="force_scrape"),
     path("<uuid:pk>/force-tag/", views.force_tag, name="force_tag"),

@@ -214,20 +214,20 @@
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
           Scrape
         </button>
-        <button onclick="runAction('tag')" id="action-tag" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+        <button onclick="runAction('tag')" id="action-tag" class="cm-btn" title="Re-tag this comic, ignoring its workflow state" style="justify-content:center; font-size:11.5px;">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
           Tag
         </button>
-        <button onclick="runAction('format')" id="action-format" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+        <button onclick="runAction('format')" id="action-format" class="cm-btn" title="Re-detect format, ignoring workflow state" style="justify-content:center; font-size:11.5px;">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           Format
         </button>
         {% if comic.is_digital and comic.file_path %}
-        <button onclick="runAction('organize')" id="action-organize" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+        <button onclick="runAction('organize')" id="action-organize" class="cm-btn" title="Re-organize (move) this comic, ignoring workflow state" style="justify-content:center; font-size:11.5px;">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
           Move
         </button>
-        <button onclick="runAction('write')" id="action-write" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+        <button onclick="runAction('write')" id="action-write" class="cm-btn" title="Re-write ComicInfo.xml, ignoring workflow state" style="justify-content:center; font-size:11.5px;">
           <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
           Write
         </button>
