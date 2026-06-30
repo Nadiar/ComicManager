@@ -439,3 +439,15 @@ When the budget is exhausted, comics are skipped (not errored) and can be re-scr
 ::: tip Conserving budget
 Use the local `comicvine.db` whenever possible. Hash and metadata matching against the local DB costs zero API calls. The API is only used as a fallback when the local DB has no result.
 :::
+
+## Cover Insertion Settings
+
+When a comic is scraped, ComicManager can also insert the matched variant cover(s) into the CBZ. Whether this happens is controlled per context by three independent settings, so interactive scrapes can behave differently from large background runs:
+
+| Setting | Applies to | Default |
+|---------|-----------|---------|
+| `scrape_insert_covers` | Single, interactive scrapes (Scrape button, detail page) | On |
+| `batch_insert_covers` | Scrape All and other batch scrape tasks | Off |
+| `pipeline_insert_covers` | The full import pipeline | Off |
+
+The split is deliberate: interactive scrapes insert covers by default because you are watching one comic, while batch and pipeline runs leave it off by default so a 40,000-comic run does not rewrite every archive. Set each key under **Settings** to suit your workflow.
