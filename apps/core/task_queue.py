@@ -4,6 +4,9 @@ the QueuedTask ledger and the cross-device UI feed."""
 
 from __future__ import annotations
 
+from django.utils import timezone
+from celery.signals import task_prerun, task_postrun, task_failure
+
 
 _REGISTRY = None
 
@@ -65,6 +68,52 @@ def enqueue(action: str, args=None, label: str = "", lane: str = "serial"):
     qt.save(update_fields=["celery_task_id"])
     broadcast_queue()
     return qt
+
+
+def _update_by_celery_id(celery_task_id, **fields):
+    from apps.core.models import QueuedTask
+
+    qt = QueuedTask.objects.filter(celery_task_id=celery_task_id).first()
+    if qt is None:
+        return None
+    for k, v in fields.items():
+        setattr(qt, k, v)
+    qt.save(update_fields=list(fields.keys()))
+    broadcast_queue()
+    return qt
+
+
+def _on_prerun(task_id=None, **kw):
+    if not task_id:
+        return
+    _update_by_celery_id(task_id, state="running", started_at=timezone.now())
+
+
+def _on_postrun(task_id=None, retval=None, state=None, **kw):
+    from apps.core.models import QueuedTask
+
+    if not task_id or state != "SUCCESS":
+        return
+    qt = QueuedTask.objects.filter(celery_task_id=task_id).first()
+    if qt is None or qt.state in (QueuedTask.STATE_FAILED, QueuedTask.STATE_CANCELLED):
+        return
+    summary = retval if isinstance(retval, dict) else None
+    _update_by_celery_id(
+        task_id, state="done", finished_at=timezone.now(), result_summary=summary
+    )
+
+
+def _on_failure(task_id=None, exception=None, **kw):
+    if not task_id:
+        return
+    _update_by_celery_id(
+        task_id, state="failed", finished_at=timezone.now(), error=str(exception)
+    )
+
+
+task_prerun.connect(_on_prerun, weak=False)
+task_postrun.connect(_on_postrun, weak=False)
+task_failure.connect(_on_failure, weak=False)
 
 
 def broadcast_queue():

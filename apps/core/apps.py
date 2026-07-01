@@ -10,3 +10,5 @@ class CoreConfig(AppConfig):
         from django.db.models.signals import post_migrate
         from .signals import seed_default_settings, _capture_path_fields_before_save, flag_needs_reorganize_on_metadata_change  # noqa: F401 — connect via @receiver
         post_migrate.connect(seed_default_settings, sender=self)
+
+        from apps.core import task_queue  # noqa: F401 — connects Celery lifecycle signals

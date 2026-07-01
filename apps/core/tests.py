@@ -33,3 +33,42 @@ class EnqueueTests(TestCase):
         self.assertEqual(qt.label, "Tagging 5")
         fake_task.apply_async.assert_called_once_with(args=[], queue="serial")
         bq.assert_called_once()
+
+
+class LifecycleSignalTests(TestCase):
+    def _row(self):
+        qt = QueuedTask.objects.create(action="tag_all", label="Tagging")
+        qt.celery_task_id = "cid-1"
+        qt.save(update_fields=["celery_task_id"])
+        return qt
+
+    def test_prerun_marks_running(self):
+        qt = self._row()
+        with patch.object(task_queue, "broadcast_queue"):
+            task_queue._on_prerun(task_id="cid-1")
+        qt.refresh_from_db()
+        self.assertEqual(qt.state, QueuedTask.STATE_RUNNING)
+        self.assertIsNotNone(qt.started_at)
+
+    def test_postrun_success_marks_done_with_summary(self):
+        qt = self._row()
+        with patch.object(task_queue, "broadcast_queue"):
+            task_queue._on_postrun(task_id="cid-1", retval={"written": 3}, state="SUCCESS")
+        qt.refresh_from_db()
+        self.assertEqual(qt.state, QueuedTask.STATE_DONE)
+        self.assertEqual(qt.result_summary, {"written": 3})
+
+    def test_postrun_non_success_is_ignored(self):
+        qt = self._row()
+        with patch.object(task_queue, "broadcast_queue"):
+            task_queue._on_postrun(task_id="cid-1", retval=None, state="FAILURE")
+        qt.refresh_from_db()
+        self.assertEqual(qt.state, QueuedTask.STATE_QUEUED)
+
+    def test_failure_marks_failed(self):
+        qt = self._row()
+        with patch.object(task_queue, "broadcast_queue"):
+            task_queue._on_failure(task_id="cid-1", exception=ValueError("boom"))
+        qt.refresh_from_db()
+        self.assertEqual(qt.state, QueuedTask.STATE_FAILED)
+        self.assertIn("boom", qt.error)
