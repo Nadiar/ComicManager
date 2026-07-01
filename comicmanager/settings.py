@@ -105,6 +105,7 @@ CELERY_RESULT_BACKEND = "django-db"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_QUEUES = {
+    "serial": {},
     "import": {},
     "scrape": {},
     "organize": {},

@@ -35,8 +35,8 @@ services:
     command: >
       celery -A comicmanager worker
         --loglevel=debug
-        --queues=import,scrape,organize,write
-        --concurrency=2
+        --queues=serial,import,scrape,organize,write
+        --concurrency=1
     environment:
       - DEBUG=True
     volumes:
