@@ -322,3 +322,36 @@ class UserPreference(models.Model):
             if val:
                 parts.append(f"{var}: {val};")
         return " ".join(parts)
+
+
+class QueuedTask(models.Model):
+    """A durable, ordered record of a background action for the cross-device
+    queue UI. Execution is Celery; this row only tracks display/control state."""
+
+    STATE_QUEUED = "queued"
+    STATE_RUNNING = "running"
+    STATE_DONE = "done"
+    STATE_FAILED = "failed"
+    STATE_CANCELLED = "cancelled"
+    STATE_CHOICES = [
+        (s, s) for s in (STATE_QUEUED, STATE_RUNNING, STATE_DONE, STATE_FAILED, STATE_CANCELLED)
+    ]
+    ACTIVE_STATES = (STATE_QUEUED, STATE_RUNNING)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    action = models.CharField(max_length=64)
+    args = models.JSONField(default=dict)
+    label = models.CharField(max_length=255, blank=True, default="")
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_QUEUED, db_index=True)
+    celery_task_id = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    result_summary = models.JSONField(null=True, blank=True)
+    error = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.action} [{self.state}]"
