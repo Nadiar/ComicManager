@@ -72,3 +72,13 @@ class LifecycleSignalTests(TestCase):
         qt.refresh_from_db()
         self.assertEqual(qt.state, QueuedTask.STATE_FAILED)
         self.assertIn("boom", qt.error)
+
+
+class SnapshotTests(TestCase):
+    def test_snapshot_returns_active_in_order(self):
+        a = QueuedTask.objects.create(action="tag_all", label="A", state=QueuedTask.STATE_RUNNING)
+        b = QueuedTask.objects.create(action="write_all", label="B", state=QueuedTask.STATE_QUEUED)
+        QueuedTask.objects.create(action="x", label="C", state=QueuedTask.STATE_DONE)
+        snap = task_queue.queue_snapshot()
+        self.assertEqual([r["label"] for r in snap], ["A", "B"])
+        self.assertEqual(snap[0]["state"], "running")

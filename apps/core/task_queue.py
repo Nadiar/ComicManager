@@ -116,7 +116,37 @@ task_postrun.connect(_on_postrun, weak=False)
 task_failure.connect(_on_failure, weak=False)
 
 
+def _serialize(qt):
+    return {
+        "id": str(qt.id),
+        "action": qt.action,
+        "label": qt.label,
+        "state": qt.state,
+        "celery_task_id": qt.celery_task_id,
+        "created_at": qt.created_at.isoformat() if qt.created_at else None,
+    }
+
+
+def queue_snapshot():
+    """Active (queued + running) rows in FIFO order, serialized for the UI."""
+    from apps.core.models import QueuedTask
+
+    rows = QueuedTask.objects.filter(state__in=QueuedTask.ACTIVE_STATES).order_by("created_at")
+    return [_serialize(r) for r in rows]
+
+
 def broadcast_queue():
-    """Placeholder replaced in the snapshot task (T5). Defined here so enqueue
-    and the signal handlers can call it now."""
-    return None
+    """Push the current queue snapshot to every connected client."""
+    from channels.layers import get_channel_layer
+    from asgiref.sync import async_to_sync
+
+    layer = get_channel_layer()
+    if layer is None:
+        return
+    try:
+        async_to_sync(layer.group_send)(
+            "tasks",
+            {"type": "queue.event", "payload": {"type": "queue.snapshot", "tasks": queue_snapshot()}},
+        )
+    except Exception:
+        pass
