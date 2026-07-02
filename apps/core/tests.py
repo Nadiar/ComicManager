@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
+from django.urls import reverse
 
 from apps.core.models import QueuedTask
 from apps.core import task_queue
@@ -82,3 +83,16 @@ class SnapshotTests(TestCase):
         snap = task_queue.queue_snapshot()
         self.assertEqual([r["label"] for r in snap], ["A", "B"])
         self.assertEqual(snap[0]["state"], "running")
+
+
+class CancelQueuedTests(TestCase):
+    def test_cancel_queued_marks_cancelled(self):
+        qt = QueuedTask.objects.create(action="tag_all", label="A",
+                                       celery_task_id="cid-9", state=QueuedTask.STATE_QUEUED)
+        with patch("apps.core.views._revoke_celery") as rev, \
+             patch("apps.core.task_queue.broadcast_queue"):
+            resp = self.client.post(reverse("core:cancel_queued", args=[qt.id]))
+        self.assertEqual(resp.status_code, 200)
+        qt.refresh_from_db()
+        self.assertEqual(qt.state, QueuedTask.STATE_CANCELLED)
+        rev.assert_called_once_with("cid-9")

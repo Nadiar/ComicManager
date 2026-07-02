@@ -12,7 +12,7 @@ from django.utils.html import strip_tags
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
-from .models import Comic, get_setting
+from .models import Comic, QueuedTask, get_setting
 from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS, active_task_conflict
 from .cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
@@ -2824,6 +2824,34 @@ def cancel_task(request, task_id):
     """
     from .tasks import request_cancel
     request_cancel(task_id)
+    return JsonResponse({"success": True})
+
+
+def _revoke_celery(celery_task_id):
+    """Revoke a Celery task by id (cancels it even while still queued)."""
+    if not celery_task_id:
+        return
+    from comicmanager.celery import app as celery_app
+    celery_app.control.revoke(celery_task_id, terminate=False)
+
+
+@require_POST
+def cancel_queued_task(request, pk):
+    """Cancel a queued or running QueuedTask: revoke it, and cooperatively
+    stop it if already running."""
+    from django.utils import timezone
+    from .tasks import request_cancel
+    from .task_queue import broadcast_queue
+
+    qt = get_object_or_404(QueuedTask, pk=pk)
+    if qt.state == QueuedTask.STATE_RUNNING:
+        request_cancel(qt.celery_task_id)
+    _revoke_celery(qt.celery_task_id)
+    if qt.state in QueuedTask.ACTIVE_STATES:
+        qt.state = QueuedTask.STATE_CANCELLED
+        qt.finished_at = timezone.now()
+        qt.save(update_fields=["state", "finished_at"])
+        broadcast_queue()
     return JsonResponse({"success": True})
 
 

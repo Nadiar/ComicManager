@@ -38,6 +38,7 @@ urlpatterns = [
     path("task-progress/<str:task_id>/", views.task_progress, name="task_progress"),
     path("task-cancel/<str:task_id>/", views.cancel_task, name="cancel_task"),
     path("task-dismiss/<str:task_id>/", views.dismiss_task, name="dismiss_task"),
+    path("queue/<uuid:pk>/cancel/", views.cancel_queued_task, name="cancel_queued"),
     path("task-pause/<str:task_id>/", views.pause_task, name="pause_task"),
     path("task-resume/<str:task_id>/", views.resume_task, name="resume_task"),
     path("cv-cover/<int:issue_id>/", views.cv_cover, name="cv_cover"),
