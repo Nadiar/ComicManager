@@ -96,3 +96,16 @@ class CancelQueuedTests(TestCase):
         qt.refresh_from_db()
         self.assertEqual(qt.state, QueuedTask.STATE_CANCELLED)
         rev.assert_called_once_with("cid-9")
+
+
+class DispatchEnqueueTests(TestCase):
+    def test_tag_all_enqueues(self):
+        qt = MagicMock()
+        qt.id = "qt-1"
+        qt.label = "Tagging comics"
+        with patch("apps.core.views.enqueue", return_value=qt) as enq:
+            resp = self.client.post(reverse("core:tag_all"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["success"])
+        enq.assert_called_once()
+        self.assertEqual(enq.call_args.args[0], "tag_all")

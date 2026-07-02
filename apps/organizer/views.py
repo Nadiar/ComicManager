@@ -11,6 +11,7 @@ from django.contrib import messages
 
 from apps.core.models import Comic
 from apps.core.utils import active_task_conflict
+from apps.core.task_queue import enqueue
 
 from .models import OrganizerProfile
 from .parser import export_lop_profiles, import_profiles
@@ -404,9 +405,6 @@ def path_audit(request):
 @require_POST
 def start_audit(request):
     """Dispatch Celery task to audit all organized/written comic paths."""
-    conflict = active_task_conflict(request, error="An audit task is already running")
-    if conflict:
-        return conflict
 
     count = Comic.objects.filter(
         state__in=[Comic.STATE_WRITTEN, Comic.STATE_DONE],
@@ -422,10 +420,7 @@ def start_audit(request):
 
     from .tasks import audit_paths_task
 
-    result = audit_paths_task.delay()
-    request.session["audit_task_id"] = result.id
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Path audit"
+    result = enqueue("audit_paths", label="Path audit")
 
     return JsonResponse({
         "success": True,
@@ -440,9 +435,6 @@ def start_au_scan(request):
     """Dispatch Celery task to scan organized AU comics for path mismatches."""
     from django.db.models import Q
 
-    conflict = active_task_conflict(request, error="An AU scan task is already running")
-    if conflict:
-        return conflict
 
     count = Comic.objects.filter(
         Q(main_character_or_team__isnull=True) | Q(main_character_or_team=""),
@@ -460,10 +452,7 @@ def start_au_scan(request):
 
     from .tasks import scan_au_paths_task
 
-    result = scan_au_paths_task.delay()
-    request.session["au_scan_task_id"] = result.id
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Scanning AU comics"
+    result = enqueue("scan_au", label="Scanning AU comics")
 
     return JsonResponse({
         "success": True,
@@ -476,9 +465,6 @@ def start_au_scan(request):
 @require_POST
 def start_reorganize_au(request):
     """Dispatch Celery task to reorganize AU-flagged comics."""
-    conflict = active_task_conflict(request, error="A reorganize AU task is already running")
-    if conflict:
-        return conflict
 
     count = Comic.objects.filter(
         needs_reorganize=True,
@@ -497,10 +483,7 @@ def start_reorganize_au(request):
 
     from .tasks import reorganize_au_flagged_task
 
-    result = reorganize_au_flagged_task.delay()
-    request.session["reorganize_au_task_id"] = result.id
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Moving AU comics"
+    result = enqueue("reorganize_au", label="Moving AU comics")
 
     return JsonResponse({
         "success": True,
@@ -513,9 +496,6 @@ def start_reorganize_au(request):
 @require_POST
 def start_reorganize_all(request):
     """Dispatch Celery task to reorganize all flagged comics."""
-    conflict = active_task_conflict(request, error="A reorganize task is already running")
-    if conflict:
-        return conflict
 
     count = Comic.objects.filter(
         needs_reorganize=True,
@@ -531,10 +511,7 @@ def start_reorganize_all(request):
 
     from .tasks import reorganize_all_flagged_task
 
-    result = reorganize_all_flagged_task.delay()
-    request.session["reorganize_task_id"] = result.id
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Reorganizing comics"
+    result = enqueue("reorganize_all", label="Reorganizing comics")
 
     return JsonResponse({
         "success": True,

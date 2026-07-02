@@ -6,6 +6,7 @@ from django.utils import timezone
 from apps.core.models import Comic
 from .models import SmartList
 from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS, active_task_conflict
+from apps.core.task_queue import enqueue
 from .services import build_queryset, get_missing_issues, search_cv_volumes
 
 
@@ -1328,9 +1329,6 @@ def smartlist_run_action(request, pk):
     if action not in ("tag", "format", "organize", "write"):
         return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     # Optional: restrict to specific comic IDs selected in the UI
     comic_ids_raw = request.POST.get("comic_ids", "").strip()
@@ -1351,12 +1349,8 @@ def smartlist_run_action(request, pk):
             "message": "No comics to process",
         })
 
-    from .tasks import run_smartlist_action_task
-    result = run_smartlist_action_task.delay(str(sl.pk), action, comic_ids)
-
     action_labels = {"tag": "Re-tagging", "format": "Re-formatting", "organize": "Re-organizing", "write": "Writing"}
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = f"{action_labels.get(action, action)} comics"
+    result = enqueue("smartlist_action", args=[str(sl.pk), action, comic_ids], label=f"{action_labels.get(action, action)} comics")
     return JsonResponse({
         "success": True,
         "task_id": result.id,

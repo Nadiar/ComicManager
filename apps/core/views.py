@@ -13,6 +13,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
 from .models import Comic, QueuedTask, get_setting
+from .task_queue import enqueue
 from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS, active_task_conflict
 from .cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
@@ -612,13 +613,8 @@ def convert_cbr(request, pk):
             "error": "Source file not found"
         }, status=404)
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
-    task = convert_cbr_task.delay(str(comic.pk))
-    request.session["active_task_id"] = task.id
-    request.session["active_task_label"] = "Converting file"
+    task = enqueue("convert_cbr", args=[str(comic.pk)], label="Converting file")
     return JsonResponse({
         "success": True,
         "task_id": task.id,
@@ -677,14 +673,9 @@ def convert_all_cbr(request):
     from celery.result import AsyncResult
     from .tasks import convert_all_cbr_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(flags__needs_conversion=True).count()
-    result = convert_all_cbr_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Converting files"
+    result = enqueue("convert_all_cbr", label="Converting files")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Converting {total} files in background"})
 
 
@@ -729,14 +720,9 @@ def convert_all_zip(request):
     from celery.result import AsyncResult
     from .tasks import convert_all_zip_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(flags__is_zip=True).count()
-    result = convert_all_zip_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Renaming ZIP files"
+    result = enqueue("convert_all_zip", label="Renaming ZIP files")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Renaming {total} ZIP files in background"})
 
 
@@ -1609,14 +1595,9 @@ def scrape_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import scrape_all_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_IMPORTED).count()
-    result = scrape_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Scraping comics"
+    result = enqueue("scrape_all", label="Scraping comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Scraping {total} comics in background"})
 
 
@@ -1633,9 +1614,6 @@ def run_full_pipeline(request):
     """
     from apps.dashboard.tasks import run_full_pipeline_task
 
-    conflict = active_task_conflict(request, error="A pipeline is already running")
-    if conflict:
-        return conflict
 
     comic_id = request.POST.get("comic_id")
     pks = request.POST.getlist("pks")
@@ -1672,9 +1650,7 @@ def run_full_pipeline(request):
             return JsonResponse({"success": True, "task_id": None, "total": 0,
                                  "message": "No eligible CBZ comics in new state"})
 
-    result = run_full_pipeline_task.delay(comic_ids)
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Running pipeline"
+    result = enqueue("run_pipeline", args=[comic_ids], label="Running pipeline")
     return JsonResponse({"success": True, "task_id": result.id, "total": len(comic_ids)})
 
 
@@ -1978,14 +1954,9 @@ def detect_format_upgrades(request):
     from celery.result import AsyncResult
     from .tasks import detect_format_upgrades_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(format__in=Comic.COUNT_BASED_FORMATS, format_ok=False).count()
-    result = detect_format_upgrades_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Detecting format upgrades"
+    result = enqueue("detect_format_upgrades", label="Detecting format upgrades")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Scanning {total} comics for format upgrades"})
 
 
@@ -2047,17 +2018,12 @@ def populate_counts_all(request):
     from celery.result import AsyncResult
     from .tasks import populate_counts_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(count__isnull=True).exclude(
         custom_values__comicvine_volume__isnull=True,
     ).exclude(custom_values__comicvine_volume="").count()
 
-    result = populate_counts_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Populating counts"
+    result = enqueue("populate_counts", label="Populating counts")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Populating counts for {total} comics in background"})
 
 
@@ -2074,14 +2040,9 @@ def tag_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import tag_all_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_TAGGED).count()
-    result = tag_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Tagging comics"
+    result = enqueue("tag_all", label="Tagging comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Tagging {total} comics in background"})
 
 
@@ -2097,14 +2058,9 @@ def retag_flagged(request):
     if not flag:
         return JsonResponse({"success": False, "error": "No flag specified"}, status=400)
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(**{f"flags__{flag}": True}).count()
-    result = retag_flagged_task.delay(flag)
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = f"Re-tagging {flag} comics"
+    result = enqueue("retag_flagged", args=[flag], label=f"Re-tagging {flag} comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Re-tagging {total} comics in background"})
 
 
@@ -2160,14 +2116,9 @@ def format_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import format_all_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_FORMATTED).count()
-    result = format_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Formatting comics"
+    result = enqueue("format_all", label="Formatting comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Formatting {total} comics in background"})
 
 
@@ -2466,14 +2417,9 @@ def deduplicate_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import deduplicate_all_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_DEDUPLICATED).count()
-    result = deduplicate_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Deduplicating"
+    result = enqueue("deduplicate_all", label="Deduplicating")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Running deduplication on {total} comics in background"})
 
 
@@ -2501,14 +2447,9 @@ def organize_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import organize_all_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     total = Comic.objects.filter(state=Comic.STATE_ORGANIZED).count()
-    result = organize_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Organizing comics"
+    result = enqueue("organize_all", label="Organizing comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Organizing {total} comics in background"})
 
 
@@ -2603,9 +2544,6 @@ def rewrite_updated_comics(request):
     from celery.result import AsyncResult
 
     # Shares session key with write-all
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     count = Comic.objects.filter(
         flags__count_updated=True,
@@ -2620,9 +2558,7 @@ def rewrite_updated_comics(request):
         })
 
     from .tasks import rewrite_updated_comics_task
-    result = rewrite_updated_comics_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Rewriting updated comics"
+    result = enqueue("rewrite_updated", label="Rewriting updated comics")
 
     return JsonResponse({
         "success": True,
@@ -2640,9 +2576,6 @@ def write_all_comics(request):
     """
     from celery.result import AsyncResult
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     count = Comic.objects.filter(state=Comic.STATE_WRITTEN).count()
     if count == 0:
@@ -2654,9 +2587,7 @@ def write_all_comics(request):
         })
 
     from .tasks import write_all_comics_task
-    result = write_all_comics_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Writing comics"
+    result = enqueue("write_all", label="Writing comics")
 
     return JsonResponse({
         "success": True,
@@ -2675,9 +2606,6 @@ def write_stale_comics(request):
     from celery.result import AsyncResult
     from django.db.models import F
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     count = Comic.objects.filter(
         state=Comic.STATE_WRITTEN,
@@ -2693,9 +2621,7 @@ def write_stale_comics(request):
         })
 
     from .tasks import write_stale_comics_task
-    result = write_stale_comics_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Writing stale comics"
+    result = enqueue("write_stale", label="Writing stale comics")
 
     return JsonResponse({
         "success": True,
@@ -2713,9 +2639,6 @@ def write_missing_comics(request):
     """
     from celery.result import AsyncResult
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     count = Comic.objects.filter(
         state=Comic.STATE_WRITTEN,
@@ -2732,9 +2655,7 @@ def write_missing_comics(request):
         })
 
     from .tasks import write_missing_comics_task
-    result = write_missing_comics_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Writing missing comics"
+    result = enqueue("write_missing", label="Writing missing comics")
 
     return JsonResponse({
         "success": True,
@@ -3055,13 +2976,8 @@ def scan_untagged(request):
     from celery.result import AsyncResult
     from .tasks import scan_untagged_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
-    result = scan_untagged_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Scanning untagged"
+    result = enqueue("scan_untagged", label="Scanning untagged")
     return JsonResponse({"success": True, "task_id": result.id, "message": "Scanning untagged folder in background"})
 
 
@@ -3250,14 +3166,9 @@ def search_alt_covers(request, pk):
     if not variants:
         return JsonResponse({"success": False, "error": "No new alternate covers found"})
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
     from .tasks import search_alt_covers_task
-    result = search_alt_covers_task.delay(str(comic.pk), variants)
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Inserting covers"
+    result = enqueue("search_alt_covers", args=[str(comic.pk), variants], label="Inserting covers")
     return JsonResponse({
         "success": True,
         "task_id": result.id,
@@ -3504,13 +3415,8 @@ def audit_metadata_mismatches(request):
     from celery.result import AsyncResult
     from .tasks import audit_metadata_task
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
 
-    result = audit_metadata_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Auditing metadata"
+    result = enqueue("audit_metadata", label="Auditing metadata")
     return JsonResponse({"success": True, "task_id": result.id, "message": "Auditing metadata mismatches in background"})
 
 
@@ -3676,12 +3582,6 @@ def comic_action(request):
     if not comic_ids:
         return JsonResponse({"success": True, "total": 0, "message": "No matching comics"})
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
-
-    task = bulk_action_task.delay(comic_ids, action)
-    request.session["active_task_id"] = task.id
 
     action_labels = {
         "scrape": "Scraping", "tag": "Tagging", "format": "Formatting",
@@ -3689,7 +3589,7 @@ def comic_action(request):
         "au_reorganize": "Moving AU comic",
     }
     label = action_labels.get(action, action.title())
-    request.session["active_task_label"] = f"{label} {len(comic_ids)} comics"
+    task = enqueue("bulk_action", args=[comic_ids, action], label=f"{label} {len(comic_ids)} comics")
 
     return JsonResponse({
         "success": True,
@@ -3720,19 +3620,13 @@ def bulk_action_from_pks(request):
     if not comic_ids:
         return JsonResponse({"success": True, "total": 0, "message": "No matching comics"})
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
-
-    result = bulk_action_task.delay(comic_ids, action)
-    request.session["active_task_id"] = result.id
 
     action_labels = {
         "scrape": "Scraping", "tag": "Tagging", "format": "Formatting",
         "organize": "Organizing", "write": "Writing", "force_write": "Force writing",
     }
     label = action_labels.get(action, action.title())
-    request.session["active_task_label"] = f"{label} {len(comic_ids)} comics"
+    result = enqueue("bulk_action", args=[comic_ids, action], label=f"{label} {len(comic_ids)} comics")
 
     return JsonResponse({
         "success": True,
@@ -3769,12 +3663,6 @@ def bulk_action_from_filter(request):
         return JsonResponse({"success": True, "processed": 0, "total": 0,
                              "message": "No comics match the current filters"})
 
-    conflict = active_task_conflict(request)
-    if conflict:
-        return conflict
-
-    result = bulk_action_task.delay([str(pk) for pk in comic_ids], action, flag_name or None)
-    request.session["active_task_id"] = result.id
 
     action_labels = {
         "scrape": "Scraping",
@@ -3786,7 +3674,11 @@ def bulk_action_from_filter(request):
         "accept_flag": f"Suppressing '{flag_name}' on",
     }
     label = action_labels.get(action, action.title())
-    request.session["active_task_label"] = f"{label} {len(comic_ids)} comics"
+    result = enqueue(
+        "bulk_action",
+        args=[[str(pk) for pk in comic_ids], action, flag_name or None],
+        label=f"{label} {len(comic_ids)} comics",
+    )
 
     return JsonResponse({
         "success": True,
