@@ -109,3 +109,30 @@ class DispatchEnqueueTests(TestCase):
         self.assertTrue(resp.json()["success"])
         enq.assert_called_once()
         self.assertEqual(enq.call_args.args[0], "tag_all")
+
+
+class ModalIfNowTests(TestCase):
+    def _comic(self):
+        from apps.core.models import Comic
+        return Comic.objects.create(series="S", number="1", state="tagging")
+
+    def test_runs_sync_when_queue_empty(self):
+        c = self._comic()
+        with patch("apps.core.views._run_action_sync", return_value={"success": True}) as run, \
+             patch("apps.core.views.enqueue") as enq:
+            resp = self.client.post(reverse("core:comic_action"), {
+                "pks": [str(c.pk)], "action": "tag", "show_result": "true"})
+        run.assert_called_once()
+        enq.assert_not_called()
+        self.assertEqual(resp.json()["modal_type"], "tag")
+
+    def test_enqueues_when_busy(self):
+        c = self._comic()
+        QueuedTask.objects.create(action="tag_all", label="busy", state=QueuedTask.STATE_RUNNING)
+        with patch("apps.core.views._run_action_sync") as run, \
+             patch("apps.core.views.enqueue", return_value=MagicMock(id="qt-2", label="Tagging")) as enq:
+            resp = self.client.post(reverse("core:comic_action"), {
+                "pks": [str(c.pk)], "action": "tag", "show_result": "true"})
+        run.assert_not_called()
+        enq.assert_called_once()
+        self.assertTrue(resp.json()["queued"])

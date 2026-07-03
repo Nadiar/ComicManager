@@ -3566,6 +3566,11 @@ def comic_action(request):
     force = request.POST.get("force") == "true"
 
     if show_result:
+        # Run inline (and return the result modal) only when nothing is queued
+        # or running; otherwise queue it so it stays strictly serial.
+        if QueuedTask.objects.filter(state__in=QueuedTask.ACTIVE_STATES).exists():
+            qt = enqueue("bulk_action", args=[[pks[0]], action], label=f"{action.title()} 1 comic")
+            return JsonResponse({"success": True, "queued": True, "task_id": str(qt.id), "label": qt.label})
         comic = get_object_or_404(Comic, pk=pks[0])
         result = _run_action_sync(comic, action, force=force)
         if not result["success"]:
