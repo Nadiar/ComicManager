@@ -5,7 +5,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from apps.core.models import Comic
 from .models import SmartList
-from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS, active_task_conflict
+from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS
 from apps.core.task_queue import enqueue
 from .services import build_queryset, get_missing_issues, search_cv_volumes
 

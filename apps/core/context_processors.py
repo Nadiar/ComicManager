@@ -1,17 +1,3 @@
-def active_tasks(request):
-    """Inject the active background task into template context.
-
-    All dispatchers now lock on a single `active_task_id` (one batch at a time),
-    so the global toast only needs that one id and its label. Pages that show
-    per-button state (e.g. the organizer audit page) pass their own task ids
-    through their view context.
-    """
-    return {
-        "active_task_id": request.session.get("active_task_id", ""),
-        "active_task_label": request.session.get("active_task_label", ""),
-    }
-
-
 def user_preferences(request):
     """Inject display preferences into every template as `prefs`."""
     from .models import UserPreference

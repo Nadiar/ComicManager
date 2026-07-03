@@ -10,7 +10,6 @@ from django.views.decorators.http import require_POST, require_GET
 from django.contrib import messages
 
 from apps.core.models import Comic
-from apps.core.utils import active_task_conflict
 from apps.core.task_queue import enqueue
 
 from .models import OrganizerProfile

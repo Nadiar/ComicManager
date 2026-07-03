@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST, require_GET
 
 from .models import Comic, QueuedTask, get_setting
 from .task_queue import enqueue
-from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS, active_task_conflict
+from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS
 from .cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
 from apps.scraper.inducks import InducksScraper, is_inducks_available
