@@ -364,9 +364,13 @@
     });
   };
 
-  window.startTaskPolling = function(taskId, label, onComplete) {
-    startPolling(taskId, label, onComplete);
-  };
+  // Obsolete: action handlers used to call this with the dispatch response's
+  // task_id to start the toast. That id is now the QueuedTask id, not the
+  // running Celery task, so polling it shows a false "Queued...". The toast is
+  // driven entirely by the WebSocket queue snapshot (which resumes the real
+  // running task), so this is a no-op. Kept as a stub so the many callers do
+  // not need editing; the end-of-queue refresh is handled by _finishTask.
+  window.startTaskPolling = function(taskId, label, onComplete) {};
 
   window.dismissTaskToast = function() {
     // Stop any in-flight polling and forget the task on the server so the
