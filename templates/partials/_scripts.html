@@ -1,35 +1,7 @@
   <script src="/static/js/ui.js"></script>
   <script src="/static/js/lightbox.js"></script>
   <script src="/static/js/tasks.js"></script>
-  <script>
-  (function(){
-    var candidates = [
-      { id: "{{ active_task_id|escapejs }}", label: "{{ active_task_label|escapejs }}" || 'Processing' },
-    ].filter(function(t) { return t.id && !window._isTaskDone(t.id); });
-
-    if (!candidates.length) return;
-
-    // Verify each candidate's actual state before resuming — clears stale session keys
-    // for tasks that completed while the UI was watching a different task.
-    (async function() {
-      for (var t of candidates) {
-        try {
-          var r = await fetch('/comics/task-progress/' + t.id + '/');
-          var data = await r.json();
-          // Only resume a task the worker is actually running. In the django-db
-          // result backend a forgotten or cleaned-up id is indistinguishable
-          // from a freshly queued one: both report PENDING. Resuming PENDING is
-          // what pins a "Queued..." toast forever, so we never resume on it.
-          // The task-progress fetch above also drops the stale session key.
-          if (data.state === 'STARTED' || data.state === 'PROGRESS') {
-            window.startTaskPolling(t.id, t.label);
-            return;
-          }
-        } catch(e) {}
-      }
-    })();
-  })();
-  </script>
+  {# Running/queued tasks are restored by the tasks WebSocket queue.snapshot on connect. #}
   {% include "partials/modals/_scrape.html" %}
   <script>window._INDUCKS_COUNTRY_LOCK="{{ inducks_country_lock|escapejs }}";</script>
   <script src="/static/js/scrape.js"></script>

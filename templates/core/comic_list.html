@@ -1129,13 +1129,8 @@ function convertComic(pk, btn) {
     return r.json();
   };
 
-  // If a task is already running, queue this convert so it runs after — the
-  // server rejects concurrent tasks, so firing immediately would 409.
-  if (window.isTaskActive && window.isTaskActive()) {
-    if (window.enqueueAction) window.enqueueAction(doConvert, 'Converting file', btn);
-    return;
-  }
-
+  // The server queue serializes everything, so just fire it — if something is
+  // already running this convert lands in the queue behind it.
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
 

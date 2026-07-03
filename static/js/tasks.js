@@ -17,6 +17,14 @@
   var errorList = document.getElementById('task-error-list');
   var logLink = document.getElementById('task-log-link');
   var spinner = document.getElementById('task-spinner');
+  var queueListEl = document.getElementById('task-queue-list');
+  var pendingCount = 0;   // server-side queued items behind the running one
+  var lastWsAt = 0;       // last time the WebSocket delivered an update for the active task
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
 
   var actionQueue = [];
   var batchTotal = 0;   // total tasks in the current sequential batch
@@ -115,7 +123,7 @@
   function _finishTask(r) {
     var hasErrors = r.errors && r.errors.length > 0;
     showDismiss();
-    if (!hasErrors && actionQueue.length === 0) {
+    if (!hasErrors && actionQueue.length === 0 && pendingCount === 0) {
       setTimeout(function() {
         if (_taskUsedCallback) return;
         _doRefreshOrReload();
@@ -330,7 +338,11 @@
           }
 
         } else {
-          status.textContent = data.state === 'STARTED' ? 'Starting...' : 'Queued...';
+          // Don't let a stale poll downgrade the display to "Queued..." while
+          // the WebSocket is actively delivering progress for this task.
+          if (Date.now() - lastWsAt > 4000) {
+            status.textContent = data.state === 'STARTED' ? 'Starting...' : 'Queued...';
+          }
           setTimeout(pollProgress, POLL_INTERVAL);
         }
       })
@@ -419,6 +431,42 @@
     setTimeout(function() { hideToast(); location.reload(); }, 2000);
   };
 
+  // ── Server-driven queue (cross-device) ─────────────────────────────────
+  function renderQueueList(queued) {
+    if (!queueListEl) return;
+    if (!queued.length) { queueListEl.classList.add('hidden'); queueListEl.innerHTML = ''; return; }
+    queueListEl.innerHTML = queued.map(function(t) {
+      return '<div class="flex items-center gap-1.5 text-xs cm-text-muted">' +
+        '<span class="flex-1 truncate">' + escapeHtml(t.label) + '</span>' +
+        '<button class="cm-btn sm ghost" style="color:var(--cm-err);padding:0 6px;" title="Remove from queue" ' +
+        'onclick="window.cancelQueued(\'' + t.id + '\')">&times;</button>' +
+        '</div>';
+    }).join('');
+    queueListEl.classList.remove('hidden');
+  }
+
+  // Render the queue from a server snapshot: resume the running task's progress
+  // (this is what restores the toast on navigation, reload, or another device)
+  // and list the queued items with per-item cancel.
+  window._renderQueue = function(tasks) {
+    tasks = tasks || [];
+    var running = tasks.filter(function(t) { return t.state === 'running'; });
+    var queued  = tasks.filter(function(t) { return t.state === 'queued'; });
+    pendingCount = queued.length;
+    var run = running[0];
+    if (run && run.celery_task_id && activeTaskId !== run.celery_task_id && !isTaskDone(run.celery_task_id)) {
+      startPolling(run.celery_task_id, run.label || 'Processing');
+    }
+    renderQueueList(queued);
+    if (tasks.length) { showToast(); }
+    else if (!activeTaskId) { hideToast(); }
+  };
+
+  window.cancelQueued = function(id) {
+    var csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
+    fetch('/comics/queue/' + id + '/cancel/', { method: 'POST', headers: { 'X-CSRFToken': csrf } }).catch(function(){});
+  };
+
   // WebSocket real-time task events
   (function() {
     function connect() {
@@ -429,20 +477,13 @@
         var msg;
         try { msg = JSON.parse(e.data); } catch(_) { return; }
 
-        if (msg.type === 'task.snapshot') {
-          if (!activeTaskId && msg.tasks && msg.tasks.length > 0) {
-            var running = msg.tasks.find(function(t) { return t.state === 'PROGRESS' && !isTaskDone(t.task_id); });
-            if (running) {
-              startPolling(running.task_id, running.label || 'Processing');
-              bar.value = running.pct || 0;
-              count.textContent = (running.pct || 0) + '%';
-              if (running.sublabel) status.textContent = running.sublabel;
-            }
-          }
+        if (msg.type === 'queue.snapshot') {
+          window._renderQueue(msg.tasks || []);
           return;
         }
 
         if (!activeTaskId || msg.task_id !== activeTaskId) return;
+        lastWsAt = Date.now();
 
         if (msg.state === 'PROGRESS') {
           if (msg.pct !== undefined) bar.value = msg.pct;

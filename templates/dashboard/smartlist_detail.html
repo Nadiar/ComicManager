@@ -234,17 +234,6 @@ function runSmartListAction(action) {
   document.getElementById('sl-actions-dd').classList.add('hidden');
   showConfirm(`${label} ${targetDesc}?`, async () => {
     const bodyBase = `action=${action}` + (selectedIds.length ? `&comic_ids=${encodeURIComponent(selectedIds.join(','))}` : '');
-    if (window.isTaskActive && window.isTaskActive()) {
-      if (window.enqueueAction) {
-        window.enqueueAction(async () => {
-          const r = await fetch(`{% url 'dashboard:smartlist_run_action' smart_list.pk %}`, {
-            method: 'POST', headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' }, body: bodyBase,
-          });
-          return r.json();
-        }, label + ' comics', null);
-      }
-      return;
-    }
     try {
       const resp = await fetch(`{% url 'dashboard:smartlist_run_action' smart_list.pk %}`, {
         method: 'POST', headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/x-www-form-urlencoded' }, body: bodyBase,

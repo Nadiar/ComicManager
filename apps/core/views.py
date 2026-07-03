@@ -2716,7 +2716,9 @@ def task_progress(request, task_id):
         response["state"] = "FAILURE"
         response["error"] = "Task result could not be read (corrupt or expired)."
 
-    return JsonResponse(response)
+    resp = JsonResponse(response)
+    resp["Cache-Control"] = "no-store"
+    return resp
 
 
 def _clear_task_session(request, task_id):
