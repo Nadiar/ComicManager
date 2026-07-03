@@ -12,3 +12,10 @@ class CoreConfig(AppConfig):
         post_migrate.connect(seed_default_settings, sender=self)
 
         from apps.core import task_queue  # noqa: F401 — connects Celery lifecycle signals
+
+        import os
+        if os.environ.get("RUN_MAIN") == "true" or os.environ.get("RECONCILE_ON_START") == "1":
+            try:
+                task_queue.reconcile_orphans()
+            except Exception:
+                pass

@@ -136,3 +136,15 @@ class ModalIfNowTests(TestCase):
         run.assert_not_called()
         enq.assert_called_once()
         self.assertTrue(resp.json()["queued"])
+
+
+class ReconcileTests(TestCase):
+    def test_orphaned_running_marked_failed(self):
+        qt = QueuedTask.objects.create(action="tag_all", label="A",
+                                       celery_task_id="dead", state=QueuedTask.STATE_RUNNING)
+        with patch("apps.core.task_queue._active_celery_ids", return_value=set()), \
+             patch("apps.core.task_queue.broadcast_queue"):
+            n = task_queue.reconcile_orphans()
+        qt.refresh_from_db()
+        self.assertEqual(n, 1)
+        self.assertEqual(qt.state, QueuedTask.STATE_FAILED)

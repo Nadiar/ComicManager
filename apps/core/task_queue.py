@@ -150,3 +150,42 @@ def broadcast_queue():
         )
     except Exception:
         pass
+
+
+def _active_celery_ids():
+    """Celery task ids the workers currently know about (active + reserved)."""
+    from comicmanager.celery import app as celery_app
+
+    insp = celery_app.control.inspect()
+    ids = set()
+    for group in (insp.active() or {}, insp.reserved() or {}):
+        for tasks in group.values():
+            for t in tasks:
+                tid = t.get("id")
+                if tid:
+                    ids.add(tid)
+    return ids
+
+
+def reconcile_orphans():
+    """Mark `running` rows whose Celery task is no longer active as failed.
+
+    Handles the case where a worker was killed mid-task and left a row stuck in
+    `running`. Returns the number of rows reconciled."""
+    from apps.core.models import QueuedTask
+
+    running = list(QueuedTask.objects.filter(state=QueuedTask.STATE_RUNNING))
+    if not running:
+        return 0
+    active = _active_celery_ids()
+    n = 0
+    for qt in running:
+        if qt.celery_task_id not in active:
+            qt.state = QueuedTask.STATE_FAILED
+            qt.error = "Worker stopped before the task finished"
+            qt.finished_at = timezone.now()
+            qt.save(update_fields=["state", "error", "finished_at"])
+            n += 1
+    if n:
+        broadcast_queue()
+    return n
