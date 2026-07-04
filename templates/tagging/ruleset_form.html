@@ -66,21 +66,21 @@
     <div id="rules-container" style="display:flex; flex-direction:column; gap:8px;">
       {% if ruleset.rules %}
         {% for rule in ruleset.rules %}
-        <div class="rule-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg">
-          <select name="rule_field_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+        <div class="rule-row" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--cm-bg-2); padding:10px 12px; border-radius:6px;">
+          <select name="rule_field_{{ forloop.counter0 }}" class="cm-input" style="width:160px;">
             <option value="">Select field...</option>
             {% for field in field_options %}
             <option value="{{ field }}" {% if rule.field == field %}selected{% endif %}>{{ field }}</option>
             {% endfor %}
           </select>
-          <select name="rule_modifier_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+          <select name="rule_modifier_{{ forloop.counter0 }}" class="cm-input" style="width:160px;">
             <option value="">Select modifier...</option>
             {% for mod in rule_modifier_options %}
             <option value="{{ mod }}" {% if rule.modifier == mod %}selected{% endif %}>{{ mod }}</option>
             {% endfor %}
           </select>
-          <input type="text" name="rule_value_{{ forloop.counter0 }}" value="{{ rule.value }}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value (use || for multiple)">
-          <button type="button" onclick="this.closest('.rule-row').remove()" class="btn-ghost btn-sm btn-square text-error">×</button>
+          <input type="text" name="rule_value_{{ forloop.counter0 }}" value="{{ rule.value }}" class="cm-input" style="flex:1; min-width:180px;" placeholder="Value (use || for multiple)">
+          <button type="button" onclick="this.closest('.rule-row').remove()" class="cm-icon-btn" style="color:var(--cm-err);">×</button>
         </div>
         {% endfor %}
       {% endif %}
@@ -97,21 +97,21 @@
     <div id="actions-container" style="display:flex; flex-direction:column; gap:8px;">
       {% if ruleset.actions %}
         {% for action in ruleset.actions %}
-        <div class="action-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg">
-          <select name="action_field_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+        <div class="action-row" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--cm-bg-2); padding:10px 12px; border-radius:6px;">
+          <select name="action_field_{{ forloop.counter0 }}" class="cm-input" style="width:160px;">
             <option value="">Select field...</option>
             {% for field in field_options %}
             <option value="{{ field }}" {% if action.field == field %}selected{% endif %}>{{ field }}</option>
             {% endfor %}
           </select>
-          <select name="action_modifier_{{ forloop.counter0 }}" class="select select-bordered select-sm w-40">
+          <select name="action_modifier_{{ forloop.counter0 }}" class="cm-input" style="width:160px;">
             <option value="">Select modifier...</option>
             {% for mod in action_modifier_options %}
             <option value="{{ mod }}" {% if action.modifier == mod %}selected{% endif %}>{{ mod }}</option>
             {% endfor %}
           </select>
-          <input type="text" name="action_value_{{ forloop.counter0 }}" value="{{ action.value }}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value">
-          <button type="button" onclick="this.closest('.action-row').remove()" class="btn-ghost btn-sm btn-square text-error">×</button>
+          <input type="text" name="action_value_{{ forloop.counter0 }}" value="{{ action.value }}" class="cm-input" style="flex:1; min-width:180px;" placeholder="Value">
+          <button type="button" onclick="this.closest('.action-row').remove()" class="cm-icon-btn" style="color:var(--cm-err);">×</button>
         </div>
         {% endfor %}
       {% endif %}
@@ -135,18 +135,19 @@ let actionIndex = {{ ruleset.actions|length|default:0 }};
 function addRule() {
   const container = document.getElementById('rules-container');
   const row = document.createElement('div');
-  row.className = 'rule-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg';
+  row.className = 'rule-row';
+  row.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--cm-bg-2); padding:10px 12px; border-radius:6px;';
   row.innerHTML = `
-    <select name="rule_field_${ruleIndex}" class="select select-bordered select-sm w-40">
+    <select name="rule_field_${ruleIndex}" class="cm-input" style="width:160px;">
       <option value="">Select field...</option>
       ${fieldOptions.map(f => `<option value="${f}">${f}</option>`).join('')}
     </select>
-    <select name="rule_modifier_${ruleIndex}" class="select select-bordered select-sm w-40">
+    <select name="rule_modifier_${ruleIndex}" class="cm-input" style="width:160px;">
       <option value="">Select modifier...</option>
       ${ruleModifierOptions.map(m => `<option value="${m}">${m}</option>`).join('')}
     </select>
-    <input type="text" name="rule_value_${ruleIndex}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value (use || for multiple)">
-    <button type="button" onclick="this.closest('.rule-row').remove()" class="btn-ghost btn-sm btn-square text-error">×</button>
+    <input type="text" name="rule_value_${ruleIndex}" class="cm-input" style="flex:1; min-width:180px;" placeholder="Value (use || for multiple)">
+    <button type="button" onclick="this.closest('.rule-row').remove()" class="cm-icon-btn" style="color:var(--cm-err);">×</button>
   `;
   container.appendChild(row);
   ruleIndex++;
@@ -155,18 +156,19 @@ function addRule() {
 function addAction() {
   const container = document.getElementById('actions-container');
   const row = document.createElement('div');
-  row.className = 'action-row flex flex-wrap gap-2 items-center bg-base-300 p-3 rounded-lg';
+  row.className = 'action-row';
+  row.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--cm-bg-2); padding:10px 12px; border-radius:6px;';
   row.innerHTML = `
-    <select name="action_field_${actionIndex}" class="select select-bordered select-sm w-40">
+    <select name="action_field_${actionIndex}" class="cm-input" style="width:160px;">
       <option value="">Select field...</option>
       ${fieldOptions.map(f => `<option value="${f}">${f}</option>`).join('')}
     </select>
-    <select name="action_modifier_${actionIndex}" class="select select-bordered select-sm w-40">
+    <select name="action_modifier_${actionIndex}" class="cm-input" style="width:160px;">
       <option value="">Select modifier...</option>
       ${actionModifierOptions.map(m => `<option value="${m}">${m}</option>`).join('')}
     </select>
-    <input type="text" name="action_value_${actionIndex}" class="input input-bordered input-sm flex-1 min-w-48" placeholder="Value">
-    <button type="button" onclick="this.closest('.action-row').remove()" class="btn-ghost btn-sm btn-square text-error">×</button>
+    <input type="text" name="action_value_${actionIndex}" class="cm-input" style="flex:1; min-width:180px;" placeholder="Value">
+    <button type="button" onclick="this.closest('.action-row').remove()" class="cm-icon-btn" style="color:var(--cm-err);">×</button>
   `;
   container.appendChild(row);
   actionIndex++;

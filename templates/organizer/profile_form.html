@@ -156,7 +156,7 @@ CUSTOM_VALUE_KEYS.forEach(k => { const o = document.createElement('option'); o.v
 
 function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   const row = document.createElement('div');
-  row.className = 'flex items-center gap-2';
+  row.style.cssText = 'display:flex; align-items:center; gap:8px;';
   row.dataset.type = 'rule';
 
   let isCustom = false;
@@ -167,7 +167,7 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   }
 
   const fieldSelect = document.createElement('select');
-  fieldSelect.className = 'select select-bordered select-sm';
+  fieldSelect.className = 'cm-input';
   fieldSelect.dataset.role = 'field';
   RULE_FIELDS.forEach(f => {
     const opt = document.createElement('option');
@@ -188,7 +188,7 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
 
   const keyInput = document.createElement('input');
   keyInput.type = 'text';
-  keyInput.className = 'input input-bordered input-sm';
+  keyInput.className = 'cm-input';
   keyInput.style.cssText = 'width:140px;';
   keyInput.placeholder = 'Key (e.g. IsStarWars)';
   keyInput.dataset.role = 'custom-key';
@@ -197,7 +197,7 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   keyInput.style.display = isCustom ? '' : 'none';
 
   const opSelect = document.createElement('select');
-  opSelect.className = 'select select-bordered select-sm';
+  opSelect.className = 'cm-input';
   opSelect.dataset.role = 'operator';
 
   function populateOpSelect(selectedField, selectedOp) {
@@ -220,14 +220,16 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
 
   const valueInput = document.createElement('input');
   valueInput.type = 'text';
-  valueInput.className = 'input input-bordered input-sm flex-1';
+  valueInput.className = 'cm-input';
+  valueInput.style.cssText = 'flex:1;';
   valueInput.placeholder = 'Value';
   valueInput.value = value;
   valueInput.dataset.role = 'value';
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'btn-sm btn-ghost btn-square text-error';
+  removeBtn.className = 'cm-icon-btn';
+  removeBtn.style.color = 'var(--cm-err)';
   removeBtn.innerHTML = '&times;';
   removeBtn.onclick = () => row.remove();
 
@@ -242,18 +244,19 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
 
 function createGroupEl(groupOperator = 'Any', rules = []) {
   const group = document.createElement('div');
-  group.style.cssText = 'border-left:4px solid var(--cm-accent); padding:8px 0 8px 16px; background:var(--cm-bg-2); border-radius:0 6px 6px 0; display:flex; flex-direction:column; gap:6px;';
+  group.style.cssText = 'border:1px solid color-mix(in srgb, var(--cm-accent) 40%, transparent); border-left:4px solid var(--cm-accent); padding:8px 0 8px 16px; background:var(--cm-bg-2); border-radius:0 6px 6px 0; display:flex; flex-direction:column; gap:6px;';
   group.dataset.type = 'group';
 
   const header = document.createElement('div');
-  header.className = 'flex items-center gap-2';
+  header.style.cssText = 'display:flex; align-items:center; gap:8px;';
 
   const label = document.createElement('span');
   label.style.cssText = 'font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent);';
   label.textContent = 'Group';
 
   const opSelect = document.createElement('select');
-  opSelect.className = 'select-bordered select-xs';
+  opSelect.className = 'cm-input';
+  opSelect.style.cssText = 'height:22px; font-size:11px;';
   opSelect.dataset.role = 'group-operator';
   ['All', 'Any'].forEach(o => {
     const opt = document.createElement('option');
@@ -265,7 +268,7 @@ function createGroupEl(groupOperator = 'Any', rules = []) {
 
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
-  addBtn.className = 'btn-xs btn-outline';
+  addBtn.className = 'cm-btn sm ghost';
   addBtn.textContent = '+ Rule';
   addBtn.onclick = () => rulesContainer.appendChild(createRuleRow());
 
@@ -274,7 +277,8 @@ function createGroupEl(groupOperator = 'Any', rules = []) {
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'btn-xs btn-ghost text-error';
+  removeBtn.className = 'cm-btn sm ghost';
+  removeBtn.style.color = 'var(--cm-err)';
   removeBtn.innerHTML = '&times; Remove Group';
   removeBtn.onclick = () => group.remove();
 

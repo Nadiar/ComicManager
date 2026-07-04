@@ -140,7 +140,7 @@ const NO_VALUE_LOOKUPS = new Set(['isnull', 'not_isnull']);
 
 function buildSelect(options, selected, extraStyle) {
   const sel = document.createElement('select');
-  sel.className = 'select-bordered';
+  sel.className = 'cm-input';
   sel.style.cssText = extraStyle || '';
   options.forEach(opt => {
     const o = document.createElement('option');
@@ -188,7 +188,7 @@ function createLeafRow(field = '', lookup = 'exact', value = '') {
   const valueInput = document.createElement('input');
   valueInput.type = 'text';
   valueInput.dataset.role = 'value';
-  valueInput.className = 'input-bordered';
+  valueInput.className = 'cm-input';
   valueInput.style.cssText = 'flex:1; height:28px; font-size:12px;';
   valueInput.placeholder = 'Value...';
   valueInput.value = NO_VALUE_LOOKUPS.has(lookup) ? '' : value;
@@ -202,7 +202,8 @@ function createLeafRow(field = '', lookup = 'exact', value = '') {
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'btn-xs btn-error btn-outline';
+  removeBtn.className = 'cm-btn sm ghost';
+  removeBtn.style.cssText = 'color:var(--cm-err); border-color:var(--cm-err);';
   removeBtn.textContent = 'Remove';
   removeBtn.onclick = () => row.remove();
 
@@ -230,6 +231,7 @@ function createLeafRow(field = '', lookup = 'exact', value = '') {
 function createGroup(mode = 'or') {
   const div = document.createElement('div');
   div.dataset.type = 'group';
+  div.style.cssText = 'border:1px solid color-mix(in srgb, var(--cm-accent) 40%, transparent); border-radius:6px; padding:10px 12px; background:var(--cm-bg-1);';
 
   const header = document.createElement('div');
   header.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
@@ -240,7 +242,8 @@ function createGroup(mode = 'or') {
 
   const modeSel = document.createElement('select');
   modeSel.dataset.role = 'mode';
-  modeSel.className = 'select-bordered select-xs';
+  modeSel.className = 'cm-input';
+  modeSel.style.cssText = 'height:22px; font-size:11px;';
   [['or', 'Match ANY (OR)'], ['and', 'Match ALL (AND)']].forEach(([val, lbl]) => {
     const o = document.createElement('option');
     o.value = val;
@@ -251,7 +254,8 @@ function createGroup(mode = 'or') {
 
   const removeGroupBtn = document.createElement('button');
   removeGroupBtn.type = 'button';
-  removeGroupBtn.className = 'btn-xs btn-error btn-outline ml-auto';
+  removeGroupBtn.className = 'cm-btn sm ghost';
+  removeGroupBtn.style.cssText = 'margin-left:auto; color:var(--cm-err); border-color:var(--cm-err);';
   removeGroupBtn.textContent = 'Remove Group';
   removeGroupBtn.onclick = () => div.remove();
 
@@ -265,7 +269,7 @@ function createGroup(mode = 'or') {
 
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
-  addBtn.className = 'btn-xs btn-ghost';
+  addBtn.className = 'cm-btn sm ghost';
   addBtn.textContent = '+ Add filter';
   addBtn.style.cssText = 'margin-top:6px; align-self:flex-start;';
   addBtn.onclick = () => rows.appendChild(createLeafRow());
