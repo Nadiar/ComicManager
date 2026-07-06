@@ -1651,7 +1651,7 @@ def run_full_pipeline(request):
                                  "message": "No eligible CBZ comics in new state"})
 
     result = enqueue("run_pipeline", args=[comic_ids], label="Running pipeline")
-    return JsonResponse({"success": True, "task_id": result.id, "total": len(comic_ids)})
+    return JsonResponse({"success": True, "task_id": result.celery_task_id, "total": len(comic_ids)})
 
 
 def _populate_missing_counts():

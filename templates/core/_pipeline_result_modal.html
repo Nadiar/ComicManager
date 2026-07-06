@@ -1,0 +1,161 @@
+<dialog id="pipeline-result-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box" style="background:var(--cm-bg-1);border:1px solid var(--cm-border);max-width:860px;width:100%;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h3 style="font-weight:700;font-size:16px;color:var(--cm-fg);" id="pipeline-modal-title">Pipeline Complete</h3>
+      <span id="pipeline-modal-badge" class="cm-chip ok"></span>
+    </div>
+    <div id="pipeline-modal-body" style="display:flex;flex-direction:column;gap:8px;">
+      <!-- Populated by JS -->
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px;">
+      <a id="pipeline-view-comic-btn" href="#" class="cm-btn sm ghost hidden" target="_blank" rel="noopener">View Comic</a>
+      <button class="cm-btn sm ok" onclick="window.location.reload()">Dismiss</button>
+    </div>
+  </div>
+  <div class="modal-backdrop" onclick="window.location.reload()"></div>
+</dialog>
+
+<script>
+// Shared by every "Run Pipeline" entry point (comic detail, comic list, dashboard
+// new comics): polls a dispatched pipeline task and renders its per-comic outcome.
+let _pipelinePollTimer = null;
+
+function _pollPipelineCompletion(taskId, btn) {
+  // Claim this task so the WebSocket-driven toast doesn't auto-refresh the
+  // page out from under the modal once it finishes; the modal's own Dismiss
+  // button is what should trigger the reload, on the user's own timing.
+  if (window.claimTaskResult) window.claimTaskResult(taskId);
+  fetch('/comics/task-progress/' + taskId + '/')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.state === 'SUCCESS') {
+        _openPipelineModal(data.result || {});
+        if (btn) {
+          btn.innerHTML = 'Done';
+          btn.classList.remove('primary');
+          btn.classList.add('ok');
+        }
+      } else if (data.state === 'FAILURE') {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = 'Run Pipeline';
+        }
+        window.showQuickToast('Pipeline failed: ' + (data.error || 'Unknown error'), 'error');
+      } else {
+        _pipelinePollTimer = setTimeout(function() {
+          _pollPipelineCompletion(taskId, btn);
+        }, 2000);
+      }
+    })
+    .catch(function() {
+      _pipelinePollTimer = setTimeout(function() {
+        _pollPipelineCompletion(taskId, btn);
+      }, 4000);
+    });
+}
+
+// Only single-comic pipeline runs poll for a result (see _pollPipelineCompletion
+// callers); bulk runs rely on the WebSocket-driven task toast instead, so this
+// only ever renders one comic's outcome.
+function _openPipelineModal(result) {
+  var r = (result.results || [])[0] || {};
+  var outcome = r.outcome || 'error';
+
+  var badgeMap = { success: ['ok', 'Complete'], duplicate: ['warn', 'Duplicate'], error: ['err', 'Error'] };
+  var badge = badgeMap[outcome] || ['', outcome];
+  document.getElementById('pipeline-modal-title').textContent = r.title || 'Pipeline Complete';
+  var badgeEl = document.getElementById('pipeline-modal-badge');
+  badgeEl.className = 'cm-chip ' + badge[0];
+  badgeEl.textContent = badge[1];
+
+  var viewBtn = document.getElementById('pipeline-view-comic-btn');
+  if (r.pk && outcome !== 'duplicate') {
+    viewBtn.href = '/comics/' + r.pk + '/'; viewBtn.textContent = 'View Comic'; viewBtn.classList.remove('hidden');
+  } else if (r.duplicate_of_pk) {
+    viewBtn.href = '/comics/' + r.duplicate_of_pk + '/'; viewBtn.textContent = 'View Original'; viewBtn.classList.remove('hidden');
+  } else { viewBtn.classList.add('hidden'); }
+
+  var body = document.getElementById('pipeline-modal-body');
+  body.innerHTML = '';
+
+  if (outcome === 'error' && r.error) {
+    body.innerHTML += _pipelineSection('error', 'Pipeline stopped', '<p style="font-size:12px;color:var(--cm-err);font-family:monospace;">' + _escHtml(r.error) + '</p>');
+    document.getElementById('pipeline-result-modal').showModal(); return;
+  }
+  if (outcome === 'duplicate') {
+    body.innerHTML += _pipelineSection('warning', 'Duplicate detected',
+      '<p style="font-size:13px;">This comic is a duplicate of <strong>' + _escHtml(r.duplicate_of_title || 'Unknown') + '</strong>. Processing stopped here.</p>');
+    document.getElementById('pipeline-result-modal').showModal(); return;
+  }
+
+  var leftHtml = '';
+  var rightHtml = '';
+
+  if (r.scrape) {
+    var s = r.scrape;
+    var sc = s.matched
+      ? '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;">'
+          + '<div style="text-align:center;"><img src="/comics/' + _escHtml(r.pk) + '/cover/" style="width:80px;height:104px;object-fit:cover;border-radius:3px;border:1px solid var(--cm-border);display:block;" alt="" onerror="this.style.display=\'none\'"><div style="font-size:10px;color:var(--cm-fg-4);margin-top:3px;">File</div></div>'
+          + (s.cv_cover_url ? '<div style="text-align:center;"><img src="' + _escHtml(s.cv_cover_url) + '" style="width:80px;height:104px;object-fit:cover;border-radius:3px;border:1px solid var(--cm-border);display:block;" alt="" onerror="this.style.display=\'none\'"><div style="font-size:10px;color:var(--cm-fg-4);margin-top:3px;">CV</div></div>' : '')
+          + '</div>'
+          + '<div style="font-size:13px;font-weight:600;">' + _escHtml(s.series||'') + ' #' + _escHtml(s.number||'') + '</div>'
+          + (s.title ? '<div style="font-size:11px;color:var(--cm-fg-3);font-style:italic;margin-top:2px;">' + _escHtml(s.title) + '</div>' : '')
+          + '<div style="font-size:11px;color:var(--cm-fg-3);margin-top:4px;">' + _escHtml(s.publisher||'') + '</div>'
+          + '<div style="font-size:11px;color:var(--cm-fg-4);font-family:monospace;margin-top:2px;">' + _escHtml(s.match_type||'') + (s.issue_id ? ' · CV #' + s.issue_id : '') + '</div>'
+      : '<p style="font-size:13px;color:var(--cm-warn);">No match found — comic stopped here.</p>';
+    leftHtml = _pipelineSection(s.matched ? 'success' : 'warning', 'Scrape', sc);
+  }
+
+  if (r.tag) {
+    var t = r.tag;
+    var tc = t.matched_count === 0 ? '<p style="font-size:13px;color:var(--cm-fg-3);">No rulesets matched.</p>'
+      : '<div style="display:flex;gap:16px;margin-bottom:8px;font-size:13px;"><span><strong>' + t.matched_count + '</strong> <span style="color:var(--cm-fg-3);">rulesets matched</span></span><span><strong>' + t.changes_count + '</strong> <span style="color:var(--cm-fg-3);">changes</span></span></div>'
+        + '<div style="font-size:11px;color:var(--cm-fg-3);margin-bottom:8px;">Matched: ' + _escHtml(t.matched_rulesets.join(', ')) + '</div>'
+        + (t.changes && t.changes.length ? '<table style="width:100%;font-size:12px;border-collapse:collapse;"><thead><tr style="color:var(--cm-fg-3);text-align:left;"><th style="padding:2px 6px;">Field</th><th style="padding:2px 6px;">Action</th><th style="padding:2px 6px;">Value</th></tr></thead><tbody>' + t.changes.map(function(c){return '<tr style="border-top:1px solid var(--cm-border);"><td style="padding:3px 6px;">'+_escHtml(c.field)+'</td><td style="padding:3px 6px;">'+_escHtml(c.action)+'</td><td style="padding:3px 6px;font-family:monospace;">'+_escHtml(c.new_value)+'</td></tr>';}).join('') + '</tbody></table>' : '');
+    rightHtml += _pipelineSection('success', 'Tag', tc);
+  }
+  if (r.format) {
+    var f = r.format;
+    var fr = f.format_changed
+      ? '<span style="text-decoration:line-through;color:var(--cm-fg-4);">' + _escHtml(f.old_format||'none') + '</span> → <strong>' + _escHtml(f.new_format||'none') + '</strong>'
+      : 'Format: <strong>' + _escHtml(f.new_format||'none') + '</strong>';
+    var fc = '<div style="display:flex;gap:16px;margin-bottom:8px;font-size:13px;"><span>Series: <strong>' + _escHtml(f.series||'-') + '</strong></span><span>Count: <strong>' + (f.count!=null?f.count:'-') + '</strong></span><span>Pages: <strong>' + (f.page_count||'-') + '</strong></span></div>'
+      + (f.title ? '<div style="font-size:11px;color:var(--cm-fg-3);margin-bottom:8px;font-style:italic;">' + _escHtml(f.title) + '</div>' : '')
+      + '<div style="font-size:13px;margin-bottom:8px;">' + fr + '</div>'
+      + (f.patterns_checked && f.patterns_checked.length ? '<div style="display:flex;flex-direction:column;gap:2px;">' + f.patterns_checked.map(function(p){return '<div style="font-size:11px;color:'+(p.matched?'var(--cm-ok)':'var(--cm-fg-4)')+';font-weight:'+(p.matched?'600':'400')+'">'+(p.matched?'✓ ':'○ ')+_escHtml(p.pattern)+'</div>';}).join('') + '</div>' : '');
+    rightHtml += _pipelineSection('success', 'Format', fc);
+  }
+  if (r.organize) {
+    var o = r.organize;
+    var oc = o.moved
+      ? '<div style="font-size:11px;font-family:monospace;display:flex;flex-direction:column;gap:4px;"><div style="color:var(--cm-fg-3);">From</div><div style="word-break:break-all;color:var(--cm-fg-2);">' + _escHtml(o.old_path||'-') + '</div><div style="color:var(--cm-fg-3);">To</div><div style="word-break:break-all;color:var(--cm-ok);">' + _escHtml(o.new_path||'-') + '</div></div>'
+      : '<div style="font-size:11px;font-family:monospace;word-break:break-all;color:var(--cm-fg-3);">' + _escHtml(o.new_path||o.old_path||'-') + '</div><div style="font-size:11px;color:var(--cm-fg-4);margin-top:4px;">File already in correct location</div>';
+    rightHtml += _pipelineSection('success', 'Organize', oc);
+  }
+
+  if (leftHtml && rightHtml) {
+    body.innerHTML = '<div style="display:flex;gap:10px;align-items:flex-start;">'
+      + '<div style="width:140px;flex-shrink:0;">' + leftHtml + '</div>'
+      + '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;">' + rightHtml + '</div>'
+      + '</div>';
+  } else {
+    body.innerHTML = leftHtml + rightHtml;
+  }
+
+  document.getElementById('pipeline-result-modal').showModal();
+}
+
+function _pipelineSection(type, label, content) {
+  var iconMap = {success:'✓', warning:'!', error:'✕'};
+  var colorMap = {success:'var(--cm-ok)', warning:'var(--cm-warn)', error:'var(--cm-err)'};
+  return '<div style="background:var(--cm-bg-2);border:1px solid var(--cm-border);border-radius:6px;padding:10px 12px;"><div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;"><span style="font-weight:700;font-size:11px;color:' + (colorMap[type]||'var(--cm-fg)') + '">' + (iconMap[type]||'\xb7') + '</span><span style="font-weight:600;font-size:13px;">' + _escHtml(label) + '</span></div><div>' + content + '</div></div>';
+}
+
+function _escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>

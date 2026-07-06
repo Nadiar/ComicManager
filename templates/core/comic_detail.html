@@ -534,6 +534,8 @@
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
+{% include "core/_pipeline_result_modal.html" %}
+
 <!-- Compare All Sources Modal -->
 <dialog id="cv-compare-modal" class="modal">
   <div class="modal-box max-w-7xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:0; max-height:90vh; display:flex; flex-direction:column;">
@@ -858,9 +860,7 @@ async function confirmRunPipeline() {
     const r = await fetch('/comics/run-pipeline/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd });
     const data = await r.json();
     if (data.task_id) {
-      if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
-      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Pipeline');
-      else if (window.showQuickToast) window.showQuickToast('Pipeline started');
+      _pollPipelineCompletion(data.task_id, btn);
     } else if (data.success) {
       if (btn) btn.innerHTML = '<span style="color:var(--cm-ok);">Done!</span>';
       if (window.showQuickToast) window.showQuickToast(data.message || 'Pipeline complete!');
