@@ -63,7 +63,7 @@ Control how the Formatter categorizes series based on their issue counts.
 
 **Example with defaults:**
 - Count = 1 -> One-Shot
-- Count 2–15 -> Limited Series
+- Count 2-15 -> Limited Series
 - Count 16+ -> Main Series
 
 ---

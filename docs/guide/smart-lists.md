@@ -136,7 +136,7 @@ Flag fields use the "equals" lookup. Set value to `true` to match flagged comics
 | `is not empty` | Field has any value | **No** |
 
 ::: tip is empty / is not empty
-These two lookups do not need a value — the value input hides automatically when you select them. If you choose a lookup that needs a value but leave the value blank, a warning appears on the filter row and that filter will be dropped when you save.
+These two lookups do not need a value. The value input hides automatically when you select them. If you choose a lookup that needs a value but leave the value blank, a warning appears on the filter row and that filter will be dropped when you save.
 :::
 
 ---

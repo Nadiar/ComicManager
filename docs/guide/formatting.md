@@ -64,25 +64,25 @@ Rules are evaluated in priority order. The first match wins.
 │ issue number > 15? (any count ≤ 15) ────────── YES ──▶  Main Series       │
 │   (continuation / renumbered series)                                       │
 ├────────────────────────────────────────────────────────────────────────────┤
-│ count > 1? (so 2–15, low issue number) ─────── YES ──▶  Limited Series    │
+│ count > 1? (so 2-15, low issue number) ─────── YES ──▶  Limited Series    │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ (count = 1, low issue number) ──────────────── YES ──▶  One-Shot          │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
-"Continuation / renumbered series" means the issue numbers are in a high range (above 15), regardless of the volume's issue count. This catches both limited-looking volumes (count 2–15) and single-issue entries (count=1) that continue legacy numbering from a prior volume. For example, a volume with count=11 and issues #695–705, or a single issue at #33, is an ongoing series, not a limited run or one-shot. Use `format_ok` on the detail page to permanently lock the format if the auto-detection is wrong for a specific comic.
+"Continuation / renumbered series" means the issue numbers are in a high range (above 15), regardless of the volume's issue count. This catches both limited-looking volumes (count 2-15) and single-issue entries (count=1) that continue legacy numbering from a prior volume. For example, a volume with count=11 and issues #695-705, or a single issue at #33, is an ongoing series, not a limited run or one-shot. Use `format_ok` on the detail page to permanently lock the format if the auto-detection is wrong for a specific comic.
 
 "Issue range in summary" means the summary text contains one of these collection signals: a range like `#1-5` or `#2-#8`, the word `Collects` (e.g. "Collects Batman #10-15"), a comma-separated issue list like `#1, 2, 3, 4`, the phrase "features the following issues", or "collecting issues". Any of these indicate the book bundles multiple individual issues rather than being a single-issue story.
 
 ### Known edge case: Omnibus in the summary
 
-Some comics are incorrectly classified as Omnibus because their ComicVine summary mentions the word "Omnibus" incidentally. For example, an old anthology issue whose summary reads "later reprinted in the DC Omnibus". The comic itself is not an Omnibus, but the keyword match fires anyway.
+Some comics are incorrectly classified as Omnibus because their ComicVine summary mentions the word "Omnibus" incidentally. For example, an old anthology issue whose summary reads "later reprinted in the Omnibus". The comic itself is not an Omnibus, but the keyword match fires anyway.
 
 If you see a regular single issue suggested as Omnibus on the Format Review page, open its detail/edit page and use the **Confirm Format** toggle to lock the correct format. Once confirmed, the comic will no longer appear on the Format Review page and its format will not be overwritten by future re-format runs.
 
 ### Why do we format after tagging?
 
-We apply DataManager rules *before* formatting because those rules might standardize the series name or the publisher, which can improve the accuracy of the formatting logic.
+We apply tagging rules *before* formatting because those rules might standardize the series name or the publisher, which can improve the accuracy of the formatting logic.
 
 ---
 
