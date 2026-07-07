@@ -35,6 +35,12 @@ Open `.env` and set the required variables:
 | `UNTAGGED_DIR` | Host path for incoming comics. Default: `./untagged`. |
 | `LIBRARY_DIR` | Host path for your organised library. Default: `./Comics`. |
 
+::: tip Accessing from another device
+If you open ComicManager from a phone or another computer and get an `Invalid HTTP_HOST header` error, add that machine's address to `ALLOWED_HOSTS` (comma-separated) and restart the `web` container.
+
+If your machine gets its address over DHCP, the IP can change and start rejecting requests again. Give the host a reserved or static IP, or list every address you use.
+:::
+
 ---
 
 ## 3. Create required directories
@@ -95,7 +101,7 @@ Go to **Settings** and configure at minimum:
 3. Comics appear in the **New** state and the pipeline begins.
 
 ::: tip
-Watch the progress toasts in the bottom-right corner for live status on any background task.
+Watch the progress in the bottom-right corner for live status on any background task.
 :::
 
 ### CLI import commands
@@ -115,7 +121,7 @@ docker compose exec web python manage.py scan_untagged [flags]
 
 ---
 
-**`import_library`**: scans an existing tagged CBZ library and imports every file into the database at the Written state by reading its embedded `ComicInfo.xml`. This is the primary migration path for users coming from ComicRack or another manager:
+**`import_library`**: scans an existing tagged CBZ library and imports every file into the database at the **Write to CBZ** state by reading its embedded `ComicInfo.xml`. This is the primary migration path for users coming from ComicRack or another manager. Note this is not the same as **Done**: Done is a separate, later state that a comic only reaches if it goes through the Write action again (for example via Run Pipeline).
 
 ```bash
 docker compose exec web python manage.py import_library [flags]
@@ -128,7 +134,7 @@ docker compose exec web python manage.py import_library [flags]
 | `--path /comics/library` | Override the library path (default: `/comics/library`) |
 | `--comicdb /path/to/ComicDb.xml` | Enrich imports with ComicRack's database (see below) |
 
-The `--comicdb` flag accepts ComicRack's `ComicDb.xml` and enriches each imported comic with data that `ComicInfo.xml` does not carry: Tags, Teams, Locations, `MainCharacterOrTeam`, `SeriesGroup`, and `CustomValuesStore` entries. This is the only way to preserve that data on import.
+The `--comicdb` flag accepts ComicRack's `ComicDb.xml` and enriches each imported comic with data that `ComicInfo.xml` does not carry: Tags, Teams, Locations, `MainCharacterOrTeam`, `SeriesGroup`, and `CustomValuesStore` entries. This is the only way to preserve that data on import. Entries are matched by relative file path, so it's safe to test against a small library subset (a couple of comics) with your full `ComicDb.xml`. Only the comics actually present in the scanned folder are enriched; everything else in the file is simply ignored.
 
 ---
 

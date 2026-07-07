@@ -19,6 +19,8 @@ If you used ComicRack's Library Organizer, you can import your existing `.lop` f
 
 Go to **Organizer** and click **Import Profile**. Upload your `.lop` file and choose whether to clear existing profiles before importing. The profiles appear immediately in the profile list and are ready to use.
 
+Importing also carries over a few behaviors from the original ComicRack profile that have no equivalent form field in ComicManager today: the post-move flags (`RemoveEmptyFolder`, `AutoSpaceFields`, `ReplaceMultipleSpaces`, all On by default) and the illegal-character replacement map used to sanitize path segments (e.g. `:` becomes ` -`, `/` becomes `-`). A profile created from scratch in the UI gets the same defaults. To change any of these values, re-import an edited `.lop`.
+
 ### Exporting Organizer Profiles
 
 Go to **Organizer** and click **Export Profiles**. This downloads a `.lop` file generated from the current database state. It includes profiles you created or edited in the UI, not just the originally imported file.
@@ -56,7 +58,7 @@ Your organization profile defines exactly where and how your comic files will be
 
 ## Batch Organization with Precision
 
-Running **Organize All** in the dashboard starts a Celery task that handles file movements in the background.
+Running **Organize All** in the dashboard starts a task that handles file movements in the background.
 
 Before any file is moved, ComicManager performs a "dry run" to ensure:
 - The target path doesn't already exist.
@@ -468,52 +470,28 @@ Star Wars/General/TPB/Star Wars Legends Epic Collection (2015)/Star Wars Legends
 
 ---
 
-## Post-Move Options
-
-Each organization profile has three optional post-move behaviors:
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| **Remove empty folder** | On | After moving a file, delete the source folder if it is now empty. Keeps the untagged directory tidy. |
-| **Auto-space fields** | Off | Automatically add spaces around template field values where spacing would otherwise depend on whether the field is empty. |
-| **Replace multiple spaces** | Off | Collapse consecutive spaces in the final path into a single space. Useful when optional fields are empty and leave a gap. |
-
-## Illegal Character Mapping
-
-Each profile has a configurable mapping of characters that are illegal or problematic in file paths. When the computed path contains any of these characters, they are replaced according to the map before the file is moved.
-
-Default replacements:
-
-| Character | Replaced with |
-|-----------|--------------|
-| `:` | ` -` |
-| `/` | `-` |
-| `*` | `` (removed) |
-| `?` | `` (removed) |
-| `"` | `'` |
-| `<` | `` (removed) |
-| `>` | `` (removed) |
-| `\|` | `-` |
-| `\\` | `-` |
-
-These defaults handle the characters that Windows and most filesystems forbid in filenames. You can customize the mapping per profile from the profile edit form.
-
 ## Per-Comic Path Preview
 
 Before organizing in bulk, you can preview the expected destination path for a single comic. Open the comic detail page and look for the **Expected Path** line in the Organization section. This shows exactly where the file would be moved under the current active profile, including all variable substitutions and character replacements.
 
 ## Syncing Library Paths
 
-If you move files outside of ComicManager (for example, reorganizing your library manually or migrating to a new drive), the database records will still point to the old paths. Use **Sync Paths** to reconcile:
+If you move files outside of ComicManager (for example, reorganizing your library manually or migrating to a new drive), the database records will still point to the old paths. The sync logic exists and works, but is not yet exposed as a button anywhere in the UI. Trigger it via a POST request, for example from the Django shell:
 
-1. From the Dashboard pipeline, click **Sync Paths** on the Done stage, or navigate directly to `/comics/sync-library-paths/`.
-2. ComicManager scans every comic in the Done state whose recorded `file_path` does not exist on disk.
-3. For each missing file, it computes the expected organized path from your active profile and checks whether the file exists there.
-4. If found, the database record is updated to the new path. If not found, the comic is left in place for manual review.
-5. Duplicate database entries found during the scan are also removed automatically.
+```bash
+docker compose exec web python manage.py shell -c "
+from apps.organizer.services import sync_library_paths
+print(sync_library_paths())
+"
+```
 
-Run Sync Paths after any external library reorganization or after migrating to a new storage location.
+1. It scans every organized or written digital comic whose recorded `file_path` does not exist on disk.
+2. For each missing file, it computes the expected organized path from your active profile and checks whether the file exists there.
+3. If found, the database record is updated to the new path. If not found, the comic is left in place for manual review.
+4. Duplicate database entries found during the scan are also removed automatically.
+
+Run this after any external library reorganization or after migrating to a new storage location. A dedicated UI button is planned.
 
 ## Physical Comics
 
-Physical comics do not use the Library Organizer because there is no file to move. Instead, they utilize a **Storage Location** text field (e.g. "Box 12", "Shelf A") to keep track of where the physical issue is located. This field can be updated directly from the comic detail page.
+Physical comics do not use the Organizer because there is no file to move. Instead, they utilize a **Storage Location** text field (e.g. "Box 12", "Shelf A") to keep track of where the physical issue is located. This field can be updated directly from the comic detail page.

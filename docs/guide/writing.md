@@ -16,7 +16,7 @@ By embedding a standardized **`ComicInfo.xml`** file inside your digital comic f
 
 ## Batch Writing with Confidence
 
-Running **Write All** in the dashboard starts a Celery task that handles the XML insertion in the background.
+Running **Write All** in the dashboard starts a task that handles the XML insertion in the background.
 
 - **Non-Destructive Writing**: ComicManager adds or updates the `ComicInfo.xml` file inside your CBZ/CBR without modifying your story pages.
 - **Required Field Validation**: ComicManager enforces data integrity before writing. It will block a write and log an error if essential fields are missing. Required fields are `series`, `publisher`, and `number` (unless the format is a numberless type like TPB, Omnibus, Graphic Novel, Hard Cover, or Absolute Edition). I.N.D.U.C.K.S. story-only comics are exempt from the `number` and `publisher` requirements since those fields are legitimately absent for standalone stories.
@@ -67,4 +67,4 @@ Comics in the Written state that have somehow lost their `ComicInfo.xml` (for ex
 
 - **Summary Formatting**: ComicManager preserves paragraph breaks and removes messy HTML tags from your summaries, ensuring they are readable in any comic reader.
 - **Custom Values**: Any metadata not covered by standard `ComicInfo.xml` fields (story arcs, scrape source, ComicVine IDs, DataManager flags) is stored in a `<CustomValues>` block inside the XML.
-- **ComicVine reference**: If the Notes field is empty, ComicManager writes a short reference like `Scraped metadata from ComicVine [CVDB12345].` so the source match is traceable from any reader.
+- **ComicVine reference**: If the Notes field is empty, ComicManager writes a short reference like `Scraped metadata from ComicVine [CVDB12345].` so the source match is traceable from any reader. This mirrors the convention ComicRack's ComicVine scraper uses to record the same match, so the reference works in either application.

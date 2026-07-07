@@ -59,6 +59,8 @@ docker compose exec web python manage.py import_datamanager /path/to/dataman.dat
 
 Duplicate rulesets (same name + group path) are skipped automatically.
 
+You can find my `dataman.dat` file at my [ComicRack_Scripts](https://gitea.baerentsen.space/FrederikBaerentsen/ComicRack_Scripts/src/branch/master/Data%20Manager) repo.
+
 ## Exporting Rulesets
 
 Go to **Tagging** and click **Export DataManager**. This downloads a `.dat` file generated from the current database state. It includes all rulesets, including ones you created or edited in the UI, not just the originally imported file. The exported file can be re-imported into ComicManager or used as a backup.
@@ -83,7 +85,7 @@ ComicManager helps you track which publishers are covered by your enabled rulese
 
 ## Batch Operations and Audit Log
 
-ComicManager runs tagging as a Celery task, providing real-time progress bars and an Audit Log.
+ComicManager runs tagging as a task, providing real-time progress bars and an Audit Log.
 
 **The Safety Net**: Every change made by a ruleset is logged. If a rule was too broad and tagged too many comics incorrectly, use the **Rollback** button in the audit log to undo those changes in a single click.
 
@@ -189,5 +191,3 @@ Each ruleset has a **mode** that controls how its conditions are evaluated toget
 
 - Rulesets are evaluated in **priority order** (lower priority number = evaluated first).
 - All matching rulesets apply in sequence. Each ruleset sees the changes made by earlier ones and can override them.
-
----
