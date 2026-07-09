@@ -38,7 +38,7 @@ curl -O https://gitea.baerentsen.space/FrederikBaerentsen/ComicManager/raw/branc
 cp .env.sample .env
 ```
 
-Open `.env` and set at minimum `DB_PASSWORD` and `SECRET_KEY`.
+Open `.env` and set at minimum `DB_PASSWORD` and `SECRET_KEY`. To reach the UI from another device, also add that device's host or IP to `ALLOWED_HOSTS`.
 
 ---
 

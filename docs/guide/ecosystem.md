@@ -101,8 +101,8 @@ services:
     command: >
       celery -A comicmanager worker
         --loglevel=info
-        --queues=import,scrape,organize,write
-        --concurrency=4
+        --queues=serial,import,scrape,organize,write
+        --concurrency=1
     env_file: comicmanager/.env
     volumes:
       - ./untagged:/comics/untagged

@@ -8,7 +8,7 @@ The toolbar shows four view mode buttons. Click any to switch; the page reloads 
 
 | Mode | Description |
 |------|-------------|
-| **Table** | A dense, scrollable table with all configured columns visible. Best for bulk review and sorting. |
+| **Table** | A scrollable table with all configured columns visible. Best for bulk review and sorting. |
 | **Hybrid** | One cover thumbnail per row on the left, metadata columns to the right. Balances density and visual recognition. |
 | **Grid** | Large cover tiles arranged in a grid. Good for visual browsing. Supports bulk selection. |
 | **Compact** | A condensed single-line table with fewer columns. Useful on smaller screens or when you want maximum rows per page. |
@@ -124,7 +124,7 @@ Comics with no page count recorded are always placed at the end of the results, 
 
 Right-clicking any comic row or grid tile opens a context menu with quick actions for that comic. The available actions mirror the inline row buttons (open detail, scrape, tag, format, organize, write, delete) so you can act on a comic without leaving your scroll position.
 
-The context menu is available in all four view modes.
+The context menu is available in all four view modes. 
 
 ---
 

@@ -16,7 +16,7 @@ Series Audit requires a local ComicVine data source (either `comicvine.db` or `l
 
 | `comicvine.db` | `latest.mcl` | Result |
 |---|---|---|
-| Yes | Any | Full audit: series info, issue list, and cover images |
+| Yes | Yes/No | Full audit: series info, issue list, and cover images |
 | No | Yes | Partial audit: series info and issue list, no cover images |
 | No | No | Series Audit is unavailable |
 

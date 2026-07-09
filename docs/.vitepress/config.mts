@@ -32,12 +32,13 @@ export default defineConfig({
         items: [
           { text: 'Quick Start', link: '/guide/quickstart' },
           { text: 'Getting Started', link: '/guide/getting-started' },
-          { text: 'Philosophy & Scope', link: '/guide/philosophy' },
+          { text: 'Dashboard', link: '/guide/dashboard' },
           { text: 'Searching & Filtering', link: '/guide/searching' },
           { text: 'Comic Detail Page', link: '/guide/comic-detail' },
           { text: 'Appearance & Display', link: '/guide/appearance' },
           { text: 'Smart Lists', link: '/guide/smart-lists' },
-          { text: 'Physical Comics', link: '/guide/physical-comics' }
+          { text: 'Physical Comics', link: '/guide/physical-comics' },
+          { text: 'Philosophy & Scope', link: '/guide/philosophy' }
         ]
       },
       {

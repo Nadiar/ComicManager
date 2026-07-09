@@ -1,10 +1,10 @@
 # Audit Log & Rollback
 
-ComicManager keeps a detailed log of all batch actions to help you track changes and undo mistakes.
+ComicManager keeps a detailed log of all actions to help you track changes and review mistakes.
 
 ## Audit Log Features
 
-All pipeline actions are recorded in the **Batch Audit Log**. This includes both batch operations (Scrape All, Tag All, etc.) and single-comic scrapes triggered from the comic list or detail page:
+All actions are recorded in the **Batch Audit Log**. This includes both batch operations (Scrape All, Tag All, etc.) and single-comic scrapes triggered from the comic list or detail page:
 - **Action Type**: See which batch operation was performed (e.g. `scrape_all`, `organize_all`, `audit_metadata`).
 - **Comic Info**: Identify each comic by name and UUID. You can click the Info button to open the comic detail page directly.
 - **State Transition**: Track changes from one workflow state to another.

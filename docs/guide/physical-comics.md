@@ -20,7 +20,7 @@ Physical comics skip the file-handling stages since there is no file to move or 
 | Scrape (ComicVine match) | Yes | Yes |
 | Cover caching | In CBZ | Downloaded to cover cache |
 | Variant Gallery | Yes | Yes. Select the cover you own |
-| Tagging (DataManager rules) | Yes | Yes |
+| Tagging | Yes | Yes |
 | Add Formats | Yes | Yes |
 | Deduplicate | Yes | Yes (digital+physical pair is never a duplicate) |
 | Move Files (Organize) | Yes | **Skipped** |

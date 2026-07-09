@@ -13,9 +13,13 @@ Duplicates are a common problem in digital comic collections. You might have:
 
 Standard metadata-based duplicate detection (like checking Series + Number) is not enough. It cannot distinguish between a main cover and a variant cover, or between a high-quality scan and a low-quality one.
 
-That is why ComicManager primarily uses Image Hashing (pHash/ahash). By looking at the *actual cover image*, we can find near-identical images even if the file is completely different. This is a "fingerprinting" technique that is extremely accurate.
+That is why ComicManager primarily uses Image Hashing (pHash/ahash). By looking at the *actual cover image*, we can find near-identical images even if the file is completely different. This is a "fingerprinting" technique that is very accurate.
 
 ---
+
+::: info 
+One digital and one physical copy of the same comic is explicitly **not** a duplicate. Cover Hash and Filename detection only apply to digital comics.
+:::
 
 ## How it Works
 
@@ -28,13 +32,9 @@ That is why ComicManager primarily uses Image Hashing (pHash/ahash). By looking 
 
 ComicManager groups duplicates using four methods, which you can filter by using the tabs on the Duplicate Review page.
 
-One digital and one physical copy of the same comic is explicitly **not** a duplicate. Cover Hash and Filename detection only apply to digital comics.
-
 #### CV ID
 
-Matches comics that share the exact same ComicVine issue ID (`comicvine_issue` custom value). This is the most reliable method: if two files were both scraped and matched to the same CV issue, they are almost certainly duplicates.
-
-The one exception is a digital+physical pair for the same issue. That combination is intentional and is excluded from grouping.
+Matches comics that share the exact same ComicVine issue ID (`comicvine_issue` custom value). This is the most reliable method: if two files were both scraped and matched to the same CV issue, they are almost certainly duplicates. This is also a way to catch comics that were automatically scraped but the wrong match was applied. 
 
 #### Series / Number (Metadata)
 
@@ -65,6 +65,8 @@ Catches OS-generated duplicate files produced when a file is copied and the OS a
 | Windows | `Comic #001 (1).cbz`, `Comic #001 (2).cbz` |
 
 The suffix is stripped and the canonical base name is used as the grouping key. At least one file in the group must carry the suffix. Two different comics that happen to live in the same folder are not grouped.
+
+### Flow
 
 ```
           ┌──────────────────────────────────────────────────────────┐
@@ -120,6 +122,7 @@ The suffix is stripped and the canonical base name is used as the grouping key. 
 We want to make sure the metadata and format are correct before we resolve duplicates. This allows you to:
 - Compare a "Main Series" issue with a "Trade Paperback" version.
 - Choose which version to keep based on the most complete metadata.
+- Catch any miss-scraped comics.
 
 ---
 
