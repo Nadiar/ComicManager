@@ -5,6 +5,7 @@
   var cancelRequested = false;
   var _taskOnComplete = null;
   var _taskUsedCallback = false;
+  var _claimedTaskIds = {};
 
   var toast = document.getElementById('task-progress-toast');
   var labelEl = document.getElementById('task-progress-label');
@@ -299,6 +300,7 @@
           status.textContent = successText(r);
           showErrors(r.errors);
           showLogLink();
+          var finishedTaskId = activeTaskId;
           activeTaskId = null;
           if (actionQueue.length > 0) {
             // More tasks queued: hold the bar at the batch baseline (not 100%)
@@ -316,6 +318,9 @@
               _taskOnComplete = null;
               _taskUsedCallback = true;
               try { cb(); } catch(e) {}
+            } else if (_claimedTaskIds[finishedTaskId]) {
+              delete _claimedTaskIds[finishedTaskId];
+              showDismiss();
             } else {
               _finishTask(r);
             }
@@ -371,6 +376,16 @@
   // running task), so this is a no-op. Kept as a stub so the many callers do
   // not need editing; the end-of-queue refresh is handled by _finishTask.
   window.startTaskPolling = function(taskId, label, onComplete) {};
+
+  // Suppress the WebSocket-driven auto-refresh for a task whose completion is
+  // already being handled elsewhere (the single-comic pipeline result modal,
+  // which does its own polling against the real celery task id and has its
+  // own Dismiss-triggered reload). Without this, the WS side finishes the same
+  // task independently, sees no onComplete callback, and reloads the page out
+  // from under the just-opened modal.
+  window.claimTaskResult = function(taskId) {
+    if (taskId) _claimedTaskIds[taskId] = true;
+  };
 
   window.dismissTaskToast = function() {
     // Stop any in-flight polling and forget the task on the server so the
@@ -512,6 +527,7 @@
           status.textContent = successText(r);
           showErrors(r.errors);
           showLogLink();
+          var wsFinishedTaskId = activeTaskId;
           activeTaskId = null;
           if (actionQueue.length > 0) {
             status.textContent = 'Starting next task...';
@@ -522,6 +538,9 @@
               _taskOnComplete = null;
               _taskUsedCallback = true;
               try { cb(); } catch(e) {}
+            } else if (_claimedTaskIds[wsFinishedTaskId]) {
+              delete _claimedTaskIds[wsFinishedTaskId];
+              showDismiss();
             } else {
               _finishTask(r);
             }
