@@ -419,6 +419,8 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
         comic.teams = match.teams
     if match.locations:
         comic.locations = match.locations
+    if match.story_arcs:
+        comic.story_arc = match.story_arcs
 
     comic.custom_values["comicvine_issue"] = str(match.issue_id)
     comic.custom_values["comicvine_volume"] = str(match.volume_id)

@@ -82,6 +82,7 @@ FIELD_MAP = {
     "Characters": "characters",
     "Teams": "teams",
     "Locations": "locations",
+    "StoryArc": "story_arc",
     "Tags": "tags",
     "ScanInformation": "scan_information",
     "SeriesGroup": "series_group",
@@ -105,7 +106,7 @@ INT_FIELDS = {"count", "volume", "year", "month", "day", "page_count"}
 EDITABLE_FIELDS = [
     "series", "number", "title", "count", "volume", "year", "month", "day",
     "publisher", "summary", "notes", "genre", "web", "format", "characters",
-    "teams", "locations", "tags", "scan_information", "series_group", "main_character_or_team",
+    "teams", "locations", "story_arc", "tags", "scan_information", "series_group", "main_character_or_team",
     "writer", "penciller", "inker", "colorist", "letterer", "cover_artist", "editor",
     "storage_location",
 ]
@@ -130,6 +131,7 @@ FIELD_LABELS = {
     "characters": "Characters",
     "teams": "Teams",
     "locations": "Locations",
+    "story_arc": "Story Arc",
     "tags": "Tags",
     "scan_information": "Scan Info",
     "series_group": "Series Group",
@@ -340,6 +342,7 @@ CV_FIELD_MAP = {
     "characters": "characters",
     "teams": "teams",
     "locations": "locations",
+    "story_arcs": "story_arc",
     "writer": "writer",
     "penciller": "penciller",
     "inker": "inker",
@@ -359,7 +362,6 @@ DB_ONLY_FIELDS = [
 CV_ONLY_FIELDS = [
     ("cover_date", "Cover Date"),
     ("start_year", "Start Year"),
-    ("story_arcs", "Story Arcs"),
 ]
 
 

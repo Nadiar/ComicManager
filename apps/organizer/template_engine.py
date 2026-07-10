@@ -253,7 +253,7 @@ def get_simple_value(comic: Comic, field: str, profile: OrganizerProfile) -> str
         return ""
 
     if model_attr == "_storyarc":
-        return comic.custom_values.get("StoryArc", "")
+        return comic.story_arc or ""
 
     if model_attr == "_altnumber":
         return comic.custom_values.get("AlternateNumber", "")

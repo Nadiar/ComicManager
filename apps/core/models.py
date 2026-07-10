@@ -67,6 +67,7 @@ class Comic(models.Model):
     characters = models.TextField(null=True, blank=True)  # comma-separated
     teams      = models.TextField(null=True, blank=True)  # comma-separated
     locations  = models.TextField(null=True, blank=True)  # comma-separated
+    story_arc  = models.TextField(null=True, blank=True)  # comma-separated
     tags       = models.TextField(null=True, blank=True)  # comma-separated
     scan_information = models.CharField(max_length=512, null=True, blank=True)
 
