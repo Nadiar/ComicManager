@@ -27,12 +27,20 @@ class FileOverwriteError(Exception):
     """
 
 
-def _safe_move(old_path: str, new_path: str) -> None:
-    """Move old_path to new_path, refusing to overwrite a different existing file.
+def _safe_move(old_path: str, new_path: str, allowed_root: str) -> None:
+    """Move old_path to new_path, refusing to overwrite a different existing file
+    or to land outside allowed_root.
 
-    If new_path already exists and is not the same file as old_path, raise
-    FileOverwriteError rather than letting shutil.move clobber it.
+    new_path is built from template variables (series, publisher, etc.) sourced
+    from scraped metadata, so a value like series="../../etc" could otherwise walk
+    the destination out of the library folder. If new_path already exists and is
+    not the same file as old_path, raise FileOverwriteError rather than letting
+    shutil.move clobber it.
     """
+    dest = Path(new_path).resolve()
+    root = Path(allowed_root).resolve()
+    if not dest.is_relative_to(root):
+        raise ValueError(f"Refusing to move outside library root {root}: {dest}")
     if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
         raise FileOverwriteError(
             f"Refusing to overwrite existing file: {new_path} "
@@ -151,7 +159,7 @@ def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> 
 
             # Move the file (refuses to overwrite a different existing file)
             if os.path.abspath(old_path) != os.path.abspath(new_path):
-                _safe_move(old_path, new_path)
+                _safe_move(old_path, new_path, base)
                 moved = True
 
                 # Try to remove empty source directories
@@ -253,7 +261,7 @@ def reorganize_comic(comic: Comic) -> dict:
         new_folder = os.path.dirname(new_path)
         os.makedirs(new_folder, exist_ok=True)
 
-        _safe_move(old_path, new_path)
+        _safe_move(old_path, new_path, preview["base"])
 
         # Clean up empty source directories
         try:
@@ -395,6 +403,7 @@ def preview_organization(comic: Comic) -> dict:
         "selected_profile": profile_name,
         "profile_matches": profile_matches,
         "would_move": old_path != new_path if old_path else False,
+        "base": base,
     }
 
 

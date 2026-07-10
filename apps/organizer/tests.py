@@ -55,7 +55,7 @@ class SafeMoveTests(SimpleTestCase):
             dst = os.path.join(d, "dst.cbz")
             with open(src, "w") as f:
                 f.write("source")
-            _safe_move(src, dst)
+            _safe_move(src, dst, d)
             self.assertFalse(os.path.exists(src))
             with open(dst) as f:
                 self.assertEqual(f.read(), "source")
@@ -69,8 +69,25 @@ class SafeMoveTests(SimpleTestCase):
             with open(dst, "w") as f:
                 f.write("victim")
             with self.assertRaises(FileOverwriteError):
-                _safe_move(src, dst)
+                _safe_move(src, dst, d)
             # Both files are left untouched.
             self.assertTrue(os.path.exists(src))
             with open(dst) as f:
                 self.assertEqual(f.read(), "victim")
+
+    def test_move_outside_allowed_root_raises(self):
+        with tempfile.TemporaryDirectory() as d:
+            library = os.path.join(d, "library")
+            outside = os.path.join(d, "outside")
+            os.makedirs(library)
+            os.makedirs(outside)
+            src = os.path.join(library, "src.cbz")
+            # Simulates a template variable (e.g. series="../../outside") walking
+            # the destination out of the profile's base_folder.
+            dst = os.path.join(library, "..", "outside", "dst.cbz")
+            with open(src, "w") as f:
+                f.write("source")
+            with self.assertRaises(ValueError):
+                _safe_move(src, dst, library)
+            self.assertTrue(os.path.exists(src))
+            self.assertFalse(os.path.exists(os.path.join(outside, "dst.cbz")))
