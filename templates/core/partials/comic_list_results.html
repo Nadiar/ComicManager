@@ -1,0 +1,328 @@
+{% load comic_extras %}
+
+  {% if comics %}
+
+  <!-- Pagination top -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div style="padding:7px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
+    <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ total_count }}</span></span>
+    <div style="display:flex; gap:3px; align-items:center;">
+      {% if page_obj.has_previous %}
+      <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page=1" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">First</a>
+      <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.previous_page_number }}" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">Prev</a>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}
+        <button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
+        {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+        <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page={{ num }}" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">{{ num }}</a>
+        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+        <span class="mono" style="color:var(--cm-fg-3); font-size:11px; padding:0 4px;">…</span>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+      <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.next_page_number }}" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">Next</a>
+      <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.paginator.num_pages }}" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">Last</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if current_view == 'table' or not current_view %}
+  <!-- TABLE VIEW -->
+  <div style="display:grid; grid-template-columns:28px {% if prefs.show_covers %}40px {% endif %}{% for col_id in active_columns %}1fr {% endfor %}100px 220px; gap:8px; padding:0 14px; height:32px; align-items:center; background:var(--cm-bg-1); border-bottom:1px solid var(--cm-border); position:sticky; top:0; z-index:4; font-size:10.5px; font-weight:600; color:var(--cm-fg-2); letter-spacing:.04em; text-transform:uppercase;">
+    <input type="checkbox" id="select-all" style="accent-color:var(--cm-accent);">
+    {% if prefs.show_covers %}<span></span>{% endif %}
+    {% for col_id in active_columns %}
+    <span style="cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+          hx-get="/comics/"
+          hx-trigger="click"
+          hx-target="#comic-results-container"
+          hx-swap="innerHTML"
+          hx-include="#filter-form, #rail-form, .col-filter-input"
+          hx-vals='{"sort":"{{ col_id|get_col_sort }}","dir":"{% if current_sort == col_id|get_col_sort %}{% if current_dir == "asc" %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"}'
+          hx-push-url="true"
+          hx-indicator="#list-spinner">
+      {{ col_id|get_col_label }}{% with sf=col_id|get_col_sort %}{% if current_sort == sf %}&nbsp;{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}{% endwith %}
+    </span>
+    {% endfor %}
+    <span>Flags</span>
+    <span>Actions</span>
+  </div>
+  {% if col_filters_open %}
+  <div style="display:grid; grid-template-columns:28px {% if prefs.show_covers %}40px {% endif %}{% for col_id in active_columns %}1fr {% endfor %}100px 220px; gap:8px; padding:2px 14px; background:var(--cm-bg-2); border-bottom:1px solid var(--cm-border); position:sticky; top:32px; z-index:3; align-items:center;">
+    <span></span>
+    {% if prefs.show_covers %}<span></span>{% endif %}
+    {% for col_id in active_columns %}
+      {% if col_id in col_filter_skip %}
+      <span></span>
+      {% else %}
+      <input type="text"
+             name="f_{{ col_id }}"
+             value="{{ current_col_filters|get_item:col_id }}"
+             placeholder="…"
+             class="cm-input col-filter-input"
+             style="height:22px; font-size:11px; padding:0 6px; width:100%; min-width:0;"
+             hx-get="/comics/"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#comic-results-container"
+             hx-swap="innerHTML"
+             hx-include="#filter-form, #rail-form, .col-filter-input"
+             hx-push-url="true"
+             hx-indicator="#list-spinner">
+      {% endif %}
+    {% endfor %}
+    <span></span>
+    <span></span>
+  </div>
+  {% endif %}
+
+  {% for comic in comics %}
+  <div class="cm-list-row" data-pk="{{ comic.pk }}" data-state="{{ comic.state }}" data-medium="{{ comic.medium }}" data-format="{{ comic.file_format|default:'' }}" data-series="{{ comic.series|default:comic.proposed_series|default:''|escapejs }}" data-number="{{ comic.number|default:comic.proposed_number|default:'' }}"
+       style="display:grid; grid-template-columns:28px {% if prefs.show_covers %}40px {% endif %}{% for col_id in active_columns %}1fr {% endfor %}100px 220px; gap:8px; padding:0 14px; height:{% if prefs.table_density == 'compact' %}32px{% elif prefs.table_density == 'comfy' %}44px{% else %}36px{% endif %}; align-items:center; border-bottom:1px solid var(--cm-border); font-size:12px; cursor:pointer;"
+       onclick="if(event.target.type!=='checkbox'&&!event.target.closest('button,a')) window.location='/comics/{{ comic.pk }}/'">
+    <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
+    {% if prefs.show_covers %}
+    <img src="/comics/{{ comic.pk }}/thumb/" style="width:28px; height:36px; object-fit:cover; border-radius:2px; background:var(--cm-bg-2); display:block; cursor:zoom-in;" loading="lazy" onerror="this.style.visibility='hidden'" onclick="event.stopPropagation(); openLightbox([{url:'/comics/{{ comic.pk }}/cover/', caption:'{{ comic.series|default:comic.proposed_series|escapejs }} #{{ comic.number|default:comic.proposed_number|escapejs }}'}], 0);">
+    {% endif %}
+    {% for col_id in active_columns %}
+    {% if current_state == 'new' and col_id in inline_editable_cols %}
+    <div hx-get="{% url 'core:comic_inline_field' comic.id %}?field={{ col_id }}"
+         hx-trigger="click"
+         hx-target="this"
+         hx-swap="innerHTML"
+         style="cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--cm-warn);"
+         onclick="event.stopPropagation()"
+         title="Click to edit">{{ comic|get_col_value:col_id|default:"—" }}</div>
+    {% else %}
+    <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+      {% if col_id == 'series' and comic.state == 'new' %}
+        <span style="color:var(--cm-warn); font-weight:500;">{{ comic.proposed_series|default:"-" }}</span>
+        {% if comic.is_physical %}<span class="cm-chip" style="font-size:9px; padding:0 4px; margin-left:3px;">physical</span>{% endif %}
+      {% elif col_id == 'series' %}
+        <span style="font-weight:500;">{{ comic|get_col_value:col_id|default:"-" }}</span>
+        {% if comic.is_physical and not current_medium %}<span class="cm-chip" style="font-size:9px; padding:0 4px; margin-left:3px;">physical</span>{% endif %}
+      {% elif col_id == 'number' and comic.state == 'new' %}
+        <span style="color:var(--cm-warn);">{{ comic.proposed_number|default:"-" }}</span>
+      {% elif col_id == 'state' %}
+        <span class="cm-chip {{ comic.state|state_chip_class }}"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
+      {% else %}
+        {{ comic|get_col_value:col_id|default:"-" }}
+      {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
+    <div style="display:flex; flex-wrap:nowrap; gap:2px; align-items:center; overflow:hidden; min-width:0;">
+      {% for flag in comic.flag_list %}<span class="cm-chip err" style="padding:1px 4px; font-size:10px; flex-shrink:0;">{{ flag }}</span>{% endfor %}
+    </div>
+    <div style="display:flex; gap:3px; flex-wrap:nowrap; align-items:center;" onclick="event.stopPropagation()">
+      <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" style="text-decoration:none; font-size:11px; padding:2px 6px;">Info</a>
+      {% if current_flag %}
+      <button hx-post="{% url 'core:accept_flag' comic.pk %}" hx-vals='{"flag": "{{ current_flag }}"}' hx-target="closest .cm-list-row" hx-swap="outerHTML" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' class="cm-btn sm ghost" style="color:var(--cm-ok); font-size:11px; padding:2px 6px;" title="Suppress flag">✓</button>
+      <button type="button" class="cm-btn sm ghost" style="color:var(--cm-err); font-size:11px; padding:2px 6px;" onclick="deleteComic('{{ comic.pk }}', this)">✕</button>
+      {% endif %}
+      {% if comic.state == 'new' and current_flag != 'no_series' and current_flag != 'corrupted_archive' %}
+      <button type="button" class="cm-btn sm ok" style="font-size:11px; padding:2px 6px;" onclick="acceptComic('{{ comic.pk }}', this)">{% if current_flag %}Add{% else %}Accept{% endif %}</button>
+      {% if comic.file_format == 'cbz' %}<button type="button" class="cm-btn sm primary" style="font-size:11px; padding:2px 6px;" onclick="runSinglePipeline('{{ comic.pk }}', this)" title="Run full pipeline">Run</button>{% endif %}
+      {% endif %}
+      {% if comic.state == 'scrape' or current_flag == 'metadata_mismatch' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="scrapeComic('{{ comic.pk }}', this)" {% if comic.flags.scrape_skipped %}data-scrape-skipped="true"{% endif %}{% if current_flag == 'scrape_no_match' %} data-force-modal="true"{% endif %}>Scrape</button>{% endif %}
+      {% if comic.state == 'scrape' %}<button type="button" id="skip-btn-{{ comic.pk }}" class="cm-btn sm ghost" style="font-size:11px; padding:2px 6px;{% if comic.flags.scrape_skipped %} color:var(--cm-warn);{% endif %}" onclick="toggleSkipComic('{{ comic.pk }}', this)">{% if comic.flags.scrape_skipped %}Un-skip{% else %}Skip{% endif %}</button>{% endif %}
+      {% if comic.flags.needs_conversion %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="convertComic('{{ comic.pk }}', this)">Convert</button>{% endif %}
+      {% if comic.flags.is_zip %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="convertZipComic('{{ comic.pk }}', this)">Rename</button>{% endif %}
+      {% if comic.state == 'tagging' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="tagComic('{{ comic.pk }}', this)">Tag</button>{% endif %}
+      {% if comic.state == 'formats' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="formatComic('{{ comic.pk }}', this)">Format</button>{% endif %}
+      {% if comic.state == 'move' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="organizeComic('{{ comic.pk }}', this)">Organize</button>{% endif %}
+      {% if comic.state == 'write' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px;" onclick="writeComic('{{ comic.pk }}', this)">Write</button>{% endif %}
+      {% if current_flag == 'count_updated' %}<button type="button" class="cm-btn sm ok" style="font-size:11px; padding:2px 6px;" onclick="forceWriteComic('{{ comic.pk }}', this)">Rewrite</button>{% endif %}
+      {% if current_flag == 'corrupted_archive' %}<button type="button" class="cm-btn sm" style="font-size:11px; padding:2px 6px; color:var(--cm-warn);" onclick="tryRezipComic('{{ comic.pk }}', this)">Rezip</button>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% elif current_view == 'hybrid' %}
+  <!-- HYBRID VIEW -->
+  {% for comic in comics %}
+  <div class="cm-list-row" data-pk="{{ comic.pk }}" data-state="{{ comic.state }}" data-medium="{{ comic.medium }}" data-format="{{ comic.file_format|default:'' }}" data-series="{{ comic.series|default:comic.proposed_series|default:''|escapejs }}" data-number="{{ comic.number|default:comic.proposed_number|default:'' }}"
+       style="display:grid; grid-template-columns:28px 56px 1fr 140px 160px 110px 64px; gap:14px; padding:10px 14px; align-items:center; border-bottom:1px solid var(--cm-border); cursor:pointer;"
+       onclick="if(event.target.type!=='checkbox'&&!event.target.closest('button,a')) window.location='/comics/{{ comic.pk }}/'">
+    <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
+    <img src="/comics/{{ comic.pk }}/thumb/" style="width:44px; height:66px; object-fit:cover; border-radius:3px; background:var(--cm-bg-2); display:block; cursor:zoom-in;" loading="lazy" onerror="this.style.visibility='hidden'" onclick="event.stopPropagation(); openLightbox([{url:'/comics/{{ comic.pk }}/cover/', caption:'{{ comic.series|default:comic.proposed_series|escapejs }} #{{ comic.number|default:comic.proposed_number|escapejs }}'}], 0);">
+    <div style="min-width:0;">
+      <div style="font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+        {{ comic.series|default:comic.proposed_series|default:"—" }}
+        <span class="mono" style="color:var(--cm-fg-3); font-weight:400;">&nbsp;#{{ comic.number|default:comic.proposed_number|default:"?" }}</span>
+      </div>
+      <div style="font-size:11.5px; color:var(--cm-fg-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{% if comic.title %}{{ comic.title }}{% else %}<span class="cm-text-muted">— no title —</span>{% endif %}</div>
+      <div class="mono" style="font-size:10.5px; color:var(--cm-fg-3); margin-top:2px; display:flex; gap:8px;">
+        <span>{{ comic.publisher|default:"—" }}</span><span>·</span><span>{{ comic.format|default:"—" }}</span><span>·</span><span>{{ comic.pages|default:"?" }}p</span>{% if comic.file_size %}<span>·</span><span>{{ comic.file_size|filesizeformat }}</span>{% endif %}
+      </div>
+    </div>
+    <div>{% if comic.count %}<div style="height:3px; background:var(--cm-bg-3); border-radius:2px; overflow:hidden; margin-bottom:4px;"><div style="height:100%; width:{% widthratio comic.number_sort_key|default:1 comic.count 100 %}%; background:var(--cm-accent); border-radius:2px;"></div></div><span class="mono" style="font-size:10px; color:var(--cm-fg-3);">{{ comic.number|default:"?" }}/{{ comic.count }} in series</span>{% endif %}</div>
+    <div style="display:flex; flex-wrap:wrap; gap:2px;">{% for flag in comic.flag_list %}<span class="cm-chip err" style="padding:1px 4px; font-size:10px;">{{ flag }}</span>{% endfor %}</div>
+    <span class="cm-chip {{ comic.state|state_chip_class }}" style="justify-self:start;"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
+    <div style="display:flex; gap:4px; justify-content:flex-end; position:relative;" onclick="event.stopPropagation()">
+      <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" style="text-decoration:none; padding:3px 6px;" title="Open detail">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+      </a>
+      <div style="position:relative;">
+        <button class="cm-btn sm ghost" style="padding:3px 6px;" title="More actions"
+                onclick="toggleHybridMenu(this)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+        </button>
+        <div class="hybrid-row-menu hidden" style="position:absolute; right:0; top:100%; margin-top:4px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; padding:4px; width:160px; z-index:50; box-shadow:0 8px 20px rgba(0,0,0,.26);">
+          <a href="{% url 'core:reader' comic.pk %}" class="_dd-item" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Read
+          </a>
+          <a href="{% url 'core:download' comic.pk %}" class="_dd-item" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download
+          </a>
+          <a href="/comics/{{ comic.pk }}/edit/" class="_dd-item" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Edit
+          </a>
+          <div style="border-top:1px solid var(--cm-border); margin:3px 0;"></div>
+          <button class="_dd-item" style="width:100%; text-align:left; display:flex; align-items:center; gap:8px;" onclick="openScrapeModal('{{ comic.pk }}')" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Re-scrape
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% elif current_view == 'grid' %}
+  <!-- GRID VIEW -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:14px; padding:16px;">
+    {% for comic in comics %}
+    <div class="cm-list-row grid-card" data-pk="{{ comic.pk }}" data-state="{{ comic.state }}" data-medium="{{ comic.medium }}" data-format="{{ comic.file_format|default:'' }}" data-series="{{ comic.series|default:comic.proposed_series|default:''|escapejs }}" data-number="{{ comic.number|default:comic.proposed_number|default:'' }}" style="cursor:pointer; border-radius:6px; padding:4px;" onclick="if(event.target.type!=='checkbox'&&!event.target.closest('.grid-select-circle')) window.location='/comics/{{ comic.pk }}/'">
+      <div style="position:relative;">
+        <img src="/comics/{{ comic.pk }}/page/0/" style="width:100%; aspect-ratio:2/3; object-fit:cover; border-radius:4px; background:var(--cm-bg-2); display:block;" loading="lazy" onerror="this.style.visibility='hidden'">
+        <label class="grid-select-circle" onclick="event.stopPropagation()">
+          <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="position:absolute; opacity:0; width:0; height:0;">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="#0b0b0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="2,6 5,9 10,3"/></svg>
+        </label>
+        {% if comic.state != 'done' %}
+        <span class="cm-chip {{ comic.state|state_chip_class }}" style="position:absolute; top:6px; right:6px; padding:1px 5px; font-size:10px;"><span class="cm-dot"></span></span>
+        {% endif %}
+        {% if comic.has_flags %}
+        <span title="{{ comic.flag_list|join:', ' }}" style="position:absolute; bottom:6px; left:6px; width:16px; height:16px; border-radius:50%; background:var(--cm-err); color:#0b0b0b; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; line-height:1;">!</span>
+        {% endif %}
+      </div>
+      <div style="margin-top:6px; font-size:11.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ comic.series|default:comic.proposed_series|default:"—" }}</div>
+      <div class="mono" style="font-size:10.5px; color:var(--cm-fg-3); display:flex; justify-content:space-between;">
+        <span>#{{ comic.number|default:comic.proposed_number|default:"?" }}{% if comic.count %}/{{ comic.count }}{% endif %}</span>
+        <span>{{ comic.year|default:"" }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% elif current_view == 'compact' %}
+  <!-- COMPACT VIEW -->
+  <div style="display:grid; grid-template-columns:28px {% for col_id in active_columns %}1fr {% endfor %}80px; gap:6px; padding:0 14px; height:26px; align-items:center; background:var(--cm-bg-1); border-bottom:1px solid var(--cm-border); position:sticky; top:0; z-index:4; font-size:10px; font-weight:600; color:var(--cm-fg-2); letter-spacing:.04em; text-transform:uppercase;">
+    <input type="checkbox" id="select-all" style="accent-color:var(--cm-accent);">
+    {% for col_id in active_columns %}
+    <span style="cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+          hx-get="/comics/"
+          hx-trigger="click"
+          hx-target="#comic-results-container"
+          hx-swap="innerHTML"
+          hx-include="#filter-form, #rail-form, .col-filter-input"
+          hx-vals='{"sort":"{{ col_id|get_col_sort }}","dir":"{% if current_sort == col_id|get_col_sort %}{% if current_dir == "asc" %}desc{% else %}asc{% endif %}{% else %}asc{% endif %}"}'
+          hx-push-url="true"
+          hx-indicator="#list-spinner">
+      {{ col_id|get_col_label }}{% with sf=col_id|get_col_sort %}{% if current_sort == sf %}&nbsp;{% if current_dir == 'asc' %}↑{% else %}↓{% endif %}{% endif %}{% endwith %}
+    </span>
+    {% endfor %}
+    <span>Flags</span>
+  </div>
+  {% if col_filters_open %}
+  <div style="display:grid; grid-template-columns:28px {% for col_id in active_columns %}1fr {% endfor %}80px; gap:6px; padding:2px 14px; background:var(--cm-bg-2); border-bottom:1px solid var(--cm-border); position:sticky; top:26px; z-index:3; align-items:center;">
+    <span></span>
+    {% for col_id in active_columns %}
+      {% if col_id in col_filter_skip %}
+      <span></span>
+      {% else %}
+      <input type="text"
+             name="f_{{ col_id }}"
+             value="{{ current_col_filters|get_item:col_id }}"
+             placeholder="…"
+             class="cm-input col-filter-input"
+             style="height:20px; font-size:10px; padding:0 5px; width:100%; min-width:0;"
+             hx-get="/comics/"
+             hx-trigger="keyup changed delay:300ms, search"
+             hx-target="#comic-results-container"
+             hx-swap="innerHTML"
+             hx-include="#filter-form, #rail-form, .col-filter-input"
+             hx-push-url="true"
+             hx-indicator="#list-spinner">
+      {% endif %}
+    {% endfor %}
+    <span></span>
+  </div>
+  {% endif %}
+  {% for comic in comics %}
+  <div class="cm-list-row" data-pk="{{ comic.pk }}" data-state="{{ comic.state }}" data-medium="{{ comic.medium }}" data-format="{{ comic.file_format|default:'' }}" data-series="{{ comic.series|default:comic.proposed_series|default:''|escapejs }}" data-number="{{ comic.number|default:comic.proposed_number|default:'' }}"
+       style="display:grid; grid-template-columns:28px {% for col_id in active_columns %}1fr {% endfor %}80px; gap:6px; padding:0 14px; height:26px; align-items:center; border-bottom:1px solid var(--cm-border); font-size:11.5px; cursor:pointer;"
+       onclick="if(event.target.type!=='checkbox'&&!event.target.closest('button,a')) window.location='/comics/{{ comic.pk }}/'">
+    <input type="checkbox" class="row-select" value="{{ comic.pk }}" style="accent-color:var(--cm-accent);" onclick="event.stopPropagation()">
+    {% for col_id in active_columns %}
+    <div style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:11.5px;">
+      {% if col_id == 'series' and comic.state == 'new' %}
+        <span style="color:var(--cm-warn); font-weight:500;">{{ comic.proposed_series|default:"-" }}</span>
+      {% elif col_id == 'series' %}
+        <span style="font-weight:500;">{{ comic|get_col_value:col_id|default:"-" }}</span>
+        {% if comic.is_physical and not current_medium %}<span class="cm-chip" style="font-size:9px; padding:0 3px; margin-left:2px;">physical</span>{% endif %}
+      {% elif col_id == 'number' and comic.state == 'new' %}
+        <span style="color:var(--cm-warn);" class="mono tnum">{{ comic.proposed_number|default:"-" }}</span>
+      {% elif col_id == 'state' %}
+        <span class="cm-chip {{ comic.state|state_chip_class }}" style="padding:1px 5px; font-size:10px;"><span class="cm-dot"></span> {{ comic.get_state_display }}</span>
+      {% else %}
+        <span class="{% if col_id == 'number' or col_id == 'year' or col_id == 'pages' or col_id == 'count' %}mono tnum{% endif %}">{{ comic|get_col_value:col_id|default:"-" }}</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <div style="display:flex; flex-wrap:wrap; gap:1px;">{% for flag in comic.flag_list %}<span class="cm-chip err" style="padding:0 3px; font-size:9px;">{{ flag }}</span>{% endfor %}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- Pagination bottom -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div style="padding:10px 16px; display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
+    <span>Page <span class="mono tnum">{{ page_obj.number }}</span> of <span class="mono tnum">{{ page_obj.paginator.num_pages }}</span></span>
+    <div style="display:flex; gap:3px; align-items:center;">
+      {% if page_obj.has_previous %}
+      <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page=1" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">First</a>
+      <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.previous_page_number }}" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">Prev</a>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}
+        <button class="cm-btn sm primary" style="cursor:default;">{{ num }}</button>
+        {% elif num == 1 or num == page_obj.paginator.num_pages or num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+        <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page={{ num }}" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">{{ num }}</a>
+        {% elif num == page_obj.number|add:"-3" or num == page_obj.number|add:"3" %}
+        <span class="mono" style="color:var(--cm-fg-3); font-size:11px; padding:0 4px;">…</span>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+      <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.next_page_number }}" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">Next</a>
+      <a hx-get="/comics/?{{ query_string }}{% if query_string %}&{% endif %}page={{ page_obj.paginator.num_pages }}" hx-target="#comic-results-container" hx-swap="innerHTML" hx-push-url="true" hx-indicator="#list-spinner" class="cm-btn sm ghost" style="text-decoration:none;cursor:pointer;">Last</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <!-- Empty state -->
+  <div style="padding:48px 24px; text-align:center; color:var(--cm-fg-3);">
+    {% if current_state %}
+    <div style="font-size:14px;">No comics in state "{{ current_state }}".</div>
+    <a href="/comics/" style="color:var(--cm-accent); font-size:12px; margin-top:8px; display:inline-block;">View all comics</a>
+    {% elif current_flag %}
+    <div style="font-size:14px;">No comics with flag "{{ flag_label }}".</div>
+    <a href="/comics/" style="color:var(--cm-accent); font-size:12px; margin-top:8px; display:inline-block;">View all comics</a>
+    {% else %}
+    <div style="font-size:14px;">No comics found.</div>
+    {% endif %}
+  </div>
+  {% endif %}

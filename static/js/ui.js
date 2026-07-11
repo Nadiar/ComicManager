@@ -1,0 +1,52 @@
+function getCsrfToken() {
+  return document.querySelector('meta[name="csrf-token"]')?.content ||
+         document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+window.showConfirm = function(message, onConfirm, label, danger) {
+  var modal = document.getElementById('confirm-modal');
+  document.getElementById('confirm-modal-message').textContent = message;
+  var okBtn = document.getElementById('confirm-modal-ok');
+  okBtn.textContent = label || 'Confirm';
+  okBtn.className = 'cm-btn sm ' + (danger ? '' : 'ok');
+  if (danger) { okBtn.style.color = 'var(--cm-err)'; okBtn.style.borderColor = 'var(--cm-err)'; }
+  else { okBtn.style.color = ''; okBtn.style.borderColor = ''; }
+  okBtn.onclick = function() {
+    modal.close();
+    if (onConfirm) onConfirm();
+  };
+  modal.showModal();
+};
+
+// Route HTMX hx-confirm dialogs through the custom confirm modal instead of
+// the native browser confirm.
+document.addEventListener('htmx:confirm', function(evt) {
+  var question = evt.detail.question;
+  if (!question) return;
+  evt.preventDefault();
+  var danger = /delete|cannot be undone|force-stop/i.test(question);
+  window.showConfirm(question, function() { evt.detail.issueRequest(true); }, 'Confirm', danger);
+});
+
+var _msgToastTimer = null;
+window.showMsgToast = function(message, type) {
+  var toast = document.getElementById('msg-toast');
+  var inner = document.getElementById('msg-toast-inner');
+  document.getElementById('msg-toast-text').textContent = message;
+  inner.className = 'cm-alert shadow-lg max-w-sm' +
+    (type === 'error' ? ' err' : type === 'success' ? ' ok' : ' info');
+  toast.classList.remove('hidden');
+  if (_msgToastTimer) clearTimeout(_msgToastTimer);
+  _msgToastTimer = setTimeout(function() {
+    toast.classList.add('hidden');
+    _msgToastTimer = null;
+  }, 4000);
+};
+
+
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}

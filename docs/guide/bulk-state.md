@@ -46,5 +46,5 @@ print(f'Advanced {updated} comics to done')
 The recently imported comics (within 7 days) remain in the **Write** state and go through the normal write pipeline so their `ComicInfo.xml` is freshly generated from your current DB metadata.
 
 ::: warning
-This skips the write step entirely for the affected comics. If you later change metadata for those comics (re-scrape, re-tag, etc.), the `needs_rewrite` flag will be set and they will appear in the Maintenance queue for a targeted re-write at that point.
+This skips the write step entirely for the affected comics. If you later change metadata for those comics (re-scrape, re-tag, etc.), the dashboard will surface them as "Stale Metadata" (a dynamic check comparing `updated_at` against `last_written`) and they will appear in the Maintenance queue for a targeted re-write at that point.
 :::

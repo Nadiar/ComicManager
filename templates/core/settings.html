@@ -2,148 +2,257 @@
 {% block title %}Settings — ComicManager{% endblock %}
 {% block nav_settings %}active{% endblock %}
 
+{% block main_class %}p-6{% endblock %}
 {% block content %}
-<div class="space-y-6 max-w-3xl">
+<div style="display:flex; flex-direction:column; gap:20px; max-width:820px;">
 
-  <div class="flex items-center justify-between">
-    <h1 class="text-3xl font-bold">Settings</h1>
-    <div class="flex gap-2">
-      <a href="/scraper/" class="btn btn-outline btn-sm">Scraper</a>
-      <a href="{% url 'settings:log' %}" class="btn btn-outline btn-sm">Batch Log</a>
+  <!-- Header -->
+  <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+    <h1 style="font-size:22px; font-weight:700; color:var(--cm-fg-1); margin:0;">Settings</h1>
+    <div style="display:flex; gap:8px;">
+      <a href="/scraper/" class="cm-btn sm ghost" cm-no-underline">Scraper</a>
+      <a href="{% url 'settings:log' %}" class="cm-btn sm ghost" cm-no-underline">Batch Log</a>
     </div>
   </div>
 
-  <!-- ComicVine Data Sources Status -->
-  <div class="card bg-base-200 mb-6">
-    <div class="card-body">
-      <h2 class="card-title">ComicVine Data Sources</h2>
-      <div class="space-y-2 text-sm">
-        <div class="flex items-center gap-3">
-          {% if cv_status.db %}
-          <span class="badge badge-success badge-sm">connected</span>
-          {% else %}
-          <span class="badge badge-error badge-sm">not found</span>
-          {% endif %}
-          <span class="font-mono">comicvine.db</span>
-          <span class="text-base-content/50">— local SQLite index (hash + metadata matching, Series Audit)</span>
-        </div>
-        <div class="flex items-center gap-3">
-          {% if cv_status.mcl %}
-          <span class="badge badge-success badge-sm">loaded</span>
-          {% else %}
-          <span class="badge badge-ghost badge-sm">not found</span>
-          {% endif %}
-          <span class="font-mono">latest.mcl</span>
-          {% if cv_status.mcl %}
-          <span class="text-base-content/50">— {{ cv_status.mcl_count }} volume{% if cv_status.mcl_count != 1 %}s{% endif %} (Series Audit fallback)</span>
-          {% else %}
-          <span class="text-base-content/50">— Series Audit fallback when comicvine.db is absent. Place in <code>./data/latest.mcl</code>.</span>
-          {% endif %}
-        </div>
-        <div class="flex items-center gap-3">
-          {% if cv_status.api_key %}
-          <span class="badge badge-success badge-sm">configured</span>
-          {% else %}
-          <span class="badge badge-warning badge-sm">not set</span>
-          {% endif %}
-          <span class="font-mono">API key</span>
-          <span class="text-base-content/50">— ComicVine REST API (manual search + API-only batch scraping)</span>
-        </div>
-      </div>
-      
-      <div class="mt-4 pt-4 border-t border-base-content/10">
-        <h3 class="text-xs font-bold uppercase text-base-content/50 mb-3">Database Audits</h3>
-        <button 
-          class="btn btn-outline btn-sm"
-          onclick="runMetadataAudit(this)"
-          {% if not cv_status.db %}disabled title="comicvine.db required for metadata audit"{% endif %}
-        >
-          Audit Metadata Mismatches
-        </button>
-        <p class="text-xs text-base-content/50 mt-2">
-          Flags comics linked to a ComicVine volume whose name doesn't match the local series name.
-        </p>
-      </div>
+  <!-- Display preferences -->
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:18px 20px;">
+    <div style="font-size:14px; font-weight:600; color:var(--cm-fg-1); margin-bottom:4px;">Display</div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 16px;">Changes apply immediately and persist across sessions.</p>
+    <form id="prefs-form"
+          hx-post="{% url 'settings:update_preferences' %}"
+          hx-swap="none"
+          hx-trigger="change"
+          hx-on::after-request="window.location.reload()">
+      {% csrf_token %}
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:14px;">
 
-      <div class="mt-3">
-        {% if cv_status.mode == "full_db" %}
-        <span class="badge badge-success">Scraping mode: Full local DB</span>
-        {% elif cv_status.mode == "mcl_only" %}
-        <span class="badge badge-warning">Scraping mode: API-only (MCL available for Series Audit)</span>
-        {% elif cv_status.mode == "api_only" %}
-        <span class="badge badge-warning">Scraping mode: API-only (200 calls/hour limit)</span>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <label class="cm-section-label">Navigation</label>
+          <select name="nav" class="cm-input" style="font-size:13px;">
+            <option value="topnav"  {% if prefs.nav == "topnav"  %}selected{% endif %}>Top bar</option>
+            <option value="sidebar" {% if prefs.nav == "sidebar" %}selected{% endif %}>Sidebar</option>
+          </select>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:6px; grid-column:1/-1;">
+          <label class="cm-section-label">Theme</label>
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            {% for val, label, swatch in mood_swatches %}
+            <label style="display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:6px; border:1px solid {% if prefs.mood == val %}var(--cm-accent){% else %}var(--cm-border){% endif %}; cursor:pointer; background:var(--cm-bg-2); user-select:none;">
+              <input type="radio" name="mood" value="{{ val }}" {% if prefs.mood == val %}checked{% endif %} style="display:none;">
+              <span style="width:10px; height:10px; border-radius:50%; background:{{ swatch }}; flex-shrink:0; display:inline-block;"></span>
+              <span style="font-size:12px; color:var(--cm-fg-1);">{{ label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <label class="cm-section-label">Table density</label>
+          <select name="table_density" class="cm-input" style="font-size:13px;">
+            <option value="compact" {% if prefs.table_density == "compact" %}selected{% endif %}>Compact</option>
+            <option value="default" {% if prefs.table_density == "default" %}selected{% endif %}>Default</option>
+            <option value="comfy"   {% if prefs.table_density == "comfy"   %}selected{% endif %}>Comfy</option>
+          </select>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <label class="cm-section-label">Pipeline view</label>
+          <select name="dashboard_pipeline" class="cm-input" style="font-size:13px;">
+            <option value="segments" {% if prefs.dashboard_pipeline != "flow" and prefs.dashboard_pipeline != "none" %}selected{% endif %}>Segments</option>
+            <option value="flow"     {% if prefs.dashboard_pipeline == "flow" %}selected{% endif %}>Flow</option>
+            <option value="none"     {% if prefs.dashboard_pipeline == "none" %}selected{% endif %}>None (hide pipeline)</option>
+          </select>
+        </div>
+
+        <div style="grid-column:1/-1; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px;">
+          <label style="font-size:13px; color:var(--cm-fg-2); cursor:pointer;" for="show_covers_toggle">Show cover art in tables</label>
+          <input type="checkbox" id="show_covers_toggle" name="show_covers"
+                 style="width:16px; height:16px; accent-color:var(--cm-accent); cursor:pointer;"
+                 {% if prefs.show_covers %}checked{% endif %}>
+        </div>
+
+        <div style="grid-column:1/-1; display:flex; gap:10px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:200px; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px;">
+            <div>
+              <label style="font-size:13px; color:var(--cm-fg-2); cursor:pointer;" for="oled_toggle">OLED black</label>
+              <p style="font-size:11px; color:var(--cm-fg-3); margin:2px 0 0;">Pure black backgrounds for OLED screens</p>
+            </div>
+            <input type="checkbox" id="oled_toggle" name="oled"
+                   style="width:16px; height:16px; accent-color:var(--cm-accent); cursor:pointer;"
+                   {% if prefs.oled %}checked{% endif %}>
+          </div>
+          <div style="flex:1; min-width:200px; display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px;">
+            <div>
+              <label style="font-size:13px; color:var(--cm-fg-2); cursor:pointer;" for="high_contrast_toggle">High contrast text</label>
+              <p style="font-size:11px; color:var(--cm-fg-3); margin:2px 0 0;">Boosts text brightness for low-light environments</p>
+            </div>
+            <input type="checkbox" id="high_contrast_toggle" name="high_contrast"
+                   style="width:16px; height:16px; accent-color:var(--cm-accent); cursor:pointer;"
+                   {% if prefs.high_contrast %}checked{% endif %}>
+          </div>
+        </div>
+
+        <div style="grid-column:1/-1; display:flex; flex-direction:column; gap:8px; padding-top:4px; border-top:1px solid var(--cm-border);">
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <label class="cm-section-label">
+              Custom Colors <span style="text-transform:none; font-weight:400;">— overrides preset per slot</span>
+            </label>
+            <button type="submit" name="clear_custom_colors" value="1" class="cm-btn sm ghost" style="font-size:11px;">Reset all</button>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:14px;">
+            {% for key, label, cur_hex in color_pickers %}
+            <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+              <label style="position:relative; display:block; cursor:pointer;" title="Check to enable custom {{ label|lower }}">
+                <input type="checkbox" name="enable_color_{{ key }}" {% if cur_hex %}checked{% endif %}
+                       style="position:absolute; top:2px; right:2px; width:11px; height:11px; accent-color:var(--cm-accent); z-index:1; cursor:pointer;">
+                <input type="color" name="custom_color_{{ key }}"
+                       value="{% if cur_hex %}{{ cur_hex }}{% else %}#888888{% endif %}"
+                       style="width:42px; height:34px; border:1px solid var(--cm-border); border-radius:6px; background:var(--cm-bg-2); cursor:pointer; padding:3px; display:block;">
+              </label>
+              <span style="font-size:10px; color:var(--cm-fg-3);">{{ label }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <p style="font-size:11px; color:var(--cm-fg-3); margin:0;">Check the box on a swatch to enable that override. Uncheck to revert to the active theme.</p>
+        </div>
+
+      </div>
+    </form>
+  </div>
+
+  <!-- ComicVine Data Sources -->
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:18px 20px;">
+    <div style="font-size:14px; font-weight:600; color:var(--cm-fg-1); margin-bottom:16px;">ComicVine Data Sources</div>
+
+    <div style="display:flex; flex-direction:column; gap:10px; font-size:13px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        {% if cv_status.db %}
+        <span class="cm-chip ok" cm-text-xs">connected</span>
         {% else %}
-        <span class="badge badge-error">Scraping mode: No data source configured</span>
+        <span class="cm-chip err" cm-text-xs">not found</span>
+        {% endif %}
+        <code style="font-size:12px; color:var(--cm-fg-1);">comicvine.db</code>
+        <span class="cm-text-muted">— local SQLite index (hash + metadata matching, Series Audit)</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        {% if cv_status.mcl %}
+        <span class="cm-chip ok" cm-text-xs">loaded</span>
+        {% else %}
+        <span class="cm-chip" cm-text-xs">not found</span>
+        {% endif %}
+        <code style="font-size:12px; color:var(--cm-fg-1);">latest.mcl</code>
+        {% if cv_status.mcl %}
+        <span class="cm-text-muted">— {{ cv_status.mcl_count }} volume{% if cv_status.mcl_count != 1 %}s{% endif %} (Series Audit fallback)</span>
+        {% else %}
+        <span class="cm-text-muted">— Series Audit fallback when comicvine.db is absent. Place in <code>./data/latest.mcl</code>.</span>
         {% endif %}
       </div>
-
-      {% if not cv_status.db or scrape_api_fallback %}
-      <div class="mt-4 pt-4 border-t border-base-content/10">
-        <div class="mb-2">
-          {% if not cv_status.db %}
-          <span class="font-semibold text-sm">ComicVine API Mode</span>
-          <span class="text-base-content/60 text-xs ml-2">— local DB not found, using REST API for scraping</span>
-          {% else %}
-          <span class="font-semibold text-sm">ComicVine API Fallback active</span>
-          <span class="text-base-content/60 text-xs ml-2">— API is tried when local DB finds no match</span>
-          {% endif %}
-        </div>
-        <div class="flex flex-wrap gap-6 mt-2">
-          {% for path, used in api_calls_per_path.items %}
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-base-content/50 font-mono w-14">/{{ path }}</span>
-            <div class="w-24 bg-base-300 rounded-full h-2 overflow-hidden">
-              <div class="h-full rounded-full transition-all {% if used > 180 %}bg-error{% elif used > 140 %}bg-warning{% else %}bg-success{% endif %}"
-                style="width: {% widthratio used api_budget_limit 100 %}%">
-              </div>
-            </div>
-            <span class="font-mono text-xs {% if used > 180 %}text-error{% elif used > 140 %}text-warning{% else %}text-base-content/70{% endif %}">{{ used }} / {{ api_budget_limit }}</span>
-          </div>
-          {% endfor %}
-        </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        {% if cv_status.api_key %}
+        <span class="cm-chip ok" cm-text-xs">configured</span>
+        {% else %}
+        <span class="cm-chip warn" cm-text-xs">not set</span>
+        {% endif %}
+        <code style="font-size:12px; color:var(--cm-fg-1);">API key</code>
+        <span class="cm-text-muted">— ComicVine REST API (manual search + API-only batch scraping)</span>
       </div>
+    </div>
+
+    <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--cm-border);">
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:10px;">Database Audits</div>
+      <button class="cm-btn sm ghost" onclick="runMetadataAudit(this)"
+              {% if not cv_status.db %}disabled title="comicvine.db required for metadata audit"{% endif %}>
+        Audit Metadata Mismatches
+      </button>
+      <p style="font-size:11px; color:var(--cm-fg-3); margin:6px 0 0;">
+        Flags comics linked to a ComicVine volume whose name doesn't match the local series name.
+      </p>
+    </div>
+
+    <div style="margin-top:12px;">
+      {% if cv_status.mode == "full_db" %}
+      <span class="cm-chip ok">Scraping mode: Full local DB</span>
+      {% elif cv_status.mode == "mcl_only" %}
+      <span class="cm-chip warn">Scraping mode: API-only (MCL available for Series Audit)</span>
+      {% elif cv_status.mode == "api_only" %}
+      <span class="cm-chip warn">Scraping mode: API-only (200 calls/hour limit)</span>
+      {% else %}
+      <span class="cm-chip err">Scraping mode: No data source configured</span>
       {% endif %}
     </div>
+
+    {% if not cv_status.db or scrape_api_fallback %}
+    <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+      <div style="margin-bottom:10px;">
+        {% if not cv_status.db %}
+        <span style="font-size:13px; font-weight:600; color:var(--cm-fg-1);">ComicVine API Mode</span>
+        <span style="font-size:12px; color:var(--cm-fg-3); margin-left:8px;">— local DB not found, using REST API for scraping</span>
+        {% else %}
+        <span style="font-size:13px; font-weight:600; color:var(--cm-fg-1);">ComicVine API Fallback active</span>
+        <span style="font-size:12px; color:var(--cm-fg-3); margin-left:8px;">— API is tried when local DB finds no match</span>
+        {% endif %}
+      </div>
+      <div style="display:flex; flex-wrap:wrap; gap:16px;">
+        {% for path, used in api_calls_per_path.items %}
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:11px; color:var(--cm-fg-3); font-family:monospace; width:52px;">/{{ path }}</span>
+          <div style="width:96px; height:6px; background:var(--cm-bg-3); border-radius:3px; overflow:hidden;">
+            <div style="height:100%; border-radius:3px; width:{% widthratio used api_budget_limit 100 %}%; background:{% if used > 180 %}var(--cm-err){% elif used > 140 %}var(--cm-warn){% else %}var(--cm-ok){% endif %};"></div>
+          </div>
+          <span style="font-size:11px; font-family:monospace; color:{% if used > 180 %}var(--cm-err){% elif used > 140 %}var(--cm-warn){% else %}var(--cm-fg-2){% endif %};">{{ used }} / {{ api_budget_limit }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </div>
 
-  <form method="post" action="/settings/update/">
+  {% include "core/_settings_dashboard_section.html" %}
+
+  {% include "core/_settings_tasks_section.html" %}
+
+  <!-- Settings groups -->
+  <form method="post" action="/settings/update/" style="display:flex; flex-direction:column; gap:16px;">
     {% csrf_token %}
 
     {% for group, settings in grouped.items %}
-    <div class="card bg-base-200 mb-6">
-      <div class="card-body">
-        <h2 class="card-title">{{ group }}</h2>
-        <div class="space-y-4">
-          {% for setting in settings %}
-          <div class="form-control">
-            <label class="label">
-              <span class="label-text font-medium">{{ setting.label }}</span>
-            </label>
-            {% if setting.type == "bool" %}
+    <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:18px 20px;">
+      <div style="font-size:14px; font-weight:600; color:var(--cm-fg-1); margin-bottom:16px;">{{ group }}</div>
+      <div style="display:flex; flex-direction:column; gap:14px;">
+        {% for setting in settings %}
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <label class="cm-section-label">{{ setting.label }}</label>
+          {% if setting.type == "bool" %}
+            <div style="display:flex; align-items:center; gap:8px;">
               <input type="checkbox" name="{{ setting.key }}"
-                class="toggle toggle-primary"
+                style="width:16px; height:16px; accent-color:var(--cm-accent); cursor:pointer;"
                 {% if setting.typed_value %}checked{% endif %}
                 value="true">
-            {% elif setting.type == "secret" %}
-              <input type="password" name="{{ setting.key }}"
-                value="{{ setting.value }}"
-                class="input input-bordered w-full font-mono">
-            {% else %}
-              <input type="text" name="{{ setting.key }}"
-                value="{{ setting.value }}"
-                class="input input-bordered w-full {% if setting.type == 'path' %}font-mono{% endif %}">
-            {% endif %}
-            {% if setting.help_text %}
-            <p class="text-xs text-base-content/50 mt-1">{{ setting.help_text }}</p>
-            {% endif %}
-          </div>
-          {% endfor %}
+              <span style="font-size:12px; color:var(--cm-fg-3);">Enabled</span>
+            </div>
+          {% elif setting.type == "secret" %}
+            <input type="password" name="{{ setting.key }}"
+              value="{{ setting.value }}"
+              class="cm-input" style="font-family:monospace; font-size:13px;">
+          {% else %}
+            <input type="text" name="{{ setting.key }}"
+              value="{{ setting.value }}"
+              class="cm-input" style="font-size:13px; {% if setting.type == 'path' %}font-family:monospace;{% endif %}">
+          {% endif %}
+          {% if setting.help_text %}
+          <p style="font-size:11px; color:var(--cm-fg-3); margin:2px 0 0;">{{ setting.help_text }}</p>
+          {% endif %}
         </div>
+        {% endfor %}
       </div>
     </div>
     {% endfor %}
 
-    <button type="submit" class="btn btn-primary">Save Settings</button>
+    <div style="display:flex; justify-content:flex-end; padding-bottom:24px;">
+      <button type="submit" class="cm-btn sm primary">Save Settings</button>
+    </div>
   </form>
 
 </div>
@@ -151,35 +260,27 @@
 <script>
 function runMetadataAudit(btn) {
   showConfirm('Audit all linked comics for metadata mismatches? This will check local ComicVine data.', () => {
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Auditing...';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Auditing...';
 
-  fetch('{% url "core:audit_metadata_mismatches" %}', {
-    method: 'POST',
-    headers: {
-      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.task_id) {
-      btn.classList.add('btn-info');
-      btn.innerHTML = 'Running...';
-      if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id, 'Auditing metadata');
+    fetch('{% url "core:audit_metadata_mismatches" %}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.task_id) {
+        btn.innerHTML = 'Running...';
+        if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Auditing metadata');
+      } else {
+        btn.innerHTML = data.error || 'Error';
+        btn.disabled = false;
       }
-    } else {
-      btn.classList.add('btn-error');
-      btn.innerHTML = data.error || 'Error';
+    })
+    .catch(err => {
+      btn.innerHTML = 'Error';
       btn.disabled = false;
-    }
-  })
-  .catch(err => {
-    btn.classList.add('btn-error');
-    btn.innerHTML = 'Error';
-    btn.disabled = false;
-    console.error(err);
-  });
+    });
   });
 }
 </script>

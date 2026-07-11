@@ -1,93 +1,99 @@
 {% extends "base.html" %}
+{% block title %}Publishers — ComicManager{% endblock %}
 
-{% block title %}Publishers - ComicManager{% endblock %}
-
+{% block main_class %}p-6{% endblock %}
 {% block content %}
-<div class="space-y-6">
-  <div class="flex justify-between items-center">
+<div style="display:flex; flex-direction:column; gap:20px; max-width:900px;">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px;">
     <div>
-      <h1 class="text-2xl font-bold">Publishers</h1>
-      <p class="text-base-content/70">{{ known_count }} covered by rulesets, {{ uncovered_count }} uncovered</p>
+      <h1 style="font-size:22px; font-weight:700; color:var(--cm-fg-1); margin:0 0 4px;">Publishers</h1>
+      <p style="font-size:13px; color:var(--cm-fg-3); margin:0;">
+        <span style="color:var(--cm-ok);">{{ known_count }}</span> covered by rulesets,
+        <span style="color:{% if uncovered_count %}var(--cm-warn){% else %}var(--cm-fg-3){% endif %};">{{ uncovered_count }}</span> uncovered
+      </p>
     </div>
-    <a href="{% url 'tagging:ruleset_list' %}" class="btn btn-outline btn-sm">Back to Rulesets</a>
+    <a href="{% url 'tagging:ruleset_list' %}" class="cm-btn sm ghost" style="text-decoration:none; flex-shrink:0;">Back to Rulesets</a>
   </div>
 
   {% if uncovered %}
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title text-warning">Uncovered Publishers ({{ uncovered_count }})</h2>
-      <p class="text-sm text-base-content/60">These publishers have no matching tagging ruleset. Comics from these publishers are flagged as "Unknown Publisher".</p>
-      <div class="overflow-x-auto mt-2">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Publisher</th>
-              <th class="text-right">Comics</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for pub in uncovered %}
-            <tr class="hover">
-              <td class="font-medium">{{ pub.name }}</td>
-              <td class="text-right">
-                <a href="/comics/?publisher={{ pub.name|urlencode }}" class="link link-hover">{{ pub.comic_count }}</a>
-              </td>
-              <td class="text-right">
-                <a href="{% url 'tagging:ruleset_create' %}?publisher={{ pub.name|urlencode }}" class="btn btn-xs btn-primary">Create Ruleset</a>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+  <!-- Uncovered Publishers -->
+  <div style="background:var(--cm-bg-1); border:1px solid color-mix(in srgb, var(--cm-warn) 30%, var(--cm-border)); border-radius:8px; padding:18px 20px;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <span style="font-size:14px; font-weight:600; color:var(--cm-warn);">Uncovered Publishers</span>
+      <span class="cm-chip warn" cm-text-xs">{{ uncovered_count }}</span>
     </div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">These publishers have no matching tagging ruleset. Comics from these publishers are flagged as "Unknown Publisher".</p>
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead>
+        <tr class="cm-divider">
+          <th style="text-align:left; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Publisher</th>
+          <th style="text-align:right; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Comics</th>
+          <th style="padding:6px 10px 8px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pub in uncovered %}
+        <tr class="cm-divider">
+          <td style="padding:8px 10px; font-weight:500; color:var(--cm-fg-1);">{{ pub.name }}</td>
+          <td style="padding:8px 10px; text-align:right;">
+            <a href="/comics/?publisher={{ pub.name|urlencode }}" style="color:var(--cm-accent); text-decoration:none; font-family:monospace;">{{ pub.comic_count }}</a>
+          </td>
+          <td style="padding:8px 10px; text-align:right;">
+            <a href="{% url 'tagging:ruleset_create' %}?publisher={{ pub.name|urlencode }}" class="cm-btn sm primary" cm-no-underline">Create Ruleset</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
   {% endif %}
 
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title text-success">Covered Publishers ({{ known_count }})</h2>
-      <p class="text-sm text-base-content/60">These publishers are matched by at least one enabled tagging ruleset.</p>
-      {% if known %}
-      <div class="overflow-x-auto mt-2">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Publisher</th>
-              <th class="text-right">Comics</th>
-              <th>Rulesets</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for pub in known %}
-            <tr class="hover">
-              <td class="font-medium">{{ pub.name }}</td>
-              <td class="text-right">
-                {% if pub.comic_count %}
-                <a href="/comics/?publisher={{ pub.name|urlencode }}" class="link link-hover">{{ pub.comic_count }}</a>
-                {% else %}
-                <span class="text-base-content/40">0</span>
-                {% endif %}
-              </td>
-              <td>
-                <div class="flex flex-wrap gap-1">
-                  {% for rs in pub.rulesets %}
-                  <a href="{% url 'tagging:ruleset_detail' rs.id %}" class="badge badge-sm badge-outline hover:badge-primary">{{ rs.name }}</a>
-                  {% endfor %}
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      {% else %}
-      <div class="alert alert-info mt-2">
-        <span>No rulesets with Publisher rules found. Import or create rulesets to define known publishers.</span>
-      </div>
-      {% endif %}
+  <!-- Covered Publishers -->
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:18px 20px;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+      <span style="font-size:14px; font-weight:600; color:var(--cm-ok);">Covered Publishers</span>
+      <span class="cm-chip ok" cm-text-xs">{{ known_count }}</span>
     </div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">These publishers are matched by at least one enabled tagging ruleset.</p>
+    {% if known %}
+    <table style="width:100%; border-collapse:collapse; font-size:13px;">
+      <thead>
+        <tr class="cm-divider">
+          <th style="text-align:left; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Publisher</th>
+          <th style="text-align:right; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Comics</th>
+          <th style="text-align:left; padding:6px 10px 8px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3);">Rulesets</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pub in known %}
+        <tr class="cm-divider">
+          <td style="padding:8px 10px; font-weight:500; color:var(--cm-fg-1);">{{ pub.name }}</td>
+          <td style="padding:8px 10px; text-align:right;">
+            {% if pub.comic_count %}
+            <a href="/comics/?publisher={{ pub.name|urlencode }}" style="color:var(--cm-accent); text-decoration:none; font-family:monospace;">{{ pub.comic_count }}</a>
+            {% else %}
+            <span style="color:var(--cm-fg-3); font-family:monospace;">0</span>
+            {% endif %}
+          </td>
+          <td style="padding:8px 10px;">
+            <div style="display:flex; flex-wrap:wrap; gap:4px;">
+              {% for rs in pub.rulesets %}
+              <a href="{% url 'tagging:ruleset_detail' rs.id %}" class="cm-chip" style="text-decoration:none; font-size:11px;">{{ rs.name }}</a>
+              {% endfor %}
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div style="padding:14px; background:color-mix(in srgb, var(--cm-info) 12%, transparent); border:1px solid var(--cm-info); border-radius:6px; font-size:13px; color:var(--cm-info);">
+      No rulesets with Publisher rules found. Import or create rulesets to define known publishers.
+    </div>
+    {% endif %}
   </div>
+
 </div>
 {% endblock %}

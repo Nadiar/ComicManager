@@ -4,18 +4,16 @@ Expects: rule (dict with type, field, operator, value OR type=group with nested 
 {% endcomment %}
 
 {% if rule.type == "group" %}
-<div class="pl-4 border-l-2 border-base-300 space-y-2">
-  <div class="text-xs text-base-content/50 uppercase">
-    {{ rule.operator }} of:
-  </div>
+<div style="padding-left:12px; border-left:2px solid var(--cm-border); display:flex; flex-direction:column; gap:4px;">
+  <div style="font-size:10px; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3);">{{ rule.operator }} of:</div>
   {% for subrule in rule.rules %}
   {% include "organizer/_rule_display.html" with rule=subrule %}
   {% endfor %}
 </div>
 {% else %}
-<div class="flex items-center gap-2 text-sm">
-  <span class="badge badge-sm badge-primary">{{ rule.field }}</span>
-  <span class="text-base-content/60">{{ rule.operator }}</span>
-  <span class="font-medium">{{ rule.value }}</span>
+<div style="display:flex; align-items:center; gap:6px; font-size:12px;">
+  <span class="cm-chip accent" style="font-size:10.5px;">{{ rule.field }}</span>
+  <span class="cm-text-muted">{{ rule.operator }}</span>
+  <span style="font-weight:500;">{{ rule.value }}</span>
 </div>
 {% endif %}

@@ -1,10 +1,8 @@
-<div class="alert alert-success" id="group-{{ group.id }}">
-  <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
+<div style="background:var(--cm-ok-dim); border:1px solid var(--cm-ok); border-radius:8px; padding:14px 18px; display:flex; align-items:flex-start; gap:10px; color:var(--cm-ok); font-size:13px; font-weight:500;" id="group-{{ group.id }}">
+  <span style="font-size:16px; line-height:1; flex-shrink:0;">✓</span>
   <div>
-    <div class="font-bold">Group Resolved: {{ group.match_key }}</div>
-    <div class="text-sm">
+    <div style="font-weight:600;">Group Resolved: {{ group.match_key }}</div>
+    <div style="font-weight:400; margin-top:2px;">
       {% if action == 'keep_all' %}
       All comics marked as intentional (not duplicates) and advanced to deduplicated.
       {% elif action == 'keep' %}

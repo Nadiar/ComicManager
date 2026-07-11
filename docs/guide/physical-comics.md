@@ -12,17 +12,33 @@ While digital comics are imported automatically from the filesystem, physical co
 
 ## Workflow for Physical Comics
 
-Physical comics follow a slightly different path through the pipeline:
-1. **Manual Entry**: Create a new record with `medium=physical`.
-2. **Scraping**: Match with ComicVine metadata using the same search tools as digital comics.
-3. **Variant Covers & Caching**: When matched, ComicManager automatically downloads the main cover and any variant covers from ComicVine and stores them in your local cover cache. You can use the **Variant Gallery** on the detail page to select which cover you actually own.
-4. **Tagging**: Apply DataManager rules to categorize and group series.
-5. **No Organizing/Writing**: Since there are no files, physical comics skip the file movement and XML writing stages.
+Physical comics skip the file-handling stages since there is no file to move or write.
+
+| Pipeline stage | Digital | Physical |
+|----------------|:-------:|:--------:|
+| New (filename parse) | Yes | No. Entry created manually |
+| Scrape (ComicVine match) | Yes | Yes |
+| Cover caching | In CBZ | Downloaded to cover cache |
+| Variant Gallery | Yes | Yes. Select the cover you own |
+| Tagging | Yes | Yes |
+| Add Formats | Yes | Yes |
+| Deduplicate | Yes | Yes (digital+physical pair is never a duplicate) |
+| Move Files (Organize) | Yes | **Skipped** |
+| Write ComicInfo.xml | Yes | **Skipped** |
+| Done | Yes | Yes |
 
 ## Benefits of Tracking Physical Comics
 
 - **Unified Collection**: Search across your entire library (digital + physical) from one dashboard.
 - **Missing Issues**: Track series completion even if you own some issues physically and others digitally.
+
+---
+
+## Adding a Single Physical Comic
+
+Go to **Physical Comics** and click **Add Physical Comic** (or navigate to `/physical/add/`). Fill in the series, number, year, publisher, format, and storage location fields and click **Save**. The record is created immediately with `medium = physical` and `state = scrape`, ready for ComicVine matching.
+
+Use the manual form for one-off additions. For large collections use the bulk CSV import below.
 
 ---
 

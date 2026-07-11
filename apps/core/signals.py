@@ -100,6 +100,9 @@ def seed_default_settings(sender, **kwargs):
         dict(key="scrape_0day_hours",     label="0Day window (hours)",         type="int",    group="Scraping",   help_text="Comics added within this many hours go into the 0Day queue", value="24"),
         dict(key="scrape_hash_threshold", label="Hash match threshold",        type="int",    group="Scraping",   help_text="Max hamming distance for pHash match (lower = stricter)", value="8"),
         dict(key="scrape_api_fallback",   label="API fallback when DB present", type="bool",   group="Scraping",   help_text="If no match is found in the local ComicVine DB, also try the ComicVine API. Uses your API budget.", value="false"),
+        dict(key="scrape_insert_covers",   label="Insert alt covers on manual scrape", type="bool", group="Scraping", help_text="Fetch and insert variant covers from ComicVine immediately when scraping a single comic manually. If disabled, URLs are saved and covers are inserted at Write time instead.", value="true"),
+        dict(key="batch_insert_covers",    label="Insert alt covers on batch scrape",  type="bool", group="Scraping", help_text="Insert variant covers immediately during a batch scrape (slow). If disabled, URLs are saved and covers are inserted at Write time instead.", value="false"),
+        dict(key="pipeline_insert_covers", label="Insert alt covers during pipeline",  type="bool", group="Scraping", help_text="Insert variant covers immediately when the pipeline runs its scrape step. If disabled, URLs are saved and covers are inserted at Write time instead.", value="false"),
         dict(key="inducks_enabled",       label="Enable Inducks search",      type="bool",   group="Scraping",   help_text="Show Inducks search option in the scrape modal for Disney comics", value="false"),
         dict(key="inducks_username",      label="Inducks username",           type="text",   group="Scraping",   help_text="Your inducks.org username (required for cover images)", value=""),
         dict(key="inducks_password",      label="Inducks password",           type="secret", group="Scraping",   help_text="Your inducks.org password (required for cover images)", value=""),
@@ -120,8 +123,11 @@ def seed_default_settings(sender, **kwargs):
         # Deduplication
         dict(key="duplicate_phash_distance", label="Cover Hash max distance", type="int", group="Deduplication", help_text="Maximum pHash Hamming distance for two covers to be considered duplicates (0 = identical, default: 5). Lower values are stricter.", value="5"),
         # Appearance
+        dict(key="owner_name",                  label="Your first name",                   type="text", group="Appearance", help_text="Used in the dashboard greeting ('Good morning, Name.'). Leave blank to show 'there'.", value=""),
         dict(key="show_series_completion",     label="Show Series Completion",            type="bool", group="Appearance", help_text="Show a progress bar on comic detail pages indicating how complete the series/volume is", value="true"),
         dict(key="hide_zero_maintenance_rows", label="Hide zero-count maintenance rows",  type="bool", group="Appearance", help_text="Hide rows with a count of 0 in the Review & Maintenance card on the dashboard", value="false"),
+        dict(key="filter_rail_default",        label="Filter rail open by default",       type="bool", group="Appearance", help_text="Show the filter rail sidebar on the comics list page by default. Can still be toggled on-demand.", value="false"),
+        dict(key="show_au_scan",               label="Show AU Scan in navigation",        type="bool", group="Appearance", help_text="Show the AU Scan link in the sidebar and top navigation. Disable if you don't use the Alternate Universe folder feature.", value="true"),
     ]
 
     for d in defaults:

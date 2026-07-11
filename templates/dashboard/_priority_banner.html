@@ -1,0 +1,29 @@
+{% if bottleneck %}
+<div id="priority-banner" style="display:flex; align-items:center; gap:14px; padding:12px 18px; background:color-mix(in oklch, var(--cm-accent) 9%, var(--cm-bg-1)); border:1px solid color-mix(in oklch, var(--cm-accent) 30%, var(--cm-border)); border-radius:8px; position:relative; overflow:hidden; flex-shrink:0;">
+  <div style="width:34px; height:34px; border-radius:8px; flex-shrink:0; background:var(--cm-accent); color:var(--cm-accent-fg); display:flex; align-items:center; justify-content:center;">
+    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+  </div>
+  <div style="flex:1; min-width:0;">
+    <div style="display:flex; align-items:baseline; gap:8px;">
+      <span class="cm-section-lbl" style="color:var(--cm-accent);">Start here</span>
+      <span style="font-size:11px; color:var(--cm-fg-3);">· bottleneck</span>
+    </div>
+    <div style="font-size:13.5px; color:var(--cm-fg); margin-top:2px;">
+      <b>{{ bottleneck.title }}</b> · <span class="mono tnum">{{ bottleneck.count }}</span> comic{{ bottleneck.count|pluralize }} waiting — {{ bottleneck.description|lower }}.
+    </div>
+  </div>
+  <button class="cm-btn primary" onclick="runAction('{{ bottleneck.action_url }}', this, '{{ bottleneck.action }}')">
+    {{ bottleneck.action }}
+    {% include "partials/_chevron_right.html" %}
+  </button>
+  <button class="cm-icon-btn" title="Dismiss" onclick="document.getElementById('priority-banner').style.display='none'; sessionStorage.setItem('bannerDismissed','1');" style="background:transparent; border:none; cursor:pointer; color:var(--cm-fg-3); padding:4px; display:flex; align-items:center; justify-content:center; border-radius:4px;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
+</div>
+<script>
+if (sessionStorage.getItem('bannerDismissed')) {
+  var b = document.getElementById('priority-banner');
+  if (b) b.style.display = 'none';
+}
+</script>
+{% endif %}

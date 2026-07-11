@@ -11,7 +11,7 @@ services:
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U comicmanager"]
+      test: ["CMD-SHELL", "pg_isready -U comicmanager -d comicmanager"]
       interval: 10s
       retries: 5
 
@@ -23,56 +23,88 @@ services:
       - ./data/redis:/data
     command: redis-server --save 60 1 --loglevel warning
 
+  # One-shot migration runner. Runs once, applies migrations, then exits 0.
+  # Everything else waits for this to complete so the schema exists before
+  # the worker and web start. entrypoint is cleared so it does not also run
+  # collectstatic (that stays in the web container).
+  migrate:
+    image: ${IMAGE_REPO:-gitea.baerentsen.space/frederikbaerentsen}/comicmanager:${IMAGE_TAG:-latest}
+    user: "${UID}:${GID}"
+    restart: "no"
+    entrypoint: []
+    command: python manage.py migrate --noinput
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+
   web:
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO:-gitea.baerentsen.space/frederikbaerentsen}/comicmanager:${IMAGE_TAG:-latest}
     user: "${UID}:${GID}"
     restart: unless-stopped
-    command: gunicorn comicmanager.wsgi:application --bind 0.0.0.0:8000 --workers 4
+    command: daphne -b 0.0.0.0 -p 8000 comicmanager.asgi:application
     ports:
       - "${PORT:-8381}:8000"
     env_file: .env
     volumes:
       - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
       - ${LIBRARY_DIR:-./Comics}:/comics/library
-      - ./data/static:/app/static
       - ./data/covers:/app/cover_cache
       - ./data/logs:/app/logs
-      # Optional: mount local database files for faster scraping (see docs/guide/scraping.md)
-      # - ./data/comicvine.db:/cv_db/comicvine.db:ro
-      # - ./data/latest.mcl:/cv_db/latest.mcl:ro
-      # - ./data/inducks.db:/cv_db/inducks.db:ro
+      # Optional local data sources. Uncomment the lines below if you have
+      # the files in ./data/ (see the Scraping guide for details).
+      # - ${CV_DB_PATH:-./data/comicvine.db}:/cv_db/comicvine.db:ro
+      # - ${CV_MCL_PATH:-./data/latest.mcl}:/cv_db/latest.mcl:ro
+      # - ${INDUCKS_DB_PATH:-./data/inducks.db}:/cv_db/inducks.db:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.connect(('localhost',8000)); s.close()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
+      worker:
+        condition: service_healthy
 
   worker:
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO:-gitea.baerentsen.space/frederikbaerentsen}/comicmanager:${IMAGE_TAG:-latest}
     user: "${UID}:${GID}"
     restart: unless-stopped
     command: >
       celery -A comicmanager worker
         --loglevel=info
-        --queues=import,scrape,organize,write
-        --concurrency=4
+        --queues=serial,import,scrape,organize,write
+        --concurrency=1
     env_file: .env
     volumes:
       - ${UNTAGGED_DIR:-./untagged}:/comics/untagged
       - ${LIBRARY_DIR:-./Comics}:/comics/library
       - ./data/logs:/app/logs
-      # Optional: mount local database files for faster scraping (see docs/guide/scraping.md)
-      # - ./data/comicvine.db:/cv_db/comicvine.db:ro
-      # - ./data/latest.mcl:/cv_db/latest.mcl:ro
-      # - ./data/inducks.db:/cv_db/inducks.db:ro
+      # Optional local data sources. Uncomment the lines below if you have
+      # the files in ./data/ (see the Scraping guide for details).
+      # - ${CV_DB_PATH:-./data/comicvine.db}:/cv_db/comicvine.db:ro
+      # - ${CV_MCL_PATH:-./data/latest.mcl}:/cv_db/latest.mcl:ro
+      # - ${INDUCKS_DB_PATH:-./data/inducks.db}:/cv_db/inducks.db:ro
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A comicmanager inspect ping || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_started
+      migrate:
+        condition: service_completed_successfully
 
   beat:
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REPO:-gitea.baerentsen.space/frederikbaerentsen}/comicmanager:${IMAGE_TAG:-latest}
     user: "${UID}:${GID}"
     restart: unless-stopped
     command: >
@@ -81,7 +113,7 @@ services:
         --scheduler django_celery_beat.schedulers:DatabaseScheduler
     env_file: .env
     depends_on:
-      db:
+      migrate:
+        condition: service_completed_successfully
+      worker:
         condition: service_healthy
-      redis:
-        condition: service_started

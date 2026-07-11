@@ -2,9 +2,11 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Count, Q
+from django.utils import timezone
 from apps.core.models import Comic
 from .models import SmartList
 from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS
+from apps.core.task_queue import enqueue
 from .services import build_queryset, get_missing_issues, search_cv_volumes
 
 
@@ -105,21 +107,21 @@ def index(request):
         {
             "flag": "count_updated",
             "label": "Count Updated",
-            "description": "Issue count changed - needs ComicInfo.xml rewrite",
+            "description": "Issue count changed. Needs ComicInfo.xml rewrite.",
             "count": Comic.objects.filter(flags__count_updated=True).count(),
             "action": "rewrite",
         },
         {
             "flag": "metadata_mismatch",
             "label": "Metadata Mismatch",
-            "description": "Series name doesn't match the ComicVine volume — needs re-scrape",
+            "description": "Series name doesn't match the ComicVine volume. Needs re-scrape.",
             "count": Comic.objects.filter(flags__metadata_mismatch=True).count(),
             "action": "review",
         },
         {
             "flag": "scrape_no_match",
             "label": "Scrape: No Match",
-            "description": "No ComicVine match found — needs manual matching or skip",
+            "description": "No ComicVine match found. Needs manual matching or skip.",
             "count": Comic.objects.filter(flags__scrape_no_match=True).count(),
             "action": "review",
         },
@@ -133,21 +135,21 @@ def index(request):
         {
             "flag": "missing_format",
             "label": "Missing Format",
-            "description": "Format detection returned no result — needs manual format assignment",
+            "description": "Format detection returned no result. Needs manual format assignment.",
             "count": Comic.objects.filter(flags__missing_format=True).count(),
             "action": "edit",
         },
         {
             "flag": "scrape_skipped",
             "label": "Scrape: Skipped",
-            "description": "Marked to be skipped by batch scraping — review or un-skip when ready",
+            "description": "Marked to be skipped by batch scraping. Review or un-skip when ready.",
             "count": Comic.objects.filter(flags__scrape_skipped=True).count(),
             "action": "review",
         },
         {
             "flag": "unknown_publisher",
             "label": "Unknown Publisher",
-            "description": "Publisher not covered by any tagging ruleset — create a ruleset or review",
+            "description": "Publisher not covered by any tagging ruleset. Create a ruleset or review.",
             "count": Comic.objects.filter(flags__unknown_publisher=True).count(),
             "action": "review",
         },
@@ -169,7 +171,7 @@ def index(request):
             "flag": "needs_reformat",
             "link": "/comics/format/",
             "label": "Format Upgrade Needed",
-            "description": "Issue count changed — format should be upgraded (e.g. One-Shot to Limited Series)",
+            "description": "Issue count changed. Format should be upgraded (e.g. One-Shot to Limited Series).",
             "count": Comic.objects.filter(needs_reformat=True).count(),
             "action": "reformat",
         },
@@ -206,14 +208,11 @@ def index(request):
     needs_reorganize_count = Comic.objects.filter(needs_reorganize=True).count()
 
     # Stale metadata queue (written before but DB updated since)
-    from django.db.models import BooleanField, Case, F, Value, When
-    stale_count = Comic.objects.annotate(
-        is_stale=Case(
-            When(last_written__isnull=False, updated_at__gt=F("last_written"), then=Value(True)),
-            default=Value(False),
-            output_field=BooleanField(),
-        )
-    ).filter(is_stale=True).count()
+    from django.db.models import F
+    stale_count = Comic.objects.filter(
+        last_written__isnull=False,
+        updated_at__gt=F("last_written"),
+    ).count()
 
     # Maintenance: duplicates
     from apps.duplicates.models import DuplicateGroup
@@ -237,6 +236,26 @@ def index(request):
         count_mismatch_count + format_mismatch_count + cv_volume_conflict_count + needs_reformat_count
     )
 
+    # New comics panel (CBZ only, non-empty proposed_series)
+    from apps.core.models import get_setting
+    from django.utils import timezone
+    from datetime import timedelta
+
+    _new_qs = (
+        Comic.objects.filter(state=Comic.STATE_NEW, file_format="cbz", medium=Comic.MEDIUM_DIGITAL)
+        .exclude(proposed_series__isnull=True).exclude(proposed_series="")
+        .order_by("-imported_at")
+    )
+    new_comics = list(_new_qs[:8])
+    new_comics_total = _new_qs.count()
+    new_comics_non_cbz = Comic.objects.filter(
+        state=Comic.STATE_NEW, medium=Comic.MEDIUM_DIGITAL
+    ).exclude(file_format="cbz").count()
+
+    zero_day_hours = int(get_setting("scrape_0day_hours", 24))
+    _0day_cutoff = timezone.now() - timedelta(hours=zero_day_hours)
+    new_comics_0day_count = _new_qs.filter(imported_at__gte=_0day_cutoff).count()
+
     # Smart lists for dashboard
     dashboard_smartlists = []
     for sl in SmartList.objects.filter(show_on_dashboard=True):
@@ -250,10 +269,216 @@ def index(request):
                 entry["total_issues"] = missing_data["total_count"]
         dashboard_smartlists.append(entry)
 
+    # Severity for "Needs your attention" card
+    _severity = {
+        "corrupted_archive": "err", "low_page_count": "err",
+        "cover_only": "err",        "scrape_error": "err",
+        "is_pdf": "warn",           "no_series": "warn",
+        "missing_count": "warn",    "count_updated": "warn",
+        "metadata_mismatch": "warn","scrape_no_match": "warn",
+        "missing_format": "warn",   "unknown_publisher": "warn",
+        "needs_conversion": "info", "is_zip": "info",
+        "scrape_skipped": "info",
+    }
+    for item in review_queue:
+        item["sev"] = _severity.get(item["flag"], "warn")
+
+    # In-flight: comics actively in the pipeline (all stages except done)
+    stats["in_flight"] = sum(
+        state_counts.get(s, 0)
+        for s in ["new", "scrape", "tagging", "formats", "deduplicate", "move", "write"]
+    )
+    stats["complete_pct"] = round(stats["written"] / max(stats["total"], 1) * 100)
+
     from apps.scraper.cv_sources import get_cv_source_status
-    from apps.core.models import get_setting
     cv_status = get_cv_source_status()
     hide_zero_maintenance_rows = get_setting("hide_zero_maintenance_rows", False)
+
+    # ── Editorial dashboard additions ─────────────────────────────────────────
+    from .helpers import get_greeting, get_bottleneck, get_week_history
+    from apps.core.models import UserPreference
+
+    prefs_obj = UserPreference.get()
+
+    owner_name = get_setting("owner_name", "")
+
+    greeting = get_greeting()
+    week_history = get_week_history()
+
+    this_week = sum(week_history[7:])
+    last_week  = sum(week_history[:7])
+    delta      = this_week - last_week
+    delta_pct  = round((delta / max(last_week, 1)) * 100)
+    week_up    = delta >= 0
+
+    # Pre-compute bar data for template (list of dicts with height, color class, opacity)
+    wmax = max(week_history, default=0) or 1
+    week_bars = [
+        {
+            "value":       v,
+            "height_pct":  max(round((v / wmax) * 100), 2),
+            "is_this_week": i >= 7,
+            "is_last":     i == 13,
+        }
+        for i, v in enumerate(week_history)
+    ]
+    # Also compute sparkline bars for pipeline header (same data)
+    sparkline_bars = [
+        {
+            "value":      v,
+            "height_pct": max(round((v / wmax) * 18), 2),
+            "opacity":    round(0.35 + (i / 13) * 0.65, 2),
+        }
+        for i, v in enumerate(week_history)
+    ]
+
+    # Enrich pipeline list with n/title/action_url for the redesigned cards
+    _action_urls = {
+        "new":         "/comics/scan-untagged/",
+        "scrape":      "/comics/scrape-all/",
+        "tagging":     "/comics/tag-all/",
+        "formats":     "/comics/format-all/",
+        "deduplicate": "/comics/deduplicate-all/",
+        "move":        "/comics/organize-all/",
+        "write":       "/comics/write-all/",
+        "done":        "/comics/sync-library-paths/",
+    }
+    _click_urls = {
+        "deduplicate": "/duplicates/",
+        "formats":     "/comics/format/",
+    }
+    for i, stage in enumerate(pipeline):
+        stage["n"] = i + 1
+        stage["title"] = stage["label"][3:]  # strip "N. " prefix
+        stage["action_url"] = _action_urls.get(stage["state"], "")
+        stage["url"] = _click_urls.get(stage["state"], f"/comics/?state={stage['state']}")
+
+    bottleneck = get_bottleneck(pipeline)
+
+    # 18-cover sample for Bold hero background (use latest done comics with covers)
+    cover_comics = list(
+        Comic.objects.filter(state=Comic.STATE_DONE)
+        .order_by("-last_written")[:18]
+    )
+
+    # Ranked attention queue (triage: severity then count)
+    _sev_order = {"err": 0, "warn": 1, "info": 2}
+    active_review = [item for item in review_queue
+                     if item["flag"] not in ("count_mismatch", "format_mismatch_in_volume",
+                                             "cv_volume_conflict") and item.get("action") != "reformat"]
+    active_review_with_count = [item for item in active_review if item["count"] > 0]
+    ranked_review = sorted(active_review_with_count,
+                           key=lambda x: (_sev_order.get(x["sev"], 3), -x["count"]))
+    active_review_items = active_review_with_count
+
+    from django.urls import reverse as _reverse
+    maintenance_items = [
+        {
+            "flag": "count_mismatch",
+            "label": "Count Mismatch",
+            "description": "Comics in same volume disagree on issue count",
+            "count": count_mismatch_count,
+            "sev": "warn",
+            "link": "/comics/?flag=count_mismatch",
+            "action_url": "/comics/detect-count-mismatches/",
+            "action_label": "Detect",
+            "action_progress": "",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "format_mismatch_in_volume",
+            "label": "Format Mismatch",
+            "description": "Same CV volume has conflicting formats",
+            "count": format_mismatch_count,
+            "sev": "warn",
+            "link": "/comics/?flag=format_mismatch_in_volume",
+            "action_url": "/comics/detect-format-conflicts/",
+            "action_label": "Detect",
+            "action_progress": "",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "cv_volume_conflict",
+            "label": "CV Volume Conflict",
+            "description": "Same Series+Volume linked to different CV volumes",
+            "count": cv_volume_conflict_count,
+            "sev": "warn",
+            "link": "/comics/?flag=cv_volume_conflict",
+            "action_url": None,
+            "action_label": None,
+            "action_progress": "",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "needs_reformat",
+            "label": "Format Upgrade",
+            "description": "Issue count changed. Format should be upgraded.",
+            "count": needs_reformat_count,
+            "sev": "warn",
+            "link": "/comics/format/",
+            "action_url": "/comics/reformat-flagged/",
+            "action_label": "Re-format",
+            "action_progress": "Re-formatting",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "duplicates",
+            "label": "Duplicates",
+            "description": "Pending duplicate groups",
+            "count": dup_total,
+            "sev": "warn",
+            "link": _reverse("duplicates:review"),
+            "action_url": None,
+            "action_label": None,
+            "action_progress": "",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "needs_reorganize",
+            "label": "Needs Re-organize",
+            "description": "Metadata changed since last organize",
+            "count": needs_reorganize_count,
+            "sev": "info",
+            "link": _reverse("organizer:path_audit"),
+            "action_url": _reverse("organizer:start_reorganize_all"),
+            "action_label": "Re-organize",
+            "action_progress": "Re-organizing",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "stale",
+            "label": "Stale Metadata",
+            "description": "DB updated after last ComicInfo.xml write",
+            "count": stale_count,
+            "sev": "info",
+            "link": _reverse("core:list") + "?stale=1",
+            "action_url": _reverse("core:write_stale"),
+            "action_label": "Write Stale",
+            "action_progress": "Writing stale",
+            "is_maintenance": True,
+        },
+        {
+            "flag": "missing_comicinfo",
+            "label": "Missing ComicInfo",
+            "description": "Written comics never had ComicInfo.xml written",
+            "count": missing_comicinfo_count,
+            "sev": "info",
+            "link": None,
+            "action_url": _reverse("core:write_missing"),
+            "action_label": "Write Missing",
+            "action_progress": "Writing missing",
+            "is_maintenance": True,
+        },
+    ]
+    maintenance_items_with_count = [i for i in maintenance_items if i["count"] > 0]
+    maintenance_items_count = sum(i["count"] for i in maintenance_items)
+
+    # Triage combined list: active items first (sorted), then maintenance items (sorted)
+    # Maintenance items go after all active items so rank numbers have no gaps when maintenance is hidden.
+    ranked_all = (
+        sorted(active_review_with_count, key=lambda x: (_sev_order.get(x["sev"], 3), -x["count"])) +
+        sorted(maintenance_items_with_count, key=lambda x: (_sev_order.get(x["sev"], 3), -x["count"]))
+    )
 
     return render(request, "dashboard/index.html", {
         "stats": stats,
@@ -273,6 +498,58 @@ def index(request):
         "dashboard_smartlists": dashboard_smartlists,
         "cv_status": cv_status,
         "hide_zero_maintenance_rows": hide_zero_maintenance_rows,
+        "new_comics": new_comics,
+        "new_comics_total": new_comics_total,
+        "new_comics_non_cbz": new_comics_non_cbz,
+        "zero_day_hours": zero_day_hours,
+        "new_comics_0day_count": new_comics_0day_count,
+        # editorial dashboard
+        "greeting":       greeting,
+        "owner_name":     owner_name,
+        "week_history":   week_history,
+        "week_bars":      week_bars,
+        "sparkline_bars": sparkline_bars,
+        "this_week":      this_week,
+        "last_week":      last_week,
+        "delta_pct":      abs(delta_pct),
+        "week_up":        week_up,
+        "bottleneck":     bottleneck,
+        "cover_comics":   cover_comics,
+        "ranked_review":             ranked_review,
+        "active_review_items":       active_review_items,
+        "maintenance_items":         maintenance_items,
+        "maintenance_items_with_count": maintenance_items_with_count,
+        "maintenance_items_count":   maintenance_items_count,
+        "ranked_all":                ranked_all,
+    })
+
+
+def new_comics_partial(request):
+    """HTMX: load the next page of New comics cards for the dashboard panel."""
+    from apps.core.models import get_setting
+    from django.utils import timezone
+    from datetime import timedelta
+
+    PAGE = 8
+    try:
+        offset = int(request.GET.get("offset", 0))
+    except (ValueError, TypeError):
+        offset = 0
+
+    _new_qs = (
+        Comic.objects.filter(state=Comic.STATE_NEW, file_format="cbz", medium=Comic.MEDIUM_DIGITAL)
+        .exclude(proposed_series__isnull=True).exclude(proposed_series="")
+        .order_by("-imported_at")
+    )
+    comics = list(_new_qs[offset : offset + PAGE])
+    total = _new_qs.count()
+    next_offset = offset + PAGE
+    has_more = next_offset < total
+
+    return render(request, "dashboard/_new_comics_partial.html", {
+        "comics": comics,
+        "next_offset": next_offset,
+        "has_more": has_more,
     })
 
 
@@ -414,7 +691,7 @@ def _parse_cbl(xml_bytes):
     filters: list of SmartList filter dicts (leaf or group).
     warnings: list of strings for skipped/unsupported matchers.
     """
-    import xml.etree.ElementTree as ET
+    import defusedxml.ElementTree as ET
 
     XSI_TYPE = "{http://www.w3.org/2001/XMLSchema-instance}type"
 
@@ -879,9 +1156,15 @@ def smartlist_detail(request, pk):
 
     sl = get_object_or_404(SmartList, pk=pk)
 
-    # Use GET col params if provided, else smart list saved columns, else default
+    # Use GET col params if provided, else smart list saved columns, else layout_default, else DEFAULT_COLUMNS
     get_cols = request.GET.getlist("col")
-    active_columns = get_cols if get_cols else (sl.columns if sl.columns else DEFAULT_COLUMNS)
+    if not get_cols:
+        from apps.core.models import get_setting
+        _saved_default = get_setting("layout_default")
+        _default_cols = _saved_default.split(",") if _saved_default else DEFAULT_COLUMNS
+        active_columns = sl.columns if sl.columns else _default_cols
+    else:
+        active_columns = get_cols
 
     # Allow runtime sort override via GET params
     sort = request.GET.get("sort", sl.sort_field or "series")
@@ -936,6 +1219,21 @@ def smartlist_detail(request, pk):
         "current_dir": sort_dir,
         "query_string": query_string,
     })
+
+
+@require_POST
+def save_smartlist_columns(request, pk):
+    """Save or clear column selection for a SmartList from the detail view."""
+    sl = get_object_or_404(SmartList, pk=pk)
+    if request.POST.get("reset") == "1":
+        sl.columns = []
+    else:
+        cols = request.POST.getlist("col")
+        if not cols:
+            return JsonResponse({"success": False, "error": "No columns selected"})
+        sl.columns = cols
+    sl.save(update_fields=["columns"])
+    return JsonResponse({"success": True})
 
 
 def smartlist_missing(request, pk):
@@ -1016,10 +1314,12 @@ def _escape_js(text):
 @require_POST
 def smartlist_run_action(request, pk):
     """
-    Dispatch a Celery task to run a workflow action on all comics in a Smart List.
+    Dispatch a Celery task to run a workflow action on all comics in a Smart List,
+    or on a specific subset if comic_ids is provided.
 
     POST params:
         action: 'tag' | 'format' | 'organize' | 'write'
+        comic_ids: optional comma-separated list of comic PKs to restrict the action
     """
     from celery.result import AsyncResult
 
@@ -1029,36 +1329,33 @@ def smartlist_run_action(request, pk):
     if action not in ("tag", "format", "organize", "write"):
         return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
 
-    # Prevent double-submit
-    active_task_id = request.session.get("smartlist_action_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "An action is already running",
-                "task_id": active_task_id,
-            }, status=409)
 
-    # Count comics
-    qs = build_queryset(sl)
-    count = qs.count()
+    # Optional: restrict to specific comic IDs selected in the UI
+    comic_ids_raw = request.POST.get("comic_ids", "").strip()
+    comic_ids = [cid.strip() for cid in comic_ids_raw.split(",") if cid.strip()] if comic_ids_raw else None
+
+    if comic_ids is not None:
+        from apps.core.models import Comic as _Comic
+        count = _Comic.objects.filter(pk__in=comic_ids).count()
+    else:
+        qs = build_queryset(sl)
+        count = qs.count()
+
     if count == 0:
         return JsonResponse({
             "success": True,
             "processed": 0,
             "total": 0,
-            "message": "No comics in this smart list",
+            "message": "No comics to process",
         })
 
-    from .tasks import run_smartlist_action_task
-    result = run_smartlist_action_task.delay(str(sl.pk), action)
-    request.session["smartlist_action_task_id"] = result.id
-
     action_labels = {"tag": "Re-tagging", "format": "Re-formatting", "organize": "Re-organizing", "write": "Writing"}
+    result = enqueue("smartlist_action", args=[str(sl.pk), action, comic_ids], label=f"{action_labels.get(action, action)} comics")
     return JsonResponse({
         "success": True,
         "task_id": result.id,
         "total": count,
         "message": f"{action_labels.get(action, action)} {count} comics in background",
     })
+
+

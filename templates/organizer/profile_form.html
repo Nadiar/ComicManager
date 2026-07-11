@@ -3,193 +3,139 @@
 {% block nav_organizer %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
 
-  <div class="flex justify-between items-center">
-    <h1 class="text-3xl font-bold">
-      {% if is_create %}New Profile{% else %}Edit Profile{% endif %}
-    </h1>
-    <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Cancel</a>
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border);">
+  <h1 class="cm-page-title">
+    {% if is_create %}New Profile{% else %}Edit Profile{% endif %}
+  </h1>
+  <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
+</div>
+
+
+<form method="post" class="space-y-6" id="profile-form" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+  {% csrf_token %}
+  <input type="hidden" name="exclude_rules" id="exclude-rules-input" value="">
+
+  <!-- Basic Settings -->
+  <div class="cm-card cm-card-body">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Basic Settings</div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <div>
+        <label class="cm-label">Name</label>
+        <input type="text" name="name" value="{{ profile.name|default:'' }}" class="cm-input" placeholder="Profile name" required style="width:100%; max-width:400px;">
+      </div>
+      {% if not is_create %}
+      <div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer;">
+          <input type="checkbox" name="is_enabled" {% if profile.is_enabled %}checked{% endif %} style="accent-color:var(--cm-accent); width:14px; height:14px;">
+          Enabled
+        </label>
+      </div>
+      {% endif %}
+    </div>
   </div>
 
-  <form method="post" class="space-y-6" id="profile-form">
-    {% csrf_token %}
-    <input type="hidden" name="exclude_rules" id="exclude-rules-input" value="">
-
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title">Basic Settings</h2>
-
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Name</span>
-          </label>
-          <input
-            type="text"
-            name="name"
-            value="{{ profile.name|default:'' }}"
-            class="input input-bordered"
-            placeholder="Profile name"
-            required
-          >
-        </div>
-
-        {% if not is_create %}
-        <div class="form-control">
-          <label class="cursor-pointer label justify-start gap-4">
-            <input
-              type="checkbox"
-              name="is_enabled"
-              {% if profile.is_enabled %}checked{% endif %}
-              class="checkbox checkbox-primary"
-            >
-            <span class="label-text">Enabled</span>
-          </label>
-        </div>
-        {% endif %}
+  <!-- Matching Rules -->
+  <div class="cm-card cm-card-body">
+    <div style="font-size:15px; font-weight:700; margin-bottom:4px;">Matching Rules</div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:12px;">Define which comics this profile applies to. Leave empty to match all comics. Use groups for OR logic.</p>
+    <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+      <div>
+        <label class="cm-label">Mode</label>
+        <select id="rule-mode" class="cm-input" style="height:30px; font-size:12px; min-width:180px;">
+          <option value="Only">Only process matches</option>
+          <option value="Do not">Exclude matches</option>
+        </select>
+      </div>
+      <div>
+        <label class="cm-label">Top-level match</label>
+        <select id="rule-operator" class="cm-input" style="height:30px; font-size:12px; min-width:150px;">
+          <option value="All">All rules (AND)</option>
+          <option value="Any">Any rule (OR)</option>
+        </select>
       </div>
     </div>
+    <div id="rules-container" style="display:flex; flex-direction:column; gap:6px;"></div>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <button type="button" id="add-rule-btn" class="cm-btn sm ghost">+ Add Rule</button>
+      <button type="button" id="add-group-btn" class="cm-btn sm ghost" style="color:var(--cm-accent); border-color:var(--cm-accent);">+ Add Group</button>
+    </div>
+  </div>
 
-    <!-- Matching Rules -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title">Matching Rules</h2>
-        <p class="text-sm text-base-content/60">
-          Define which comics this profile applies to. If no rules are set, the profile matches all comics.
-          Use groups to combine rules with different AND/OR logic.
-        </p>
-
-        <div class="flex gap-4 mt-2">
-          <div class="form-control">
-            <label class="label"><span class="label-text">Mode</span></label>
-            <select id="rule-mode" class="select select-bordered select-sm">
-              <option value="Only">Only process matches</option>
-              <option value="Do not">Exclude matches</option>
-            </select>
-          </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">Top-level match</span></label>
-            <select id="rule-operator" class="select select-bordered select-sm">
-              <option value="All">All rules (AND)</option>
-              <option value="Any">Any rule (OR)</option>
-            </select>
-          </div>
-        </div>
-
-        <div id="rules-container" class="space-y-2 mt-4"></div>
-
-        <div class="flex gap-2 mt-2">
-          <button type="button" id="add-rule-btn" class="btn btn-sm btn-outline">+ Add Rule</button>
-          <button type="button" id="add-group-btn" class="btn btn-sm btn-outline btn-secondary">+ Add Group</button>
-        </div>
+  <!-- Templates -->
+  <div class="cm-card cm-card-body">
+    <div style="font-size:15px; font-weight:700; margin-bottom:4px;">Templates</div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:12px;">
+      Use placeholders like <code class="cm-text-accent">{&lt;series&gt;}</code>,
+      <code class="cm-text-accent">{&lt;publisher&gt;}</code>,
+      <code class="cm-text-accent">{#&lt;number3&gt;}</code> (padded 3 digits),
+      <code class="cm-text-accent">{&lt;Custom(First Series)&gt;}</code>
+    </p>
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div>
+        <label class="cm-label">Folder Template</label>
+        <textarea name="folder_template" rows="3" class="cm-input" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"
+          placeholder="{<publisher>}/{<series>} ({<volume0>})">{{ profile.folder_template|default:'{<publisher>}/{<series>}' }}</textarea>
+        <div style="font-size:11px; color:var(--cm-fg-3); margin-top:3px;">Path segments separated by / or \</div>
+      </div>
+      <div>
+        <label class="cm-label">File Template</label>
+        <textarea name="file_template" rows="3" class="cm-input" style="width:100%; font-family:monospace; font-size:12px; resize:vertical;"
+          placeholder="{<series>} #{<number3>} [{<year>}]">{{ profile.file_template|default:'{<series>} #{<number3>}' }}</textarea>
+        <div style="font-size:11px; color:var(--cm-fg-3); margin-top:3px;">Filename without extension</div>
+      </div>
+      <div>
+        <label class="cm-label">Base Folder</label>
+        <input type="text" name="base_folder" value="{{ profile.base_folder|default:'/comics/library' }}" class="cm-input" style="width:100%; font-family:monospace; font-size:12px;" placeholder="/comics/library">
+        <div style="font-size:11px; color:var(--cm-fg-3); margin-top:3px;">Root folder for organized comics (inside container)</div>
       </div>
     </div>
+  </div>
 
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title">Templates</h2>
-        <p class="text-sm text-base-content/60">
-          Use placeholders like <code class="text-primary">{&lt;series&gt;}</code>,
-          <code class="text-primary">{&lt;publisher&gt;}</code>,
-          <code class="text-primary">{#&lt;number3&gt;}</code> (padded to 3 digits),
-          <code class="text-primary">{&lt;Custom(First Series)&gt;}</code>
-        </p>
-
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Folder Template</span>
-          </label>
-          <textarea
-            name="folder_template"
-            rows="3"
-            class="textarea textarea-bordered font-mono text-sm resize-y w-full"
-            placeholder="{<publisher>}/{<series>} ({<volume0>})"
-          >{{ profile.folder_template|default:'{<publisher>}/{<series>}' }}</textarea>
-          <label class="label">
-            <span class="label-text-alt">Path segments separated by / or \</span>
-          </label>
-        </div>
-
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">File Template</span>
-          </label>
-          <textarea
-            name="file_template"
-            rows="3"
-            class="textarea textarea-bordered font-mono text-sm resize-y w-full"
-            placeholder="{<series>} #{<number3>} [{<year>}]"
-          >{{ profile.file_template|default:'{<series>} #{<number3>}' }}</textarea>
-          <label class="label">
-            <span class="label-text-alt">Filename without extension</span>
-          </label>
-        </div>
-
-        <div class="form-control">
-          <label class="label">
-            <span class="label-text">Base Folder</span>
-          </label>
-          <input
-            type="text"
-            name="base_folder"
-            value="{{ profile.base_folder|default:'/comics/library' }}"
-            class="input input-bordered font-mono text-sm"
-            placeholder="/comics/library"
-          >
-          <label class="label">
-            <span class="label-text-alt">Root folder for organized comics (inside container)</span>
-          </label>
-        </div>
-      </div>
+  <!-- Template Reference -->
+  <div class="cm-card cm-card-body">
+    <div style="font-size:15px; font-weight:700; margin-bottom:10px;">Template Reference</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:4px; font-size:12px;">
+      <div><code class="cm-text-accent">{&lt;series&gt;}</code> Series name</div>
+      <div><code class="cm-text-accent">{&lt;publisher&gt;}</code> Publisher</div>
+      <div><code class="cm-text-accent">{&lt;format&gt;}</code> Format (TPB, etc)</div>
+      <div><code class="cm-text-accent">{&lt;volume&gt;}</code> Volume number</div>
+      <div><code class="cm-text-accent">{&lt;volume0&gt;}</code> Volume (default 0)</div>
+      <div><code class="cm-text-accent">{&lt;number&gt;}</code> Issue number</div>
+      <div><code class="cm-text-accent">{#&lt;number3&gt;}</code> Number padded (001)</div>
+      <div><code class="cm-text-accent">{&lt;year&gt;}</code> Year</div>
+      <div><code class="cm-text-accent">{&lt;month&gt;}</code> Month name</div>
+      <div><code class="cm-text-accent">{&lt;day&gt;}</code> Day</div>
+      <div><code class="cm-text-accent">{&lt;title&gt;}</code> Issue title</div>
+      <div><code class="cm-text-accent">{&lt;genre&gt;}</code> Genre</div>
+      <div><code class="cm-text-accent">{&lt;seriesgroup&gt;}</code> Series group</div>
+      <div><code class="cm-text-accent">{&lt;maincharacter&gt;}</code> Main character</div>
+      <div><code class="cm-text-accent">{&lt;writer&gt;}</code> Writer(s)</div>
+      <div><code class="cm-text-accent">{&lt;writer[1]&gt;}</code> First writer</div>
+      <div><code class="cm-text-accent">{&lt;writer[1][l]&gt;}</code> First writer last name</div>
+      <div><code class="cm-text-accent">{&lt;writer[1][f]&gt;}</code> First writer first name</div>
+      <div><code class="cm-text-accent">{&lt;penciller&gt;}</code> Penciller(s)</div>
+      <div><code class="cm-text-accent">{&lt;inker&gt;}</code> Inker</div>
+      <div><code class="cm-text-accent">{&lt;colorist&gt;}</code> Colorist</div>
+      <div><code class="cm-text-accent">{&lt;letterer&gt;}</code> Letterer</div>
+      <div><code class="cm-text-accent">{&lt;coverartist&gt;}</code> Cover artist</div>
+      <div><code class="cm-text-accent">{&lt;editor&gt;}</code> Editor</div>
+      <div><code class="cm-text-accent">{&lt;count&gt;}</code> Issue count</div>
+      <div><code class="cm-text-accent">{&lt;storyarc&gt;}</code> Story arc</div>
+      <div><code class="cm-text-accent">{&lt;altnumber&gt;}</code> Alternate number</div>
+      <div><code class="cm-text-accent">{&lt;startyear&gt;}</code> Series start year</div>
+      <div><code class="cm-text-accent">{&lt;Custom(X)&gt;}</code> Custom value</div>
     </div>
+  </div>
 
-    <!-- Template Reference -->
-    <div class="card bg-base-200">
-      <div class="card-body">
-        <h2 class="card-title">Template Reference</h2>
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-          <div><code class="text-primary">{&lt;series&gt;}</code> Series name</div>
-          <div><code class="text-primary">{&lt;publisher&gt;}</code> Publisher</div>
-          <div><code class="text-primary">{&lt;format&gt;}</code> Format (TPB, etc)</div>
-          <div><code class="text-primary">{&lt;volume&gt;}</code> Volume number</div>
-          <div><code class="text-primary">{&lt;volume0&gt;}</code> Volume (default 0)</div>
-          <div><code class="text-primary">{&lt;number&gt;}</code> Issue number</div>
-          <div><code class="text-primary">{#&lt;number3&gt;}</code> Number padded (001)</div>
-          <div><code class="text-primary">{&lt;year&gt;}</code> Year</div>
-          <div><code class="text-primary">{&lt;month&gt;}</code> Month name</div>
-          <div><code class="text-primary">{&lt;day&gt;}</code> Day</div>
-          <div><code class="text-primary">{&lt;title&gt;}</code> Issue title</div>
-          <div><code class="text-primary">{&lt;genre&gt;}</code> Genre</div>
-          <div><code class="text-primary">{&lt;seriesgroup&gt;}</code> Series group</div>
-          <div><code class="text-primary">{&lt;maincharacter&gt;}</code> Main character</div>
-          <div><code class="text-primary">{&lt;writer&gt;}</code> Writer(s)</div>
-          <div><code class="text-primary">{&lt;writer[1]&gt;}</code> First writer</div>
-          <div><code class="text-primary">{&lt;writer[1][l]&gt;}</code> First writer last name</div>
-          <div><code class="text-primary">{&lt;writer[1][f]&gt;}</code> First writer first name</div>
-          <div><code class="text-primary">{&lt;penciller&gt;}</code> Penciller(s)</div>
-          <div><code class="text-primary">{&lt;inker&gt;}</code> Inker</div>
-          <div><code class="text-primary">{&lt;colorist&gt;}</code> Colorist</div>
-          <div><code class="text-primary">{&lt;letterer&gt;}</code> Letterer</div>
-          <div><code class="text-primary">{&lt;coverartist&gt;}</code> Cover artist</div>
-          <div><code class="text-primary">{&lt;editor&gt;}</code> Editor</div>
-          <div><code class="text-primary">{&lt;count&gt;}</code> Issue count</div>
-          <div><code class="text-primary">{&lt;storyarc&gt;}</code> Story arc</div>
-          <div><code class="text-primary">{&lt;altnumber&gt;}</code> Alternate number</div>
-          <div><code class="text-primary">{&lt;startyear&gt;}</code> Series start year</div>
-          <div><code class="text-primary">{&lt;Custom(X)&gt;}</code> Custom value</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="flex gap-2">
-      <button type="submit" class="btn btn-primary">
-        {% if is_create %}Create Profile{% else %}Save Changes{% endif %}
-      </button>
-      <a href="{% url 'organizer:profile_list' %}" class="btn btn-ghost">Cancel</a>
-    </div>
-  </form>
-
-</div>
+  <div style="display:flex; gap:8px;">
+    <button type="submit" class="cm-btn sm primary">
+      {% if is_create %}Create Profile{% else %}Save Changes{% endif %}
+    </button>
+    <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
+  </div>
+</form>
 
 <datalist id="custom-keys-list"></datalist>
 
@@ -205,17 +151,14 @@ function getOperatorsForField(field) {
   return NUMERIC_FIELDS.has(field) ? [...RULE_OPERATORS, ...NUMERIC_OPERATORS] : RULE_OPERATORS;
 }
 
-// Populate datalist for custom key autocomplete
 const _dl = document.getElementById('custom-keys-list');
 CUSTOM_VALUE_KEYS.forEach(k => { const o = document.createElement('option'); o.value = k; _dl.appendChild(o); });
 
-// ---- Rule Row ----
 function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   const row = document.createElement('div');
-  row.className = 'flex items-center gap-2';
+  row.style.cssText = 'display:flex; align-items:center; gap:8px;';
   row.dataset.type = 'rule';
 
-  // Detect if field is a Custom() reference
   let isCustom = false;
   let customKey = '';
   if (field.startsWith('Custom(') && field.endsWith(')')) {
@@ -224,7 +167,7 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   }
 
   const fieldSelect = document.createElement('select');
-  fieldSelect.className = 'select select-bordered select-sm';
+  fieldSelect.className = 'cm-input';
   fieldSelect.dataset.role = 'field';
   RULE_FIELDS.forEach(f => {
     const opt = document.createElement('option');
@@ -233,7 +176,6 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
     if (!isCustom && f === field) opt.selected = true;
     fieldSelect.appendChild(opt);
   });
-  // Separator + Custom Value option
   const sep = document.createElement('option');
   sep.disabled = true;
   sep.textContent = '───────────';
@@ -244,10 +186,10 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   if (isCustom) customOpt.selected = true;
   fieldSelect.appendChild(customOpt);
 
-  // Custom key input (hidden unless Custom Value selected)
   const keyInput = document.createElement('input');
   keyInput.type = 'text';
-  keyInput.className = 'input input-bordered input-sm w-40';
+  keyInput.className = 'cm-input';
+  keyInput.style.cssText = 'width:140px;';
   keyInput.placeholder = 'Key (e.g. IsStarWars)';
   keyInput.dataset.role = 'custom-key';
   keyInput.setAttribute('list', 'custom-keys-list');
@@ -255,7 +197,7 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   keyInput.style.display = isCustom ? '' : 'none';
 
   const opSelect = document.createElement('select');
-  opSelect.className = 'select select-bordered select-sm';
+  opSelect.className = 'cm-input';
   opSelect.dataset.role = 'operator';
 
   function populateOpSelect(selectedField, selectedOp) {
@@ -278,14 +220,16 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
 
   const valueInput = document.createElement('input');
   valueInput.type = 'text';
-  valueInput.className = 'input input-bordered input-sm flex-1';
+  valueInput.className = 'cm-input';
+  valueInput.style.cssText = 'flex:1;';
   valueInput.placeholder = 'Value';
   valueInput.value = value;
   valueInput.dataset.role = 'value';
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'btn btn-sm btn-ghost btn-square text-error';
+  removeBtn.className = 'cm-icon-btn';
+  removeBtn.style.color = 'var(--cm-err)';
   removeBtn.innerHTML = '&times;';
   removeBtn.onclick = () => row.remove();
 
@@ -298,22 +242,21 @@ function createRuleRow(field = 'Publisher', operator = 'is', value = '') {
   return row;
 }
 
-// ---- Rule Group ----
 function createGroupEl(groupOperator = 'Any', rules = []) {
   const group = document.createElement('div');
-  group.className = 'border-l-4 border-secondary pl-4 py-2 space-y-2 bg-base-300 rounded-r-lg';
+  group.style.cssText = 'border:1px solid color-mix(in srgb, var(--cm-accent) 40%, transparent); border-left:4px solid var(--cm-accent); padding:8px 0 8px 16px; background:var(--cm-bg-2); border-radius:0 6px 6px 0; display:flex; flex-direction:column; gap:6px;';
   group.dataset.type = 'group';
 
-  // Group header
   const header = document.createElement('div');
-  header.className = 'flex items-center gap-2';
+  header.style.cssText = 'display:flex; align-items:center; gap:8px;';
 
   const label = document.createElement('span');
-  label.className = 'text-xs font-bold uppercase text-secondary';
+  label.style.cssText = 'font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-accent);';
   label.textContent = 'Group';
 
   const opSelect = document.createElement('select');
-  opSelect.className = 'select select-bordered select-xs';
+  opSelect.className = 'cm-input';
+  opSelect.style.cssText = 'height:22px; font-size:11px;';
   opSelect.dataset.role = 'group-operator';
   ['All', 'Any'].forEach(o => {
     const opt = document.createElement('option');
@@ -325,18 +268,17 @@ function createGroupEl(groupOperator = 'Any', rules = []) {
 
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
-  addBtn.className = 'btn btn-xs btn-outline';
+  addBtn.className = 'cm-btn sm ghost';
   addBtn.textContent = '+ Rule';
-  addBtn.onclick = () => {
-    rulesContainer.appendChild(createRuleRow());
-  };
+  addBtn.onclick = () => rulesContainer.appendChild(createRuleRow());
 
   const spacer = document.createElement('span');
-  spacer.className = 'flex-1';
+  spacer.style.flex = '1';
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'btn btn-xs btn-ghost text-error';
+  removeBtn.className = 'cm-btn sm ghost';
+  removeBtn.style.color = 'var(--cm-err)';
   removeBtn.innerHTML = '&times; Remove Group';
   removeBtn.onclick = () => group.remove();
 
@@ -346,17 +288,13 @@ function createGroupEl(groupOperator = 'Any', rules = []) {
   header.appendChild(spacer);
   header.appendChild(removeBtn);
 
-  // Rules container inside group
   const rulesContainer = document.createElement('div');
-  rulesContainer.className = 'space-y-2';
+  rulesContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
   rulesContainer.dataset.role = 'group-rules';
 
   rules.forEach(r => {
-    if (r.type === 'group') {
-      rulesContainer.appendChild(createGroupEl(r.operator || 'Any', r.rules || []));
-    } else {
-      rulesContainer.appendChild(createRuleRow(r.field || 'Publisher', r.operator || 'is', r.value || ''));
-    }
+    if (r.type === 'group') rulesContainer.appendChild(createGroupEl(r.operator || 'Any', r.rules || []));
+    else rulesContainer.appendChild(createRuleRow(r.field || 'Publisher', r.operator || 'is', r.value || ''));
   });
 
   group.appendChild(header);
@@ -365,11 +303,9 @@ function createGroupEl(groupOperator = 'Any', rules = []) {
   return group;
 }
 
-// ---- Serialize ----
 function serializeContainer(container) {
   const items = [];
   const children = container.querySelectorAll(':scope > [data-type]');
-
   children.forEach(el => {
     if (el.dataset.type === 'rule') {
       const fieldSelect = el.querySelector('[data-role="field"]');
@@ -380,41 +316,25 @@ function serializeContainer(container) {
         let fieldValue = fieldSelect.value;
         if (fieldValue === CUSTOM_SENTINEL && customKey && customKey.value.trim()) {
           fieldValue = 'Custom(' + customKey.value.trim() + ')';
-        } else if (fieldValue === CUSTOM_SENTINEL) {
-          return; // Skip rule with no custom key
-        }
-        items.push({
-          type: 'rule',
-          field: fieldValue,
-          operator: op.value,
-          value: val.value.trim(),
-        });
+        } else if (fieldValue === CUSTOM_SENTINEL) return;
+        items.push({ type: 'rule', field: fieldValue, operator: op.value, value: val.value.trim() });
       }
     } else if (el.dataset.type === 'group') {
       const groupOp = el.querySelector('[data-role="group-operator"]');
       const groupRules = el.querySelector('[data-role="group-rules"]');
       if (groupOp && groupRules) {
         const nested = serializeContainer(groupRules);
-        if (nested.length > 0) {
-          items.push({
-            type: 'group',
-            operator: groupOp.value,
-            rules: nested,
-          });
-        }
+        if (nested.length > 0) items.push({ type: 'group', operator: groupOp.value, rules: nested });
       }
     }
   });
-
   return items;
 }
 
 function serializeAll() {
   const container = document.getElementById('rules-container');
   const rules = serializeContainer(container);
-
   if (rules.length === 0) return '';
-
   return JSON.stringify({
     mode: document.getElementById('rule-mode').value,
     operator: document.getElementById('rule-operator').value,
@@ -422,26 +342,18 @@ function serializeAll() {
   });
 }
 
-// ---- Load ----
 function loadExistingRules() {
   const data = JSON.parse('{{ exclude_rules_json|escapejs }}');
   if (!data || !data.rules) return;
-
   if (data.mode) document.getElementById('rule-mode').value = data.mode;
   if (data.operator) document.getElementById('rule-operator').value = data.operator;
-
   const container = document.getElementById('rules-container');
-
   data.rules.forEach(item => {
-    if (item.type === 'group') {
-      container.appendChild(createGroupEl(item.operator || 'Any', item.rules || []));
-    } else {
-      container.appendChild(createRuleRow(item.field || 'Publisher', item.operator || 'is', item.value || ''));
-    }
+    if (item.type === 'group') container.appendChild(createGroupEl(item.operator || 'Any', item.rules || []));
+    else container.appendChild(createRuleRow(item.field || 'Publisher', item.operator || 'is', item.value || ''));
   });
 }
 
-// ---- Events ----
 document.getElementById('add-rule-btn').addEventListener('click', () => {
   document.getElementById('rules-container').appendChild(createRuleRow());
 });

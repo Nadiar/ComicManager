@@ -1,31 +1,15 @@
 {% if data %}
-<div class="card bg-base-200">
-  <div class="card-body py-4">
-    <div class="flex items-center justify-between mb-2">
-      <h3 class="font-semibold text-sm">
-        Series Completion — {{ data.volume_info.name }}
-        {% if data.volume_info.start_year %}({{ data.volume_info.start_year }}){% endif %}
-      </h3>
-      <div class="flex items-center gap-3">
-        <span class="text-sm font-mono">
-          {{ data.owned_count }}/{{ data.total_count }} — {{ data.completion }}%
-        </span>
-        <a href="{% url 'core:series_audit' comic.pk %}" class="btn btn-xs btn-outline">
-          Details
-        </a>
-      </div>
-    </div>
-
-    <div class="w-full bg-base-300 rounded-full h-4 overflow-hidden">
-      <div class="h-full rounded-full transition-all
-        {% if data.completion == 100 %}bg-success{% elif data.completion >= 75 %}bg-info{% elif data.completion >= 50 %}bg-warning{% else %}bg-error{% endif %}"
-        style="width: {{ data.completion }}%">
-      </div>
-    </div>
-    <div class="flex justify-between text-xs text-base-content/50 mt-1">
-      <span>{{ data.owned_count }} owned</span>
-      <span>{{ data.missing_count }} missing</span>
-    </div>
+<div style="padding:10px 12px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; display:flex; flex-direction:column; gap:6px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+    <span class="cm-section-lbl">Series completion</span>
+    <span class="mono cm-btn sm" style="font-size:11.5px; color:var(--cm-ok);"><a href="{% url 'core:series_audit' comic.pk %}">{{ data.owned_count }}/{{ data.total_count }} · {{ data.completion }}% ↗</a></span>
+  </div>
+  <div class="cm-progress {% if data.completion == 100 %}ok{% endif %}" style="height:6px; border-radius:3px;">
+    <span style="width:{{ data.completion }}%; {% if data.completion < 50 %}background:var(--cm-err);{% elif data.completion < 75 %}background:var(--cm-warn);{% elif data.completion < 100 %}background:var(--cm-info);{% endif %}"></span>
+  </div>
+  <div style="display:flex; justify-content:space-between; font-size:10.5px; color:var(--cm-fg-3);">
+    <span class="mono">{{ data.owned_count }} owned</span>
+    <span class="mono">{{ data.missing_count }} missing</span>
   </div>
 </div>
 {% endif %}

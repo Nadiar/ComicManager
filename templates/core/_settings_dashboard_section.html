@@ -1,0 +1,53 @@
+<div id="settings-dashboard-section"
+     style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:18px 20px;">
+  <div style="font-size:14px; font-weight:600; color:var(--cm-fg-1); margin-bottom:4px;">Dashboard</div>
+  <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 16px;">Customize what appears on the dashboard. Changes apply on next page load.</p>
+  <form hx-post="{% url 'settings:dashboard' %}"
+        hx-target="#settings-dashboard-section"
+        hx-swap="outerHTML"
+        hx-trigger="change"
+        style="display:flex; flex-direction:column; gap:14px;">
+    {% csrf_token %}
+
+    <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:14px;">
+
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label class="cm-section-lbl">Hero style</label>
+        <select name="dashboard_hero_style" class="cm-input" style="font-size:13px;">
+          <option value="subtle"   {% if prefs.dashboard_hero_style == "subtle"   %}selected{% endif %}>Subtle — compact single row</option>
+          <option value="editorial" {% if prefs.dashboard_hero_style == "editorial" or not prefs.dashboard_hero_style %}selected{% endif %}>Editorial — gradient with stats (default)</option>
+          <option value="bold"    {% if prefs.dashboard_hero_style == "bold"    %}selected{% endif %}>Bold — full cover wall</option>
+        </select>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <label class="cm-section-lbl">Needs attention style</label>
+        <select name="dashboard_attention_style" class="cm-input" style="font-size:13px;">
+          <option value="list"   {% if prefs.dashboard_attention_style == "list" or not prefs.dashboard_attention_style %}selected{% endif %}>List — severity chips (default)</option>
+          <option value="triage" {% if prefs.dashboard_attention_style == "triage" %}selected{% endif %}>Triage — ranked queue</option>
+          <option value="grid"   {% if prefs.dashboard_attention_style == "grid"   %}selected{% endif %}>Grid — card grid</option>
+        </select>
+      </div>
+
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px; padding-top:2px;">
+      <label class="cm-section-lbl">Visible sections</label>
+      <div style="display:flex; flex-wrap:wrap; gap:10px;">
+        <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-size:12.5px; color:var(--cm-fg-1);">
+          <input type="checkbox" name="dashboard_show_weekly_card"
+                 {% if prefs.dashboard_show_weekly_card %}checked{% endif %}
+                 style="width:14px; height:14px; accent-color:var(--cm-accent);">
+          Weekly summary card
+        </label>
+        <label style="display:flex; align-items:center; gap:7px; cursor:pointer; font-size:12.5px; color:var(--cm-fg-1);">
+          <input type="checkbox" name="dashboard_show_priority_banner"
+                 {% if prefs.dashboard_show_priority_banner %}checked{% endif %}
+                 style="width:14px; height:14px; accent-color:var(--cm-accent);">
+          Priority banner (bottleneck CTA)
+        </label>
+      </div>
+    </div>
+
+  </form>
+</div>

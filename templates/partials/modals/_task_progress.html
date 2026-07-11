@@ -1,0 +1,22 @@
+  <!-- Background task progress notification -->
+  <div id="task-progress-toast" class="fixed bottom-4 right-4 z-[70] hidden" style="width:340px">
+    <div class="cm-card" style="padding:0;overflow:hidden">
+      <div class="px-3 pt-2 pb-1">
+        <div class="flex items-center gap-1.5 mb-1.5">
+          <span id="task-spinner" class="text-[var(--cm-accent)] text-sm">◐</span>
+          <span class="flex-1 text-sm font-semibold truncate" id="task-progress-label">Processing...</span>
+          <span class="text-xs cm-text-muted mono tnum" id="task-progress-count"></span>
+          <button id="task-cancel-btn" class="cm-btn sm ghost hidden" style="color:var(--cm-err);" onclick="window.cancelActiveTask()">Cancel</button>
+          <button id="task-dismiss-btn" class="cm-btn sm ghost hidden" onclick="window.dismissTaskToast()">Dismiss</button>
+        </div>
+        <progress id="task-progress-bar" class="cm-progress-el w-full" style="height:3px;border-radius:0" value="0" max="100"></progress>
+        <div id="task-progress-status" class="text-xs cm-text-muted mt-1"></div>
+        <div id="task-queue-status" class="hidden text-xs cm-text-muted mt-0.5"></div>
+        <div id="task-queue-list" class="hidden mt-1.5 space-y-1 max-h-32 overflow-y-auto"></div>
+        <div id="task-log-link" class="hidden mt-1">
+          <a href="/settings/log/" class="text-xs cm-text-accent" hx-boost="false" target="_blank" rel="noopener">View batch log &rarr;</a>
+        </div>
+        <div id="task-error-list" class="hidden mt-2 max-h-40 overflow-y-auto space-y-0.5"></div>
+      </div>
+    </div>
+  </div>

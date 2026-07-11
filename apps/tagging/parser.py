@@ -5,6 +5,7 @@ Converts the nested XML structure into flat DataManagerRuleset records.
 """
 
 import xml.etree.ElementTree as ET
+from defusedxml.ElementTree import fromstring as _safe_fromstring
 from typing import BinaryIO
 
 from .models import DataManagerRuleset
@@ -43,7 +44,7 @@ def parse_datamanager_xml(file_obj: BinaryIO) -> list[dict]:
     # Remove Windows line endings
     content = content.replace("\r\n", "\n").replace("\r", "\n")
 
-    root = ET.fromstring(content)
+    root = _safe_fromstring(content)
     rulesets = []
     priority_counter = [0]  # Use list to allow mutation in nested function
 

@@ -1,0 +1,152 @@
+{% if prefs.dashboard_attention_style == "grid" %}
+
+{# ── Grid variant ──────────────────────────────────────────────────────────── #}
+<div class="cm-card" style="flex-shrink:0;">
+  <div class="cm-card-hd">
+    <h3>Needs your attention</h3>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="mono" style="font-size:11px; color:var(--cm-fg-3);">{{ flagged_count }} items</span>
+      {% include "dashboard/_attention_toggle.html" %}
+    </div>
+  </div>
+  <div style="overflow:hidden;">
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:0; margin-bottom:-1px;">
+    {% for item in active_review_items %}
+    <div class="cm-hoverable" style="padding:14px 16px; border-right:1px solid var(--cm-border); border-bottom:1px solid var(--cm-border); display:flex; flex-direction:column; gap:8px; min-height:120px;"
+         onclick="{% if item.link %}window.location='{{ item.link }}'{% else %}window.location='/comics/?flag={{ item.flag }}'{% endif %}">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span class="cm-chip {{ item.sev }}"><span class="cm-dot"></span> {{ item.label }}</span>
+        <span class="mono tnum" style="font-size:18px; font-weight:700; color:{% if item.sev == 'err' %}var(--cm-err){% else %}var(--cm-warn){% endif %};">{{ item.count }}</span>
+      </div>
+      <div style="font-size:11.5px; color:var(--cm-fg-2); flex:1; line-height:1.45;">{{ item.description }}</div>
+      <div style="display:flex; gap:6px;">
+        {% if item.link %}<a href="{{ item.link }}" class="cm-btn sm" style="flex:1; justify-content:center;" onclick="event.stopPropagation()">View</a>
+        {% else %}<a href="/comics/?flag={{ item.flag }}" class="cm-btn sm" style="flex:1; justify-content:center;" onclick="event.stopPropagation()">View</a>{% endif %}
+        {% if item.action == "rewrite" %}<button class="cm-btn sm" style="flex:1; justify-content:center; background:var(--cm-ok-dim); color:var(--cm-ok); border-color:transparent;" onclick="event.stopPropagation(); runAction('/comics/rewrite-updated/', this, 'Rewriting')">Rewrite</button>{% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <div style="padding:36px 18px; text-align:center; grid-column:1/-1;"><span class="cm-chip ok">All clear</span></div>
+    {% endfor %}
+    {% for item in maintenance_items_with_count %}
+    <div data-maintenance data-display="flex" class="cm-hoverable"
+         style="display:none; padding:14px 16px; border-right:1px solid var(--cm-border); border-bottom:1px solid var(--cm-border); flex-direction:column; gap:8px; min-height:120px;"
+         onclick="{% if item.link %}window.location='{{ item.link }}'{% endif %}">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span class="cm-chip {{ item.sev }}"><span class="cm-dot"></span> {{ item.label }}</span>
+        <span class="mono tnum" style="font-size:18px; font-weight:700; color:{% if item.sev == 'info' %}var(--cm-info){% else %}var(--cm-warn){% endif %};">{{ item.count }}</span>
+      </div>
+      <div style="font-size:11.5px; color:var(--cm-fg-2); flex:1; line-height:1.45;">{{ item.description }}</div>
+      <div style="display:flex; gap:6px;">
+        {% if item.link %}<a href="{{ item.link }}" class="cm-btn sm" style="flex:1; justify-content:center;" onclick="event.stopPropagation()">View</a>{% endif %}
+        {% if item.action_url %}<button class="cm-btn sm" style="flex:1; justify-content:center; background:var(--cm-info-dim); color:var(--cm-info); border-color:transparent;"
+          onclick="event.stopPropagation(); runAction('{{ item.action_url }}', this{% if item.action_progress %}, '{{ item.action_progress }}'{% endif %})">{{ item.action_label }}</button>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  </div>
+</div>
+
+{% elif prefs.dashboard_attention_style == "triage" %}
+
+{# ── Triage variant ───────────────────────────────────────────────────────── #}
+{# Items ranked by severity (err → warn → info) then by count descending.     #}
+{# Maintenance items always follow all active items in the ranked list so that #}
+{# rank numbers have no gaps when maintenance is hidden.                       #}
+<div class="cm-card" style="flex-shrink:0;">
+  <div class="cm-card-hd">
+    <h3>Triage queue</h3>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="mono" style="font-size:11px; color:var(--cm-fg-3);">most urgent first</span>
+      {% include "dashboard/_attention_toggle.html" %}
+    </div>
+  </div>
+  {% for item in ranked_all %}
+  {% if item.is_maintenance %}
+  <div data-maintenance data-display="flex" style="display:none; align-items:center; gap:16px; padding:14px 18px; border-bottom:1px solid var(--cm-border); position:relative;">
+  {% else %}
+  <div style="display:flex; align-items:center; gap:16px; padding:14px 18px; border-bottom:1px solid var(--cm-border); position:relative;">
+  {% endif %}
+    <div style="width:28px; height:28px; border-radius:50%; flex-shrink:0; background:{% if item.sev == 'err' %}var(--cm-err-dim){% elif item.sev == 'info' %}var(--cm-info-dim){% else %}var(--cm-warn-dim){% endif %}; color:{% if item.sev == 'err' %}var(--cm-err){% elif item.sev == 'info' %}var(--cm-info){% else %}var(--cm-warn){% endif %}; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; font-family:'JetBrains Mono', monospace;">{{ forloop.counter }}</div>
+    <div style="flex:1; min-width:0;">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span style="font-size:13px; font-weight:600; color:var(--cm-fg);">{{ item.label }}</span>
+        <span class="mono tnum" style="font-size:11px; color:var(--cm-fg-3);">{{ item.count }} item{{ item.count|pluralize }}</span>
+      </div>
+      <div style="font-size:12px; color:var(--cm-fg-2); margin-top:2px;">{{ item.description }}</div>
+    </div>
+    {% if item.action == "rewrite" %}
+      <button class="cm-btn sm" style="background:var(--cm-accent); color:var(--cm-accent-fg); border-color:transparent; font-weight:600;" onclick="runAction('/comics/rewrite-updated/', this, 'Rewriting')">Rewrite {% include "partials/_chevron_right.html" %}</button>
+    {% elif item.action == "populate" %}
+      <button class="cm-btn sm" style="background:var(--cm-accent); color:var(--cm-accent-fg); border-color:transparent; font-weight:600;" onclick="runAction('/comics/populate-counts/', this)">Populate {% include "partials/_chevron_right.html" %}</button>
+    {% elif item.action == "convert" %}
+      <button class="cm-btn sm" style="background:var(--cm-accent); color:var(--cm-accent-fg); border-color:transparent; font-weight:600;" onclick="runAction('/comics/convert-all/', this, 'Converting')">Convert {% include "partials/_chevron_right.html" %}</button>
+    {% elif item.action_url %}
+      <button class="cm-btn sm" style="background:var(--cm-bg-2); border-color:transparent; font-weight:600;"
+        onclick="runAction('{{ item.action_url }}', this{% if item.action_progress %}, '{{ item.action_progress }}'{% endif %})">{{ item.action_label }} {% include "partials/_chevron_right.html" %}</button>
+    {% else %}
+      <a href="{% if item.link %}{{ item.link }}{% else %}/comics/?flag={{ item.flag }}{% endif %}" class="cm-btn sm" style="background:var(--cm-bg-2); border-color:transparent; font-weight:600;">Review {% include "partials/_chevron_right.html" %}</a>
+    {% endif %}
+  </div>
+  {% empty %}
+  <div style="padding:36px 18px; text-align:center;"><span class="cm-chip ok">Triage queue is empty. All clear.</span></div>
+  {% endfor %}
+</div>
+
+{% else %}
+
+{# ── List variant (default) ───────────────────────────────────────────────── #}
+<div class="cm-card" style="flex-shrink:0;">
+  <div class="cm-card-hd">
+    <h3>Needs your attention</h3>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span class="mono" style="font-size:11px; color:var(--cm-fg-3);">{{ flagged_count }} items</span>
+      {% include "dashboard/_attention_toggle.html" %}
+    </div>
+  </div>
+  {% for item in active_review_items %}
+  <div style="display:grid; grid-template-columns:160px 1fr 90px auto; align-items:center; gap:14px; padding:12px 18px; border-bottom:1px solid var(--cm-border);">
+    <span class="cm-chip {{ item.sev }}"><span class="cm-dot"></span> {{ item.label }}</span>
+    <span style="font-size:12.5px; color:var(--cm-fg-1);">{{ item.description }}</span>
+    <span class="mono tnum" style="font-size:15px; font-weight:700; text-align:right; color:{% if item.sev == 'err' %}var(--cm-err){% elif item.sev == 'info' %}var(--cm-info){% else %}var(--cm-warn){% endif %};">{{ item.count }}</span>
+    <div style="display:flex; gap:6px;">
+      {% if item.link %}<a href="{{ item.link }}" class="cm-btn sm">View</a>
+      {% else %}<a href="/comics/?flag={{ item.flag }}" class="cm-btn sm">View</a>{% endif %}
+      {% if item.action == "rewrite" %}<button class="cm-btn sm" style="background:var(--cm-ok-dim); color:var(--cm-ok); border-color:transparent;" onclick="runAction('/comics/rewrite-updated/', this, 'Rewriting')">Rewrite</button>
+      {% elif item.action == "populate" %}<button class="cm-btn sm" style="background:var(--cm-ok-dim); color:var(--cm-ok); border-color:transparent;" onclick="runAction('/comics/populate-counts/', this)">Populate</button>
+      {% elif item.action == "convert" %}<button class="cm-btn sm" style="background:var(--cm-info-dim); color:var(--cm-info); border-color:transparent;" onclick="runAction('/comics/convert-all/', this, 'Converting')">Convert</button>
+      {% endif %}
+    </div>
+  </div>
+  {% empty %}
+  <div style="padding:36px 18px; text-align:center;"><span class="cm-chip ok">All clear. Nothing needs attention.</span></div>
+  {% endfor %}
+  {% for item in maintenance_items_with_count %}
+  <div data-maintenance data-display="grid"
+       style="display:none; grid-template-columns:160px 1fr 90px auto; align-items:center; gap:14px; padding:12px 18px; border-bottom:1px solid var(--cm-border);">
+    <span class="cm-chip {{ item.sev }}"><span class="cm-dot"></span> {{ item.label }}</span>
+    <span style="font-size:12.5px; color:var(--cm-fg-1);">{{ item.description }}</span>
+    <span class="mono tnum" style="font-size:15px; font-weight:700; text-align:right; color:{% if item.sev == 'info' %}var(--cm-info){% else %}var(--cm-warn){% endif %};">{{ item.count }}</span>
+    <div style="display:flex; gap:6px;">
+      {% if item.link %}<a href="{{ item.link }}" class="cm-btn sm">View</a>{% endif %}
+      {% if item.action_url %}<button class="cm-btn sm" style="background:var(--cm-info-dim); color:var(--cm-info); border-color:transparent;"
+        onclick="runAction('{{ item.action_url }}', this{% if item.action_progress %}, '{{ item.action_progress }}'{% endif %})">{{ item.action_label }}</button>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endif %}
+
+<script>
+function toggleAttentionMaintenance(btn) {
+  var card = btn.closest('.cm-card');
+  var items = card.querySelectorAll('[data-maintenance]');
+  var nowHidden = items.length > 0 && items[0].style.display === 'none';
+  items.forEach(function(el) {
+    el.style.display = nowHidden ? (el.dataset.display || '') : 'none';
+  });
+  btn.textContent = nowHidden ? btn.dataset.labelHide : btn.dataset.labelShow;
+}
+</script>

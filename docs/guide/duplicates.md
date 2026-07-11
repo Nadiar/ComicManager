@@ -13,26 +13,28 @@ Duplicates are a common problem in digital comic collections. You might have:
 
 Standard metadata-based duplicate detection (like checking Series + Number) is not enough. It cannot distinguish between a main cover and a variant cover, or between a high-quality scan and a low-quality one.
 
-That is why ComicManager primarily uses Image Hashing (pHash/ahash). By looking at the *actual cover image*, we can find near-identical images even if the file is completely different. This is a "fingerprinting" technique that is extremely accurate.
+That is why ComicManager primarily uses Image Hashing (pHash/ahash). By looking at the *actual cover image*, we can find near-identical images even if the file is completely different. This is a "fingerprinting" technique that is very accurate.
 
 ---
 
+::: info 
+One digital and one physical copy of the same comic is explicitly **not** a duplicate. Cover Hash and Filename detection only apply to digital comics.
+:::
+
 ## How it Works
 
-1.  **Duplicate Scanning**: During the **Formatted** state, ComicManager runs a multi-layered duplicate scan against your entire library.
-2.  **Grouping**: Grouped duplicates are presented in the **Deduplicated** state for review.
+1.  **Duplicate Scanning**: During the **Deduplicate** state, ComicManager runs a multi-layered duplicate scan against your entire library.
+2.  **Orphan Attachment**: After the main scan, any comic that still has no group is compared against members of existing pending groups. This catches comics that were processed in a later batch than their duplicate partners.
+3.  **Consolidation**: Groups that share members are merged into one. A set of comics matched by both CV ID and pHash will appear as a single group, not two separate ones. The group with the most members survives; ties are broken by method priority (CV ID > Metadata > Cover Hash > Filename).
+4.  **Grouping**: Grouped duplicates are presented in the **Deduplicated** state for review.
 
 ### Duplicate Methods
 
 ComicManager groups duplicates using four methods, which you can filter by using the tabs on the Duplicate Review page.
 
-One digital and one physical copy of the same comic is explicitly **not** a duplicate. Cover Hash and Filename detection only apply to digital comics.
-
 #### CV ID
 
-Matches comics that share the exact same ComicVine issue ID (`comicvine_issue` custom value). This is the most reliable method: if two files were both scraped and matched to the same CV issue, they are almost certainly duplicates.
-
-The one exception is a digital+physical pair for the same issue. That combination is intentional and is excluded from grouping.
+Matches comics that share the exact same ComicVine issue ID (`comicvine_issue` custom value). This is the most reliable method: if two files were both scraped and matched to the same CV issue, they are almost certainly duplicates. This is also a way to catch comics that were automatically scraped but the wrong match was applied. 
 
 #### Series / Number (Metadata)
 
@@ -63,6 +65,8 @@ Catches OS-generated duplicate files produced when a file is copied and the OS a
 | Windows | `Comic #001 (1).cbz`, `Comic #001 (2).cbz` |
 
 The suffix is stripped and the canonical base name is used as the grouping key. At least one file in the group must carry the suffix. Two different comics that happen to live in the same folder are not grouped.
+
+### Flow
 
 ```
           ┌──────────────────────────────────────────────────────────┐
@@ -96,10 +100,21 @@ The suffix is stripped and the canonical base name is used as the grouping key. 
                  comic in a group?            not in any group
                         │                         │
                         ▼                         ▼
-             ┌──────────────────┐      ┌──────────────────────┐
-             │  Duplicate Group │      │  No duplicate found  │
-             │  -> Review Queue │      │  -> STATE_ORGANIZED  │
-             └──────────────────┘      └──────────────────────┘
+             ┌──────────────────┐      ┌──────────────────────────────┐
+             │  Duplicate Group │      │     Orphan attachment pass   │
+             │  -> Review Queue │      │  compare against members of  │
+             └──────────────────┘      │  all existing pending groups │
+                                       │  (CV ID > pHash > filename)  │
+                                       └──────────────┬───────────────┘
+                                                      │
+                                       ┌──────────────┴───────────────┐
+                                match found?                    no match
+                                       │                              │
+                                       ▼                              ▼
+                            ┌──────────────────┐      ┌──────────────────────┐
+                            │  Joined existing │      │  No duplicate found  │
+                            │  Duplicate Group │      │  -> STATE_ORGANIZED  │
+                            └──────────────────┘      └──────────────────────┘
 ```
 
 ### Why deduplicate after formatting?
@@ -107,6 +122,19 @@ The suffix is stripped and the canonical base name is used as the grouping key. 
 We want to make sure the metadata and format are correct before we resolve duplicates. This allows you to:
 - Compare a "Main Series" issue with a "Trade Paperback" version.
 - Choose which version to keep based on the most complete metadata.
+- Catch any miss-scraped comics.
+
+---
+
+## Triggering Detection
+
+Two buttons appear at the top of the Duplicate Review page.
+
+**Run Detection**: The normal pipeline button. Processes only comics currently in the `Deduplicate` state (waiting for deduplication). Clean comics with no duplicate found are automatically advanced to `Organized`. Use this after importing and tagging a new batch.
+
+**Scan All Comics**: A recovery tool. Scans every ungrouped digital comic regardless of its workflow state. Does not change any states. Use this when comics have already passed through the pipeline without being caught, for example after enabling duplicate detection on an existing library or after running the orphan attachment pass.
+
+You can also run detection on a specific selection of comics from the comic list. This compares each selected comic against the whole library and applies the same orphan attachment and group consolidation as a full run, so deduplicating a subset produces the same grouping those comics would get from the normal pipeline.
 
 ---
 

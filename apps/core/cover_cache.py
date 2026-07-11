@@ -55,6 +55,41 @@ def get_comic_cover(comic) -> bytes | None:
     return cover_data
 
 
+def get_comic_thumb(comic, width: int = 80) -> bytes | None:
+    """
+    Get a small thumbnail for list display. Cached as {pk}_thumb.jpg.
+    Falls back to full cover if PIL resize fails.
+    """
+    cache_path = COVER_CACHE_DIR / f"{comic.pk}_thumb.jpg"
+    if cache_path.exists():
+        return cache_path.read_bytes()
+
+    cover_data = get_comic_cover(comic)
+    if not cover_data:
+        return None
+
+    try:
+        from io import BytesIO
+        from PIL import Image
+        img = Image.open(BytesIO(cover_data)).convert("RGB")
+        h = int(img.height * width / img.width)
+        img = img.resize((width, h), Image.LANCZOS)
+        out = BytesIO()
+        img.save(out, format="JPEG", quality=70, optimize=True)
+        thumb_data = out.getvalue()
+    except Exception as e:
+        logger.warning("Failed to generate thumb for %s: %s", comic.pk, e)
+        return cover_data
+
+    try:
+        _ensure_cache_dir()
+        cache_path.write_bytes(thumb_data)
+    except OSError as e:
+        logger.warning("Failed to cache thumb for %s: %s", comic.pk, e)
+
+    return thumb_data
+
+
 def get_comic_page(comic, page_index: int) -> bytes | None:
     """
     Get image for a specific page of an owned comic.
@@ -206,9 +241,9 @@ def cache_physical_cover(comic_pk, cover_url: str) -> bool:
 
 
 def invalidate_comic_cover(comic_pk) -> None:
-    """Remove cached cover for a comic (e.g. after re-scrape or file change)."""
-    cache_path = COVER_CACHE_DIR / f"{comic_pk}.jpg"
-    cache_path.unlink(missing_ok=True)
+    """Remove cached cover and thumbnail for a comic (e.g. after re-scrape or file change)."""
+    (COVER_CACHE_DIR / f"{comic_pk}.jpg").unlink(missing_ok=True)
+    (COVER_CACHE_DIR / f"{comic_pk}_thumb.jpg").unlink(missing_ok=True)
 
 
 def invalidate_comic_pages(comic_pk) -> None:

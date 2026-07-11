@@ -1,199 +1,167 @@
 {% extends "base.html" %}
-{% block title %}Format Review - ComicManager{% endblock %}
+{% block title %}Format Review — ComicManager{% endblock %}
 {% block nav_comics %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<div hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
-  <!-- Header -->
-  <div class="flex justify-between items-center">
+<!-- Header -->
+<div class="cm-page-header">
+  <div>
+    <h1 class="cm-page-title">Format Review</h1>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;">
+      {{ total_tagged }} comic{{ total_tagged|pluralize }} in tagged state{% if total_reformat %} · {{ total_reformat }} need{{ total_reformat|pluralize:",s" }} re-formatting{% endif %}
+    </p>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center;">
+    <button class="cm-btn sm ghost" onclick="runDetectFormatUpgrades(this)">Detect Format Upgrades</button>
+    <a href="/" class="cm-btn sm ghost" cm-no-underline">Back to Dashboard</a>
+  </div>
+</div>
+
+<div style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+
+<!-- Re-format group -->
+{% if reformat_group %}
+<div style="background:rgba(245,158,11,.06); border:1px solid rgba(245,158,11,.3); border-radius:8px; padding:16px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
     <div>
-      <h1 class="text-3xl font-bold">Format Review</h1>
-      <p class="text-base-content/70">
-        {{ total_tagged }} comic{{ total_tagged|pluralize }} in tagged state
-        {% if total_reformat %}, {{ total_reformat }} need{{ total_reformat|pluralize:",s" }} re-formatting{% endif %}
-      </p>
+      <div style="font-size:15px; font-weight:700; color:var(--cm-warn);">{{ reformat_group.name }}</div>
+      <div style="font-size:12px; color:var(--cm-fg-3); margin-top:2px;">Issue count changed, format may need updating</div>
     </div>
-    <a href="/" class="btn btn-ghost btn-sm">Back to Dashboard</a>
+    <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+      <span class="cm-chip warn mono tnum" style="font-size:13px; padding:4px 12px; font-weight:700;">{{ reformat_group.count }}</span>
+      <button type="button" class="cm-btn sm"
+        style="color:var(--cm-warn); border-color:var(--cm-warn);"
+        hx-post="{% url 'core:format_accept' reformat_group.slug %}"
+        hx-target="closest div[style*='rgba(245']"
+        hx-swap="outerHTML">Re-format All</button>
+    </div>
   </div>
+  <details>
+    <summary style="cursor:pointer; font-size:12px; color:var(--cm-fg-3); user-select:none; margin-bottom:8px;">Show/hide {{ reformat_group.count }} comic{{ reformat_group.count|pluralize }}</summary>
+    <div class="cm-overflow-x">
+      <table class="cm-table">
+        <thead>
+          <tr class="cm-divider">
+            <th style="padding:6px 10px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Series</th>
+            <th class="cm-th">Vol</th>
+            <th class="cm-th">#</th>
+            <th class="cm-th">Count</th>
+            <th class="cm-th">Pages</th>
+            <th class="cm-th">Publisher</th>
+            <th class="cm-th">Current</th>
+            <th class="cm-th">Suggested</th>
+            <th class="cm-th">State</th>
+            <th style="padding:6px 10px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in reformat_group.rows %}
+          <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+            <td style="padding:7px 10px; font-weight:500;"><a href="{% url 'core:detail' row.comic.pk %}" class="cm-text-accent">{{ row.comic.series|default:"—" }}</a></td>
+            <td style="padding:7px 10px;" class="mono tnum">{{ row.comic.volume|default:"—" }}</td>
+            <td style="padding:7px 10px;" class="mono tnum">{{ row.comic.number|default:"—" }}</td>
+            <td style="padding:7px 10px;" class="mono tnum">{{ row.comic.count|default:"—" }}</td>
+            <td style="padding:7px 10px;" class="mono tnum">{{ row.comic.page_count|default:"—" }}</td>
+            <td style="padding:7px 10px; color:var(--cm-fg-2);">{{ row.comic.publisher|default:"—" }}</td>
+            <td style="padding:7px 10px;">{% if row.comic.format %}<span class="cm-chip" style="font-size:10.5px;">{{ row.comic.format }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
+            <td style="padding:7px 10px;">{% if row.detected %}<span class="cm-chip {% if row.detected != row.comic.format %}warn{% else %}ok{% endif %}" style="font-size:10.5px;">{{ row.detected }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
+            <td style="padding:7px 10px;"><span class="cm-chip info" style="font-size:10.5px;">{{ row.comic.state }}</span></td>
+            <td style="padding:7px 10px; text-align:right;">
+              <button type="button" class="cm-btn sm" style="color:var(--cm-ok); border-color:var(--cm-ok);"
+                hx-post="{% url 'core:accept_reformat' row.comic.pk %}"
+                hx-target="closest tr"
+                hx-swap="outerHTML">Accept</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</div>
+{% endif %}
 
-  <!-- Re-format section (if any) -->
-  {% if reformat_group %}
-  <div class="card bg-warning/10 border border-warning">
-    <div class="card-body p-4">
-      <div class="flex justify-between items-center">
-        <div>
-          <h3 class="font-bold text-warning text-lg">{{ reformat_group.name }}</h3>
-          <p class="text-sm text-base-content/70">Issue count changed, format may need updating</p>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="badge badge-warning badge-lg">{{ reformat_group.count }}</span>
-          <button
-            type="button"
-            class="btn btn-sm btn-warning"
-            hx-post="{% url 'core:format_accept' reformat_group.slug %}"
-            hx-target="closest .card"
-            hx-swap="outerHTML"
-          >
-            Re-format All
-          </button>
-        </div>
-      </div>
-      <details class="mt-4">
-        <summary class="cursor-pointer text-sm text-base-content/60 select-none mb-2">
-          Show/hide {{ reformat_group.count }} comic{{ reformat_group.count|pluralize }}
-        </summary>
-      <div class="overflow-x-auto">
-        <table class="table table-sm table-zebra">
-          <thead>
-            <tr>
-              <th>Series</th>
-              <th>Vol</th>
-              <th>#</th>
-              <th>Count</th>
-              <th>Pages</th>
-              <th>Title</th>
-              <th>Publisher</th>
-              <th>Current Format</th>
-              <th>Suggested Format</th>
-              <th>State</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in reformat_group.rows %}
-            <tr class="hover">
-              <td class="font-medium">
-                <a href="{% url 'core:detail' row.comic.pk %}" class="link link-primary">
-                  {{ row.comic.series|default:"-" }}
-                </a>
-              </td>
-              <td>{{ row.comic.volume|default:"-" }}</td>
-              <td>{{ row.comic.number|default:"-" }}</td>
-              <td>{{ row.comic.count|default:"-" }}</td>
-              <td>{{ row.comic.page_count|default:"-" }}</td>
-              <td class="max-w-xs truncate">{{ row.comic.title|default:"-" }}</td>
-              <td>{{ row.comic.publisher|default:"-" }}</td>
-              <td>
-                {% if row.comic.format %}
-                <span class="badge badge-sm badge-outline">{{ row.comic.format }}</span>
-                {% else %}
-                <span class="text-base-content/40">-</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if row.detected %}
-                <span class="badge badge-sm {% if row.detected != row.comic.format %}badge-warning{% else %}badge-success{% endif %}">{{ row.detected }}</span>
-                {% else %}
-                <span class="text-base-content/40">-</span>
-                {% endif %}
-              </td>
-              <td>
-                <span class="badge badge-sm badge-info">{{ row.comic.state }}</span>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  class="btn btn-xs btn-success"
-                  hx-post="{% url 'core:accept_reformat' row.comic.pk %}"
-                  hx-target="closest tr"
-                  hx-swap="outerHTML"
-                >
-                  Accept
-                </button>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      </details>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Format groups -->
-  {% for group in format_groups %}
-  <div class="card bg-base-200">
-    <div class="card-body p-4">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h3 class="font-bold text-lg">{{ group.name }}</h3>
-          <p class="text-sm text-base-content/70">
-            {% if group.is_count_based %}
-            Count-based classification
-            {% elif group.name == "Unknown" %}
-            No pattern matched, no issue count
-            {% else %}
-            Detected from series/title text
-            {% endif %}
-          </p>
-        </div>
-        <div class="flex items-center gap-3">
-          <span class="badge badge-primary badge-lg">{{ group.count }}</span>
-          <button
-            type="button"
-            class="btn btn-sm btn-success"
-            hx-post="{% url 'core:format_accept' group.slug %}"
-            hx-target="closest .card"
-            hx-swap="outerHTML"
-          >
-            Accept {{ group.name }}
-          </button>
-        </div>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="table table-sm table-zebra">
-          <thead>
-            <tr>
-              <th>Series</th>
-              <th>Vol</th>
-              <th>#</th>
-              <th>Count</th>
-              <th>Pages</th>
-              <th>Title</th>
-              <th>Publisher</th>
-              <th>Current Format</th>
-              <th>Suggested Format</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for comic in group.comics %}
-            <tr class="hover">
-              <td class="font-medium">
-                <a href="{% url 'core:detail' comic.pk %}" class="link link-primary">
-                  {{ comic.series|default:"-" }}
-                </a>
-              </td>
-              <td>{{ comic.volume|default:"-" }}</td>
-              <td>{{ comic.number|default:"-" }}</td>
-              <td>{{ comic.count|default:"-" }}</td>
-              <td>{{ comic.page_count|default:"-" }}</td>
-              <td class="max-w-xs truncate">{{ comic.title|default:"-" }}</td>
-              <td>{{ comic.publisher|default:"-" }}</td>
-              <td>
-                {% if comic.format %}
-                <span class="badge badge-sm badge-outline">{{ comic.format }}</span>
-                {% else %}
-                <span class="text-base-content/40">-</span>
-                {% endif %}
-              </td>
-              <td>
-                <span class="badge badge-sm {% if group.name != comic.format %}badge-warning{% else %}badge-success{% endif %}">{{ group.name }}</span>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+<!-- Format groups -->
+{% for group in format_groups %}
+<div class="cm-card" style="padding:16px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;">
+    <div>
+      <div style="font-size:15px; font-weight:700;">{{ group.name }}</div>
+      <div style="font-size:12px; color:var(--cm-fg-3); margin-top:2px;">
+        {% if group.is_count_based %}Count-based classification{% elif group.name == "Unknown" %}No pattern matched, no issue count{% else %}Detected from series/title text{% endif %}
       </div>
     </div>
+    <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+      <span class="cm-chip accent mono tnum" style="font-size:13px; padding:4px 12px; font-weight:700;">{{ group.count }}</span>
+      <button type="button" class="cm-btn sm primary"
+        hx-post="{% url 'core:format_accept' group.slug %}"
+        hx-target="closest .cm-card"
+        hx-swap="outerHTML">Accept {{ group.name }}</button>
+    </div>
   </div>
-  {% empty %}
-  <div class="alert alert-info">
-    <span>No comics in "tagged" state ready for format detection.</span>
-    <a href="/" class="link link-primary">Return to Dashboard</a>
+  <div class="cm-overflow-x">
+    <table class="cm-table">
+      <thead>
+        <tr class="cm-divider">
+          <th style="padding:6px 10px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Series</th>
+          <th class="cm-th">Vol</th>
+          <th class="cm-th">#</th>
+          <th class="cm-th">Count</th>
+          <th class="cm-th">Pages</th>
+          <th class="cm-th">Publisher</th>
+          <th class="cm-th">Current</th>
+          <th class="cm-th">Suggested</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for comic in group.comics %}
+        <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          <td style="padding:7px 10px; font-weight:500;"><a href="{% url 'core:detail' comic.pk %}" class="cm-text-accent">{{ comic.series|default:"—" }}</a></td>
+          <td style="padding:7px 10px;" class="mono tnum">{{ comic.volume|default:"—" }}</td>
+          <td style="padding:7px 10px;" class="mono tnum">{{ comic.number|default:"—" }}</td>
+          <td style="padding:7px 10px;" class="mono tnum">{{ comic.count|default:"—" }}</td>
+          <td style="padding:7px 10px;" class="mono tnum">{{ comic.page_count|default:"—" }}</td>
+          <td style="padding:7px 10px; color:var(--cm-fg-2);">{{ comic.publisher|default:"—" }}</td>
+          <td style="padding:7px 10px;">{% if comic.format %}<span class="cm-chip" style="font-size:10.5px;">{{ comic.format }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
+          <td style="padding:7px 10px;"><span class="cm-chip {% if group.name != comic.format %}warn{% else %}ok{% endif %}" style="font-size:10.5px;">{{ group.name }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-  {% endfor %}
+</div>
+{% empty %}
+<div style="padding:48px 16px; text-align:center; color:var(--cm-fg-3); font-size:14px;">
+  No comics in "tagged" state ready for format detection.
+  <a href="/" style="color:var(--cm-accent); margin-left:4px;">Return to Dashboard</a>
+</div>
+{% endfor %}
 
 </div>
+</div>
+
+<script>
+function runDetectFormatUpgrades(btn) {
+  showConfirm('Scan all count-based comics for format upgrades?', async () => {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Scanning...';
+    try {
+      const resp = await fetch('{% url "core:detect_format_upgrades" %}', { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+      const data = await resp.json();
+      if (data.task_id) {
+        btn.textContent = 'Running...';
+        if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Detecting format upgrades');
+      } else {
+        btn.textContent = data.error || 'Error';
+        btn.disabled = false;
+      }
+    } catch {
+      btn.textContent = 'Error';
+      btn.disabled = false;
+    }
+  });
+}
+</script>
 {% endblock %}

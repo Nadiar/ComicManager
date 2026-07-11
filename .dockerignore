@@ -1,44 +1,74 @@
-# Data directories
+# Runtime volume directories
 data/
 untagged/
 Comics/
+cover_cache/
+logs/
 
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-.Python
-*.egg-info/
-.eggs/
-dist/
-build/
-
-# Virtual environments
-venv/
-.venv/
-env/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Development tooling
+.?*
+docs/
+Comicrack_guide/
 
 # Git
 .git/
 .gitignore
 
-# Node
+# Environment files
+.env
+.env.sample
+
+# Node modules
 node_modules/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+venv/
+.venv/
+env/
+
+# Large root-level data files
+ComicDb.xml
+inducks.db
+latest.mcl
+organizer_profiles.lop
+comicmanager.tar.gz
+
+# Root-level standalone scripts
+CVIssueCount.py
+search_inducks.py
+download_isv.sh
+download_isv.sh_server
+
+# Screenshots
+Screenshot_*.png
+
+# Docker Compose files (not needed inside image)
+docker-compose.yml
+docker-compose.override.yml
+
+# Documentation and planning files
+*.md
+LICENSE
 
 # Misc
 *.log
 *.tmp
+*.gz
+*.tar
+*.zip
+*.db
+*.dat
+*.lop
+*.mcl
+*.xml
 .DS_Store
 Thumbs.db
-
-ComicDb.xml
-ComicInfo.xml 
-dataman.dat
-LO_*.lop
-
+*.swp
+*.swo

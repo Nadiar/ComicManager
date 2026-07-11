@@ -53,6 +53,8 @@ SORT_FIELDS = {
 def _coerce_value(value, lookup, field=""):
     """Coerce filter value to the appropriate Python type."""
     if lookup == "isnull":
+        if not value:
+            return True
         return str(value).lower() in ("true", "1", "yes")
 
     # Skip int coercion for JSONField lookups — values are stored as strings

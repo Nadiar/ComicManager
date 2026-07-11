@@ -51,6 +51,42 @@ def _get_mcl_path():
     return get_setting("cv_mcl_path", "/cv_db/latest.mcl")
 
 
+def fetch_cv_volume_counts(volume_ids) -> dict:
+    """Return {volume_id: count_of_issues} from the local ComicVine DB.
+
+    Queries in chunks of 500 to stay under SQLite's IN-clause limit. Volumes
+    with a NULL count or no matching row are omitted. Returns {} (and logs)
+    when the DB is unavailable, so callers treat "no count" uniformly instead
+    of each re-implementing the same chunked query and swallowing errors.
+    """
+    ids = [int(v) for v in volume_ids if v not in (None, "")]
+    if not ids:
+        return {}
+
+    counts: dict[int, int] = {}
+    try:
+        conn = sqlite3.connect(f"file:{_get_cv_db_path()}?immutable=1", uri=True)
+        try:
+            cursor = conn.cursor()
+            for i in range(0, len(ids), 500):
+                chunk = ids[i:i + 500]
+                placeholders = ",".join("?" * len(chunk))
+                cursor.execute(
+                    f"SELECT id, count_of_issues FROM cv_volume WHERE id IN ({placeholders})",
+                    chunk,
+                )
+                for vid, count in cursor.fetchall():
+                    if count is not None:
+                        counts[vid] = count
+        finally:
+            conn.close()
+    except Exception:
+        logger.exception("fetch_cv_volume_counts: CV DB query failed")
+        return {}
+
+    return counts
+
+
 def is_cv_db_available() -> bool:
     """Return True if comicvine.db exists and SQLite can open it."""
     db_path = _get_cv_db_path()

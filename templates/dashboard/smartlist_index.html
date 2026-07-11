@@ -3,59 +3,70 @@
 {% block nav_smartlists %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-  <div class="flex justify-between items-center">
-    <h1 class="text-3xl font-bold">Smart Lists</h1>
-    <div class="flex gap-2">
-      <a href="{% url 'dashboard:smartlist_import_cbl' %}" class="btn btn-ghost">Import CBL</a>
-      <a href="{% url 'dashboard:smartlist_create' %}" class="btn btn-primary">Create Smart List</a>
-    </div>
+<!-- Header -->
+<div class="cm-page-header">
+  <h1 class="cm-page-title">Smart Lists</h1>
+  <div style="display:flex; gap:8px;">
+    <a href="{% url 'dashboard:smartlist_import_cbl' %}" class="cm-btn sm ghost" cm-no-underline">Import CBL</a>
+    <a href="{% url 'dashboard:smartlist_create' %}" class="cm-btn sm primary" cm-no-underline">+ Create Smart List</a>
   </div>
+</div>
 
-  {% if smart_lists %}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    {% for item in smart_lists %}
-    <div class="card bg-base-200 hover:shadow-lg transition-shadow">
-      <div class="card-body">
-        <div class="flex justify-between items-start">
-          <h2 class="card-title text-lg">
-            {% if item.smartlist.icon %}{{ item.smartlist.icon }} {% endif %}
-            {{ item.smartlist.name }}
-          </h2>
-          <span class="badge badge-primary badge-lg">{{ item.count }}</span>
-        </div>
+{% if smart_lists %}
+<div style="padding:16px; display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px;">
+  {% for item in smart_lists %}
+  <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px; display:flex; flex-direction:column; gap:10px; transition:border-color .15s;" onmouseenter="this.style.borderColor='var(--cm-accent)'" onmouseleave="this.style.borderColor='var(--cm-border)'">
+    <!-- Name + count -->
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px;">
+      <div style="font-size:15px; font-weight:700; line-height:1.3;">
+        {% if item.smartlist.icon %}<span style="margin-right:4px;">{{ item.smartlist.icon }}</span>{% endif %}
+        {{ item.smartlist.name }}
+      </div>
+      <span class="cm-chip accent mono tnum" style="padding:3px 10px; flex-shrink:0; font-size:12px; font-weight:700;">{{ item.count }}</span>
+    </div>
 
-        {% if item.smartlist.description %}
-        <p class="text-sm text-base-content/60">{{ item.smartlist.description }}</p>
-        {% endif %}
+    {% if item.smartlist.description %}
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:0;">{{ item.smartlist.description }}</p>
+    {% endif %}
 
+    <!-- Filter chips -->
+    {% if item.smartlist.filters %}
+    <div style="display:flex; flex-wrap:wrap; gap:4px;">
+      {% for f in item.smartlist.filters %}
+      <span class="cm-chip" style="font-size:10.5px; padding:2px 7px;">{{ f.field }} {{ f.lookup }} {{ f.value }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
 
-        <!-- CV Volume completion -->
-        {% if item.smartlist.has_cv_volume %}
-        <div class="mt-2">
-          <div class="flex justify-between text-xs mb-1">
-            <span class="text-base-content/60">{{ item.smartlist.comicvine_volume_name }}</span>
-            <span>{{ item.owned|default:0 }}/{{ item.total_issues|default:0 }} ({{ item.completion|default:0 }}%)</span>
-          </div>
-          <progress class="progress progress-success w-full" value="{{ item.completion|default:0 }}" max="100"></progress>
-        </div>
-        {% endif %}
-
-        <div class="card-actions justify-end mt-2">
-          {% if item.smartlist.has_cv_volume %}
-          <a href="{% url 'dashboard:smartlist_missing' item.smartlist.pk %}" class="btn btn-xs btn-warning btn-outline">Missing</a>
-          {% endif %}
-          <a href="{% url 'dashboard:smartlist_edit' item.smartlist.pk %}" class="btn btn-xs btn-ghost">Edit</a>
-          <a href="{% url 'dashboard:smartlist_detail' item.smartlist.pk %}" class="btn btn-xs btn-primary">View</a>
-        </div>
+    <!-- CV completion bar -->
+    {% if item.smartlist.has_cv_volume %}
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-size:11px; color:var(--cm-fg-3);">
+        <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">{{ item.smartlist.comicvine_volume_name }}</span>
+        <span class="mono tnum" style="flex-shrink:0; margin-left:6px;">{{ item.owned|default:0 }}/{{ item.total_issues|default:0 }}</span>
+      </div>
+      <div style="background:var(--cm-bg-2); border-radius:3px; height:5px; overflow:hidden;">
+        <div style="height:100%; background:var(--cm-ok); width:{{ item.completion|default:0 }}%; transition:width .3s;"></div>
       </div>
     </div>
-    {% endfor %}
+    {% endif %}
+
+    <!-- Actions -->
+    <div style="display:flex; gap:6px; margin-top:auto; padding-top:4px;">
+      {% if item.smartlist.has_cv_volume %}
+      <a href="{% url 'dashboard:smartlist_missing' item.smartlist.pk %}" class="cm-btn sm ghost" style="text-decoration:none; font-size:11px;">Missing</a>
+      {% endif %}
+      <div style="flex:1;"></div>
+      <a href="{% url 'dashboard:smartlist_edit' item.smartlist.pk %}" class="cm-btn sm ghost" cm-no-underline">Edit</a>
+      <a href="{% url 'dashboard:smartlist_detail' item.smartlist.pk %}" class="cm-btn sm primary" cm-no-underline">View</a>
+    </div>
   </div>
-  {% else %}
-  <div class="alert alert-info">
-    <span>No smart lists yet. Create one to save a filtered view of your library.</span>
-  </div>
-  {% endif %}
+  {% endfor %}
 </div>
+{% else %}
+<div style="padding:48px 16px; text-align:center; color:var(--cm-fg-3); font-size:14px;">
+  No smart lists yet.
+  <a href="{% url 'dashboard:smartlist_create' %}" style="color:var(--cm-accent); margin-left:6px;">Create one</a> to save a filtered view of your library.
+</div>
+{% endif %}
 {% endblock %}

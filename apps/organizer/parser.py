@@ -4,6 +4,7 @@ Library Organizer Parser - Imports and exports .lop XML files for ComicRack.
 
 import re
 import xml.etree.ElementTree as ET
+from defusedxml.ElementTree import parse as _safe_parse
 from html import escape, unescape
 from typing import Any
 
@@ -22,7 +23,7 @@ def parse_lop_file(file_path: str) -> list[dict]:
     Returns:
         List of profile dictionaries ready for OrganizerProfile creation
     """
-    tree = ET.parse(file_path)
+    tree = _safe_parse(file_path)
     root = tree.getroot()
 
     profiles = []

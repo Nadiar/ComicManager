@@ -357,9 +357,302 @@ def _create_duplicate_group(
     return group
 
 
+def _add_to_existing_group(comic: Comic, group: DuplicateGroup) -> None:
+    """Attach a comic to an already-existing duplicate group."""
+    with transaction.atomic():
+        membership, _ = DuplicateGroupMembership.objects.get_or_create(group=group, comic=comic)
+
+        if group.detection_method == DuplicateGroup.DETECTION_PHASH and comic.phash:
+            anchor_mem = group.memberships.exclude(comic=comic).select_related("comic").first()
+            if anchor_mem and anchor_mem.comic.phash:
+                dist = _hamming_distance(comic.phash, anchor_mem.comic.phash)
+                DuplicateGroupMembership.objects.filter(group=group, comic=comic).update(phash_distance=dist)
+                if group.phash_max_distance is None or dist > group.phash_max_distance:
+                    group.phash_max_distance = dist
+                    group.save(update_fields=["phash_max_distance"])
+
+        comic.duplicate_group = group
+        comic.save(update_fields=["duplicate_group"])
+
+
+def _attach_orphans_to_pending_groups(orphans: list[Comic]) -> set:
+    """
+    After main detection, attach ungrouped candidates to any existing pending
+    group whose members they match by CV ID, pHash, or filename.
+
+    This catches comics that were processed in a later batch than their
+    duplicate partners, which were already grouped before the later batch ran.
+
+    Returns the set of orphan PKs that were attached to an existing group.
+    """
+    import re
+    from apps.core.models import get_setting
+
+    if not orphans:
+        return set()
+
+    DUPE_SUFFIX = re.compile(r'(?:_\d+| \(\d+\))$')
+
+    pending_members = list(
+        DuplicateGroupMembership.objects.filter(
+            group__status=DuplicateGroup.STATUS_PENDING,
+        ).select_related("comic", "group")
+    )
+
+    if not pending_members:
+        return set()
+
+    # Build lookup structures keyed by match criteria
+    cv_to_group: dict[str, DuplicateGroup] = {}
+    phash_entries: list[tuple[str, DuplicateGroup]] = []
+    canonical_to_group: dict[str, DuplicateGroup] = {}
+
+    for mem in pending_members:
+        c = mem.comic
+        g = mem.group
+
+        cv_id = str((c.custom_values or {}).get("comicvine_issue", ""))
+        if cv_id and cv_id not in cv_to_group:
+            cv_to_group[cv_id] = g
+
+        if c.phash and c.medium == Comic.MEDIUM_DIGITAL:
+            phash_entries.append((c.phash, g))
+
+        if c.file_path and c.medium == Comic.MEDIUM_DIGITAL:
+            directory = os.path.dirname(c.file_path)
+            stem, ext = os.path.splitext(os.path.basename(c.file_path))
+            canonical_key = os.path.join(directory, DUPE_SUFFIX.sub("", stem) + ext).lower()
+            if canonical_key not in canonical_to_group:
+                canonical_to_group[canonical_key] = g
+
+    phash_threshold = get_setting("duplicate_phash_distance", 5)
+    attached_pks: set = set()
+
+    for comic in orphans:
+        if comic.duplicate_group_id is not None:
+            continue
+
+        target_group = None
+
+        # CV ID (highest confidence)
+        cv_id = str((comic.custom_values or {}).get("comicvine_issue", ""))
+        if cv_id and cv_id in cv_to_group:
+            target_group = cv_to_group[cv_id]
+
+        # pHash
+        if target_group is None and comic.phash and comic.medium == Comic.MEDIUM_DIGITAL:
+            for phash, group in phash_entries:
+                if _hamming_distance(comic.phash, phash) <= phash_threshold:
+                    target_group = group
+                    break
+
+        # Filename
+        if target_group is None and comic.file_path and comic.medium == Comic.MEDIUM_DIGITAL:
+            directory = os.path.dirname(comic.file_path)
+            stem, ext = os.path.splitext(os.path.basename(comic.file_path))
+            canonical_key = os.path.join(directory, DUPE_SUFFIX.sub("", stem) + ext).lower()
+            if canonical_key in canonical_to_group:
+                target_group = canonical_to_group[canonical_key]
+
+        if target_group is not None:
+            _add_to_existing_group(comic, target_group)
+            attached_pks.add(comic.pk)
+            logger.info(
+                f"_attach_orphans_to_pending_groups: attached {comic.pk} to existing group {target_group.pk}"
+            )
+
+    return attached_pks
+
+
+# Method priority for group survival during consolidation (lower = higher priority)
+_METHOD_PRIORITY = {
+    DuplicateGroup.DETECTION_CV_ID: 0,
+    DuplicateGroup.DETECTION_METADATA: 1,
+    DuplicateGroup.DETECTION_PHASH: 2,
+    DuplicateGroup.DETECTION_FILENAME: 3,
+}
+
+
+def _consolidate_pending_groups() -> int:
+    """
+    Merge any pending groups that share members into a single group.
+
+    Comics matched by multiple methods (e.g. CV ID and pHash) end up in
+    separate groups within the same detection run because the in-memory pool
+    is built before any groups are written. This pass merges them.
+
+    Survival rule: most members wins; ties broken by method priority
+    (cv_id > metadata > phash > filename).
+
+    Returns the number of groups deleted (merged away).
+    """
+    pending_groups = list(DuplicateGroup.objects.filter(status=DuplicateGroup.STATUS_PENDING))
+    if len(pending_groups) < 2:
+        return 0
+
+    group_pks = [g.pk for g in pending_groups]
+
+    # Load memberships in one query: group_pk → set of comic_pks
+    group_comics: dict = defaultdict(set)
+    for group_pk, comic_pk in DuplicateGroupMembership.objects.filter(
+        group_id__in=group_pks
+    ).values_list("group_id", "comic_id"):
+        group_comics[group_pk].add(comic_pk)
+
+    # Union-find: union groups that share at least one member
+    parent: dict = {g.pk: g.pk for g in pending_groups}
+
+    def find(pk):
+        while parent[pk] != pk:
+            parent[pk] = parent[parent[pk]]
+            pk = parent[pk]
+        return pk
+
+    def union(pk1, pk2):
+        p1, p2 = find(pk1), find(pk2)
+        if p1 != p2:
+            parent[p1] = p2
+
+    comic_to_groups: dict = defaultdict(list)
+    for g in pending_groups:
+        for cpk in group_comics.get(g.pk, set()):
+            comic_to_groups[cpk].append(g.pk)
+
+    for gpks in comic_to_groups.values():
+        for i in range(1, len(gpks)):
+            union(gpks[0], gpks[i])
+
+    # Group by root to find components
+    components: dict = defaultdict(list)
+    group_by_pk = {g.pk: g for g in pending_groups}
+    for g in pending_groups:
+        components[find(g.pk)].append(g)
+
+    deleted = 0
+
+    for component_groups in components.values():
+        if len(component_groups) < 2:
+            continue
+
+        # Canonical = most members, then lowest method priority index
+        def sort_key(g):
+            return (-len(group_comics.get(g.pk, set())), _METHOD_PRIORITY.get(g.detection_method, 99))
+
+        canonical = min(component_groups, key=sort_key)
+        to_merge = [g for g in component_groups if g.pk != canonical.pk]
+
+        all_comic_pks = set()
+        for g in component_groups:
+            all_comic_pks |= group_comics.get(g.pk, set())
+
+        with transaction.atomic():
+            for cpk in all_comic_pks:
+                DuplicateGroupMembership.objects.get_or_create(
+                    group=canonical,
+                    comic_id=cpk,
+                )
+            Comic.objects.filter(pk__in=all_comic_pks).update(duplicate_group=canonical)
+            for g in to_merge:
+                g.delete()
+            deleted += len(to_merge)
+
+        logger.info(
+            f"_consolidate_pending_groups: merged {len(to_merge)} groups into {canonical.pk} "
+            f"({canonical.detection_method}, {len(all_comic_pks)} comics)"
+        )
+
+    return deleted
+
+
 # ============================================================================
 # Batch Detection
 # ============================================================================
+
+
+def _run_all_detectors(pool: list) -> tuple[list, dict]:
+    """Run every duplicate-detection method over `pool`.
+
+    Returns the combined list of groups plus a per-method count breakdown
+    so callers that report statistics don't have to repeat the four calls.
+    """
+    by_cv_id = detect_duplicates_by_cv_id(pool)
+    by_metadata = detect_duplicates_by_metadata(pool)
+    by_phash = detect_duplicates_by_phash(pool)
+    by_filename = detect_duplicates_by_filename(pool)
+    all_groups = by_cv_id + by_metadata + by_phash + by_filename
+    counts = {
+        "by_cv_id": len(by_cv_id),
+        "by_metadata": len(by_metadata),
+        "by_phash": len(by_phash),
+        "by_filename": len(by_filename),
+    }
+    return all_groups, counts
+
+
+def run_duplicate_detection_for_comics(comic_pks: list) -> dict:
+    """
+    Run duplicate detection for a specific set of comics.
+    Each comic is checked against the full library; clean comics advance to organized state.
+    """
+    candidates = list(Comic.objects.filter(
+        pk__in=comic_pks,
+        state=Comic.STATE_DEDUPLICATED,
+        duplicate_group__isnull=True,
+    ))
+
+    if not candidates:
+        return {"success": True, "message": "No eligible comics to process", "total_comics": 0, "groups_created": 0, "advanced": 0}
+
+    candidate_pks = set(c.pk for c in candidates)
+
+    library_comics = list(Comic.objects.filter(
+        duplicate_group__isnull=True,
+    ).exclude(
+        state=Comic.STATE_DEDUPLICATED,
+    ).exclude(pk__in=candidate_pks))
+
+    comparison_pool = candidates + library_comics
+
+    all_groups, _ = _run_all_detectors(comparison_pool)
+
+    candidates_with_groups = set()
+    for group in all_groups:
+        for membership in group.memberships.all():
+            if membership.comic_id in candidate_pks:
+                candidates_with_groups.add(membership.comic_id)
+
+    # Attach any remaining ungrouped candidates to existing pending groups, then
+    # merge groups that share members. Without this the selected path produced
+    # un-consolidated, orphan-laden groups that the full scan would have cleaned
+    # up — same comics, different grouping depending on the entry point.
+    still_ungrouped = [c for c in candidates if c.pk not in candidates_with_groups]
+    orphan_pks = _attach_orphans_to_pending_groups(still_ungrouped)
+    candidates_with_groups |= orphan_pks
+    merged = _consolidate_pending_groups()
+
+    from apps.core.audit import log_batch_entry
+
+    advanced = 0
+    for comic in candidates:
+        if comic.pk not in candidates_with_groups:
+            state_before = comic.state
+            comic.state = Comic.STATE_ORGANIZED
+            comic.save(update_fields=["state"])
+            advanced += 1
+            log_batch_entry(
+                "deduplicate_selected", comic, state_before, Comic.STATE_ORGANIZED,
+                {"state": [state_before, Comic.STATE_ORGANIZED]},
+            )
+
+    return {
+        "success": True,
+        "message": f"Detection complete: {len(all_groups)} duplicate groups found",
+        "total_comics": len(candidates),
+        "groups_created": len(all_groups),
+        "orphans_attached": len(orphan_pks),
+        "groups_merged": merged,
+        "advanced": advanced,
+    }
 
 
 def run_duplicate_detection() -> dict:
@@ -407,12 +700,7 @@ def run_duplicate_detection() -> dict:
     )
 
     # Run detection methods on the full pool
-    cv_groups = detect_duplicates_by_cv_id(comparison_pool)
-    meta_groups = detect_duplicates_by_metadata(comparison_pool)
-    phash_groups = detect_duplicates_by_phash(comparison_pool)
-    filename_groups = detect_duplicates_by_filename(comparison_pool)
-
-    all_groups = cv_groups + meta_groups + phash_groups + filename_groups
+    all_groups, method_counts = _run_all_detectors(comparison_pool)
     logger.info(f"run_duplicate_detection: created {len(all_groups)} total groups")
 
     # Collect IDs of candidates that ended up in groups
@@ -421,6 +709,18 @@ def run_duplicate_detection() -> dict:
         for membership in group.memberships.all():
             if membership.comic_id in candidate_pks:
                 candidates_with_groups.add(membership.comic_id)
+
+    # Attach any remaining ungrouped candidates to existing pending groups.
+    # Handles the case where a candidate's duplicate partner was already grouped
+    # in a previous detection run and therefore excluded from the pool above.
+    still_ungrouped = [c for c in candidates if c.pk not in candidates_with_groups]
+    orphan_pks = _attach_orphans_to_pending_groups(still_ungrouped)
+    candidates_with_groups |= orphan_pks
+    logger.info(f"run_duplicate_detection: attached {len(orphan_pks)} orphans to existing groups")
+
+    # Merge groups that share members (same comics matched by multiple methods)
+    merged = _consolidate_pending_groups()
+    logger.info(f"run_duplicate_detection: consolidated {merged} redundant groups")
 
     # Only advance candidates (formatted comics) without duplicates
     from apps.core.audit import log_batch_entry
@@ -444,10 +744,7 @@ def run_duplicate_detection() -> dict:
         "message": f"Detection complete: {len(all_groups)} duplicate groups found",
         "total_comics": len(candidates),
         "groups_created": len(all_groups),
-        "by_cv_id": len(cv_groups),
-        "by_metadata": len(meta_groups),
-        "by_phash": len(phash_groups),
-        "by_filename": len(filename_groups),
+        **method_counts,
         "advanced": advanced,
     }
 
@@ -478,23 +775,33 @@ def scan_all_for_duplicates() -> dict:
         }
 
     # Run detection methods
-    cv_groups = detect_duplicates_by_cv_id(comics)
-    meta_groups = detect_duplicates_by_metadata(comics)
-    phash_groups = detect_duplicates_by_phash(comics)
-    filename_groups = detect_duplicates_by_filename(comics)
-
-    all_groups = cv_groups + meta_groups + phash_groups + filename_groups
+    all_groups, method_counts = _run_all_detectors(comics)
     logger.info(f"scan_all_for_duplicates: created {len(all_groups)} total groups")
+
+    # After creating new groups, attach any still-ungrouped comics to existing
+    # pending groups (catches orphans whose partners were already grouped before
+    # this scan ran).
+    newly_grouped_pks = set()
+    for group in all_groups:
+        for mem in group.memberships.all():
+            newly_grouped_pks.add(mem.comic_id)
+
+    still_ungrouped = [c for c in comics if c.pk not in newly_grouped_pks]
+    orphan_pks = _attach_orphans_to_pending_groups(still_ungrouped)
+    logger.info(f"scan_all_for_duplicates: attached {len(orphan_pks)} orphans to existing groups")
+
+    # Merge groups that share members (same comics matched by multiple methods)
+    merged = _consolidate_pending_groups()
+    logger.info(f"scan_all_for_duplicates: consolidated {merged} redundant groups")
 
     return {
         "success": True,
-        "message": f"Scan complete: {len(all_groups)} duplicate groups found",
+        "message": f"Scan complete: {len(all_groups)} duplicate groups found, {len(orphan_pks)} orphans attached, {merged} redundant groups merged",
         "total_comics": len(comics),
         "groups_created": len(all_groups),
-        "by_cv_id": len(cv_groups),
-        "by_metadata": len(meta_groups),
-        "by_phash": len(phash_groups),
-        "by_filename": len(filename_groups),
+        "orphans_attached": len(orphan_pks),
+        "groups_merged": merged,
+        **method_counts,
     }
 
 

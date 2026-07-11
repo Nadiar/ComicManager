@@ -50,3 +50,17 @@ def get_col_label(col_id):
 @register.filter
 def get_col_sort(col_id):
     return COLUMNS_REGISTRY.get(col_id, {}).get("sort", col_id)
+
+@register.filter
+def get_item(dictionary, key):
+    return dictionary.get(key)
+
+@register.filter
+def state_chip_class(state):
+    return {
+        "new": "violet", "scrape": "violet",
+        "tagging": "info", "formats": "info",
+        "deduplicate": "warn",
+        "move": "accent", "write": "accent",
+        "done": "ok",
+    }.get(state, "")

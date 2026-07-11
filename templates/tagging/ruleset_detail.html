@@ -1,147 +1,113 @@
 {% extends "base.html" %}
-
-{% block title %}{{ ruleset.name }} - Tagging Rules{% endblock %}
+{% block title %}{{ ruleset.name }} — Tagging Rules — ComicManager{% endblock %}
 
 {% block content %}
-<div class="mb-6">
-  <div class="text-sm breadcrumbs mb-2">
-    <ul>
-      <li><a href="{% url 'tagging:ruleset_list' %}">Rulesets</a></li>
-      {% if ruleset.group_path %}
-      <li>{{ ruleset.group_path }}</li>
-      {% endif %}
-      <li>{{ ruleset.name }}</li>
-    </ul>
-  </div>
 
-  <div class="flex justify-between items-start">
-    <div>
-      <h1 class="text-2xl font-bold">{{ ruleset.name }}</h1>
-      <div class="flex gap-2 mt-2">
-        <span class="badge {% if ruleset.is_enabled %}badge-success{% else %}badge-error{% endif %}">
-          {% if ruleset.is_enabled %}Enabled{% else %}Disabled{% endif %}
-        </span>
-        <span class="badge {% if ruleset.mode == 'AND' %}badge-info{% else %}badge-warning{% endif %}">
-          {{ ruleset.mode }}
-        </span>
-        <span class="badge badge-ghost">Priority: {{ ruleset.priority }}</span>
-      </div>
+<!-- Header -->
+<div style="padding:14px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border); flex-wrap:wrap;">
+  <div>
+    <div style="font-size:11px; color:var(--cm-fg-3); margin-bottom:4px;">
+      <a href="{% url 'tagging:ruleset_list' %}" style="color:var(--cm-fg-3); text-decoration:none;">Rulesets</a>
+      {% if ruleset.group_path %} / {{ ruleset.group_path }}{% endif %}
+      / {{ ruleset.name }}
     </div>
-    <div class="flex gap-2">
-      <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="btn btn-primary btn-sm">Edit</a>
-      <form method="post" action="{% url 'tagging:ruleset_duplicate' ruleset.pk %}" class="inline">
-        {% csrf_token %}
-        <button type="submit" class="btn btn-outline btn-sm">Duplicate</button>
-      </form>
-      <form method="post" action="{% url 'tagging:ruleset_delete' ruleset.pk %}" class="inline">
-        {% csrf_token %}
-        <button type="button" class="btn btn-error btn-outline btn-sm"
-                onclick="showConfirm('Delete this ruleset?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
-      </form>
+    <h1 class="cm-page-title">{{ ruleset.name }}</h1>
+    <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+      <span class="cm-chip {% if ruleset.is_enabled %}ok{% else %}err{% endif %}" style="font-size:11px;">{% if ruleset.is_enabled %}Enabled{% else %}Disabled{% endif %}</span>
+      <span class="cm-chip {% if ruleset.mode == 'AND' %}info{% else %}warn{% endif %}" style="font-size:11px;">{{ ruleset.mode }}</span>
+      <span class="cm-chip" style="font-size:11px;">Priority: {{ ruleset.priority }}</span>
     </div>
+  </div>
+  <div style="display:flex; gap:8px; flex-shrink:0;">
+    <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="cm-btn sm primary" cm-no-underline">Edit</a>
+    <form method="post" action="{% url 'tagging:ruleset_duplicate' ruleset.pk %}" class="inline">
+      {% csrf_token %}
+      <button type="submit" class="cm-btn sm ghost">Duplicate</button>
+    </form>
+    <form method="post" action="{% url 'tagging:ruleset_delete' ruleset.pk %}" class="inline">
+      {% csrf_token %}
+      <button type="button" class="cm-btn sm ghost" style="color:var(--cm-err); border-color:var(--cm-err);"
+              onclick="showConfirm('Delete this ruleset?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
+    </form>
   </div>
 </div>
 
 {% if ruleset.comment %}
-<div class="alert mb-6">
-  <span>{{ ruleset.comment }}</span>
+<div style="margin:12px 16px; padding:12px 14px; background:rgba(59,130,246,.07); border:1px solid rgba(59,130,246,.25); border-radius:6px; font-size:12px; color:var(--cm-fg-2);">
+  {{ ruleset.comment }}
 </div>
 {% endif %}
 
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-  <!-- Rules -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">
-        Rules
-        <span class="badge badge-sm">{{ ruleset.rule_count }}</span>
-      </h2>
-      <p class="text-sm text-base-content/70 mb-4">
-        {% if ruleset.mode == 'AND' %}
-        All conditions must match for this ruleset to apply.
-        {% else %}
-        Any condition can match for this ruleset to apply.
-        {% endif %}
-      </p>
+<div style="padding:16px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
 
-      {% if ruleset.rules %}
-      <div class="space-y-2">
-        {% for rule in ruleset.rules %}
-        <div class="bg-base-300 rounded-lg p-3">
-          <div class="flex flex-wrap gap-2 items-center">
-            <span class="font-mono text-sm bg-base-100 px-2 py-1 rounded">{{ rule.field }}</span>
-            <span class="badge badge-outline badge-sm">{{ rule.modifier }}</span>
-            {% if rule.value %}
-            <span class="text-sm text-base-content/80 break-all">{{ rule.value }}</span>
-            {% else %}
-            <span class="text-sm text-base-content/50 italic">(empty)</span>
-            {% endif %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-base-content/50 italic">No rules defined.</p>
-      {% endif %}
+  <!-- Rules -->
+  <div class="cm-card cm-card-body">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+      <span style="font-size:15px; font-weight:700;">Rules</span>
+      <span class="cm-chip" style="font-size:10.5px;" class="mono tnum">{{ ruleset.rule_count }}</span>
     </div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:12px;">
+      {% if ruleset.mode == 'AND' %}All conditions must match.{% else %}Any condition can match.{% endif %}
+    </p>
+    {% if ruleset.rules %}
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      {% for rule in ruleset.rules %}
+      <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:4px; padding:8px 10px;">
+        <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px;">
+          <code style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:3px; padding:2px 6px; font-size:11px;">{{ rule.field }}</code>
+          <span class="cm-chip" style="font-size:10.5px;">{{ rule.modifier }}</span>
+          {% if rule.value %}
+          <span style="color:var(--cm-fg-1); word-break:break-all;">{{ rule.value }}</span>
+          {% else %}
+          <span style="color:var(--cm-fg-3); font-style:italic;">(empty)</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="font-size:12px; color:var(--cm-fg-3); font-style:italic;">No rules defined.</p>
+    {% endif %}
   </div>
 
   <!-- Actions -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">
-        Actions
-        <span class="badge badge-sm">{{ ruleset.action_count }}</span>
-      </h2>
-      <p class="text-sm text-base-content/70 mb-4">
-        These changes are applied when rules match.
-      </p>
-
-      {% if ruleset.actions %}
-      <div class="space-y-2">
-        {% for action in ruleset.actions %}
-        <div class="bg-base-300 rounded-lg p-3">
-          <div class="flex flex-wrap gap-2 items-center">
-            <span class="font-mono text-sm bg-base-100 px-2 py-1 rounded">{{ action.field }}</span>
-            <span class="badge badge-outline badge-sm">{{ action.modifier }}</span>
-            {% if action.value %}
-            <span class="text-sm text-base-content/80 break-all">{{ action.value }}</span>
-            {% else %}
-            <span class="text-sm text-base-content/50 italic">(clear)</span>
-            {% endif %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-base-content/50 italic">No actions defined.</p>
-      {% endif %}
+  <div class="cm-card cm-card-body">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+      <span style="font-size:15px; font-weight:700;">Actions</span>
+      <span class="cm-chip" style="font-size:10.5px;" class="mono tnum">{{ ruleset.action_count }}</span>
     </div>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin-bottom:12px;">Changes applied when rules match.</p>
+    {% if ruleset.actions %}
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      {% for action in ruleset.actions %}
+      <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:4px; padding:8px 10px;">
+        <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px;">
+          <code style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:3px; padding:2px 6px; font-size:11px;">{{ action.field }}</code>
+          <span class="cm-chip" style="font-size:10.5px;">{{ action.modifier }}</span>
+          {% if action.value %}
+          <span style="color:var(--cm-fg-1); word-break:break-all;">{{ action.value }}</span>
+          {% else %}
+          <span style="color:var(--cm-fg-3); font-style:italic;">(clear)</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p style="font-size:12px; color:var(--cm-fg-3); font-style:italic;">No actions defined.</p>
+    {% endif %}
   </div>
+
 </div>
 
 <!-- Metadata -->
-<div class="card bg-base-200 mt-6">
-  <div class="card-body">
-    <h2 class="card-title">Metadata</h2>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-      <div>
-        <span class="text-base-content/50">Created:</span>
-        <span>{{ ruleset.created_at|date:"M d, Y H:i" }}</span>
-      </div>
-      <div>
-        <span class="text-base-content/50">Updated:</span>
-        <span>{{ ruleset.updated_at|date:"M d, Y H:i" }}</span>
-      </div>
-      <div>
-        <span class="text-base-content/50">Group Path:</span>
-        <span>{{ ruleset.group_path|default:"-" }}</span>
-      </div>
-      <div>
-        <span class="text-base-content/50">ID:</span>
-        <span>{{ ruleset.pk }}</span>
-      </div>
-    </div>
+<div style="margin:0 16px 16px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:16px;">
+  <div style="font-size:15px; font-weight:700; margin-bottom:10px;">Metadata</div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; font-size:12px;">
+    <div><span class="cm-text-muted">Created:</span> <span>{{ ruleset.created_at|date:"M d, Y H:i" }}</span></div>
+    <div><span class="cm-text-muted">Updated:</span> <span>{{ ruleset.updated_at|date:"M d, Y H:i" }}</span></div>
+    <div><span class="cm-text-muted">Group Path:</span> <span>{{ ruleset.group_path|default:"—" }}</span></div>
+    <div><span class="cm-text-muted">ID:</span> <span class="mono">{{ ruleset.pk }}</span></div>
   </div>
 </div>
 {% endblock %}

@@ -1,4 +1,6 @@
 django>=5.1
+channels[daphne]>=4.0
+channels-redis>=4.2
 psycopg[binary]>=3.2
 celery[redis]>=5.4
 django-celery-beat>=2.7
@@ -11,3 +13,5 @@ Pillow>=11.0
 python-magic>=0.4
 django-htmx>=1.21
 patool>=3.0
+defusedxml>=0.7
+whitenoise>=6.0

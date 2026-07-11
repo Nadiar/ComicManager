@@ -1,146 +1,96 @@
-<div class="card bg-base-300" id="group-{{ group.id }}">
-  <div class="card-body p-4">
-    <div class="flex justify-between items-start">
-      <div>
-        <h4 class="font-medium text-lg">{{ group.match_key }}</h4>
-        <p class="text-sm text-base-content/60">
-          {{ group.comic_count }} comic{{ group.comic_count|pluralize }} &bull;
-          {{ group.detection_method_display }}
-        </p>
-        <p class="text-xs text-base-content/40 mt-0.5">
-          Delete unwanted comics first — the last remaining one is auto-kept. Or use "Keep &amp; Del Rest" to decide in one step.
-        </p>
+<div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:14px;" id="group-{{ group.id }}">
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px;">
+    <div>
+      <div style="font-size:14px; font-weight:600;">{{ group.match_key }}</div>
+      <div style="font-size:11.5px; color:var(--cm-fg-3); margin-top:2px;">
+        {{ group.comic_count }} comic{{ group.comic_count|pluralize }} &bull; {{ group.detection_method_display }}
       </div>
-      <div class="flex gap-2">
-        <a href="{% url 'duplicates:group_detail' group.id %}" class="btn btn-xs btn-ghost">
-          Details
-        </a>
-        <button
-          class="btn btn-xs btn-info"
-          hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
-          hx-vals='{"action": "keep_all"}'
-          hx-target="#group-{{ group.id }}"
-          hx-swap="outerHTML"
-          hx-confirm="Keep all comics in this group as intentional (not duplicates)?"
-        >
-          Keep All
-        </button>
+      <div style="font-size:11px; color:var(--cm-fg-3); margin-top:3px;">
+        Delete unwanted comics first — the last remaining one is auto-kept. Or use "Keep &amp; Del Rest" to decide in one step.
       </div>
     </div>
+    <div style="display:flex; gap:6px; flex-shrink:0;">
+      <a href="{% url 'duplicates:group_detail' group.id %}" class="cm-btn sm ghost cm-no-underline">Details</a>
+      <button class="cm-btn sm"
+        style="color:var(--cm-info); border-color:var(--cm-info);"
+        hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
+        hx-vals='{"action": "keep_all"}'
+        hx-target="#group-{{ group.id }}"
+        hx-swap="outerHTML"
+        hx-confirm="Keep all comics in this group as intentional (not duplicates)?">Keep All</button>
+    </div>
+  </div>
 
-    <!-- Comics table -->
-    <div class="overflow-x-auto mt-3">
-      <table class="table table-sm table-zebra">
-        <thead>
-          <tr>
-            <th class="w-28">Cover</th>
-            <th>Actions</th>
-            <th>Series</th>
-            <th>#</th>
-            <th>Vol</th>
-            <th>Format</th>
-            <th>CV Issue</th>
-            <th>Size</th>
-            <th>Pages</th>
-            {% if group.detection_method == 'phash' %}<th>Distance</th>{% endif %}
-            <th>Source</th>
-            <th>File Path</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for comic in group.comics %}
-          <tr class="hover">
-            <td class="p-1">
-              <img
-                src="{% url 'core:cover' comic.id %}"
-                alt="Cover"
-                class="w-24 h-auto rounded cursor-pointer hover:opacity-80 transition-opacity cover-thumb"
-                loading="lazy"
-                data-full-src="{% url 'core:cover' comic.id %}"
-                data-title="{{ comic.series|default:'-' }} #{{ comic.number|default:'?' }}"
-              />
-            </td>
-            <td>
-              <div class="flex flex-wrap gap-1 max-w-[11rem]">
-                <button
-                  class="btn btn-xs btn-success"
-                  hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
-                  hx-vals='{"action": "keep", "comic_id": "{{ comic.id }}"}'
-                  hx-target="#group-{{ group.id }}"
-                  hx-swap="outerHTML"
-                  title="Keep this comic, advance to deduplicated"
-                >
-                  Keep
-                </button>
-                <button
-                  class="btn btn-xs btn-success btn-outline"
-                  onclick="(function(btn){ showConfirm('Keep this comic and DELETE all others in this group? This cannot be undone!', function() { htmx.ajax('POST', '{% url 'duplicates:resolve_htmx' group.id %}', {source: btn, target: '#group-{{ group.id }}', swap: 'outerHTML', values: {action: 'keep_and_delete_rest', comic_id: '{{ comic.id }}'}}); }, 'Delete Rest', true); })(this)"
-                  title="Keep this comic and permanently delete all others in the group"
-                >
-                  Keep &amp; Del Rest
-                </button>
-                <button
-                  class="btn btn-xs btn-warning"
-                  hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
-                  hx-vals='{"action": "requeue", "comic_id": "{{ comic.id }}"}'
-                  hx-target="#group-{{ group.id }}"
-                  hx-swap="outerHTML"
-                  hx-confirm="Send this comic back to imported state for re-scraping?"
-                  title="Re-queue for re-scraping"
-                >
-                  Re-Q
-                </button>
-                <button
-                  class="btn btn-xs btn-error"
-                  hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
-                  hx-vals='{"action": "delete", "comic_id": "{{ comic.id }}"}'
-                  hx-target="#group-{{ group.id }}"
-                  hx-swap="outerHTML"
-                  hx-confirm="DELETE this comic file and database record? This cannot be undone!"
-                  title="Delete file and record"
-                >
-                  Del
-                </button>
-              </div>
-            </td>
-            <td>
-              <a href="{% url 'core:detail' comic.id %}" class="link link-primary" target="_blank" rel="noopener noreferrer">
-                {{ comic.series|default:"-"|truncatechars:30 }}
-              </a>
-            </td>
-            <td>{{ comic.number|default:"-" }}</td>
-            <td>{{ comic.volume|default:"-" }}</td>
-            <td>
-              {% if comic.format %}
-              <span class="badge badge-sm badge-outline">{{ comic.format }}</span>
-              {% else %}-{% endif %}
-            </td>
-            <td>
-              {% if comic.cv_issue %}
-              <span class="font-mono text-xs">{{ comic.cv_issue }}</span>
-              {% else %}-{% endif %}
-            </td>
-            <td class="text-right">
-              {% if comic.file_size %}
-              {% widthratio comic.file_size 1048576 1 %} MB
-              {% else %}-{% endif %}
-            </td>
-            <td class="text-right">{{ comic.page_count|default:"-" }}</td>
-            {% if group.detection_method == 'phash' %}
-            <td class="text-center">{{ comic.phash_distance|default:"0" }}</td>
-            {% endif %}
-            <td>
-              {% if comic.scrape_source %}
-              <span class="badge badge-xs">{{ comic.scrape_source }}</span>
-              {% else %}-{% endif %}
-            </td>
-            <td class="text-xs text-base-content/70 max-w-xs truncate" title="{{ comic.file_path }}">
-              {{ comic.file_path|default:"-" }}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  <!-- Comics table -->
+  <div class="cm-overflow-x">
+    <table class="cm-table">
+      <thead>
+        <tr class="cm-divider">
+          <th style="padding:6px 8px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:90px;">Cover</th>
+          <th style="padding:6px 8px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Actions</th>
+          <th style="padding:6px 8px; text-align:left; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Series</th>
+          <th style="padding:6px 8px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">#</th>
+          <th style="padding:6px 8px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Vol</th>
+          <th style="padding:6px 8px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Format</th>
+          <th style="padding:6px 8px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">CV</th>
+          <th style="padding:6px 8px; text-align:right; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Size</th>
+          <th style="padding:6px 8px; text-align:right; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Pages</th>
+          {% if group.detection_method == 'phash' %}<th style="padding:6px 8px; text-align:center; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Dist.</th>{% endif %}
+          <th style="padding:6px 8px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Source</th>
+          <th style="padding:6px 8px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">File</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for comic in group.comics %}
+        <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+          <td style="padding:6px 8px;">
+            <img src="{% url 'core:cover' comic.id %}" alt="Cover"
+              style="width:72px; height:auto; border-radius:3px; cursor:pointer; transition:opacity .15s;"
+              loading="lazy"
+              class="cover-thumb"
+              data-full-src="{% url 'core:cover' comic.id %}"
+              data-title="{{ comic.series|default:'-' }} #{{ comic.number|default:'?' }}"
+              onmouseenter="this.style.opacity='.75'" onmouseleave="this.style.opacity='1'"/>
+          </td>
+          <td style="padding:6px 8px;">
+            <div style="display:flex; flex-wrap:wrap; gap:4px; max-width:180px;">
+              <button class="cm-btn sm" style="color:var(--cm-ok); border-color:var(--cm-ok);"
+                hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
+                hx-vals='{"action": "keep", "comic_id": "{{ comic.id }}"}'
+                hx-target="#group-{{ group.id }}" hx-swap="outerHTML"
+                title="Keep this comic, advance to deduplicated">Keep</button>
+              <button class="cm-btn sm ghost" style="border-color:var(--cm-ok); color:var(--cm-ok);"
+                onclick="(function(btn){ showConfirm('Keep this comic and DELETE all others in this group? This cannot be undone!', function() { htmx.ajax('POST', '{% url 'duplicates:resolve_htmx' group.id %}', {source: btn, target: '#group-{{ group.id }}', swap: 'outerHTML', values: {action: 'keep_and_delete_rest', comic_id: '{{ comic.id }}'}}); }, 'Delete Rest', true); })(this)"
+                title="Keep this comic and permanently delete all others">Keep &amp; Del Rest</button>
+              <button class="cm-btn sm" style="color:var(--cm-warn); border-color:var(--cm-warn);"
+                hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
+                hx-vals='{"action": "requeue", "comic_id": "{{ comic.id }}"}'
+                hx-target="#group-{{ group.id }}" hx-swap="outerHTML"
+                hx-confirm="Send this comic back to imported state for re-scraping?"
+                title="Re-queue for re-scraping">Re-Q</button>
+              <button class="cm-btn sm" style="color:var(--cm-err); border-color:var(--cm-err);"
+                hx-post="{% url 'duplicates:resolve_htmx' group.id %}"
+                hx-vals='{"action": "delete", "comic_id": "{{ comic.id }}"}'
+                hx-target="#group-{{ group.id }}" hx-swap="outerHTML"
+                hx-confirm="DELETE this comic file and database record? This cannot be undone!"
+                title="Delete file and record">Del</button>
+            </div>
+          </td>
+          <td style="padding:6px 8px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            <a href="{% url 'core:detail' comic.id %}" class="cm-text-accent" target="_blank" rel="noopener noreferrer">{{ comic.series|default:"—"|truncatechars:30 }}</a>
+          </td>
+          <td style="padding:6px 8px;" class="mono tnum">{{ comic.number|default:"—" }}</td>
+          <td style="padding:6px 8px;" class="mono tnum">{{ comic.volume|default:"—" }}</td>
+          <td style="padding:6px 8px;">{% if comic.format %}<span class="cm-chip" style="font-size:10.5px;">{{ comic.format }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
+          <td style="padding:6px 8px; color:var(--cm-fg-3);" class="mono tnum">{% if comic.cv_issue %}{{ comic.cv_issue }}{% else %}—{% endif %}</td>
+          <td style="padding:6px 8px; text-align:right;" class="mono tnum">{% if comic.file_size %}{% widthratio comic.file_size 1048576 1 %} MB{% else %}—{% endif %}</td>
+          <td style="padding:6px 8px; text-align:right;" class="mono tnum">{{ comic.page_count|default:"—" }}</td>
+          {% if group.detection_method == 'phash' %}<td style="padding:6px 8px; text-align:center;" class="mono tnum">{{ comic.phash_distance|default:"0" }}</td>{% endif %}
+          <td style="padding:6px 8px;">{% if comic.scrape_source %}<span class="cm-chip cm-text-xs">{{ comic.scrape_source }}</span>{% else %}<span class="cm-text-muted">—</span>{% endif %}</td>
+          <td style="padding:6px 8px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; color:var(--cm-fg-3);" title="{{ comic.file_path }}">{{ comic.file_path|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>

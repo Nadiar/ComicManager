@@ -3,844 +3,583 @@
 {% block nav_comics %}active{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
-  <!-- Header -->
-  <div class="flex justify-between items-start">
-    <div class="flex gap-5 items-start">
-      {% if has_cover %}
-      <div class="flex-shrink-0 cursor-pointer" onclick="openImageModal('/comics/{{ comic.pk }}/cover/', 'Cover')">
-        <img src="/comics/{{ comic.pk }}/cover/" alt="Cover" class="w-32 h-auto rounded-lg shadow-lg hover:ring-2 hover:ring-primary transition-all" />
-      </div>
-      {% elif comic.is_physical %}
-      <div class="flex-shrink-0 w-32 h-44 rounded-lg bg-base-300 flex items-center justify-center text-base-content/30 text-xs text-center cursor-pointer" onclick="document.getElementById('upload-cover-modal').showModal()">
-        <span>No Cover<br>Click to Upload</span>
-      </div>
-      {% endif %}
-      <div>
-        <h1 class="text-3xl font-bold">{{ comic.series|default:"Unknown Series" }} #{{ comic.number|default:"?" }}</h1>
-        {% if comic.title %}
-        <p class="text-lg text-base-content/70 mt-1">{{ comic.title }}</p>
-        {% endif %}
-        <div class="flex gap-2 mt-2">
-          <span class="badge badge-lg {% if comic.state == 'write' %}badge-success{% elif comic.state == 'new' %}badge-warning{% else %}badge-info{% endif %}">
-            {{ comic.get_state_display }}
-          </span>
-          <span class="badge badge-lg badge-outline">{{ comic.medium }}</span>
-          {% if comic.publisher %}
-          <span class="badge badge-lg">{{ comic.publisher }}</span>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-    <div class="flex gap-2">
-      {% if comic.is_digital and comic.file_path %}
-      <a href="{% url 'core:reader' comic.pk %}" class="btn btn-primary btn-sm" title="Open browser reader">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-        </svg>
-        Read
-      </a>
-      <a href="{% url 'core:download' comic.pk %}" class="btn btn-ghost btn-sm" title="Download file">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-        </svg>
-        Download
-      </a>
-      {% endif %}
-      <!-- Actions Dropdown -->
-      <div class="dropdown dropdown-end">
-        <div tabindex="0" role="button" class="btn btn-secondary">
-          Actions
-          <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-          </svg>
-        </div>
-        <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-10 w-52 p-2 shadow-lg border border-base-300">
-          <li class="menu-title"><span>Workflow Actions</span></li>
-          <li>
-            <button onclick="openScrapeModal()">
-              <span class="badge badge-xs badge-secondary">1</span> Re-scrape
-            </button>
-          </li>
-          <li>
-            <button id="btn-toggle-skip" onclick="toggleScrapeSkip()" class="{% if comic.flags.scrape_skipped %}text-warning{% endif %}">
-              {% if comic.flags.scrape_skipped %}Un-skip Scraping{% else %}Skip Scraping{% endif %}
-            </button>
-          </li>
-          <li>
-            <button onclick="runAction('tag')" id="action-tag">
-              <span class="badge badge-xs badge-accent">2</span> Re-tag
-            </button>
-          </li>
-          <li>
-            <button onclick="runAction('format')" id="action-format">
-              <span class="badge badge-xs badge-info">3</span> Re-format
-            </button>
-          </li>
-          {% if comic.is_digital %}
-          <li>
-            <button onclick="runAction('organize')" id="action-organize">
-              <span class="badge badge-xs badge-warning">4</span> Re-organize
-            </button>
-          </li>
-          <li>
-            <button onclick="runAction('write')" id="action-write">
-              <span class="badge badge-xs badge-success">5</span> Write to File
-            </button>
-          </li>
-          {% endif %}
-          <li class="menu-title mt-2"><span>Other</span></li>
-          {% if comic.is_digital and comic.file_path %}
-          <li>
-            <button onclick="refreshFileInfo()" id="action-refresh-file-info">
-              Refresh File Info
-            </button>
-          </li>
-          {% endif %}
-          {% if comic.is_digital and comic.custom_values.scrape_source != "inducks" %}
-          <li>
-            <button onclick="runAction('refresh-credits')" id="action-refresh-credits">
-              Refresh Credits from CV
-            </button>
-          </li>
-          <li>
-            <button onclick="runAction('search-alt-covers')" id="action-search-alt-covers">
-              Search Alt Covers
-            </button>
-          </li>
-          <li>
-            <button onclick="openCvCompareModal()" id="action-cv-compare">
-              Compare All Sources
-            </button>
-          </li>
-          {% endif %}
-          {% if comic.is_physical %}
-          <li>
-            <button onclick="document.getElementById('upload-cover-modal').showModal()">
-              Upload Cover
-            </button>
-          </li>
-          {% endif %}
-          {% if comic.is_digital and comic.file_path %}
-          <li>
-            <button onclick="openPageManager()" id="action-manage-pages">
-              Manage Pages
-            </button>
-          </li>
-          {% endif %}
-          <li>
-            <a href="{% url 'core:export_json' comic.pk %}">
-              Export as JSON
-            </a>
-          </li>
-          <li class="menu-title mt-2"><span class="text-error">Danger Zone</span></li>
-          <li>
-            <button onclick="deleteComic()" id="action-delete" class="text-error hover:bg-error hover:text-error-content">
-              Delete Comic
-            </button>
-          </li>
-        </ul>
-      </div>
-      <a href="/comics/{{ comic.pk }}/edit/" class="btn btn-primary">Edit</a>
-      <a href="/comics/{% if current_state %}?state={{ current_state }}{% endif %}" class="btn btn-ghost">Back to List</a>
-    </div>
+<div style="padding:20px; display:flex; flex-direction:column; gap:16px; max-width:1600px; margin:0 auto;">
+
+{% if comic.flags.corrupted_archive %}
+<div id="corrupted-alert" style="background:var(--cm-err-dim); border:1px solid var(--cm-err); border-radius:8px; padding:14px 16px; display:flex; align-items:flex-start; gap:12px;">
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="flex-shrink:0; color:var(--cm-err); margin-top:1px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+  <div style="flex:1; min-width:0;">
+    <div style="font-weight:600; color:var(--cm-err); margin-bottom:4px; font-size:13px;">Corrupted archive</div>
+    <div style="font-size:12px; color:var(--cm-fg-2);">This CBZ file cannot be opened. It may be truncated or corrupted.</div>
+    <div style="font-size:12px; color:var(--cm-fg-2); margin-top:3px;">Try rezipping to recover any readable entries, or delete it and re-import a working copy.</div>
   </div>
-
-  {% if comic.flags.corrupted_archive %}
-  <!-- Corrupted Archive Alert -->
-  <div class="alert alert-error" id="corrupted-alert">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-    </svg>
-    <div class="flex-1">
-      <p class="font-semibold">Corrupted archive</p>
-      <p class="text-sm">This CBZ file cannot be opened. It may be truncated or corrupted.</p>
-      <p class="text-sm mt-1">
-        Try rezipping to recover any readable entries, or delete it and re-import a working copy.
-      </p>
-    </div>
-    <div class="flex gap-2">
-      <button id="btn-rezip" class="btn btn-sm btn-warning" onclick="tryRezip()">
-        Try Rezip
-      </button>
-      <button class="btn btn-sm btn-error btn-outline" onclick="deleteComic()">
-        Delete
-      </button>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if alt_cover_range %}
-  <!-- Variant Covers Gallery -->
-  <div class="card bg-base-200 shadow-sm border border-base-300">
-    <div class="card-body p-4">
-      <h2 class="card-title text-sm opacity-70 mb-2">Variant Covers</h2>
-      <div class="flex flex-wrap gap-4">
-        <div class="group relative cursor-pointer" onclick="openGallery(0, 'variants')">
-          <img src="/comics/{{ comic.pk }}/cover/" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="Local Cover" />
-          <div class="text-[10px] text-center mt-1 opacity-50">Local Cover</div>
-        </div>
-        {% for page_num in alt_cover_range %}
-        <div class="group relative cursor-pointer" onclick="openGallery({{ forloop.counter }}, 'variants')">
-          <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}" class="w-20 h-auto rounded border border-base-300 shadow-sm hover:ring-2 hover:ring-primary transition-all" alt="{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}" />
-          <div class="text-[10px] text-center mt-1 opacity-50">{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}</div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if physical_covers %}
-  <!-- Physical Variant Covers -->
-  <div class="card bg-base-200 shadow-sm border border-base-300">
-    <div class="card-body p-4">
-      <h2 class="card-title text-sm opacity-70 mb-2">Variant Covers</h2>
-      <div class="flex flex-wrap gap-4">
-        {% for cover in physical_covers %}
-        <div class="flex flex-col items-center gap-1">
-          <div class="cursor-pointer" onclick="openImageModal('{{ cover.proxy_url }}', 'Cover')">
-            <img src="{{ cover.proxy_url }}"
-                 class="w-20 h-auto rounded border shadow-sm hover:ring-2 hover:ring-primary transition-all {% if cover.is_main %}ring-2 ring-success border-success{% else %}border-base-300{% endif %}"
-                 alt="Variant Cover" />
-          </div>
-          {% if cover.is_main %}
-          <div class="text-[10px] text-success font-semibold">Main Cover</div>
-          {% else %}
-          <button class="btn btn-xs btn-success"
-                  onclick="setMainCover('{{ cover.original_url|escapejs }}')">
-            Set Main
-          </button>
-          {% endif %}
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if show_series_completion and comic.custom_values.scrape_source != "inducks" %}
-  <!-- Series Completion (lazy-loaded via HTMX) -->
-  <div hx-get="{% url 'core:series_completion' comic.pk %}" hx-trigger="load" hx-swap="outerHTML">
-    <div class="flex justify-center py-4">
-      <span class="loading loading-dots loading-sm"></span>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if comic.state == 'move' or comic.state == 'write' %}
-  {% if reorganize_preview %}
-  <!-- Re-organize Preview -->
-  <div class="alert {% if reorganize_preview.would_move %}alert-info{% else %}alert-success{% endif %}">
-    <div class="flex-1">
-      <p class="font-semibold">
-        {% if reorganize_preview.would_move %}
-        Path Change Preview (Profile: {{ reorganize_preview.selected_profile }})
-        {% else %}
-        File is in correct location (Profile: {{ reorganize_preview.selected_profile }})
-        {% endif %}
-      </p>
-      {% if reorganize_preview.would_move %}
-      <p class="text-sm mt-1">
-        <span class="text-base-content/60">Current:</span> <code class="text-xs">{{ reorganize_preview.old_path }}</code>
-      </p>
-      <p class="text-sm">
-        <span class="text-base-content/60">Target:</span> <code class="text-xs">{{ reorganize_preview.new_path }}</code>
-      </p>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-  {% endif %}
-
-  {% if comic.is_digital and comparison %}
-  <!-- Metadata Comparison Table (Digital comics only) -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title text-xl mb-4">Metadata Comparison</h2>
-      <p class="text-sm text-base-content/60 mb-4">
-        Comparing database values with ComicInfo.xml from the file.
-        {% if not xml_data %}
-        <span class="text-warning">No ComicInfo.xml found in file.</span>
-        {% endif %}
-      </p>
-
-      <div class="overflow-x-auto">
-        <table class="table table-zebra">
-          <thead>
-            <tr>
-              <th>Field</th>
-              <th>Database</th>
-              <th>ComicInfo.xml</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for item in comparison %}
-            <tr class="{% if item.status == 'differ' %}bg-warning/10{% elif item.status == 'db_only' %}bg-info/10{% elif item.status == 'xml_only' %}bg-error/10{% endif %}">
-              <td class="font-medium">{{ item.label }}</td>
-              <td class="max-w-xs">
-                {% if item.db_value %}
-                <span class="whitespace-pre-wrap {% if item.status == 'differ' %}text-warning{% endif %}">{{ item.db_value }}</span>
-                {% else %}
-                <span class="text-base-content/30">-</span>
-                {% endif %}
-              </td>
-              <td class="max-w-xs">
-                {% if item.xml_value %}
-                <span class="whitespace-pre-wrap {% if item.status == 'differ' %}text-warning{% endif %}">{{ item.xml_value }}</span>
-                {% else %}
-                <span class="text-base-content/30">-</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if item.status == 'match' %}
-                <span class="badge badge-success badge-sm">Match</span>
-                {% elif item.status == 'differ' %}
-                <span class="badge badge-warning badge-sm">Different</span>
-                {% elif item.status == 'db_only' %}
-                <span class="badge badge-info badge-sm">DB Only</span>
-                {% elif item.status == 'xml_only' %}
-                <span class="badge badge-error badge-sm">XML Only</span>
-                {% else %}
-                <span class="badge badge-ghost badge-sm">Empty</span>
-                {% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  {% if comic.is_physical or not comparison %}
-  <!-- Simple Field Display (Physical comics or when no comparison) -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title text-xl mb-4">Comic Metadata</h2>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <!-- Core Info -->
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Core Info</h3>
-          <div><span class="text-base-content/60">Series:</span> {{ comic.series|default:"-" }}</div>
-          <div><span class="text-base-content/60">Number:</span> {{ comic.number|default:"-" }}</div>
-          <div><span class="text-base-content/60">Title:</span> {{ comic.title|default:"-" }}</div>
-          <div><span class="text-base-content/60">Volume:</span> {{ comic.volume|default:"-" }}</div>
-          <div><span class="text-base-content/60">Count:</span> {{ comic.count|default:"-" }}</div>
-        </div>
-
-        <!-- Publication -->
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Publication</h3>
-          <div><span class="text-base-content/60">Publisher:</span> {{ comic.publisher|default:"-" }}</div>
-          <div><span class="text-base-content/60">Year:</span> {{ comic.year|default:"-" }}</div>
-          <div><span class="text-base-content/60">Month:</span> {{ comic.month|default:"-" }}</div>
-          <div><span class="text-base-content/60">Day:</span> {{ comic.day|default:"-" }}</div>
-          <div><span class="text-base-content/60">Format:</span> {{ comic.format|default:"-" }}</div>
-        </div>
-
-        <!-- Classification -->
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Classification</h3>
-          <div><span class="text-base-content/60">Genre:</span> {{ comic.genre|default:"-" }}</div>
-          <div><span class="text-base-content/60">Series Group:</span> {{ comic.series_group|default:"-" }}</div>
-          <div><span class="text-base-content/60">Main Character:</span> {{ comic.main_character_or_team|default:"-" }}</div>
-          {% if comic.is_physical %}
-          <div><span class="text-base-content/60">Storage Location:</span> {{ comic.storage_location|default:"-" }}</div>
-          {% endif %}
-        </div>
-      </div>
-
-      {% if comic.summary %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Summary</h3>
-        <p class="text-sm">{{ comic.summary }}</p>
-      </div>
-      {% endif %}
-
-      <!-- Credits -->
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Credits</h3>
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 text-sm">
-          {% if comic.writer %}<div><span class="text-base-content/60">Writer:</span> {{ comic.writer }}</div>{% endif %}
-          {% if comic.penciller %}<div><span class="text-base-content/60">Penciller:</span> {{ comic.penciller }}</div>{% endif %}
-          {% if comic.inker %}<div><span class="text-base-content/60">Inker:</span> {{ comic.inker }}</div>{% endif %}
-          {% if comic.colorist %}<div><span class="text-base-content/60">Colorist:</span> {{ comic.colorist }}</div>{% endif %}
-          {% if comic.letterer %}<div><span class="text-base-content/60">Letterer:</span> {{ comic.letterer }}</div>{% endif %}
-          {% if comic.cover_artist %}<div><span class="text-base-content/60">Cover Artist:</span> {{ comic.cover_artist }}</div>{% endif %}
-          {% if comic.editor %}<div><span class="text-base-content/60">Editor:</span> {{ comic.editor }}</div>{% endif %}
-        </div>
-      </div>
-
-      {% if comic.characters %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Characters</h3>
-        <p class="text-sm">{{ comic.characters }}</p>
-      </div>
-      {% endif %}
-
-      {% if comic.teams %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Teams</h3>
-        <p class="text-sm">{{ comic.teams }}</p>
-      </div>
-      {% endif %}
-
-      {% if comic.locations %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Locations</h3>
-        <p class="text-sm">{{ comic.locations }}</p>
-      </div>
-      {% endif %}
-
-      {% if comic.tags %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Tags</h3>
-        <p class="text-sm">{{ comic.tags }}</p>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- File & System Info -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title text-xl mb-4">File & System Info</h2>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">File Details</h3>
-          {% if comic.file_path %}
-          <div><span class="text-base-content/60">Path:</span> <code class="text-xs">{{ comic.file_path }}</code></div>
-          {% else %}
-          <div><span class="text-base-content/60">Path:</span> <span class="text-warning">No file (physical comic)</span></div>
-          {% endif %}
-          <div><span class="text-base-content/60">Format:</span> {{ comic.file_format|default:"-" }}</div>
-          <div><span class="text-base-content/60">Size:</span> {% if comic.file_size %}{{ comic.file_size|filesizeformat }}{% else %}-{% endif %}</div>
-          <div><span class="text-base-content/60">Pages:</span> {{ comic.page_count|default:"-" }}</div>
-        </div>
-
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">System Info</h3>
-          <div><span class="text-base-content/60">ID:</span> <code class="text-xs">{{ comic.pk }}</code></div>
-          <div><span class="text-base-content/60">State:</span> {{ comic.state }}</div>
-          <div><span class="text-base-content/60">Medium:</span> {{ comic.medium }}</div>
-          <div><span class="text-base-content/60">Imported:</span> {{ comic.imported_at|date:"Y-m-d H:i" }}</div>
-          <div><span class="text-base-content/60">Updated:</span> {{ comic.updated_at|date:"Y-m-d H:i" }}</div>
-          <div><span class="text-base-content/60">Last Written:</span> {% if comic.last_written %}{{ comic.last_written|date:"Y-m-d H:i:s" }}{% else %}-{% endif %}</div>
-        </div>
-
-        {% if comic.phash or comic.ahash %}
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Cover Hashes</h3>
-          {% if comic.phash %}<div><span class="text-base-content/60">pHash:</span> <code class="text-xs">{{ comic.phash }}</code></div>{% endif %}
-          {% if comic.ahash %}<div><span class="text-base-content/60">aHash:</span> <code class="text-xs">{{ comic.ahash }}</code></div>{% endif %}
-        </div>
-        {% endif %}
-
-        {% if display_custom_values %}
-        <div class="space-y-2">
-          <h3 class="font-semibold text-primary">Custom Values</h3>
-          {% for key, value in display_custom_values.items %}
-          <div><span class="text-base-content/60">{{ key }}:</span> {{ value }}</div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-
-      {% if comic.has_flags %}
-      <div class="mt-4">
-        <h3 class="font-semibold text-primary mb-2">Flags</h3>
-        <div class="flex flex-wrap gap-2">
-          {% for flag in comic.flag_list %}
-          <span class="badge badge-warning">{{ flag }}</span>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      {% if comic.accepted_flags %}
-      <div class="mt-3">
-        <h3 class="font-semibold text-base-content/50 mb-2 text-sm">Accepted (suppressed)</h3>
-        <div class="flex flex-wrap gap-2" id="accepted-flags-list">
-          {% for flag_name, _ in comic.accepted_flags.items %}
-          <div class="badge badge-ghost gap-1" id="accepted-flag-{{ flag_name }}">
-            {{ flag_name }}
-            <button
-              hx-post="{% url 'core:unaccept_flag' comic.pk %}"
-              hx-vals='{"flag": "{{ flag_name }}"}'
-              hx-target="#accepted-flag-{{ flag_name }}"
-              hx-swap="outerHTML"
-              hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-              class="ml-1 opacity-60 hover:opacity-100 cursor-pointer"
-              title="Un-accept — allow detection to re-flag this"
-            >&#x2715;</button>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-
-      {% if comic.web %}
-      <div class="mt-4">
-        <a href="{{ comic.web }}" target="_blank" class="btn btn-sm btn-outline">
-          View on ComicVine
-        </a>
-      </div>
-      {% endif %}
-    </div>
+  <div style="display:flex; gap:8px; flex-shrink:0;">
+    <button id="btn-rezip" class="cm-btn sm" style="border-color:var(--cm-warn); color:var(--cm-warn);" onclick="tryRezip()">Try Rezip</button>
+    <button class="cm-btn sm" style="border-color:var(--cm-err); color:var(--cm-err);" onclick="deleteComic()">Delete</button>
   </div>
 </div>
+{% endif %}
 
-<!-- Scrape Preview Modal -->
-<dialog id="scrape-modal" class="modal">
-  <div class="modal-box max-w-6xl max-h-[90vh]">
-    <form method="dialog">
-      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
-    </form>
-    <h3 class="font-bold text-lg mb-4">
-      Re-scrape: <span id="modal-comic-title">{{ comic.series }} #{{ comic.number }}</span>
-    </h3>
+<!-- Hero: outer flex row — (cover+metadata) | right column -->
+<div style="display:flex; gap:20px; align-items:flex-start;">
 
-    <div class="flex gap-6">
-      <!-- Local comic info -->
-      <div class="flex-shrink-0 w-48">
-        <h4 class="font-semibold mb-2">Current File</h4>
-        <img id="local-cover-img" src="/comics/{{ comic.pk }}/cover/" alt="Local cover" class="w-full h-auto rounded-lg shadow mb-2" />
-        <p class="text-sm text-base-content/70" id="modal-local-info">{{ comic.series }} #{{ comic.number }}</p>
+  <!-- Left+Middle group: stacks cover row, then variant covers below -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:12px;">
+
+    <!-- Cover + Metadata row -->
+    <div style="display:flex; gap:20px; align-items:flex-start;">
+
+      <!-- Cover column -->
+      <div style="flex-shrink:0; width:220px; display:flex; flex-direction:column; gap:8px;">
+        {% if has_cover %}
+        <div style="cursor:pointer;" onclick="openImageModal('/comics/{{ comic.pk }}/cover/?v={{ comic.updated_at|date:"U" }}', 'Cover')">
+          <img src="/comics/{{ comic.pk }}/cover/?v={{ comic.updated_at|date:"U" }}" alt="Cover"
+               style="width:100%; height:auto; border-radius:6px; box-shadow:0 20px 40px -12px rgba(0,0,0,.6); border:1px solid var(--cm-border);" />
+        </div>
+        {% elif comic.is_physical %}
+        <div style="width:100%; aspect-ratio:2/3; border-radius:6px; background:var(--cm-bg-3); border:1px solid var(--cm-border); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; color:var(--cm-fg-3); text-align:center; line-height:1.4;" onclick="document.getElementById('upload-cover-modal').showModal()">No Cover<br>Click to Upload</div>
+        {% else %}
+        <div style="width:100%; aspect-ratio:2/3; border-radius:6px; background:var(--cm-bg-3); border:1px solid var(--cm-border); display:flex; align-items:center; justify-content:center;">
+          <span style="font-size:24px; font-weight:700; color:var(--cm-fg-3);">#{{ comic.number }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Buttons under cover -->
+        <div style="display:flex; gap:6px;">
+          {% if comic.is_digital and comic.file_path %}
+          <a href="{% url 'core:reader' comic.pk %}" class="cm-btn primary" style="flex:1; justify-content:center; text-decoration:none;" title="Open browser reader">
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+            Read
+          </a>
+          <a href="{% url 'core:download' comic.pk %}" class="cm-btn" style="text-decoration:none; flex-shrink:0;" title="Download file">
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+          </a>
+          {% endif %}
+          {% if comic.web %}
+          <a href="{{ comic.web }}" target="_blank" class="cm-btn" style="text-decoration:none; flex-shrink:0;" title="View on ComicVine">
+            <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          </a>
+          {% endif %}
+        </div>
       </div>
 
-      <!-- Match results -->
-      <div class="flex-1">
-        <div id="modal-loading" class="flex items-center justify-center py-8">
-          <span class="loading loading-spinner loading-lg"></span>
-          <span class="ml-2">Searching ComicVine...</span>
+      <!-- Metadata column -->
+      <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:10px;">
+
+        <!-- Breadcrumb -->
+        <div style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--cm-fg-3); flex-wrap:wrap;">
+          <a href="/comics/" class="cm-btn sm ghost" style="padding:0 6px; text-decoration:none; display:inline-flex; align-items:center; gap:3px;">
+            <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="15,18 9,12 15,6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Comics
+          </a>
+          {% if comic.publisher %}<span>/</span><span>{{ comic.publisher }}</span>{% endif %}
+          <span>/</span><span style="color:var(--cm-fg-1);">{{ comic.series|default:"Unknown Series" }}</span>
         </div>
 
-        <div id="modal-error" class="alert alert-error hidden">
-          <span id="modal-error-text"></span>
+        <!-- Title -->
+        <div>
+          <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+            <h1 style="margin:0; font-size:22px; font-weight:700; letter-spacing:-0.01em; line-height:1.25;">{{ comic.series|default:"Unknown Series" }}</h1>
+            <span class="mono tnum" style="font-size:18px; color:var(--cm-fg-2); font-weight:600;">#{{ comic.number|default:"?" }}</span>
+          </div>
+          {% if comic.title %}<div style="font-size:14px; color:var(--cm-fg-1); margin-top:2px;">"{{ comic.title }}"</div>{% endif %}
         </div>
 
-        <div id="modal-matches" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <!-- Match cards will be inserted here -->
+        <!-- Chips -->
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+          <span class="cm-chip {% if comic.state == 'done' %}ok{% elif comic.state == 'new' %}warn{% else %}info{% endif %}">{{ comic.get_state_display }}</span>
+          <span class="cm-chip">{{ comic.medium }}</span>
+          {% if comic.publisher %}<span class="cm-chip">{{ comic.publisher }}</span>{% endif %}
+          {% if comic.format %}<span class="cm-chip">{{ comic.format }}</span>{% endif %}
+          {% if comic.page_count %}<span class="cm-chip mono"># {{ comic.page_count }} pages</span>{% endif %}
+          {% if comic.file_size %}<span class="cm-chip mono">{{ comic.file_size|filesizeformat }}</span>{% endif %}
         </div>
 
-        <!-- API Search Section -->
-        <div id="api-search-section" class="hidden mt-4">
-          <div class="divider text-sm text-base-content/60">ComicVine API Search</div>
-          <div id="api-no-local" class="alert alert-warning mb-3 hidden">
-            <span>No local matches found. Try searching the ComicVine API.</span>
+        <!-- Info grid: Volume / Year / Count / Imported -->
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; overflow:hidden;">
+          <div style="padding:10px 12px; border-right:1px solid var(--cm-border);">
+            <div class="cm-section-lbl">Volume</div>
+            <div class="mono tnum" style="font-size:15px; font-weight:600; margin-top:2px;">{{ comic.volume|default:"—" }}</div>
           </div>
-          <div class="flex gap-2">
-            <input type="text" id="api-search-input" class="input input-bordered input-sm flex-1"
-                   placeholder="Search ComicVine API… or paste 4000-XXXXXXX for a direct lookup" />
-            <button type="button" id="api-search-btn" class="btn btn-sm btn-accent" onclick="searchApi()">
-              Search API
-            </button>
+          <div style="padding:10px 12px; border-right:1px solid var(--cm-border);">
+            <div class="cm-section-lbl">Year</div>
+            <div class="mono tnum" style="font-size:15px; font-weight:600; margin-top:2px;">{{ comic.year|default:"—" }}</div>
           </div>
-          <div id="api-search-loading" class="flex justify-center py-4 hidden">
-            <span class="loading loading-spinner loading-md"></span>
+          <div style="padding:10px 12px; border-right:1px solid var(--cm-border);">
+            <div class="cm-section-lbl">Count</div>
+            <div class="mono tnum" style="font-size:15px; font-weight:600; margin-top:2px;">{{ comic.number|default:"?" }}/{{ comic.count|default:"?" }}</div>
           </div>
-          <div id="api-search-error" class="alert alert-error mt-2 hidden">
-            <span id="api-search-error-text"></span>
-          </div>
-          <div id="api-matches" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-3 max-h-[40vh] overflow-y-auto pr-2">
-            <!-- API matches will be inserted here -->
+          <div style="padding:10px 12px;">
+            <div class="cm-section-lbl">Imported</div>
+            <div class="mono tnum" style="font-size:11.5px; font-weight:500; margin-top:3px; color:var(--cm-fg-1);">{{ comic.imported_at|date:"Y-m-d"|default:"—" }}</div>
           </div>
         </div>
 
-        {% if inducks_enabled %}
-        <!-- Inducks Search Section -->
-        <div id="inducks-search-section" class="hidden mt-4">
-          <div class="divider text-sm text-base-content/60">I.N.D.U.C.K.S. Search</div>
-          <div class="flex gap-2">
-            <input type="text" id="inducks-search-input" class="input input-bordered input-sm flex-1"
-                   placeholder="Title search..." />
-            {% if not inducks_country_lock %}
-            <select id="inducks-country-select" class="select select-bordered select-sm w-20">
-              {% for code in inducks_country_codes %}
-              <option value="{{ code }}"{% if forloop.first %} selected{% endif %}>{{ code }}</option>
-              {% endfor %}
-            </select>
-            {% endif %}
-            <button type="button" class="btn btn-sm btn-info" onclick="searchInducks()">
-              Search
-            </button>
-          </div>
-          <div class="flex gap-2 mt-1">
-            <input type="text" id="inducks-storycode-input" class="input input-bordered input-sm flex-1"
-                   placeholder="Story code (e.g. D 94066)" />
-            <button type="button" class="btn btn-sm btn-info btn-outline" onclick="searchInducks('storycode')">
-              Search
-            </button>
-            <button type="button" class="btn btn-sm btn-success btn-outline" onclick="matchStoryDirect()"
-                    title="Match this story directly without selecting an issue">
-              Match Story
-            </button>
-          </div>
-          <div id="inducks-search-loading" class="flex justify-center py-4 hidden">
-            <span class="loading loading-spinner loading-md"></span>
-          </div>
-          <div id="inducks-search-error" class="alert alert-error mt-2 hidden">
-            <span id="inducks-search-error-text"></span>
-          </div>
-          <div id="inducks-matches" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-3 max-h-[40vh] overflow-y-auto pr-2">
+        <!-- Series completion (lazy HTMX) -->
+        {% if show_series_completion and comic.custom_values.scrape_source != "inducks" %}
+        <div hx-get="{% url 'core:series_completion' comic.pk %}" hx-trigger="load" hx-swap="outerHTML">
+          <div style="padding:10px 12px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px; display:flex; justify-content:center;">
+            <span class="loading loading-spinner loading-sm"></span>
           </div>
         </div>
         {% endif %}
+
+        <!-- File info + location status (merged box) -->
+        {% if comic.file_path %}
+        <div style="border-radius:6px; border:1px solid var(--cm-border); overflow:hidden;">
+          {% if reorganize_preview %}
+          <div style="padding:9px 12px; background:{% if reorganize_preview.would_move %}var(--cm-info-dim){% else %}var(--cm-ok-dim){% endif %}; font-size:11px;">
+            {% if reorganize_preview.would_move %}
+            <div style="font-weight:600; font-size:12px; color:var(--cm-info); margin-bottom:4px;">Path Change Preview <span style="color:var(--cm-fg-3); font-weight:400;">(Profile: {{ reorganize_preview.selected_profile }})</span></div>
+            <div style="margin-bottom:2px;"><span style="color:var(--cm-fg-3);">Current:</span> <code class="mono" style="font-size:10.5px; color:var(--cm-fg-1);">{{ reorganize_preview.old_path }}</code></div>
+            <div><span style="color:var(--cm-fg-3);">Target:</span> <code class="mono" style="font-size:10.5px; color:var(--cm-info);">{{ reorganize_preview.new_path }}</code></div>
+            {% else %}
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span style="color:var(--cm-ok); font-size:13px;">✓</span>
+                <span style="font-weight:600; color:var(--cm-ok);">File is in correct location</span>
+                <span style="color:var(--cm-fg-3);">(Profile: {{ reorganize_preview.selected_profile }})</span>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+          <div style="border-top:1px solid {% if reorganize_preview.would_move %}var(--cm-info){% else %}var(--cm-ok){% endif %}; opacity:.3;"></div>
+          {% endif %}
+          <div style="padding:8px 12px; background:var(--cm-bg-1);">
+            <div class="cm-section-lbl" style="margin-bottom:4px;">File</div>
+            <div class="mono" style="font-size:12px; font-weight:500; color:var(--cm-fg); word-break:break-all;">{{ comic.file_path|default:"—" }}</div>
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+    </div><!-- /cover+metadata row -->
+
+    <!-- Variant Covers (spans full left+middle width, right column stays separate) -->
+    {% if alt_cover_range %}
+    <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:14px 16px;">
+      <div class="cm-section-lbl" style="margin-bottom:10px;">Variant Covers</div>
+      <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;">
+        <div style="cursor:pointer; text-align:center;" onclick="openGallery(0, 'variants')">
+          <img src="/comics/{{ comic.pk }}/cover/?v={{ comic.updated_at|date:"U" }}" style="width:64px; height:auto; border-radius:4px; border:1px solid var(--cm-border); box-shadow:0 2px 6px rgba(0,0,0,.3);" alt="Local Cover" />
+          <div style="font-size:10px; color:var(--cm-fg-3); margin-top:4px;">Local Cover</div>
+        </div>
+        {% for page_num in alt_cover_range %}
+        <div style="cursor:pointer; text-align:center;" onclick="openGallery({{ forloop.counter }}, 'variants')">
+          <img src="/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}" style="width:64px; height:auto; border-radius:4px; border:1px solid var(--cm-border); box-shadow:0 2px 6px rgba(0,0,0,.3);" alt="{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}" />
+          <div style="font-size:10px; color:var(--cm-fg-3); margin-top:4px;">{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}</div>
+        </div>
+        {% endfor %}
       </div>
     </div>
+    {% endif %}
+
+    {% if physical_covers %}
+    <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:14px 16px;">
+      <div class="cm-section-lbl" style="margin-bottom:10px;">Variant Covers</div>
+      <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start;">
+        {% for cover in physical_covers %}
+        <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+          <div style="cursor:pointer;" onclick="openImageModal('{{ cover.proxy_url }}', 'Cover')">
+            <img src="{{ cover.proxy_url }}" style="width:64px; height:auto; border-radius:4px; box-shadow:0 2px 6px rgba(0,0,0,.3); border:{% if cover.is_main %}2px solid var(--cm-ok){% else %}1px solid var(--cm-border){% endif %};" alt="Variant Cover" />
+          </div>
+          {% if cover.is_main %}<span class="cm-chip ok" style="font-size:10px;">Main Cover</span>
+          {% else %}<button class="cm-btn sm ok" onclick="setMainCover('{{ cover.original_url|escapejs }}')">Set Main</button>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div><!-- /left+middle group -->
+
+  <!-- Right column: Actions + Flags + Characters -->
+  <div style="flex-shrink:0; width:280px; display:flex; flex-direction:column; gap:10px;">
+
+    <!-- Actions card -->
+    <div class="cm-card" style="padding:12px;">
+      <div class="cm-section-lbl" style="margin-bottom:8px;">Actions</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        {% if comic.is_digital and comic.file_path %}
+        <button onclick="openPipelineConfirmModal()" id="action-run-pipeline" class="cm-btn ok" style="justify-content:center; font-size:11.5px; grid-column:span 2;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Run Pipeline
+        </button>
+        {% endif %}
+        <a href="/comics/{{ comic.pk }}/edit/" class="cm-btn primary" style="justify-content:center; font-size:11.5px; text-decoration:none; grid-column:span 2;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          Edit
+        </a>
+        <button onclick="openDetailScrapeModal()" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Scrape
+        </button>
+        <button onclick="runAction('tag')" id="action-tag" class="cm-btn" title="Re-tag this comic, ignoring its workflow state" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+          Tag
+        </button>
+        <button onclick="runAction('format')" id="action-format" class="cm-btn" title="Re-detect format, ignoring workflow state" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          Format
+        </button>
+        {% if comic.is_digital and comic.file_path %}
+        <button onclick="runAction('organize')" id="action-organize" class="cm-btn" title="Re-organize (move) this comic, ignoring workflow state" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+          Move
+        </button>
+        <button onclick="runAction('write')" id="action-write" class="cm-btn" title="Re-write ComicInfo.xml, ignoring workflow state" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+          Write
+        </button>
+        <button onclick="openPageManager()" id="action-manage-pages" class="cm-btn" style="justify-content:flex-center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          Manage Pages
+        </button>
+        {% endif %}
+        {% if comic.state == 'deduplicate' %}
+        <button onclick="runDeduplicate()" id="action-deduplicate" class="cm-btn" style="justify-content:center; font-size:11.5px; grid-column:span 2;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          Deduplicate
+        </button>
+        {% endif %}
+      </div>
+
+      <!-- More actions -->
+      <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--cm-border); display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        {% if comic.is_digital and comic.file_path %}
+        <button onclick="refreshFileInfo()" id="action-refresh-file-info" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Refresh File Info
+        </button>
+        {% endif %}
+        {% if comic.is_digital and comic.custom_values.scrape_source != "inducks" %}
+        <button onclick="runAction('refresh-credits')" id="action-refresh-credits" class="cm-btn" style="justify-content:center; font-size:11.5px;">
+          <svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Refresh Credits
+        </button>
+        <button onclick="runAction('search-alt-covers')" id="action-search-alt-covers" class="cm-btn" style="justify-content:center; font-size:11.5px;">Search Alt Covers</button>
+        <button onclick="openCvCompareModal()" class="cm-btn" style="justify-content:center; font-size:11.5px;">Compare All Sources</button>
+        {% endif %}
+        {% if comic.is_physical %}
+        <button onclick="document.getElementById('upload-cover-modal').showModal()" class="cm-btn" style="justify-content:center; font-size:11.5px;">Upload Cover</button>
+        {% endif %}
+        <a href="{% url 'core:export_json' comic.pk %}" class="cm-btn" style="justify-content:center; font-size:11.5px; text-decoration:none;">Export as JSON</a>
+      </div>
+      <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--cm-border); display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+        <button onclick="deleteComic()" id="action-delete" class="cm-btn err" style="justify-content:center; grid-column:span 2; font-size:11.5px;">Delete Comic</button>
+      </div>
+    </div>
+
+    <!-- Flags card -->
+    <div class="cm-card" style="padding:12px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <div class="cm-section-lbl">Flags</div>
+        {% if comic.has_flags %}<span class="cm-chip warn" style="font-size:10.5px;">{{ comic.flag_list|length }} flag{{ comic.flag_list|length|pluralize }}</span>{% else %}<span class="cm-chip ok" style="font-size:10.5px;">clean</span>{% endif %}
+      </div>
+      {% if comic.has_flags %}
+      <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:8px;">
+        {% for flag in comic.flag_list %}<span class="cm-chip warn" style="font-size:10.5px;">{{ flag }}</span>{% endfor %}
+      </div>
+      {% else %}
+      <div style="font-size:11.5px; color:var(--cm-fg-2); margin-bottom:6px;">No active issues on this file.</div>
+      {% endif %}
+      {% if comic.accepted_flags %}
+      <div style="margin-bottom:8px;">
+        <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Accepted</div>
+        <div style="display:flex; flex-wrap:wrap; gap:4px;" id="accepted-flags-list">
+          {% for flag_name, _ in comic.accepted_flags.items %}
+          <div class="cm-chip" id="accepted-flag-{{ flag_name }}" style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px;">{{ flag_name }}<button hx-post="{% url 'core:unaccept_flag' comic.pk %}" hx-vals='{"flag": "{{ flag_name }}"}' hx-target="#accepted-flag-{{ flag_name }}" hx-swap="outerHTML" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' style="background:none; border:none; cursor:pointer; color:var(--cm-fg-3); font-size:10px; padding:0 0 0 2px; line-height:1;" title="Un-accept">&#x2715;</button></div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+      {% if comic.tags %}
+      <div style="border-top:1px solid var(--cm-border); padding-top:8px;">
+        <div class="cm-section-lbl" style="margin-bottom:6px;">Tags</div>
+        <p style="font-size:11.5px; color:var(--cm-fg-1); margin:0; line-height:1.6;">{{ comic.tags }}</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Characters & Teams card -->
+    {% if comic.main_character_or_team or teams_list %}
+    <div class="cm-card" style="padding:12px;">
+      <div class="cm-section-lbl" style="margin-bottom:8px;">Characters &amp; Teams</div>
+      {% if comic.main_character_or_team %}
+      <div style="margin-bottom:8px;">
+        <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Main Character</div>
+        <a href="/comics/?char_q={{ comic.main_character_or_team|urlencode }}&char_main_only=1" class="cm-chip violet" style="font-size:10.5px; text-decoration:none;">{{ comic.main_character_or_team }}</a>
+      </div>
+      {% endif %}
+      {% if teams_list %}
+      <div style="{% if comic.main_character_or_team %}border-top:1px solid var(--cm-border); padding-top:8px;{% endif %}">
+        <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Teams</div>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          {% for team in teams_list %}<a href="/comics/?char_q={{ team|urlencode }}&char_main_only=0" class="cm-chip" style="font-size:10.5px; text-decoration:none;">{{ team }}</a>{% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+  </div><!-- /right column -->
+
+</div><!-- /hero outer flex -->
+
+<!-- Tabs -->
+<div class="cm-card"">
+  <div style="display:flex; border-bottom:1px solid var(--cm-border); padding:0 14px; flex-wrap:wrap;">
+    {% if comparison %}
+    <button onclick="switchDetailTab('metadata')" id="detail-tab-btn-metadata" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid var(--cm-accent); background:transparent; color:var(--cm-fg); font-weight:600; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Metadata comparison</button>
+    {% endif %}
+    <button onclick="switchDetailTab('credits')" id="detail-tab-btn-credits" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Credits</button>
+    <button onclick="switchDetailTab('history')" id="detail-tab-btn-history" class="detail-tab-btn" hx-get="{% url 'core:comic_audit_history' comic.pk %}" hx-target="#detail-tab-history" hx-swap="innerHTML" hx-trigger="click once" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Pipeline history</button>
+    <button onclick="switchDetailTab('comic-metadata')" id="detail-tab-btn-comic-metadata" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Comic Metadata</button>
+    {% if raw_xml_string %}
+    <button onclick="switchDetailTab('raw')" id="detail-tab-btn-raw" class="detail-tab-btn" style="padding:12px 14px; border:0; border-bottom:2px solid transparent; background:transparent; color:var(--cm-fg-2); font-weight:500; font-size:12px; margin-bottom:-1px; cursor:pointer; white-space:nowrap;">Raw XML</button>
+    {% endif %}
   </div>
-  <form method="dialog" class="modal-backdrop">
-    <button>close</button>
-  </form>
-</dialog>
+
+  <!-- Tab: Metadata comparison -->
+  {% if comparison %}
+  <div id="detail-tab-metadata">
+    <div style="padding:10px 14px; display:flex; align-items:center; justify-content:space-between; background:var(--cm-bg); border-bottom:1px solid var(--cm-border); flex-wrap:wrap; gap:8px;">
+      <div style="font-size:11.5px; color:var(--cm-fg-2);">
+        Comparing <span class="mono" style="color:var(--cm-fg);">database</span> with <span class="mono" style="color:var(--cm-fg);">ComicInfo.xml</span>.
+        {% if not xml_data %}<span style="color:var(--cm-warn);">· No ComicInfo.xml found in file.</span>{% endif %}
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:150px 1fr 1fr 80px; gap:14px; padding:8px 14px; background:var(--cm-bg-1); border-bottom:1px solid var(--cm-border); font-size:10.5px; font-weight:600; color:var(--cm-fg-3); letter-spacing:.04em; text-transform:uppercase;">
+      <span>Field</span><span>Database</span><span>ComicInfo.xml</span><span>Status</span>
+    </div>
+    {% for item in comparison %}
+    <div style="display:grid; grid-template-columns:150px 1fr 1fr 80px; gap:14px; padding:9px 14px; border-bottom:1px solid var(--cm-border); align-items:center; font-size:12px; {% if item.status == 'differ' %}background:var(--cm-warn-dim);{% elif item.status == 'db_only' %}background:var(--cm-info-dim);{% elif item.status == 'xml_only' %}background:var(--cm-err-dim);{% endif %}">
+      <span style="color:var(--cm-fg-2); font-weight:500;">{{ item.label }}</span>
+      <span style="color:{% if item.db_value %}var(--cm-fg){% else %}var(--cm-fg-3){% endif %};" class="{% if item.db_value %}mono tnum{% endif %}">{{ item.db_value|default:"—" }}</span>
+      <span style="color:{% if item.xml_value %}var(--cm-fg-1){% else %}var(--cm-fg-3){% endif %};" class="{% if item.xml_value %}mono tnum{% endif %}">{{ item.xml_value|default:"—" }}</span>
+      <span>
+        {% if item.status == 'match' %}<span class="cm-chip ok" style="padding:1px 7px; font-size:10.5px;">match</span>
+        {% elif item.status == 'differ' %}<span class="cm-chip warn" style="padding:1px 7px; font-size:10.5px;">diff</span>
+        {% elif item.status == 'db_only' %}<span class="cm-chip info" style="padding:1px 7px; font-size:10.5px;">db only</span>
+        {% elif item.status == 'xml_only' %}<span class="cm-chip err" style="padding:1px 7px; font-size:10.5px;">xml only</span>
+        {% else %}<span class="cm-chip" style="padding:1px 7px; font-size:10.5px;">empty</span>{% endif %}
+      </span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Tab: Credits -->
+  <div id="detail-tab-credits" style="display:none;">
+    {% if comic.writer or comic.penciller or comic.inker or comic.colorist or comic.letterer or comic.cover_artist or comic.editor %}
+    <div style="padding:16px; display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:8px;">
+      {% if comic.writer %}<div style="padding:10px 12px; background:var(--cm-bg); border:1px solid var(--cm-border); border-radius:6px;"><div class="cm-section-lbl">Writer</div><div style="font-size:13px; font-weight:500; margin-top:4px;">{{ comic.writer }}</div></div>{% endif %}
+      {% if comic.penciller %}<div style="padding:10px 12px; background:var(--cm-bg); border:1px solid var(--cm-border); border-radius:6px;"><div class="cm-section-lbl">Penciller</div><div style="font-size:13px; font-weight:500; margin-top:4px;">{{ comic.penciller }}</div></div>{% endif %}
+      {% if comic.inker %}<div style="padding:10px 12px; background:var(--cm-bg); border:1px solid var(--cm-border); border-radius:6px;"><div class="cm-section-lbl">Inker</div><div style="font-size:13px; font-weight:500; margin-top:4px;">{{ comic.inker }}</div></div>{% endif %}
+      {% if comic.colorist %}<div style="padding:10px 12px; background:var(--cm-bg); border:1px solid var(--cm-border); border-radius:6px;"><div class="cm-section-lbl">Colorist</div><div style="font-size:13px; font-weight:500; margin-top:4px;">{{ comic.colorist }}</div></div>{% endif %}
+      {% if comic.letterer %}<div style="padding:10px 12px; background:var(--cm-bg); border:1px solid var(--cm-border); border-radius:6px;"><div class="cm-section-lbl">Letterer</div><div style="font-size:13px; font-weight:500; margin-top:4px;">{{ comic.letterer }}</div></div>{% endif %}
+      {% if comic.cover_artist %}<div style="padding:10px 12px; background:var(--cm-bg); border:1px solid var(--cm-border); border-radius:6px;"><div class="cm-section-lbl">Cover Artist</div><div style="font-size:13px; font-weight:500; margin-top:4px;">{{ comic.cover_artist }}</div></div>{% endif %}
+      {% if comic.editor %}<div style="padding:10px 12px; background:var(--cm-bg); border:1px solid var(--cm-border); border-radius:6px;"><div class="cm-section-lbl">Editor</div><div style="font-size:13px; font-weight:500; margin-top:4px;">{{ comic.editor }}</div></div>{% endif %}
+    </div>
+    {% if comic.summary %}
+    <div style="padding:0 16px 16px;">
+      <div style="padding:12px 14px; background:var(--cm-bg); border:1px solid var(--cm-border); border-radius:6px;">
+        <div class="cm-section-lbl" style="margin-bottom:6px;">Summary</div>
+        <p style="font-size:13px; color:var(--cm-fg-1); line-height:1.6; margin:0;">{{ comic.summary }}</p>
+      </div>
+    </div>
+    {% endif %}
+    {% else %}
+    <div style="padding:20px 16px; font-size:12px; color:var(--cm-fg-3);">No credits information available for this comic.</div>
+    {% endif %}
+  </div>
+
+  <!-- Tab: Pipeline history -->
+  <div id="detail-tab-history" style="display:none;">
+    <div style="padding:20px 16px; display:flex; align-items:center; gap:8px; color:var(--cm-fg-3); font-size:12px;">
+      <span class="loading loading-spinner loading-xs"></span>
+      Loading history…
+    </div>
+  </div>
+
+  <!-- Tab: Comic Metadata -->
+  <div id="detail-tab-comic-metadata" style="display:none;">
+    <div style="padding:16px; display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:16px;">
+      <div>
+        <div class="cm-section-label-accent">Core Info</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          <div><span class="cm-text-muted">Series:</span> <span class="cm-text-primary">{{ comic.series|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Number:</span> <span class="cm-text-primary">{{ comic.number|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Title:</span> <span class="cm-text-primary">{{ comic.title|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Volume:</span> <span class="cm-text-primary">{{ comic.volume|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Count:</span> <span class="cm-text-primary">{{ comic.count|default:"-" }}</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="cm-section-label-accent">Publication</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          <div><span class="cm-text-muted">Publisher:</span> <span class="cm-text-primary">{{ comic.publisher|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Year:</span> <span class="cm-text-primary">{{ comic.year|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Month:</span> <span class="cm-text-primary">{{ comic.month|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Format:</span> <span class="cm-text-primary">{{ comic.format|default:"-" }}</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="cm-section-label-accent">System Info</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          <div><span class="cm-text-muted">ID:</span> <code style="font-size:11px;">{{ comic.pk }}</code></div>
+          <div><span class="cm-text-muted">State:</span> <span class="cm-text-primary">{{ comic.state }}</span></div>
+          <div><span class="cm-text-muted">Imported:</span> <span class="mono tnum">{{ comic.imported_at|date:"Y-m-d H:i"|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Updated:</span> <span class="mono tnum">{{ comic.updated_at|date:"Y-m-d H:i"|default:"-" }}</span></div>
+          {% if comic.is_physical %}<div><span class="cm-text-muted">Storage:</span> <span class="cm-text-primary">{{ comic.storage_location|default:"-" }}</span></div>{% endif %}
+        </div>
+      </div>
+      {% if comic.is_digital %}
+      <div>
+        <div class="cm-section-label-accent">File Info</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          <div><span class="cm-text-muted">Format:</span> <span class="cm-text-primary">{{ comic.file_format|upper|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">Size:</span> <span class="cm-text-primary">{% if comic.file_size %}{{ comic.file_size|filesizeformat }}{% else %}-{% endif %}</span></div>
+          <div><span class="cm-text-muted">Pages:</span> <span class="cm-text-primary">{{ comic.page_count|default:"-" }}</span></div>
+          <div><span class="cm-text-muted">pHash:</span> <code style="font-size:11px; word-break:break-all;">{{ comic.phash|default:"-" }}</code></div>
+          <div><span class="cm-text-muted">aHash:</span> <code style="font-size:11px; word-break:break-all;">{{ comic.ahash|default:"-" }}</code></div>
+        </div>
+      </div>
+      {% endif %}
+      {% if display_custom_values %}
+      <div>
+        <div class="cm-section-label-accent">Custom Values</div>
+        <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
+          {% for key, value in display_custom_values.items %}<div><span class="cm-text-muted">{{ key }}:</span> <span class="cm-text-primary">{{ value }}</span></div>{% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Tab: Raw XML -->
+  {% if raw_xml_string %}
+  <div id="detail-tab-raw" style="display:none;">
+    <pre style="margin:0; padding:16px; background:var(--cm-bg); font-size:11.5px; color:var(--cm-fg-1); overflow:auto; max-height:500px; white-space:pre-wrap; word-break:break-all;" class="mono">{{ raw_xml_string|escape }}</pre>
+  </div>
+  {% endif %}
+
+</div><!-- /tabs card -->
+
+
+<div style="height:80px;"></div>
+
+</div><!-- /page wrapper -->
 
 <!-- Tagging Results Modal -->
 <dialog id="tag-result-modal" class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box max-w-2xl">
-    <h3 class="font-bold text-lg mb-4">
-      Tagging Results: <span id="tag-modal-comic-title"></span>
-    </h3>
-
+  <div class="modal-box max-w-2xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:20px;">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 14px;">Tagging Results: <span id="tag-modal-comic-title" style="color:var(--cm-fg-2);"></span></h3>
     <div id="tag-modal-content">
-      <!-- Summary -->
-      <div id="tag-modal-summary" class="mb-4">
-        <div class="flex gap-4 text-sm">
-          <div class="stat bg-base-200 rounded-box p-3">
-            <div class="stat-title text-xs">Matched Rules</div>
-            <div class="stat-value text-lg text-primary" id="tag-matched-count">0</div>
-          </div>
-          <div class="stat bg-base-200 rounded-box p-3">
-            <div class="stat-title text-xs">Changes Made</div>
-            <div class="stat-value text-lg text-success" id="tag-changes-count">0</div>
-          </div>
-        </div>
+      <div id="tag-modal-summary" style="display:flex; gap:12px; margin-bottom:14px;">
+        <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 14px; min-width:100px;"><div style="font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Matched Rules</div><div style="font-size:22px; font-weight:700; color:var(--cm-accent);" id="tag-matched-count">0</div></div>
+        <div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 14px; min-width:100px;"><div style="font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:4px;">Changes Made</div><div style="font-size:22px; font-weight:700; color:var(--cm-ok);" id="tag-changes-count">0</div></div>
       </div>
-
-      <!-- Matched Rulesets -->
-      <div id="tag-rulesets-section" class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">Matched Rulesets</h4>
-        <div id="tag-rulesets-list" class="flex flex-wrap gap-2"></div>
-      </div>
-
-      <!-- Changes Table -->
-      <div id="tag-changes-section">
-        <h4 class="font-semibold text-sm mb-2">Field Changes</h4>
-        <div class="overflow-x-auto">
-          <table class="table table-sm table-zebra">
-            <thead>
-              <tr>
-                <th>Field</th>
-                <th>Action</th>
-                <th>Value</th>
-                <th>By Rule</th>
-              </tr>
-            </thead>
-            <tbody id="tag-changes-table"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- No matches message -->
-      <div id="tag-no-matches" class="alert alert-info hidden">
-        <span>No matching rulesets found. Comic state was advanced to "tagged".</span>
-      </div>
+      <div id="tag-rulesets-section" style="margin-bottom:12px;"><div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Matched Rulesets</div><div id="tag-rulesets-list" style="display:flex; flex-wrap:wrap; gap:6px;"></div></div>
+      <div id="tag-changes-section"><div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Field Changes</div><div class="cm-overflow-x"><table class="cm-table"><thead><tr class="cm-divider"><th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">Field</th><th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">Action</th><th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">Value</th><th style="text-align:left; padding:6px 8px; color:var(--cm-fg-3); font-size:11px;">By Rule</th></tr></thead><tbody id="tag-changes-table"></tbody></table></div></div>
+      <div id="tag-no-matches" style="display:none; background:var(--cm-info-dim); border:1px solid var(--cm-info); border-radius:6px; padding:10px 14px; font-size:13px; color:var(--cm-info);">No matching rulesets found. Comic state was advanced to "tagged".</div>
     </div>
-
-    <div class="modal-action">
-      <form method="dialog">
-        <button class="btn btn-primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
-      </form>
-    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--cm-border);"><form method="dialog"><button class="cm-btn sm primary" onclick="setTimeout(() => location.reload(), 100)">OK</button></form></div>
   </div>
-  <form method="dialog" class="modal-backdrop">
-    <button>close</button>
-  </form>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
 <!-- Format Detection Results Modal -->
 <dialog id="format-result-modal" class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box max-w-xl">
-    <h3 class="font-bold text-lg mb-4">
-      Format Detection: <span id="format-modal-comic-title"></span>
-    </h3>
-
+  <div class="modal-box max-w-xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:20px;">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 14px;">Format Detection: <span id="format-modal-comic-title" style="color:var(--cm-fg-2);"></span></h3>
     <div id="format-modal-content">
-      <!-- Source text checked -->
-      <div class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">Text Analyzed</h4>
-        <div class="bg-base-200 p-3 rounded-lg text-sm">
-          <div><span class="text-base-content/60">Series:</span> <span id="format-series" class="font-medium"></span></div>
-          <div><span class="text-base-content/60">Title:</span> <span id="format-title" class="font-medium"></span></div>
-          <div><span class="text-base-content/60">Issue Count:</span> <span id="format-count" class="font-medium"></span></div>
-          <div><span class="text-base-content/60">Page Count:</span> <span id="format-page-count" class="font-medium"></span></div>
-        </div>
-      </div>
-
-      <!-- Result -->
-      <div class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">Result</h4>
-        <div id="format-result-box" class="alert">
-          <span id="format-result-text"></span>
-        </div>
-      </div>
-
-      <!-- Patterns checked -->
-      <div>
-        <h4 class="font-semibold text-sm mb-2">Patterns Checked</h4>
-        <div class="grid grid-cols-2 gap-2" id="format-patterns-list"></div>
-      </div>
+      <div style="margin-bottom:12px;"><div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Text Analyzed</div><div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 12px; font-size:12px;"><div style="margin-bottom:3px;"><span class="cm-text-muted">Series:</span> <span id="format-series" style="color:var(--cm-fg-1); font-weight:600;"></span></div><div style="margin-bottom:3px;"><span class="cm-text-muted">Title:</span> <span id="format-title" style="color:var(--cm-fg-1); font-weight:600;"></span></div><div style="margin-bottom:3px;"><span class="cm-text-muted">Issue Count:</span> <span id="format-count" style="color:var(--cm-fg-1); font-weight:600;"></span></div><div><span class="cm-text-muted">Page Count:</span> <span id="format-page-count" style="color:var(--cm-fg-1); font-weight:600;"></span></div></div></div>
+      <div style="margin-bottom:12px;"><div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Result</div><div id="format-result-box" style="border-radius:6px; padding:10px 14px; border:1px solid var(--cm-border);"><span id="format-result-text"></span></div></div>
+      <div><div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Patterns Checked</div><div style="display:grid; grid-template-columns:1fr 1fr; gap:4px;" id="format-patterns-list"></div></div>
     </div>
-
-    <div class="modal-action">
-      <form method="dialog">
-        <button class="btn btn-primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
-      </form>
-    </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--cm-border);"><form method="dialog"><button class="cm-btn sm primary" onclick="setTimeout(() => location.reload(), 100)">OK</button></form></div>
   </div>
-  <form method="dialog" class="modal-backdrop">
-    <button>close</button>
-  </form>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
 <!-- Organize Results Modal -->
 <dialog id="organize-result-modal" class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box max-w-2xl">
-    <h3 class="font-bold text-lg mb-4">
-      Organization Results: <span id="organize-modal-comic-title"></span>
-    </h3>
-
+  <div class="modal-box max-w-2xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:20px;">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 14px;">Organization Results: <span id="organize-modal-comic-title" style="color:var(--cm-fg-2);"></span></h3>
     <div id="organize-modal-content">
-      <!-- Profile Used -->
-      <div class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">Profile Used</h4>
-        <div class="bg-base-200 p-3 rounded-lg">
-          <span id="organize-profile" class="font-medium text-primary"></span>
-        </div>
-      </div>
-
-      <!-- Paths -->
-      <div class="mb-4">
-        <h4 class="font-semibold text-sm mb-2">File Paths</h4>
-        <div class="bg-base-200 p-3 rounded-lg text-sm space-y-2">
-          <div>
-            <span class="text-base-content/60">From:</span>
-            <div id="organize-old-path" class="font-mono text-xs break-all mt-1"></div>
-          </div>
-          <div>
-            <span class="text-base-content/60">To:</span>
-            <div id="organize-new-path" class="font-mono text-xs break-all mt-1 text-success"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Result -->
-      <div id="organize-result-box" class="alert">
-        <span id="organize-result-text"></span>
-      </div>
+      <div style="margin-bottom:12px;"><div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">Profile Used</div><div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 12px; font-size:13px; color:var(--cm-accent); font-weight:600;" id="organize-profile"></div></div>
+      <div style="margin-bottom:12px;"><div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:6px;">File Paths</div><div style="background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 12px; font-size:12px;"><div style="margin-bottom:6px;"><span class="cm-text-muted">From:</span><div id="organize-old-path" style="font-family:monospace; font-size:11px; color:var(--cm-fg-1); word-break:break-all; margin-top:2px;"></div></div><div><span class="cm-text-muted">To:</span><div id="organize-new-path" style="font-family:monospace; font-size:11px; color:var(--cm-ok); word-break:break-all; margin-top:2px;"></div></div></div></div>
+      <div id="organize-result-box" style="border-radius:6px; padding:10px 14px; border:1px solid var(--cm-border);"><span id="organize-result-text"></span></div>
     </div>
+    <div style="display:flex; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--cm-border);"><form method="dialog"><button class="cm-btn sm primary" onclick="setTimeout(() => location.reload(), 100)">OK</button></form></div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 
-    <div class="modal-action">
-      <form method="dialog">
-        <button class="btn btn-primary" onclick="setTimeout(() => location.reload(), 100)">OK</button>
-      </form>
+<!-- Pipeline Confirmation Modal -->
+<dialog id="pipeline-confirm-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-md" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:20px;">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 12px;">Run Full Pipeline</h3>
+    <p style="font-size:13px; color:var(--cm-fg-2); margin:0 0 10px;">Runs the full pipeline for this comic: scrape, tag, format, deduplicate, organize, and write.</p>
+    <p style="font-size:12px; color:var(--cm-warn); margin:0 0 16px;">The pipeline stops at deduplication if a duplicate is found, requiring manual review before continuing.</p>
+    <div style="display:flex; justify-content:flex-end; gap:8px; padding-top:14px; border-top:1px solid var(--cm-border);">
+      <form method="dialog"><button class="cm-btn sm ghost">Cancel</button></form>
+      <button class="cm-btn sm ok" onclick="document.getElementById('pipeline-confirm-modal').close(); confirmRunPipeline();">
+        <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Run Pipeline
+      </button>
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop">
-    <button>close</button>
-  </form>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
+
+{% include "core/_pipeline_result_modal.html" %}
 
 <!-- Compare All Sources Modal -->
 <dialog id="cv-compare-modal" class="modal">
-  <div class="modal-box max-w-7xl">
-    <form method="dialog">
-      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&#x2715;</button>
-    </form>
-    <h3 class="font-bold text-lg mb-4">Metadata Comparison &mdash; All Sources</h3>
-
-    <div id="cv-compare-loading" class="flex items-center justify-center py-8">
-      <span class="loading loading-spinner loading-lg"></span>
-      <span class="ml-2">Fetching from all sources...</span>
-    </div>
-
-    <div id="cv-compare-error" class="alert alert-error hidden">
-      <span id="cv-compare-error-text"></span>
-    </div>
-
-    <div id="cv-compare-content" class="hidden">
-      <!-- Source badges -->
-      <div id="cv-compare-sources" class="flex flex-wrap gap-2 mb-4"></div>
-
-      <!-- Common fields table -->
-      <div class="overflow-x-auto">
-        <table class="table table-zebra table-sm">
-          <thead>
-            <tr>
-              <th class="w-36">Field</th>
-              <th>Database</th>
-              <th id="col-xml">ComicInfo.xml</th>
-              <th id="col-cv-local">comicvine.db</th>
-              <th id="col-cv-api">CV API</th>
-              <th class="w-24">Status</th>
-            </tr>
-          </thead>
+  <div class="modal-box max-w-7xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:0; max-height:90vh; display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--cm-border); flex-shrink:0;"><h3 style="font-size:15px; font-weight:700; margin:0;">Metadata Comparison — All Sources</h3><form method="dialog"><button style="background:none; border:none; cursor:pointer; color:var(--cm-fg-3); font-size:16px; line-height:1; padding:2px 4px;" onmouseenter="this.style.color='var(--cm-fg)'" onmouseleave="this.style.color='var(--cm-fg-3)'">&#x2715;</button></form></div>
+    <div id="cv-compare-loading" style="display:flex; align-items:center; justify-content:center; padding:48px; gap:10px; color:var(--cm-fg-2);"><span class="loading loading-spinner loading-lg"></span><span style="font-size:13px;">Fetching from all sources...</span></div>
+    <div id="cv-compare-error" style="display:none; margin:16px; background:var(--cm-err-dim); border:1px solid var(--cm-err); border-radius:6px; padding:10px 14px; font-size:13px; color:var(--cm-err);"><span id="cv-compare-error-text"></span></div>
+    <div id="cv-compare-content" style="display:none; flex:1; overflow-y:auto; padding:14px 16px;">
+      <div id="cv-compare-sources" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;"></div>
+      <div class="cm-overflow-x">
+        <table class="cm-table">
+          <thead><tr style="border-bottom:2px solid var(--cm-border);">
+            <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; width:130px;">Field</th>
+            <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Database</th>
+            <th id="col-xml" style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">ComicInfo.xml</th>
+            <th id="col-cv-local" style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">comicvine.db</th>
+            <th id="col-cv-api" style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">CV API</th>
+            <th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; width:90px;">Status</th>
+          </tr></thead>
           <tbody id="cv-compare-common-body"></tbody>
         </table>
       </div>
-
-      <!-- Extra fields section -->
-      <div id="cv-compare-extras-section" class="hidden mt-6">
-        <h4 class="font-semibold text-sm mb-2">Source-Specific Fields</h4>
-        <div class="overflow-x-auto">
-          <table class="table table-zebra table-sm">
-            <thead>
-              <tr>
-                <th class="w-36">Field</th>
-                <th>Source</th>
-                <th>Value</th>
-              </tr>
-            </thead>
-            <tbody id="cv-compare-extras-body"></tbody>
-          </table>
-        </div>
+      <div id="cv-compare-extras-section" style="display:none; margin-top:20px;">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin-bottom:8px;">Source-Specific Fields</div>
+        <div class="cm-overflow-x"><table class="cm-table"><thead><tr style="border-bottom:2px solid var(--cm-border);"><th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; width:130px;">Field</th><th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Source</th><th style="text-align:left; padding:7px 10px; color:var(--cm-fg-3); font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;">Value</th></tr></thead><tbody id="cv-compare-extras-body"></tbody></table></div>
       </div>
     </div>
-
-    <div class="modal-action">
-      <form method="dialog">
-        <button class="btn btn-ghost">Close</button>
-      </form>
-    </div>
+    <div style="display:flex; justify-content:flex-end; padding:12px 16px; border-top:1px solid var(--cm-border); flex-shrink:0;"><form method="dialog"><button class="cm-btn sm ghost">Close</button></form></div>
   </div>
-  <form method="dialog" class="modal-backdrop">
-    <button>close</button>
-  </form>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
 {% if comic.is_physical %}
-<!-- Upload Cover Modal -->
 <dialog id="upload-cover-modal" class="modal modal-bottom sm:modal-middle">
-  <div class="modal-box max-w-sm">
-    <form method="dialog">
-      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&#x2715;</button>
-    </form>
-    <h3 class="font-bold text-lg mb-4">Upload Cover Image</h3>
-    <div id="upload-cover-error" class="alert alert-error hidden mb-3">
-      <span id="upload-cover-error-text"></span>
+  <div class="modal-box max-w-sm" style="background:var(--cm-bg-1); border:1px solid var(--cm-border);">
+    <form method="dialog"><button class="cm-icon-btn absolute right-2 top-2">&#x2715;</button></form>
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 14px;">Upload Cover Image</h3>
+    <div id="upload-cover-error" style="display:none; background:var(--cm-err-dim); border:1px solid var(--cm-err); border-radius:6px; padding:8px 12px; font-size:12px; color:var(--cm-err); margin-bottom:10px;"><span id="upload-cover-error-text"></span></div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <input type="file" id="upload-cover-file" accept="image/*" class="cm-file w-full" />
+      <p style="font-size:11px; color:var(--cm-fg-3);">JPEG, PNG, GIF, or WebP. Will be converted to JPEG.</p>
     </div>
-    <div class="space-y-3">
-      <input type="file" id="upload-cover-file" accept="image/*" class="file-input file-input-bordered w-full" />
-      <p class="text-xs text-base-content/50">JPEG, PNG, GIF, or WebP. Will be converted to JPEG.</p>
-    </div>
-    <div class="modal-action">
-      <button type="button" class="btn btn-primary" onclick="uploadCover()">Upload</button>
-      <form method="dialog"><button class="btn btn-ghost">Cancel</button></form>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px; padding-top:14px; border-top:1px solid var(--cm-border);">
+      <button type="button" class="cm-btn sm primary" onclick="uploadCover()">Upload</button>
+      <form method="dialog"><button class="cm-btn sm ghost">Cancel</button></form>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop"><button>close</button></form>
@@ -849,57 +588,66 @@
 
 <!-- Page Manager Modal -->
 <dialog id="page-manager-modal" class="modal">
-  <div class="modal-box max-w-4xl">
-    <form method="dialog">
-      <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">&#x2715;</button>
-    </form>
-    <h3 class="font-bold text-lg mb-1">Manage Pages</h3>
-    <p class="text-xs text-base-content/50 mb-3">Drag to reorder &bull; &#x2715; to delete &bull; changes saved together</p>
-
-    <div id="pm-error" class="alert alert-error hidden mb-3">
-      <span id="pm-error-text"></span>
+  <div class="modal-box max-w-5xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:0; max-height:92vh; display:flex; flex-direction:column;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--cm-border); flex-shrink:0;">
+      <div>
+        <div style="font-size:15px; font-weight:700;">Manage Pages</div>
+        <div style="font-size:11px; color:var(--cm-fg-3); margin-top:2px;">Drag to reorder &bull; &#x2715; to delete &bull; changes saved together</div>
+      </div>
+      <form method="dialog"><button style="background:none; border:none; cursor:pointer; color:var(--cm-fg-3); font-size:16px; line-height:1; padding:4px 6px; border-radius:4px;" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">&#x2715;</button></form>
     </div>
-
-    <!-- Loading -->
-    <div id="pm-loading" class="flex items-center justify-center py-12">
+    <div id="pm-error" style="display:none; margin:10px 18px 0; background:var(--cm-err-dim); border:1px solid var(--cm-err); border-radius:6px; padding:8px 12px; font-size:12px; color:var(--cm-err);"><span id="pm-error-text"></span></div>
+    <div id="pm-loading" style="display:flex; align-items:center; justify-content:center; padding:60px; flex-direction:column; gap:10px;">
       <span class="loading loading-spinner loading-md"></span>
+      <span style="font-size:12px; color:var(--cm-fg-3);">Loading pages...</span>
     </div>
-
-    <!-- Scrollable thumbnail grid -->
-    <div id="pm-grid" class="flex flex-wrap gap-2 overflow-y-auto max-h-[60vh] p-1" style="display:none!important">
-      <!-- Thumbnails injected by JS -->
-    </div>
-
-    <!-- Upload section -->
-    <div id="pm-upload-section" class="border-t border-base-300 pt-3 mt-3 flex items-center gap-3" style="display:none">
-      <span class="text-sm font-medium shrink-0">Add page:</span>
-      <label class="btn btn-sm btn-accent gap-2 cursor-pointer">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        Choose Image
-        <input type="file" id="pm-upload-file" accept="image/*" class="hidden" onchange="pmAddPage(this)" />
-      </label>
-      <span class="text-xs text-base-content/50">Added to beginning — drag to reposition</span>
-    </div>
-
-    <div class="modal-action mt-3">
-      <button type="button" id="pm-apply-btn" class="btn btn-primary" onclick="pmApplyChanges()" disabled>Save Changes</button>
-      <form method="dialog">
-        <button class="btn btn-ghost">Cancel</button>
-      </form>
+    <div id="pm-grid" style="display:none; flex:1; overflow-y:auto; padding:16px; flex-wrap:wrap; gap:10px; align-content:flex-start;"></div>
+    <div style="border-top:1px solid var(--cm-border); padding:12px 18px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; flex-wrap:wrap; gap:8px;">
+      <div id="pm-upload-section" style="display:none; align-items:center; gap:8px;">
+        <span style="font-size:12px; font-weight:500; color:var(--cm-fg-2);">Add page:</span>
+        <label class="cm-btn sm" style="cursor:pointer; display:flex; align-items:center; gap:4px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          Choose Image
+          <input type="file" id="pm-upload-file" accept="image/*" style="display:none;" onchange="pmAddPage(this)" />
+        </label>
+        <span id="pm-page-count" style="font-size:11px; color:var(--cm-fg-3);"></span>
+      </div>
+      <div style="display:flex; gap:8px; margin-left:auto;">
+        <button type="button" id="pm-apply-btn" class="cm-btn sm primary" onclick="pmApplyChanges()" disabled>Save Changes</button>
+        <form method="dialog"><button class="cm-btn sm ghost">Cancel</button></form>
+      </div>
     </div>
   </div>
-  <form method="dialog" class="modal-backdrop">
-    <button>close</button>
-  </form>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
 <script>
 const comicPk = '{{ comic.pk }}';
 const csrfToken = '{{ csrf_token }}';
 
-// Action endpoints mapping
+// ── Tab switching ─────────────────────────────────────────────────────────────
+
+const _tabDefaultId = '{% if comparison %}metadata{% elif comic.is_physical %}comic-metadata{% else %}credits{% endif %}';
+const _allTabs = ['metadata', 'credits', 'history', 'comic-metadata', 'siblings', 'raw'];
+
+function switchDetailTab(name) {
+  _allTabs.forEach(p => {
+    const el = document.getElementById('detail-tab-' + p);
+    if (el) el.style.display = 'none';
+    const btn = document.getElementById('detail-tab-btn-' + p);
+    if (btn) { btn.style.borderBottomColor = 'transparent'; btn.style.color = 'var(--cm-fg-2)'; btn.style.fontWeight = '500'; }
+  });
+  const active = document.getElementById('detail-tab-' + name);
+  if (active) active.style.display = '';
+  const activeBtn = document.getElementById('detail-tab-btn-' + name);
+  if (activeBtn) { activeBtn.style.borderBottomColor = 'var(--cm-accent)'; activeBtn.style.color = 'var(--cm-fg)'; activeBtn.style.fontWeight = '600'; }
+}
+
+document.addEventListener('DOMContentLoaded', () => switchDetailTab(_tabDefaultId));
+
+// ── Action endpoints ──────────────────────────────────────────────────────────
+
 const actionEndpoints = {
-  'scrape': `/comics/${comicPk}/force-scrape/`,
   'tag': `/comics/${comicPk}/force-tag/`,
   'format': `/comics/${comicPk}/force-format/`,
   'organize': `/comics/${comicPk}/force-organize/`,
@@ -909,7 +657,6 @@ const actionEndpoints = {
 };
 
 const actionLabels = {
-  'scrape': 'Re-scraping...',
   'tag': 'Re-tagging...',
   'format': 'Re-formatting...',
   'organize': 'Re-organizing...',
@@ -918,39 +665,27 @@ const actionLabels = {
   'search-alt-covers': 'Searching...',
 };
 
-// ── Physical Cover Selection ─────────────────────────────────────────────────
+// ── Physical Cover Selection ──────────────────────────────────────────────────
 
 function setMainCover(coverUrl) {
   fetch(`/comics/${comicPk}/set-cover/`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'X-CSRFToken': csrfToken,
-    },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRFToken': csrfToken },
     body: `cover_url=${encodeURIComponent(coverUrl)}`,
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.success) {
-      window.location.reload();
-    } else {
-      alert('Failed to set cover: ' + (data.error || 'Unknown error'));
-    }
+  }).then(r => r.json()).then(data => {
+    if (data.success) window.location.reload();
+    else alert('Failed to set cover: ' + (data.error || 'Unknown error'));
   });
 }
 
-// ── Gallery Logic ────────────────────────────────────────────────────────────
+// ── Gallery ───────────────────────────────────────────────────────────────────
 
 function openGallery(index, context) {
   let items = [];
-  
   if (context === 'variants') {
-    items.push({ url: '/comics/{{ comic.pk }}/cover/', caption: 'Local Cover' });
+    items.push({ url: '/comics/{{ comic.pk }}/cover/?v={{ comic.updated_at|date:"U" }}', caption: 'Local Cover' });
     {% for page_num in alt_cover_range %}
-    items.push({ 
-      url: '/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}', 
-      caption: '{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}' 
-    });
+    items.push({ url: '/comics/{{ comic.pk }}/page/{{ page_num }}/?v={{ comic.page_count }}', caption: '{% if forloop.first %}Main{% else %}Variant {{ forloop.counter|add:"-1" }}{% endif %}' });
     {% endfor %}
   } else if (context === 'pagemanager') {
     const thumbs = Array.from(document.querySelectorAll('#pm-grid .pm-thumb:not([data-deleted="true"])'));
@@ -960,1007 +695,282 @@ function openGallery(index, context) {
       return { url: img.src, caption: `Page ${i + 1} (${label})` };
     });
   }
-
   window.openLightbox(items, index);
 }
 
-// Legacy support for single-image calls
-function openImageModal(url, caption) {
-  window.openLightbox([{ url, caption }], 0);
+function openImageModal(url, caption) { window.openLightbox([{ url, caption }], 0); }
+
+// ── Scrape modal ──────────────────────────────────────────────────────────────
+
+function openDetailScrapeModal() {
+  openScrapeModal(comicPk, { skipEnabled: false, onSuccess: function() { location.reload(); } });
 }
-
-// ── Scrape modal functions ───────────────────────────────────────────────────
-
-// Scrape modal functions
-function openScrapeModal() {
-  const modal = document.getElementById('scrape-modal');
-  const matchesDiv = document.getElementById('modal-matches');
-  const loadingDiv = document.getElementById('modal-loading');
-  const errorDiv = document.getElementById('modal-error');
-
-  // Close dropdown
-  document.activeElement.blur();
-
-  // Reset modal state
-  matchesDiv.innerHTML = '';
-  loadingDiv.classList.remove('hidden');
-  errorDiv.classList.add('hidden');
-
-  // Reset API search section
-  const apiSection = document.getElementById('api-search-section');
-  apiSection.classList.add('hidden');
-  document.getElementById('api-no-local').classList.add('hidden');
-  document.getElementById('api-matches').innerHTML = '';
-  document.getElementById('api-search-loading').classList.add('hidden');
-  document.getElementById('api-search-error').classList.add('hidden');
-
-  // Reset Inducks search section
-  const inducksMatches = document.getElementById('inducks-matches');
-  if (inducksMatches) {
-    inducksMatches.innerHTML = '';
-    document.getElementById('inducks-search-loading').classList.add('hidden');
-    document.getElementById('inducks-search-error').classList.add('hidden');
-  }
-
-  modal.showModal();
-
-  // Fetch preview matches with force=1 to skip state check
-  fetch(`/comics/${comicPk}/scrape/preview/?force=1`)
-    .then(response => response.json())
-    .then(data => {
-      loadingDiv.classList.add('hidden');
-
-      if (!data.success) {
-        errorDiv.classList.remove('hidden');
-        document.getElementById('modal-error-text').textContent = data.error;
-        return;
-      }
-
-      // Show API search section and pre-fill search input
-      apiSection.classList.remove('hidden');
-      const apiInput = document.getElementById('api-search-input');
-      apiInput.value = `${data.comic.series || ''} ${data.comic.number || ''}`.trim();
-
-      // Show Inducks search section and pre-fill
-      const inducksSection = document.getElementById('inducks-search-section');
-      if (inducksSection) inducksSection.classList.remove('hidden');
-      const inducksInput = document.getElementById('inducks-search-input');
-      if (inducksInput) {
-        inducksInput.value = `${data.comic.series || ''} ${data.comic.number || ''}`.trim();
-      }
-
-      if (data.matches.length === 0) {
-        matchesDiv.innerHTML = '<div class="col-span-full text-center text-warning py-4">No local matches found</div>';
-        document.getElementById('api-no-local').classList.remove('hidden');
-        return;
-      }
-
-      // Render match cards
-      data.matches.forEach((match, idx) => {
-        const card = document.createElement('div');
-        card.className = `card bg-base-300 cursor-pointer hover:ring-2 hover:ring-primary transition-all border border-base-content/10 ${match.recommended ? 'ring-2 ring-success' : ''}`;
-
-        const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
-
-        card.innerHTML = `
-          <figure class="px-4 pt-4 h-52 bg-base-100/50 rounded-t-xl flex justify-center items-center">
-            ${covers.length > 0
-              ? `<img src="${covers[0]}" alt="Cover" class="rounded-lg max-h-48 max-w-full object-contain shadow-md" />`
-              : '<div class="h-48 w-full bg-base-300 rounded-lg flex items-center justify-center text-base-content/50 text-sm">No cover</div>'
-            }
-          </figure>
-          <div class="card-body p-4 gap-2">
-            <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
-            <p class="text-sm text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
-            ${match.title ? `<p class="text-sm text-base-content/70 line-clamp-2">${match.title}</p>` : ''}
-            <div class="flex flex-wrap gap-2 mt-2">
-              <span class="badge ${match.recommended ? 'badge-success' : 'badge-outline'}">${match.match_type}</span>
-              ${match.recommended ? '<span class="badge badge-success">Best Match</span>' : ''}
-            </div>
-          </div>
-        `;
-
-        card.addEventListener('click', () => selectMatch(match.issue_id));
-        matchesDiv.appendChild(card);
-      });
-    })
-    .catch(err => {
-      loadingDiv.classList.add('hidden');
-      errorDiv.classList.remove('hidden');
-      document.getElementById('modal-error-text').textContent = 'Error fetching matches: ' + err.message;
-    });
-}
-
-async function selectMatch(issueId, source, issuecode, storycode) {
-  const modal = document.getElementById('scrape-modal');
-
-  // Show loading state on all match cards across all sections
-  document.querySelectorAll('#modal-matches .card, #api-matches .card, #inducks-matches .card').forEach(card => {
-    card.classList.add('opacity-50', 'pointer-events-none');
-  });
-
-  const payload = source === 'inducks'
-    ? { source: 'inducks', ...(issuecode ? { issuecode } : {}), ...(storycode ? { storycode } : {}) }
-    : { issue_id: issueId };
-
-  try {
-    const response = await fetch(`/comics/${comicPk}/scrape/`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrfToken,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      modal.close();
-      location.reload();
-    } else {
-      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
-      document.querySelectorAll('#modal-matches .card, #api-matches .card, #inducks-matches .card').forEach(card => {
-        card.classList.remove('opacity-50', 'pointer-events-none');
-      });
-    }
-  } catch (err) {
-    showMsgToast('Network error: ' + err.message, 'error');
-    document.querySelectorAll('#modal-matches .card, #api-matches .card, #inducks-matches .card').forEach(card => {
-      card.classList.remove('opacity-50', 'pointer-events-none');
-    });
-  }
-}
-
-let _detailApiAllMatches = [];
-let _detailApiShownCount = 0;
-const DETAIL_API_BATCH_SIZE = 3;
-
-function searchApi() {
-  const query = document.getElementById('api-search-input').value.trim();
-  const apiMatchesDiv = document.getElementById('api-matches');
-  const apiLoading = document.getElementById('api-search-loading');
-  const apiError = document.getElementById('api-search-error');
-
-  if (!query) return;
-
-  _detailApiAllMatches = [];
-  _detailApiShownCount = 0;
-  apiMatchesDiv.innerHTML = '';
-  apiLoading.classList.remove('hidden');
-  apiError.className = 'alert alert-error mt-2 hidden';
-
-  fetch(`/comics/${comicPk}/scrape/api-search/?q=${encodeURIComponent(query)}`)
-    .then(response => response.json().then(data => ({status: response.status, data})))
-    .then(({status, data}) => {
-      apiLoading.classList.add('hidden');
-
-      if (!data.success) {
-        apiError.classList.remove('hidden');
-        if (data.rate_limited) {
-          apiError.className = 'alert alert-warning mt-2';
-          document.getElementById('api-search-error-text').textContent = '⏳ ' + data.error;
-        } else {
-          apiError.className = 'alert alert-error mt-2';
-          document.getElementById('api-search-error-text').textContent = data.error;
-        }
-        return;
-      }
-
-      if (data.matches.length === 0) {
-        apiMatchesDiv.innerHTML = '<div class="col-span-full text-center text-base-content/50 py-4">No API results found</div>';
-        return;
-      }
-
-      _detailApiAllMatches = data.matches;
-      _detailApiShownCount = 0;
-      _showDetailApiResultBatch();
-    })
-    .catch(err => {
-      apiLoading.classList.add('hidden');
-      apiError.className = 'alert alert-error mt-2';
-      apiError.classList.remove('hidden');
-      document.getElementById('api-search-error-text').textContent = err.toString();
-    });
-}
-
-function _showDetailApiResultBatch() {
-  const apiMatchesDiv = document.getElementById('api-matches');
-  const batch = _detailApiAllMatches.slice(_detailApiShownCount, _detailApiShownCount + DETAIL_API_BATCH_SIZE);
-  if (!batch.length) return;
-
-  const existing = apiMatchesDiv.querySelector('.api-show-more-btn');
-  if (existing) existing.remove();
-
-  const startIdx = _detailApiShownCount;
-  batch.forEach((match, i) => {
-    const idx = startIdx + i;
-    const card = document.createElement('div');
-    card.className = 'card bg-base-300 cursor-pointer hover:ring-2 hover:ring-accent transition-all border border-accent/30';
-
-    const covers = match.cover_urls || (match.cover_url ? [match.cover_url] : []);
-
-    card.innerHTML = `
-      <figure class="px-4 pt-4 h-52 bg-base-100/50 rounded-t-xl flex justify-center items-center">
-        ${covers.length > 0
-          ? `<img src="${covers[0]}" alt="Cover" class="rounded-lg max-h-48 max-w-full object-contain shadow-md" />`
-          : '<div class="h-48 w-full bg-base-300 rounded-lg flex items-center justify-center text-base-content/50 text-sm">No cover</div>'
-        }
-      </figure>
-      <div class="card-body p-4 gap-2">
-        <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
-        <p class="text-sm text-primary font-medium api-vol-info" data-vol="${match.volume_id}">${match.year ? '(' + match.year + ')' : '<span class="loading loading-dots loading-xs"></span>'}</p>
-        ${match.title ? `<p class="text-sm text-base-content/70 line-clamp-2">${match.title}</p>` : ''}
-        <div class="flex flex-wrap gap-2 mt-2">
-          <span class="badge badge-accent">api</span>
-        </div>
-      </div>
-    `;
-
-    card.addEventListener('click', () => selectMatch(match.issue_id));
-    apiMatchesDiv.appendChild(card);
-  });
-
-  _detailApiShownCount += batch.length;
-
-  // Fetch volume info for unique volume IDs in this batch
-  const newVolumeIds = [...new Set(batch.map(m => m.volume_id).filter(Boolean))];
-  if (newVolumeIds.length) {
-    fetch(`/comics/scrape/volume-batch/?vids=${newVolumeIds.join(',')}`)
-      .then(r => r.json())
-      .then(data => {
-        if (!data.success) return;
-        Object.entries(data.volumes).forEach(([vid, info]) => {
-          apiMatchesDiv.querySelectorAll(`.api-vol-info[data-vol="${vid}"]`).forEach(el => {
-            const parts = [];
-            if (info.publisher) parts.push(info.publisher);
-            if (info.year) parts.push(`(${info.year})`);
-            el.textContent = parts.join(' ') || '—';
-          });
-        });
-      })
-      .catch(() => {});
-  }
-
-  if (_detailApiShownCount < _detailApiAllMatches.length) {
-    const remaining = _detailApiAllMatches.length - _detailApiShownCount;
-    const moreBtn = document.createElement('div');
-    moreBtn.className = 'api-show-more-btn col-span-full flex justify-center mt-2';
-    moreBtn.innerHTML = `<button type="button" class="btn btn-sm btn-outline btn-accent" onclick="_showDetailApiResultBatch()">Show ${Math.min(DETAIL_API_BATCH_SIZE, remaining)} more (${remaining} remaining)</button>`;
-    apiMatchesDiv.appendChild(moreBtn);
-  }
-}
-
-// Allow Enter key in API search input
-document.getElementById('api-search-input')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    searchApi();
-  }
-});
-
-// ── Inducks search ──────────────────────────────────────────────────────────
-{% if inducks_enabled %}
-const inducksCountryLock = '{{ inducks_country_lock }}';
-
-function searchInducks(mode) {
-  const query = document.getElementById('inducks-search-input').value.trim();
-  const storycode = document.getElementById('inducks-storycode-input').value.trim();
-  const matchesDiv = document.getElementById('inducks-matches');
-  const loading = document.getElementById('inducks-search-loading');
-  const errorDiv = document.getElementById('inducks-search-error');
-
-  if (mode === 'storycode' && !storycode) return;
-  if (mode !== 'storycode' && !query) return;
-
-  let country = inducksCountryLock;
-  if (!country) {
-    const sel = document.getElementById('inducks-country-select');
-    if (sel) country = sel.value;
-  }
-
-  matchesDiv.innerHTML = '';
-  loading.classList.remove('hidden');
-  errorDiv.classList.add('hidden');
-
-  let url = `/comics/${comicPk}/scrape/inducks-search/?`;
-  if (mode === 'storycode') {
-    url += `storycode=${encodeURIComponent(storycode)}`;
-  } else {
-    url += `q=${encodeURIComponent(query)}`;
-  }
-  if (country) url += `&country=${encodeURIComponent(country)}`;
-
-  fetch(url)
-    .then(response => response.json())
-    .then(data => {
-      loading.classList.add('hidden');
-
-      if (!data.success) {
-        errorDiv.classList.remove('hidden');
-        document.getElementById('inducks-search-error-text').textContent = data.error;
-        return;
-      }
-
-      if (data.matches.length === 0) {
-        matchesDiv.innerHTML = '<div class="col-span-full text-center text-base-content/50 py-4">No Inducks results found</div>';
-        return;
-      }
-
-      data.matches.forEach(match => {
-        const card = document.createElement('div');
-        card.className = 'card bg-base-300 cursor-pointer hover:ring-2 hover:ring-info transition-all border border-info/30';
-
-        const issueUrl = `https://inducks.org/issue.php?c=${encodeURIComponent(match.issuecode)}`;
-        const stories = match.stories || [];
-
-        const storyBadges = stories.map(s =>
-          `<span class="inline-flex items-center gap-0.5">
-            <a href="https://inducks.org/story.php?c=${encodeURIComponent(s.code)}" target="_blank"
-              class="badge badge-sm badge-ghost hover:badge-info cursor-pointer" onclick="event.stopPropagation()"
-              title="${s.title || s.code}">${s.code}</a>
-            <button class="btn btn-ghost btn-xs px-0.5 text-success" onclick="event.stopPropagation(); selectMatch(null, 'inducks', '${match.issuecode}', '${s.code}')"
-              title="Match this story only">&#x2713;</button>
-          </span>`
-        ).join('');
-
-        const storyLinks = stories.slice(0, 3).map(s =>
-          `<a href="https://inducks.org/story.php?c=${encodeURIComponent(s.code)}" target="_blank"
-              class="link link-accent text-xs" onclick="event.stopPropagation()">${s.code}</a>`
-        ).join(' ');
-
-        const leadTitle = stories.length > 0 && stories[0].title
-          ? `<p class="text-sm text-base-content/70 line-clamp-2">${stories[0].title}</p>` : '';
-
-        card.innerHTML = `
-          <div class="card-body p-4 gap-2">
-            <h3 class="card-title text-base font-bold">${match.series} #${match.number}</h3>
-            <p class="text-sm text-primary font-medium">${match.publisher || 'Unknown'} (${match.year || '?'})</p>
-            ${leadTitle}
-            ${match.pages ? `<p class="text-xs text-base-content/50">${match.pages} pages</p>` : ''}
-            ${storyBadges ? `<div class="flex flex-wrap gap-1 mt-1">${storyBadges}</div>` : ''}
-            <div class="flex flex-wrap gap-2 mt-2">
-              <span class="badge badge-info">inducks</span>
-              ${match.country ? `<span class="badge badge-outline badge-sm">${match.country}</span>` : ''}
-            </div>
-            <div class="flex gap-2 mt-1">
-              <a href="${issueUrl}" target="_blank" class="link link-info text-xs" onclick="event.stopPropagation()">Issue</a>
-              ${storyLinks ? `<span class="text-xs text-base-content/30">|</span> ${storyLinks}` : ''}
-            </div>
-          </div>
-        `;
-
-        card.addEventListener('click', () => selectMatch(null, 'inducks', match.issuecode));
-        matchesDiv.appendChild(card);
-      });
-    })
-    .catch(err => {
-      loading.classList.add('hidden');
-      errorDiv.classList.remove('hidden');
-      document.getElementById('inducks-search-error-text').textContent = err.toString();
-    });
-}
-
-function matchStoryDirect() {
-  const storycode = document.getElementById('inducks-storycode-input').value.trim();
-  if (!storycode) return;
-  selectMatch(null, 'inducks', null, storycode);
-}
-
-document.getElementById('inducks-search-input')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    searchInducks();
-  }
-});
-document.getElementById('inducks-storycode-input')?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    searchInducks('storycode');
-  }
-});
-{% endif %}
 
 function openCvCompareModal() {
   const modal = document.getElementById('cv-compare-modal');
   const loading = document.getElementById('cv-compare-loading');
   const error = document.getElementById('cv-compare-error');
   const content = document.getElementById('cv-compare-content');
-
-  // Close dropdown
   document.activeElement.blur();
-
-  // Reset state
-  loading.classList.remove('hidden');
-  error.classList.add('hidden');
-  content.classList.add('hidden');
+  loading.style.display = 'flex'; error.style.display = 'none'; content.style.display = 'none';
   document.getElementById('cv-compare-common-body').innerHTML = '';
   document.getElementById('cv-compare-extras-body').innerHTML = '';
-  document.getElementById('cv-compare-extras-section').classList.add('hidden');
-
+  document.getElementById('cv-compare-extras-section').style.display = 'none';
   modal.showModal();
-
-  fetch(`/comics/${comicPk}/cv-compare/`)
-    .then(r => r.json())
-    .then(data => {
-      loading.classList.add('hidden');
-
-      if (!data.success) {
-        error.classList.remove('hidden');
-        document.getElementById('cv-compare-error-text').textContent = data.error;
-        return;
-      }
-
-      content.classList.remove('hidden');
-      const sources = data.sources;
-
-      // Source badges
-      const badgesDiv = document.getElementById('cv-compare-sources');
-      badgesDiv.innerHTML = `
-        <span class="badge badge-success badge-sm">Database</span>
-        <span class="badge ${sources.xml ? 'badge-success' : 'badge-ghost'} badge-sm">ComicInfo.xml ${sources.xml ? '' : '(not found)'}</span>
-        <span class="badge ${sources.cv_local ? 'badge-success' : 'badge-ghost'} badge-sm">comicvine.db ${sources.cv_local ? '' : '(not found)'}</span>
-        <span class="badge ${sources.cv_api ? 'badge-success' : (sources.api_skipped_reason && sources.api_skipped_reason.includes('Rate') ? 'badge-warning' : 'badge-ghost')} badge-sm">CV API ${sources.cv_api ? '' : `(${sources.api_skipped_reason || 'skipped'})`}</span>
-        <span class="badge badge-outline badge-sm">CV Issue #${data.cv_issue_id}</span>
-      `;
-
-      // Hide unavailable columns
-      document.getElementById('col-xml').classList.toggle('hidden', !sources.xml);
-      document.getElementById('col-cv-local').classList.toggle('hidden', !sources.cv_local);
-      document.getElementById('col-cv-api').classList.toggle('hidden', !sources.cv_api);
-
-      // Common fields table
-      const tbody = document.getElementById('cv-compare-common-body');
-      const fmtVal = (v) => {
-        if (v == null || !String(v).trim()) return '<span class="text-base-content/30">-</span>';
-        return `<span class="text-xs whitespace-pre-wrap">${escapeHtml(String(v))}</span>`;
-      };
-
-      data.common.forEach(item => {
-        const tr = document.createElement('tr');
-        const statusClass = item.status === 'differ' ? 'bg-warning/10' : '';
-        tr.className = statusClass;
-
-        let statusBadge;
-        if (item.status === 'match') statusBadge = '<span class="badge badge-success badge-sm">Match</span>';
-        else if (item.status === 'differ') statusBadge = '<span class="badge badge-warning badge-sm">Different</span>';
-        else statusBadge = '<span class="badge badge-ghost badge-sm">Empty</span>';
-
-        tr.innerHTML = `
-          <td class="font-medium text-sm">${escapeHtml(item.label)}</td>
-          <td class="max-w-xs">${fmtVal(item.db)}</td>
-          ${sources.xml ? `<td class="max-w-xs">${fmtVal(item.xml)}</td>` : ''}
-          ${sources.cv_local ? `<td class="max-w-xs">${fmtVal(item.cv_local)}</td>` : ''}
-          ${sources.cv_api ? `<td class="max-w-xs">${fmtVal(item.cv_api)}</td>` : ''}
-          <td>${statusBadge}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-
-      // Extra fields
-      if (data.extras && data.extras.length > 0) {
-        document.getElementById('cv-compare-extras-section').classList.remove('hidden');
-        const extrasBody = document.getElementById('cv-compare-extras-body');
-        const sourceLabels = {db: 'Database', xml: 'ComicInfo.xml', cv_local: 'comicvine.db', cv_api: 'CV API'};
-        const sourceBadges = {db: 'badge-info', xml: 'badge-primary', cv_local: 'badge-secondary', cv_api: 'badge-accent'};
-
-        data.extras.forEach(item => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td class="font-medium text-sm">${escapeHtml(item.label)}</td>
-            <td><span class="badge badge-sm ${sourceBadges[item.source] || 'badge-ghost'}">${sourceLabels[item.source] || item.source}</span></td>
-            <td class="max-w-md text-xs whitespace-pre-wrap">${escapeHtml(String(item.value))}</td>
-          `;
-          extrasBody.appendChild(tr);
-        });
-      }
-    })
-    .catch(err => {
-      loading.classList.add('hidden');
-      error.classList.remove('hidden');
-      document.getElementById('cv-compare-error-text').textContent = 'Error: ' + err.message;
+  fetch(`/comics/${comicPk}/cv-compare/`).then(r => r.json()).then(data => {
+    loading.style.display = 'none';
+    if (!data.success) { error.style.display = ''; document.getElementById('cv-compare-error-text').textContent = data.error; return; }
+    content.style.display = '';
+    const sources = data.sources;
+    document.getElementById('cv-compare-sources').innerHTML = `
+      <span class="cm-chip ok" style="font-size:11px;">Database</span>
+      <span class="cm-chip ${sources.xml ? 'ok' : ''}" style="font-size:11px;">ComicInfo.xml ${sources.xml ? '' : '(not found)'}</span>
+      <span class="cm-chip ${sources.cv_local ? 'ok' : ''}" style="font-size:11px;">comicvine.db ${sources.cv_local ? '' : '(not found)'}</span>
+      <span class="cm-chip ${sources.cv_api ? 'ok' : ''}" style="font-size:11px;">CV API ${sources.cv_api ? '' : `(${sources.api_skipped_reason || 'skipped'})`}</span>
+      <span class="cm-chip accent" style="font-size:11px;">CV Issue #${data.cv_issue_id}</span>
+    `;
+    document.getElementById('col-xml').classList.toggle('hidden', !sources.xml);
+    document.getElementById('col-cv-local').classList.toggle('hidden', !sources.cv_local);
+    document.getElementById('col-cv-api').classList.toggle('hidden', !sources.cv_api);
+    const tbody = document.getElementById('cv-compare-common-body');
+    const fmtVal = v => v == null || !String(v).trim() ? '<span style="opacity:.3">-</span>' : `<span style="font-size:11px; white-space:pre-wrap;">${escapeHtml(String(v))}</span>`;
+    data.common.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--cm-border)';
+      if (item.status === 'differ') tr.style.background = 'var(--cm-warn-dim)';
+      const badge = item.status === 'match' ? '<span class="cm-chip ok" style="font-size:10px;">Match</span>' : item.status === 'differ' ? '<span class="cm-chip warn" style="font-size:10px;">Different</span>' : '<span class="cm-chip" style="font-size:10px;">Empty</span>';
+      const td = 'padding:6px 10px; max-width:220px;';
+      tr.innerHTML = `<td style="${td} font-weight:600; color:var(--cm-fg-1);">${escapeHtml(item.label)}</td><td style="${td}">${fmtVal(item.db)}</td>${sources.xml ? `<td style="${td}">${fmtVal(item.xml)}</td>` : ''}${sources.cv_local ? `<td style="${td}">${fmtVal(item.cv_local)}</td>` : ''}${sources.cv_api ? `<td style="${td}">${fmtVal(item.cv_api)}</td>` : ''}<td style="padding:6px 10px;">${badge}</td>`;
+      tbody.appendChild(tr);
     });
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+    if (data.extras && data.extras.length > 0) {
+      document.getElementById('cv-compare-extras-section').style.display = '';
+      const extrasBody = document.getElementById('cv-compare-extras-body');
+      const srcLabels = {db:'Database',xml:'ComicInfo.xml',cv_local:'comicvine.db',cv_api:'CV API'};
+      const srcChips = {db:'info',xml:'violet',cv_local:'accent',cv_api:'ok'};
+      data.extras.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--cm-border)';
+        tr.innerHTML = `<td style="padding:6px 10px; font-weight:600; color:var(--cm-fg-1);">${escapeHtml(item.label)}</td><td style="padding:6px 10px;"><span class="cm-chip ${srcChips[item.source]||''}" style="font-size:10px;">${srcLabels[item.source]||item.source}</span></td><td style="padding:6px 10px; max-width:320px; font-size:11px; color:var(--cm-fg-1); white-space:pre-wrap; word-break:break-word;">${escapeHtml(String(item.value))}</td>`;
+        extrasBody.appendChild(tr);
+      });
+    }
+  }).catch(err => { loading.style.display = 'none'; error.style.display = ''; document.getElementById('cv-compare-error-text').textContent = 'Error: ' + err.message; });
 }
 
 async function refreshFileInfo() {
   const btn = document.getElementById('action-refresh-file-info');
-  const originalText = btn.textContent;
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Refreshing...';
-  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Refreshing...'; btn.disabled = true;
   document.activeElement.blur();
-
   try {
-    const response = await fetch(`/comics/${comicPk}/refresh-file-info/`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': csrfToken },
-    });
-    const data = await response.json();
+    const r = await fetch(`/comics/${comicPk}/refresh-file-info/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+    const data = await r.json();
     if (data.success) {
-      if (Object.keys(data.updated).length > 0) {
-        window.location.reload();
-      } else {
-        btn.innerHTML = '<span class="text-success">Up to date</span>';
-        setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 2000);
-      }
-    } else {
-      btn.textContent = originalText;
-      btn.disabled = false;
-      showMsgToast('Refresh failed: ' + data.error, 'error');
-    }
-  } catch (e) {
-    btn.textContent = originalText;
-    btn.disabled = false;
-    showMsgToast('Refresh failed: ' + e.message, 'error');
-  }
+      if (Object.keys(data.updated).length > 0) { window.location.reload(); return; }
+      const hs = data.hash_status;
+      const label = hs === 'unavailable' ? 'No cover image' : hs === 'skipped' ? 'No hashes (format)' : 'Up to date';
+      const color = hs === 'unavailable' ? 'var(--cm-warn)' : 'var(--cm-ok)';
+      btn.innerHTML = `<span style="color:${color};">${label}</span>`;
+      setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 2500);
+    } else { btn.textContent = orig; btn.disabled = false; showMsgToast('Refresh failed: ' + data.error, 'error'); }
+  } catch (e) { btn.textContent = orig; btn.disabled = false; showMsgToast('Refresh failed: ' + e.message, 'error'); }
 }
 
 async function tryRezip() {
   const btn = document.getElementById('btn-rezip');
-  const originalText = btn.textContent;
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Rezipping...';
-  btn.disabled = true;
-
+  const orig = btn.textContent;
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Rezipping...'; btn.disabled = true;
   try {
-    const response = await fetch(`/comics/${comicPk}/rezip/`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': csrfToken },
-    });
-    const data = await response.json();
-
-    if (data.success) {
-      document.getElementById('corrupted-alert').remove();
-      if (window.showQuickToast) {
-        window.showQuickToast(data.message || 'File recovered successfully.');
-      }
-      setTimeout(() => location.reload(), 1000);
-    } else {
-      btn.textContent = originalText;
-      btn.disabled = false;
-      showMsgToast('Rezip failed: ' + (data.error || 'Unknown error'), 'error');
-    }
-  } catch (err) {
-    btn.textContent = originalText;
-    btn.disabled = false;
-    showMsgToast('Network error: ' + err.message, 'error');
-  }
+    const r = await fetch(`/comics/${comicPk}/rezip/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+    const data = await r.json();
+    if (data.success) { document.getElementById('corrupted-alert').remove(); if (window.showQuickToast) window.showQuickToast(data.message || 'File recovered successfully.'); setTimeout(() => location.reload(), 1000); }
+    else { btn.textContent = orig; btn.disabled = false; showMsgToast('Rezip failed: ' + (data.error || 'Unknown error'), 'error'); }
+  } catch (err) { btn.textContent = orig; btn.disabled = false; showMsgToast('Network error: ' + err.message, 'error'); }
 }
 
 async function toggleScrapeSkip() {
   const btn = document.getElementById('btn-toggle-skip');
-  const originalText = btn.textContent.trim();
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
-  btn.disabled = true;
+  const orig = btn.textContent.trim();
+  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span>'; btn.disabled = true;
   document.activeElement.blur();
-
   try {
-    const response = await fetch(`/comics/${comicPk}/toggle-scrape-skip/`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': csrfToken },
-    });
-    const data = await response.json();
+    const r = await fetch(`/comics/${comicPk}/toggle-scrape-skip/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+    const data = await r.json();
     if (data.success) {
-      if (data.skipped) {
-        btn.textContent = 'Un-skip Scraping';
-        btn.classList.add('text-warning');
-        if (window.showQuickToast) window.showQuickToast('Comic marked as skipped for batch scraping.');
-      } else {
-        btn.textContent = 'Skip Scraping';
-        btn.classList.remove('text-warning');
-        if (window.showQuickToast) window.showQuickToast('Comic un-skipped — will be included in batch scraping.');
-      }
-    } else {
-      btn.textContent = originalText;
-      showMsgToast('Toggle failed', 'error');
-    }
-  } catch (e) {
-    btn.textContent = originalText;
-    showMsgToast('Network error: ' + e.message, 'error');
-  } finally {
-    btn.disabled = false;
-  }
+      if (data.skipped) { btn.textContent = 'Un-skip Scraping'; btn.style.color = 'var(--cm-warn)'; if (window.showQuickToast) window.showQuickToast('Comic marked as skipped for batch scraping.'); }
+      else { btn.textContent = 'Skip Scraping'; btn.style.color = ''; if (window.showQuickToast) window.showQuickToast('Comic un-skipped — will be included in batch scraping.'); }
+    } else { btn.textContent = orig; showMsgToast('Toggle failed', 'error'); }
+  } catch (e) { btn.textContent = orig; showMsgToast('Network error: ' + e.message, 'error'); }
+  finally { btn.disabled = false; }
 }
 
 async function runAction(action) {
   const btn = document.getElementById(`action-${action}`);
-  const originalHtml = btn.innerHTML;
-  btn.innerHTML = `<span class="loading loading-spinner loading-xs"></span> ${actionLabels[action] || 'Processing...'}`;
-  btn.disabled = true;
-
-  // Close the dropdown
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = `<span class="loading loading-spinner loading-xs"></span> ${actionLabels[action] || 'Processing...'}`; btn.disabled = true; }
   document.activeElement.blur();
-
   const comicTitle = '{{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}';
-
   try {
-    const response = await fetch(actionEndpoints[action], {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrfToken,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const data = await response.json();
-
+    const r = await fetch(actionEndpoints[action], { method: 'POST', headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' } });
+    const data = await r.json();
     if (data.task_id) {
-      // Async task (e.g. search-alt-covers downloads images in background)
-      btn.innerHTML = '<span class="text-info">Running...</span>';
-      if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id, actionLabels[action] || 'Processing');
-      }
+      if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, actionLabels[action] || 'Processing');
+      else if (window.showQuickToast) window.showQuickToast('Task started');
     } else if (data.success) {
-      btn.innerHTML = '<span class="text-success">Done!</span>';
-
-      // Show result modal for actions that have one
-      if (action === 'tag') {
-        showTagResultModal(comicTitle, data);
-      } else if (action === 'format') {
-        showFormatResultModal(comicTitle, data);
-      } else if (action === 'organize') {
-        showOrganizeResultModal(comicTitle, data);
-      } else {
-        // For write, refresh-credits, etc. — show toast then reload
-        if (window.showQuickToast) {
-          window.showQuickToast(data.message || 'Done!');
-        } else {
-          setTimeout(() => location.reload(), 800);
-        }
-      }
+      if (btn) btn.innerHTML = '<span style="color:var(--cm-ok);">Done!</span>';
+      if (action === 'tag') showTagResultModal(comicTitle, data);
+      else if (action === 'format') showFormatResultModal(comicTitle, data);
+      else if (action === 'organize') showOrganizeResultModal(comicTitle, data);
+      else { if (window.showQuickToast) window.showQuickToast(data.message || 'Done!'); else setTimeout(() => location.reload(), 800); }
     } else {
-      btn.innerHTML = '<span class="text-error">Error</span>';
-      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
-      setTimeout(() => {
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
-      }, 2000);
+      if (btn) btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>';
+      if (r.status === 409 && window.showResultToast) {
+        window.showResultToast({
+          label: 'Move blocked — file conflict',
+          status: 'See batch log for details',
+          success: false,
+          errors: [data.error || 'Unknown error'],
+          showLog: true,
+        });
+      } else {
+        showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
+      }
+      setTimeout(() => { if (btn) { btn.innerHTML = origHtml; btn.disabled = false; } }, 2000);
     }
   } catch (err) {
-    btn.innerHTML = '<span class="text-error">Error</span>';
+    if (btn) btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>';
     showMsgToast('Network error: ' + err.message, 'error');
-    setTimeout(() => {
-      btn.innerHTML = originalHtml;
-      btn.disabled = false;
-    }, 2000);
+    setTimeout(() => { if (btn) { btn.innerHTML = origHtml; btn.disabled = false; } }, 2000);
   }
 }
 
-// Helper: escape HTML
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+function openPipelineConfirmModal() {
+  document.getElementById('pipeline-confirm-modal').showModal();
 }
 
-// Helper: badge class for tag action type
-function getActionBadgeClass(action) {
-  switch (action) {
-    case 'SetValue': return 'badge-success';
-    case 'Add': return 'badge-info';
-    case 'Remove': return 'badge-warning';
-    case 'Replace': return 'badge-secondary';
-    default: return 'badge-ghost';
-  }
-}
-
-// Show tagging results modal
-function showTagResultModal(comicTitle, data) {
-  const modal = document.getElementById('tag-result-modal');
-  document.getElementById('tag-modal-comic-title').textContent = comicTitle;
-
-  const matchedCount = data.matched_rulesets?.length || 0;
-  const changesCount = data.changes?.length || 0;
-  document.getElementById('tag-matched-count').textContent = matchedCount;
-  document.getElementById('tag-changes-count').textContent = changesCount;
-
-  const rulesetsSection = document.getElementById('tag-rulesets-section');
-  const changesSection = document.getElementById('tag-changes-section');
-  const noMatchesDiv = document.getElementById('tag-no-matches');
-
-  if (matchedCount === 0) {
-    rulesetsSection.classList.add('hidden');
-    changesSection.classList.add('hidden');
-    noMatchesDiv.classList.remove('hidden');
-  } else {
-    rulesetsSection.classList.remove('hidden');
-    changesSection.classList.remove('hidden');
-    noMatchesDiv.classList.add('hidden');
-
-    document.getElementById('tag-rulesets-list').innerHTML = data.matched_rulesets.map(name =>
-      `<span class="badge badge-primary badge-outline">${escapeHtml(name)}</span>`
-    ).join('');
-
-    const changesTable = document.getElementById('tag-changes-table');
-    if (changesCount > 0) {
-      changesTable.innerHTML = data.changes.map(change => `
-        <tr>
-          <td class="font-medium">${escapeHtml(change.field)}</td>
-          <td><span class="badge badge-sm ${getActionBadgeClass(change.modifier)}">${escapeHtml(change.modifier)}</span></td>
-          <td class="max-w-xs truncate" title="${escapeHtml(change.new_value || '')}">${escapeHtml(change.new_value || '')}</td>
-          <td class="text-xs text-base-content/60">${escapeHtml(change.ruleset_name || '')}</td>
-        </tr>
-      `).join('');
+async function confirmRunPipeline() {
+  const btn = document.getElementById('action-run-pipeline');
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Starting...'; btn.disabled = true; }
+  const fd = new FormData();
+  fd.append('comic_id', comicPk);
+  try {
+    const r = await fetch('/comics/run-pipeline/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd });
+    const data = await r.json();
+    if (data.task_id) {
+      _pollPipelineCompletion(data.task_id, btn);
+    } else if (data.success) {
+      if (btn) btn.innerHTML = '<span style="color:var(--cm-ok);">Done!</span>';
+      if (window.showQuickToast) window.showQuickToast(data.message || 'Pipeline complete!');
+      setTimeout(() => location.reload(), 1000);
     } else {
-      changesTable.innerHTML = '<tr><td colspan="4" class="text-center text-base-content/50">No field changes (rules matched but no modifications needed)</td></tr>';
+      if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
     }
+  } catch (err) {
+    if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+    showMsgToast('Network error: ' + err.message, 'error');
   }
-
-  modal.showModal();
 }
 
-// Show format detection results modal
-function showFormatResultModal(comicTitle, data) {
-  const modal = document.getElementById('format-result-modal');
-  document.getElementById('format-modal-comic-title').textContent = comicTitle;
-  document.getElementById('format-series').textContent = data.series || '(none)';
-  document.getElementById('format-title').textContent = data.title || '(none)';
-  document.getElementById('format-count').textContent = data.count != null ? data.count : '—';
-  document.getElementById('format-page-count').textContent = data.page_count != null ? data.page_count + ' pages' : '—';
-
-  const resultBox = document.getElementById('format-result-box');
-  const resultText = document.getElementById('format-result-text');
-
-  if (data.detected_format) {
-    resultBox.className = 'alert alert-success';
-    if (data.format_changed) {
-      resultText.innerHTML = `Format detected: <strong>${escapeHtml(data.detected_format)}</strong>`;
+async function runDeduplicate() {
+  const btn = document.getElementById('action-deduplicate');
+  const origHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Checking...'; btn.disabled = true; }
+  document.activeElement.blur();
+  const fd = new FormData();
+  fd.append('pks', comicPk);
+  try {
+    const r = await fetch('/comics/deduplicate-selected/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd });
+    const data = await r.json();
+    if (data.success) {
+      if (btn) btn.innerHTML = '<span style="color:var(--cm-ok);">Done!</span>';
+      if (data.groups_created > 0) {
+        if (window.showQuickToast) window.showQuickToast(`${data.groups_created} duplicate group(s) found. Review in the Duplicates section.`);
+      } else {
+        if (window.showQuickToast) window.showQuickToast('No duplicates found. Comic advanced to organized state.');
+      }
+      setTimeout(() => location.reload(), 1200);
     } else {
-      resultText.innerHTML = `Format already set to: <strong>${escapeHtml(data.new_format)}</strong>`;
+      if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
     }
-  } else {
-    resultBox.className = 'alert alert-info';
-    resultText.textContent = 'No format pattern matched. State advanced to "formatted".';
+  } catch (err) {
+    if (btn) { btn.innerHTML = origHtml; btn.disabled = false; }
+    showMsgToast('Network error: ' + err.message, 'error');
   }
-
-  const patternsList = document.getElementById('format-patterns-list');
-  if (data.patterns_checked) {
-    patternsList.innerHTML = data.patterns_checked.map(p => `
-      <div class="flex items-center gap-2 text-sm ${p.matched ? 'text-success font-medium' : 'text-base-content/50'}">
-        <span class="${p.matched ? 'text-success' : 'text-base-content/30'}">${p.matched ? '✓' : '○'}</span>
-        <span>${escapeHtml(p.pattern)}</span>
-      </div>
-    `).join('');
-  }
-
-  modal.showModal();
-}
-
-// Show organize results modal
-function showOrganizeResultModal(comicTitle, data) {
-  const modal = document.getElementById('organize-result-modal');
-  document.getElementById('organize-modal-comic-title').textContent = comicTitle;
-  document.getElementById('organize-profile').textContent = data.profile || '(fallback)';
-  document.getElementById('organize-old-path').textContent = data.old_path || '(none)';
-  document.getElementById('organize-new-path').textContent = data.new_path || '(none)';
-
-  const resultBox = document.getElementById('organize-result-box');
-  const resultText = document.getElementById('organize-result-text');
-
-  if (data.moved) {
-    resultBox.className = 'alert alert-success';
-    resultText.textContent = 'File moved to library location.';
-  } else {
-    resultBox.className = 'alert alert-info';
-    resultText.textContent = data.message || 'File already in correct location.';
-  }
-
-  modal.showModal();
 }
 
 function deleteComic() {
-  const confirmMsg = `DELETE this comic?\n\n` +
-    `Series: {{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}\n` +
-    `File: {{ comic.file_path|default:"No file" }}\n\n` +
-    `This will permanently delete the database record` +
-    `{% if comic.file_path %} AND the file from disk{% endif %}.\n\n` +
-    `This cannot be undone!`;
-
-  showConfirm(confirmMsg, async () => {
-  const btn = document.getElementById('action-delete');
-  btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Deleting...';
-  btn.disabled = true;
-
-  // Close the dropdown
-  document.activeElement.blur();
-
-  try {
-    const response = await fetch(`/comics/${comicPk}/delete/`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrfToken,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      btn.innerHTML = '<span class="text-success">Deleted!</span>';
-      // Redirect to comic list after deletion
-      setTimeout(() => {
-        window.location.href = '/comics/';
-      }, 500);
-    } else {
-      btn.innerHTML = '<span class="text-error">Error</span>';
-      showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error');
-      setTimeout(() => {
-        btn.innerHTML = 'Delete Comic';
-        btn.disabled = false;
-      }, 2000);
-    }
-  } catch (err) {
-    btn.innerHTML = '<span class="text-error">Error</span>';
-    showMsgToast('Network error: ' + err.message, 'error');
-    setTimeout(() => {
-      btn.innerHTML = 'Delete Comic';
-      btn.disabled = false;
-    }, 2000);
-  }
+  const msg = `DELETE this comic?\n\nSeries: {{ comic.series|default:"Unknown" }} #{{ comic.number|default:"?" }}\nFile: {{ comic.file_path|default:"No file" }}\n\nThis will permanently delete the database record{% if comic.file_path %} AND the file from disk{% endif %}.\n\nThis cannot be undone!`;
+  showConfirm(msg, async () => {
+    const btn = document.getElementById('action-delete');
+    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Deleting...'; btn.disabled = true;
+    document.activeElement.blur();
+    try {
+      const r = await fetch(`/comics/${comicPk}/delete/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' } });
+      const data = await r.json();
+      if (data.success) { btn.innerHTML = '<span style="color:var(--cm-ok);">Deleted!</span>'; setTimeout(() => { window.location.href = '/comics/'; }, 500); }
+      else { btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>'; showMsgToast('Error: ' + (data.error || 'Unknown error'), 'error'); setTimeout(() => { btn.innerHTML = 'Delete Comic'; btn.disabled = false; }, 2000); }
+    } catch (err) { btn.innerHTML = '<span style="color:var(--cm-err);">Error</span>'; showMsgToast('Network error: ' + err.message, 'error'); setTimeout(() => { btn.innerHTML = 'Delete Comic'; btn.disabled = false; }, 2000); }
   }, 'Delete', true);
 }
 
-async function reorganizeComic(pk) {
-  const btn = document.getElementById('reorganize-btn');
-  const originalText = btn.textContent;
-  btn.textContent = 'Moving...';
-  btn.disabled = true;
-
-  try {
-    const response = await fetch(`/comics/${pk}/reorganize/`, {
-      method: 'POST',
-      headers: {
-        'X-CSRFToken': csrfToken,
-        'Content-Type': 'application/json',
-      },
-    });
-
-    const data = await response.json();
-
-    if (data.success) {
-      if (data.moved) {
-        btn.textContent = 'Moved!';
-        btn.classList.remove('btn-warning');
-        btn.classList.add('btn-success');
-        // Reload page to show updated path
-        setTimeout(() => location.reload(), 1000);
-      } else {
-        btn.textContent = 'Already correct';
-        btn.classList.remove('btn-warning');
-        btn.classList.add('btn-info');
-      }
-    } else {
-      btn.textContent = 'Error';
-      btn.classList.remove('btn-warning');
-      btn.classList.add('btn-error');
-      showMsgToast('Error: ' + data.error, 'error');
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.classList.remove('btn-error');
-        btn.classList.add('btn-warning');
-        btn.disabled = false;
-      }, 2000);
-    }
-  } catch (err) {
-    btn.textContent = 'Error';
-    btn.classList.remove('btn-warning');
-    btn.classList.add('btn-error');
-    showMsgToast('Network error: ' + err.message, 'error');
-    setTimeout(() => {
-      btn.textContent = originalText;
-      btn.classList.remove('btn-error');
-      btn.classList.add('btn-warning');
-      btn.disabled = false;
-    }, 2000);
-  }
-}
-
-function openImageModal(src, caption) {
-  const modal = document.getElementById('image-modal');
-  const img = document.getElementById('modal-full-img');
-  const cap = document.getElementById('modal-img-caption');
-
-  img.src = src;
-  cap.textContent = caption;
-  modal.showModal();
-}
-
 async function uploadCover() {
-  const fileInput = document.getElementById('upload-cover-file');
-  const errorDiv = document.getElementById('upload-cover-error');
-  const errorText = document.getElementById('upload-cover-error-text');
-
-  if (!fileInput.files.length) {
-    errorDiv.classList.remove('hidden');
-    errorText.textContent = 'Please select a file.';
-    return;
-  }
-
-  errorDiv.classList.add('hidden');
-
-  const formData = new FormData();
-  formData.append('cover', fileInput.files[0]);
-
+  const fi = document.getElementById('upload-cover-file');
+  const errDiv = document.getElementById('upload-cover-error');
+  const errTxt = document.getElementById('upload-cover-error-text');
+  if (!fi.files.length) { errDiv.style.display = ''; errTxt.textContent = 'Please select a file.'; return; }
+  errDiv.style.display = 'none';
+  const fd = new FormData(); fd.append('cover', fi.files[0]);
   try {
-    const response = await fetch(`/comics/${comicPk}/upload-cover/`, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': csrfToken },
-      body: formData,
-    });
-    const data = await response.json();
-    if (data.success) {
-      document.getElementById('upload-cover-modal').close();
-      if (window.showQuickToast) window.showQuickToast('Cover uploaded successfully.');
-      setTimeout(() => location.reload(), 800);
-    } else {
-      errorDiv.classList.remove('hidden');
-      errorText.textContent = data.error || 'Upload failed.';
-    }
-  } catch (e) {
-    errorDiv.classList.remove('hidden');
-    errorText.textContent = 'Network error: ' + e.message;
-  }
+    const r = await fetch(`/comics/${comicPk}/upload-cover/`, { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd });
+    const data = await r.json();
+    if (data.success) { document.getElementById('upload-cover-modal').close(); if (window.showQuickToast) window.showQuickToast('Cover uploaded successfully.'); setTimeout(() => location.reload(), 800); }
+    else { errDiv.style.display = ''; errTxt.textContent = data.error || 'Upload failed.'; }
+  } catch (e) { errDiv.style.display = ''; errTxt.textContent = 'Network error: ' + e.message; }
 }
 
 // ── Page Manager ──────────────────────────────────────────────────────────────
 
-let pmSortable = null;
-let pmUploadCounter = 0;
-let pmPendingUploads = new Map();  // uploadKey → File
-let pmHasChanges = false;
+let pmSortable = null, pmUploadCounter = 0, pmPendingUploads = new Map(), pmHasChanges = false;
 
 function openPageManager() {
   document.activeElement.blur();
-  pmUploadCounter = 0;
-  pmPendingUploads = new Map();
-  pmHasChanges = false;
+  pmUploadCounter = 0; pmPendingUploads = new Map(); pmHasChanges = false;
   document.getElementById('pm-apply-btn').disabled = true;
-  document.getElementById('pm-error').classList.add('hidden');
+  document.getElementById('pm-error').style.display = 'none';
   document.getElementById('page-manager-modal').showModal();
   pmLoadPages();
 }
 
 function pmMakeThumb(imgSrc, labelText, dataset, isNew) {
   const item = document.createElement('div');
-  item.className = 'pm-thumb relative select-none';
+  item.className = 'pm-thumb';
+  item.style.cssText = 'position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; user-select:none;';
   Object.assign(item.dataset, dataset);
-
-  const border = isNew ? 'border-2 border-success' : 'border border-base-300';
-  
-  // Create image element separately to attach listener
-  const imgWrapper = document.createElement('div');
-  imgWrapper.className = 'relative group cursor-pointer';
-  imgWrapper.onclick = (e) => {
-    // Only open if not currently dragging and not clicking delete
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative; cursor:pointer;';
+  wrap.onclick = e => {
     if (item.dataset.deleted === 'true') return;
     const thumbs = Array.from(document.querySelectorAll('#pm-grid .pm-thumb:not([data-deleted="true"])'));
     const idx = thumbs.indexOf(item);
     if (idx !== -1) openGallery(idx, 'pagemanager');
   };
-
-  imgWrapper.innerHTML = `
-    <img src="${imgSrc}"
-         class="w-24 h-auto rounded ${border} shadow-sm pointer-events-none"
-         draggable="false" />
-    <button type="button"
-      class="pm-delete-btn absolute -top-1.5 -right-1.5 btn btn-xs btn-circle btn-error opacity-60 hover:opacity-100 transition-opacity z-10"
-      onclick="event.stopPropagation(); pmMarkDelete(this)" title="Delete page">&#x2715;</button>
-    ${isNew ? '<span class="absolute bottom-0 left-0 right-0 text-center text-[9px] bg-success text-success-content rounded-b font-bold">NEW</span>' : ''}
-    <div class="pm-deleted-overlay absolute inset-0 bg-error/40 rounded hidden pointer-events-none"></div>
+  const border = isNew ? 'border:2px solid var(--cm-ok)' : 'border:1px solid var(--cm-border)';
+  wrap.innerHTML = `
+    <img src="${imgSrc}" style="width:112px; height:auto; border-radius:4px; ${border}; box-shadow:0 2px 6px rgba(0,0,0,.25); pointer-events:none; display:block;" draggable="false" />
+    <button type="button" style="position:absolute; top:-6px; right:-6px; width:18px; height:18px; border-radius:50%; background:var(--cm-err); border:none; cursor:pointer; color:#fff; font-size:10px; line-height:1; display:flex; align-items:center; justify-content:center; opacity:0.7; z-index:10;" onmouseenter="this.style.opacity='1'" onmouseleave="this.style.opacity='0.7'" onclick="event.stopPropagation(); pmMarkDelete(this)" title="Delete page">&#x2715;</button>
+    ${isNew ? '<span style="position:absolute; bottom:0; left:0; right:0; text-align:center; font-size:9px; background:var(--cm-ok); color:var(--cm-bg); border-radius:0 0 3px 3px; font-weight:700; padding:1px 0;">NEW</span>' : ''}
+    <div style="display:none; position:absolute; inset:0; background:rgba(220,38,38,.4); border-radius:4px; pointer-events:none;" class="pm-deleted-overlay"></div>
   `;
-  
-  item.appendChild(imgWrapper);
-  
-  const label = document.createElement('div');
-  label.className = 'text-[10px] text-center mt-0.5 opacity-50 leading-none';
-  label.textContent = labelText;
-  item.appendChild(label);
-  
+  item.appendChild(wrap);
+  const lbl = document.createElement('div');
+  lbl.style.cssText = 'font-size:10px; color:var(--cm-fg-3); text-align:center; line-height:1;';
+  lbl.textContent = labelText;
+  item.appendChild(lbl);
   return item;
 }
 
@@ -1968,143 +978,67 @@ async function pmLoadPages() {
   const grid = document.getElementById('pm-grid');
   const loading = document.getElementById('pm-loading');
   const upload = document.getElementById('pm-upload-section');
-
-  loading.style.display = 'flex';
-  grid.style.setProperty('display', 'none', 'important');
-  upload.style.display = 'none';
-
+  const countEl = document.getElementById('pm-page-count');
+  loading.style.display = 'flex'; grid.style.display = 'none'; upload.style.display = 'none';
   try {
     const resp = await fetch(`/comics/${comicPk}/pages/`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
-
     grid.innerHTML = '';
-    data.pages.forEach(page => {
-      const thumb = pmMakeThumb(page.url, `p.${page.index + 1}`, {type: 'existing', index: page.index}, false);
-      grid.appendChild(thumb);
-    });
-
-    loading.style.display = 'none';
-    grid.style.removeProperty('display');
-    upload.style.display = 'flex';
-
+    data.pages.forEach(page => grid.appendChild(pmMakeThumb(page.url, `p.${page.index + 1}`, {type: 'existing', index: page.index}, false)));
+    if (countEl) countEl.textContent = `${data.pages.length} pages`;
+    loading.style.display = 'none'; grid.style.display = 'flex'; upload.style.display = 'flex';
     if (pmSortable) { pmSortable.destroy(); pmSortable = null; }
-
     if (typeof Sortable === 'undefined') {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js';
-      script.onload = () => pmInitSortable(grid);
-      document.head.appendChild(script);
-    } else {
-      pmInitSortable(grid);
-    }
-  } catch (err) {
-    loading.style.display = 'none';
-    document.getElementById('pm-error-text').textContent = 'Failed to load pages: ' + err.message;
-    document.getElementById('pm-error').classList.remove('hidden');
-  }
+      const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js'; s.onload = () => pmInitSortable(grid); document.head.appendChild(s);
+    } else { pmInitSortable(grid); }
+  } catch (err) { loading.style.display = 'none'; document.getElementById('pm-error-text').textContent = 'Failed to load pages: ' + err.message; document.getElementById('pm-error').style.display = ''; }
 }
 
-function pmInitSortable(grid) {
-  pmSortable = Sortable.create(grid, {
-    animation: 150,
-    ghostClass: 'opacity-20',
-    onEnd() { pmHasChanges = true; pmUpdateApplyBtn(); }
-  });
-}
+function pmInitSortable(grid) { pmSortable = Sortable.create(grid, { animation: 150, ghostClass: 'pm-ghost', onEnd() { pmHasChanges = true; pmUpdateApplyBtn(); } }); }
 
 function pmMarkDelete(btn) {
   const item = btn.closest('.pm-thumb');
   const overlay = item.querySelector('.pm-deleted-overlay');
-  const label = item.querySelector('div:last-child');
-  if (item.dataset.deleted === 'true') {
-    delete item.dataset.deleted;
-    overlay.classList.add('hidden');
-    item.style.opacity = '1';
-    label.style.textDecoration = '';
-  } else {
-    item.dataset.deleted = 'true';
-    overlay.classList.remove('hidden');
-    item.style.opacity = '0.45';
-    label.style.textDecoration = 'line-through';
-  }
-  pmHasChanges = true;
-  pmUpdateApplyBtn();
+  const lbl = item.querySelector('div:last-child');
+  if (item.dataset.deleted === 'true') { delete item.dataset.deleted; overlay.style.display = 'none'; item.style.opacity = '1'; lbl.style.textDecoration = ''; }
+  else { item.dataset.deleted = 'true'; overlay.style.display = ''; item.style.opacity = '0.45'; lbl.style.textDecoration = 'line-through'; }
+  pmHasChanges = true; pmUpdateApplyBtn();
 }
 
-function pmUpdateApplyBtn() {
-  document.getElementById('pm-apply-btn').disabled = !pmHasChanges;
-}
+function pmUpdateApplyBtn() { document.getElementById('pm-apply-btn').disabled = !pmHasChanges; }
 
 function pmAddPage(input) {
-  const file = input.files[0];
-  if (!file) return;
-  input.value = '';
-
-  const key = `file_${pmUploadCounter++}`;
-  pmPendingUploads.set(key, file);
-
-  const objectUrl = URL.createObjectURL(file);
-  const thumb = pmMakeThumb(objectUrl, 'NEW', {type: 'new', uploadKey: key, objectUrl}, true);
-  const grid = document.getElementById('pm-grid');
-  grid.prepend(thumb);
-
-  pmHasChanges = true;
-  pmUpdateApplyBtn();
+  const file = input.files[0]; if (!file) return; input.value = '';
+  const key = `file_${pmUploadCounter++}`; pmPendingUploads.set(key, file);
+  const url = URL.createObjectURL(file);
+  document.getElementById('pm-grid').prepend(pmMakeThumb(url, 'NEW', {type: 'new', uploadKey: key, objectUrl: url}, true));
+  pmHasChanges = true; pmUpdateApplyBtn();
 }
 
 async function pmApplyChanges() {
   const btn = document.getElementById('pm-apply-btn');
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
-
+  btn.disabled = true; btn.textContent = 'Saving...';
   try {
-    const grid = document.getElementById('pm-grid');
-    const allThumbs = Array.from(grid.querySelectorAll('.pm-thumb'));
+    const allThumbs = Array.from(document.getElementById('pm-grid').querySelectorAll('.pm-thumb'));
     const layout = [];
-
     for (const el of allThumbs) {
       if (el.dataset.deleted === 'true') continue;
-      if (el.dataset.type === 'existing') {
-        layout.push({type: 'existing', index: parseInt(el.dataset.index)});
-      } else {
-        layout.push({type: 'new', key: el.dataset.uploadKey});
-      }
+      layout.push(el.dataset.type === 'existing' ? {type: 'existing', index: parseInt(el.dataset.index)} : {type: 'new', key: el.dataset.uploadKey});
     }
-
-    if (layout.length === 0) {
-      throw new Error('Cannot save: all pages would be deleted.');
-    }
-
-    const formData = new FormData();
-    formData.append('layout', JSON.stringify(layout));
-    for (const [key, file] of pmPendingUploads) {
-      formData.append(key, file, file.name);
-    }
-
-    const resp = await fetch(`/comics/${comicPk}/pages/save/`, {
-      method: 'POST',
-      headers: {'X-CSRFToken': csrfToken},
-      body: formData
-    });
-
-    if (!resp.ok) {
-      const d = await resp.json();
-      throw new Error(d.error || `HTTP ${resp.status}`);
-    }
-
-    // Revoke object URLs before reload
-    for (const el of allThumbs) {
-      if (el.dataset.objectUrl) URL.revokeObjectURL(el.dataset.objectUrl);
-    }
-
+    if (layout.length === 0) throw new Error('Cannot save: all pages would be deleted.');
+    const fd = new FormData(); fd.append('layout', JSON.stringify(layout));
+    for (const [key, file] of pmPendingUploads) fd.append(key, file, file.name);
+    const resp = await fetch(`/comics/${comicPk}/pages/save/`, { method: 'POST', headers: {'X-CSRFToken': csrfToken}, body: fd });
+    if (!resp.ok) { const d = await resp.json(); throw new Error(d.error || `HTTP ${resp.status}`); }
+    for (const el of allThumbs) { if (el.dataset.objectUrl) URL.revokeObjectURL(el.dataset.objectUrl); }
     location.reload();
   } catch (err) {
     document.getElementById('pm-error-text').textContent = 'Error: ' + err.message;
-    document.getElementById('pm-error').classList.remove('hidden');
-    btn.disabled = false;
-    btn.textContent = 'Save Changes';
+    document.getElementById('pm-error').style.display = '';
+    btn.disabled = false; btn.textContent = 'Save Changes';
   }
 }
 </script>
+
 {% endblock %}

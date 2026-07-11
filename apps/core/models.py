@@ -67,6 +67,7 @@ class Comic(models.Model):
     characters = models.TextField(null=True, blank=True)  # comma-separated
     teams      = models.TextField(null=True, blank=True)  # comma-separated
     locations  = models.TextField(null=True, blank=True)  # comma-separated
+    story_arc  = models.TextField(null=True, blank=True)  # comma-separated
     tags       = models.TextField(null=True, blank=True)  # comma-separated
     scan_information = models.CharField(max_length=512, null=True, blank=True)
 
@@ -255,3 +256,103 @@ def get_setting(key: str, default=None):
         return Setting.objects.get(key=key).typed_value
     except Setting.DoesNotExist:
         return default
+
+
+class UserPreference(models.Model):
+    """Singleton model for per-user display preferences (single-user app)."""
+
+    NAV_TOPNAV  = "topnav"
+    NAV_SIDEBAR = "sidebar"
+
+    MOOD_WARM   = "warm"
+    MOOD_COOL   = "cool"
+    MOOD_FOREST = "forest"
+    MOOD_ROSE   = "rose"
+
+    DENSITY_COMPACT = "compact"
+    DENSITY_DEFAULT = "default"
+    DENSITY_COMFY   = "comfy"
+
+    PIPELINE_SEGMENTS = "segments"
+    PIPELINE_NEW      = "new"
+    PIPELINE_FLOW     = "flow"
+
+    HERO_SUBTLE    = "subtle"
+    HERO_EDITORIAL = "editorial"
+    HERO_BOLD      = "bold"
+
+    ATTENTION_LIST   = "list"
+    ATTENTION_TRIAGE = "triage"
+    ATTENTION_GRID   = "grid"
+
+    COLOR_VAR_MAP = {
+        "accent": "--cm-accent",
+        "bg":     "--cm-bg",
+        "bg1":    "--cm-bg-1",
+        "fg":     "--cm-fg",
+        "fg1":    "--cm-fg-1",
+    }
+
+    nav                = models.CharField(max_length=16, default=NAV_TOPNAV)
+    mood               = models.CharField(max_length=16, default=MOOD_WARM)
+    table_density      = models.CharField(max_length=16, default=DENSITY_DEFAULT)
+    show_covers        = models.BooleanField(default=True)
+    dashboard_pipeline = models.CharField(max_length=16, default=PIPELINE_SEGMENTS)
+    high_contrast      = models.BooleanField(default=False)
+    oled               = models.BooleanField(default=False)
+    custom_colors      = models.JSONField(default=dict, blank=True)
+
+    dashboard_hero_style           = models.CharField(max_length=16, default=HERO_EDITORIAL)
+    dashboard_attention_style      = models.CharField(max_length=16, default=ATTENTION_LIST)
+    dashboard_show_weekly_card     = models.BooleanField(default=True)
+    dashboard_show_priority_banner = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "User Preference"
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    @property
+    def custom_colors_as_css(self):
+        parts = []
+        for key, var in self.COLOR_VAR_MAP.items():
+            val = self.custom_colors.get(key, "")
+            if val:
+                parts.append(f"{var}: {val};")
+        return " ".join(parts)
+
+
+class QueuedTask(models.Model):
+    """A durable, ordered record of a background action for the cross-device
+    queue UI. Execution is Celery; this row only tracks display/control state."""
+
+    STATE_QUEUED = "queued"
+    STATE_RUNNING = "running"
+    STATE_DONE = "done"
+    STATE_FAILED = "failed"
+    STATE_CANCELLED = "cancelled"
+    STATE_CHOICES = [
+        (s, s) for s in (STATE_QUEUED, STATE_RUNNING, STATE_DONE, STATE_FAILED, STATE_CANCELLED)
+    ]
+    ACTIVE_STATES = (STATE_QUEUED, STATE_RUNNING)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    action = models.CharField(max_length=64)
+    args = models.JSONField(default=dict)
+    label = models.CharField(max_length=255, blank=True, default="")
+    state = models.CharField(max_length=16, choices=STATE_CHOICES, default=STATE_QUEUED, db_index=True)
+    celery_task_id = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    result_summary = models.JSONField(null=True, blank=True)
+    error = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"{self.action} [{self.state}]"

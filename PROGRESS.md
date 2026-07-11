@@ -30,6 +30,7 @@
 - [x] [P1.21] Verified: `is_zip` does not block batch scraping. `scrape_all_task` only excludes `scrape_skipped` and inducks-sourced comics — `is_pdf`, `low_page_count`, and `needs_conversion` are not excluded either. ZIP files are valid comic archives and can be scraped for metadata normally; the rename to `.cbz` is a separate step. No change needed.
 - [x] [P1.22] Workflow pipeline step 1 (New) should show an action button for "Convert to CBZ" when any comics in the new state are in CBR or CB7 format — similar to the "Needs Conversion" row in the Review & Maintenance card.
 - [x] [P1.23] Removed the unused `import_convert_cbr` setting. CBR/CB7 files are always flagged `needs_conversion` unconditionally. A future improvement (FI.8) tracks making this configurable.
+- [x] [P1.24] On `/comics/?state=new` we need a 'Scan for Comics' button next to the other buttons like 'Convert All CBR' and 'Rename All ZIP'.
 
 ### Phase 2: ComicVine Scraping (Comicrack_guide 02 & 03)
 
@@ -53,7 +54,8 @@
 - [x] [P2.13] Implement metadata-only matching for physical comics. (See P2.9.)
 - [x] [P2.14] If flag=scrape_skipped but manually scraping is done and confirmed, the flag should be cleared. `apply_cv_match` and `apply_inducks_match` both call `comic.remove_flag("scrape_skipped")` on successful match confirmation.
 - [x] [P2.15] Workflow pipeline step 2 (Scrape) should show two separate counts: all scrapeable comics (excluding scrape_skipped) and skipped comics. The "Scrape All" action button should be disabled (or hidden) when all remaining comics in that state have `scrape_skipped=True`.
-- [ ] [P2.16] The "0Day window (hours)" setting (`scrape_0day_hours`) exists in Settings but appears to never be read anywhere. Originally intended to put recently-added comics into a 0Day priority queue. Verify whether it is used; if not, either implement the 0Day queue logic or remove the setting.
+- [x] [P2.16] Verified: `scrape_0day_hours` IS read in `apps/dashboard/views.py` to calculate `new_comics_0day_count`, which powers the "Last Xh (N)" button on the dashboard New Comics card. Clicking it runs the pipeline only on comics imported within that window. Not a Celery priority queue, but the setting is actively used.
+
 
 ### Phase 3: Issue Count (Comicrack_guide 04 - Add Count)
 
@@ -139,8 +141,9 @@
 - [x] [P7.11] Externalize Docker paths for `library` and `untagged` directories, and the `PORT` variable, into a `.env` file. `UNTAGGED_DIR` and `LIBRARY_DIR` added to both compose files with defaults so existing setups are unaffected. `.env.sample` created documenting all required variables.
 - [x] [P7.12] TPB folder path improvements: numeric rule operators (`greater than`, `less than`, etc.) added to profile matching engine, along with `Count` and `Page Count` fields. Indexed credit field access added to template engine (`{<writer[1]>}`, `{<writer[1][l]>}`, etc.). Two-profile pattern documented in `docs/guide/organizing.md`: Profile 1 matches `Format is TPB AND Count greater than 1` and groups into `{<series>} ({<volume>})` subfolder; Profile 2 catches remaining TPBs and uses `{ by <writer[1][l]>}` in the filename.
 - [x] [P7.13] Drag-and-drop priority reordering on the organizer profiles list. Drag handle column added to the table; native HTML5 drag-and-drop reorders rows live and persists via `POST /organizer/profiles/reorder/`.
-- [ ] [P7.14] When using the CLI import command on an existing library, errors such as "Error processing X.cbz: Invalid or corrupted CBZ file" and informational lines like "No ComicInfo.xml in: X.cbz" are only printed to stdout and lost. These should be written to a persistent log file (e.g. `data/logs/import_errors.log`) so they can be reviewed after a large import run without having to keep the terminal open.
-- [ ] [P7.15] AU (Alternate Universe) comics that later gain a `main_character_or_team` value should be detected and moved to their correct publisher folder. Currently `needs_reorganize` is set when the field changes (P7.8), but there is no dedicated detection pass that scans organized AU comics for a newly populated main character and re-queues them.
+- [x] [P7.14] When using the CLI import command on an existing library, errors such as "Error processing X.cbz: Invalid or corrupted CBZ file" and informational lines like "No ComicInfo.xml in: X.cbz" are only printed to stdout and lost. These should be written to a persistent log file (e.g. `data/logs/import_errors.log`) so they can be reviewed after a large import run without having to keep the terminal open.
+- [x] [P7.15] AU (Alternate Universe) comics that later gain a `main_character_or_team` value should be detected and moved to their correct publisher folder. Currently `needs_reorganize` is set when the field changes (P7.8), but there is no dedicated detection pass that scans organized AU comics for a newly populated main character and re-queues them.
+- [x] [P7.16] Check that Path Audit (`/organizer/path-audit/`) only shows and runs on comics in stage `Write to CBZ` or `Done`, as any other stage is in the pipeline where we will get to `Move Files` later on. Path Audit is meant as a way to audit files already organized and through the pipeline. 
 
 ### Phase 8: Write to File (Comicrack_guide 09 - Write to File)
 
@@ -222,6 +225,16 @@
 - [x] [UI.25] Review whether zero-count rows in the Review & Maintenance card (both Active and Maintenance tabs) should be hidden entirely, or kept visible as permanent status indicators. Resolved via Appearance setting: "Hide zero-count maintenance rows".
 - [x] [UI.23] Dashboard Review Queue and re-organize/stale widgets consolidated into a single "Review & Maintenance" card with Active and Maintenance tabs. Active tab shows existing review queue; Maintenance tab shows Duplicates, Needs Re-organize, Stale Metadata, and Missing ComicInfo.xml rows with counts and action buttons. Tab auto-selects based on which count is non-zero.
 - [x] [UI.24] Duplicate review page gains method filter tabs (All / CV ID / Series-Number / Cover Hash / Filename). Clicking a tab filters the groups list and shows the count per method on each tab button.
+- [x] [UI.25] Remove up/down arrows on integer input fields on the edit comic page. 
+- [x] [UI.26] Thumb in row on comics should show in full (non-thumb size) lightbox when clicked. Other parts of the row should behave as normal. 
+- [x] [UI.27] Icons in sidebar when collapsed are not centeret. 
+- [x] [UI.28] In Comics -> Grid layout: Top left corner of cover should be a select circle, so we can select 1..x comics for bulk actions
+- [x] [UI.29] In Comics -> Grid layout: rightclick a cover should show a custom rightclick form with actions to run. Including a new action where we delete the cover image. This is because some scans have an info sheet on the first page. Current workflow is select comic, go to its details page, select Actions->Manage Pages, delete the first page, save changes. 
+- [x] [UI.30] Filter rail in `/comics/` (`rail=1`) should have toggle in the settings page to be on/off by default for the user. The button on the comics page should still be there to turn it on/off on-demand. 
+- [-] [UI.31] Change icons in sidebar to better match the links
+- [-] [UI.32] Change icons in action bar to better match the links
+- [x] [UI.33] Actions sidebar on comic details page should have a run pipeline button (should let the user confirm the comic, before running the rest of the pipeline[This is not possible with current workflow action. Button is normal pipeline. Use scrape button for confirm scape.]). 
+- [x] [UI.34] Comics details page is missing action buttons for dedupe.
 
 ## Major Issues / Bugs
 
@@ -267,7 +280,24 @@
 - [x] [BUG.36] `scrape_all` excludes comics with empty `custom_values` due to JSONField NULL behaviour in PostgreSQL `exclude`. Fixed by using `filter` with negated Q objects instead of `exclude` on JSONField lookups.
 - [x] [BUG.37] On the comic detail page, the "Write to file" action under Actions does not advance the comic state after writing. The comic remains in the "Write to CBZ" state instead of moving to the written state.
 - [x] [BUG.38] Run Path Audit progress bar does not stretch to fill the full width of its container box.
-
+- [x] [BUG.39] New, Scrape, Tagging, Move Files, Write to CBZ all live at `/comics/?state=X`. Since active detection uses `request.path`, all five match `/comics/` and highlight the "Comics" item instead of the individual workflow step. Fix: pass the active state name via a template context variable and compare against `request.GET.state` in the sidebar.
+- [x] [BUG.40] Redis warning in Docker: WARNING Memory overcommit must be enabled!
+- [x] [BUG.41] When a comic has been tagged the audit log shows rollback to 'To Count', but that stage does not work anymore. 
+- [x] [BUG.42] If I'm using Hybrid/Grid/Compact view and use the 'x Clear' button, the view resets to Table. Is it possible that the view isn't a url variable? 
+- [x] [BUG.43] When in Grid view theres sometimes a small exclamationmark on a comic, when hovering we want to see what the issue is, eg. CBR file or ZIP or PDF or whatever it could be. or maybe the flag? 
+- [-] [BUG.44] After using row buttons on `/comics/` table we get the error `Convert failed: TypeError: can't access property "querySelectorAll", row is null`. Errors and results from row actions now correctly route to the toast system via the unified endpoint.
+- [x] [BUG.45] On production server the container (using `docker-compose.yaml` and not `*override*`) gives `web-1 | Not Found: /ws/tasks/`. 
+- [x] [BUG.46] Comics not deselected in table view. Reproduce: go to `/comics/?state=new`, select 3 comics, using the action bar, press `Run Pipeline`, after finished, dismiss the modal popup. The comics disappear but the 3 comics that took their place are still selected.
+- [x] [BUG.47] Action bar isn't shown in table/hybrid/grid/compact view if navigation = topbar. It works with navigation=sidebar. 
+- [x] [BUG.48] Selecting New/Scrape/Taggning/move/Write in sidebar, then removing the filter from the rail and applying, does not remove the url filter for that stage and still highlights the stage in the sidebar. 
+- [x] [BUG.49] Smartlists using 'is empty' or 'is not empty' doesn't save that filter line, as the field if empty. Also add warning if a filter line is not gonna be saved. All smartlists/filters/etc should warn the user if a filter is not gonna be saved for some reason. 
+- [x] [BUG.50] Correct / new path isn't always shown on the comics details page.  
+- [x] [BUG.51] In Comics details view. Pressing 'Write' makes the 'Format' button spin, but the action is 'Write'
+- [x] [BUG.52] 'New Comics' on dashboard, when the convert button is shown, the view link should go to `/comics/?flag=needs_conversion` and not `/comics/?state=new&file_format=cbr`
+- [x] [BUG.53] Going to `/comics/?flag=scrape_no_match` and clicking the in-line row button `Scrape` does autoscrape with no confirmation, but the flag is already no match, so we need the manual confirm scrape window.
+- [ ] [BUG.54] Toast actions doesn't batch actions correctly. Starting `Rewrite all` for "Count Updated Issue count changed - needs ComicInfo.xml rewrite" and then running a pipeline scan like from eg. 'New Comics' will replace the toast. When the pipeline is finished and the user dismisses the popup, the page reloads and the old toast for `Rewrite` will appear again. Same underlying work as FI.10 (multi-task toast).
+- [x] [BUG.55] On `/smartlists/<uuid>/edit/`, `/tagging/ruleset/<x>/`, `/tagging/ruleset/<x>/edit/`, `/organizer/profiles/<x>/`, `/organizer/profiles/<x>/edit/` we need cm-card to have padding like 8px or something. Match it with other padding locations, check CSS.
+- [x] [BUG.56] On `/organizer/au-scan/` the progressbar needs to use toast and not on-page bar.
 
 
 ## I.N.D.U.C.K.S. Integration
@@ -323,6 +353,49 @@
 - [x] [FI.2] ComicVine API call budget management. Per-path rolling counters (/search, /volume, /issues, /issue) tracked in Redis and displayed as progress bars in Settings. Budget checked before every call; comics skipped when exhausted rather than errored. Manual search results loaded in batches of 3 with lazy /volume fetching to minimise cost.
 - [x] [FI.3] Resolved by redesigning `try_api_metadata_match` to use a 3-call volume-based strategy: /search returns credits inline via /issue on the final call, so there is no separate budget-gated credits fetch. Full credits are always included or the entire match is skipped.
 - [ ] [FI.8] Add a configurable setting to control whether CBR/CB7 files are flagged `needs_conversion` on import. Currently flagging is unconditional. Implementation: re-introduce a setting (e.g. `import_convert_cbr`), read it in `services.py` and `scan_untagged.py`, and only set the flag when enabled.
+- [ ] [FI.9] Extend `snapshot_fields` / `diff_fields` (in `apps/core/audit.py`) to handle nested dict-key paths like `comic.custom_values["comicvine_issue"]` with audit-key renaming, so scrape audit code can declare one shared field list and avoid the inline `before_cv_issue` / `before_cv_volume` currently in `_run_scrape`, `scrape_comic`, and `force_scrape`.
+- [ ] [FI.10] When multiple tasks are running concurrently (e.g. a re-write batch from the dashboard Maintenance tab and a separate `/organizer/au-scan/` Run Scan), the toast notification shows only the most recent task and silently replaces the previous one. Instead, show a running task count in the toast header and cycle or stack the active task statuses so the user can see all in-progress operations at once.
+- [ ] [FI.11] The `/organizer/au-scan/` Run Scan progress counter stays at 0 until the full scan completes. Root cause identified (2026-06): in `scan_au_paths_task` the skip paths hit `continue` before the end-of-loop `update_state`, and most candidates are skipped, so no progress is ever reported. Fix: report progress on every iteration including all skip paths (e.g. a small `_report()` helper called before each `continue` and at loop end).
+
+## Redesign 
+
+**Goal:** Redesign the UI for nicer look and better usability. 
+
+**Current Status & Tasks:**
+- [x] [RD.1] User never had Kanban selected in settings, as Kanban was never shipped. Remove Kanban fallback to Segments.
+- [x] [RD.2] Segments should be default with optional Flow or None. If None is selected the Workflow pipeline is hidden on the dashboard. 
+- [x] [RD.3] Flow needs redesigned. The alignment is wrong and the line looks bad. Either disable or fix.
+- [x] [RD.4] Add accent style color choice to settings.
+- [x] [RD.5] `/comics/` list page
+- [x] [RD.6] Dashboard
+- [x] [RD.7] Series Audit (`/comics/series-audit/volume/<id>/`)
+- [x] [RD.8] Series Audit Search (`/comics/series-audit/search/`)
+- [x] [RD.9] Format Review
+- [x] [RD.10] Duplicate Review
+- [x] [RD.11] Path Audit
+- [x] [RD.12] Smart Lists index
+- [x] [RD.13] Smart Lists detail dropdown
+- [x] [RD.14] Organizer profile list/detail/form
+- [x] [RD.15] Tagging ruleset list/detail/form
+- [x] [RD.16] Smart List form
+- [x] [RD.17] Comic detail page (`/comics/<uuid>/`)
+- [x] [RD.18] Scrape modal
+- [x] [RD.19] Compare All Sources modal
+- [x] [RD.20] Manage Pages modal
+- [x] [RD.21] Comic edit page (`/comics/<uuid>/edit/`)
+- [x] [RD.22] Comic reader (`/comics/<uuid>/read/`)
+- [x] [RD.23] `/scraper/`
+- [x] [RD.24] `/settings/log/`
+- [x] [RD.25] `view=compact` on `/comics/` should also have 'Columns' setting like `view=table`. 
+- [x] [RD.26] Comic details page:
+    - [x] [RD.26a] Right sidebar with 'Actions' have buttons that are just hyperlinks, change them to actual buttons
+    - [x] [RD.26b] File info box, needs the border to match the normal box.
+    - [x] [RD.26c] Double check that all values like hash/api/match info exists somehwere
+    - [x] [RD.26d] Remove extra 'View on Comicvine'
+    - [x] [RD.26e] Add Pipeline History (use Audit log info?)
+- [ ] [RD.27] Migrate the three JS form builders off the DaisyUI to `cm-*` components: `templates/tagging/ruleset_form.html`, `templates/dashboard/smartlist_form.html`, `templates/organizer/profile_form.html`. This seems to be the last remaining DaisyUI. Remember the server-rendered rule rows in `ruleset_form.html` must stay visually identical to its JS-generated rows.
+- [ ] [RD.28] After RD.27, prune the now-unused DaisyUI from `static/css/input.css`
+
 
 ## Code to Port
 
@@ -335,3 +408,13 @@
 - [x] [CP.4] Confirmed DataManager file equivalent implemented (`ComicDb.xml import support`).
 - [x] [CP.5] Thoroughly verify that existing implementations fully replicate the functionality of ComicRack script counterparts, ensuring all nuances are handled.
 - [x] [CP.6] Import ComicRack CBL files as Smart Lists. A CBL (Comic Book List) is a ComicRack smart list export format. Importing a CBL should create a corresponding Smart List in ComicManager, mapping the stored filters and column layout to the ComicManager equivalents where possible.
+
+
+## Architecture
+
+**Current Status & Tasks:**
+- [x] [AC.1] Replace `xml.etree.ElementTree` with `defusedxml.ElementTree` project-wide. Affects `ComicInfo.xml` read/write, `.lop` parser, and any other XML ingestion.
+- [x] [AC.2] Check batch task functions for missing `transaction.atomic()` wrapping. If a worker crashes mid-batch (e.g. `tag_all` at comic 25 of 50) the DB is left in a split state. Wrap each item's DB writes atomically.
+- [x] [AC.3] Check `get_setting()` call sites inside task loops. If called per-comic in a batch, snapshot settings once before the loop instead of hitting the DB on every iteration.
+- [x] [AC.4] Reduce `ProgressTask` boilerplate. Add a shared helper so individual tasks don't each reimplement the same cancellation-check + progress-update pattern. Probably no change to the JS polling layer.
+- [x] [AC.5] Rewrite action endpoint to a single unified one. 

@@ -2,72 +2,73 @@
 {% block title %}Add Physical Comic — ComicManager{% endblock %}
 {% block nav_physical %}active{% endblock %}
 
+{% block main_class %}p-6{% endblock %}
 {% block content %}
 <div class="max-w-2xl mx-auto space-y-6">
   <div class="flex items-center gap-4">
     <h1 class="text-2xl font-bold">Add Physical Comic</h1>
-    <a href="{% url 'physical:import_csv' %}" class="btn btn-outline btn-sm">CSV Import</a>
-    <a href="/comics/?medium=physical" class="btn btn-ghost btn-sm ml-auto">Back to Physical Comics</a>
+    <a href="{% url 'physical:import_csv' %}" class="cm-btn sm cm-no-underline">CSV Import</a>
+    <a href="/comics/?medium=physical" class="cm-btn sm ghost ml-auto cm-no-underline">Back to Physical Comics</a>
   </div>
 
-  <form method="post" class="card bg-base-200 shadow">
+  <form method="post" class="cm-card">
     {% csrf_token %}
-    <div class="card-body space-y-4">
+    <div class="cm-card-body space-y-4">
 
-      <div class="form-control">
-        <label class="label"><span class="label-text">Series <span class="text-error">*</span></span></label>
-        <input type="text" name="series" value="{{ form.series|default:'' }}" class="input input-bordered" required autofocus>
+      <div>
+        <label class="cm-label">Series <span style="color:var(--cm-err);">*</span></label>
+        <input type="text" name="series" value="{{ form.series|default:'' }}" class="cm-input w-full" required autofocus>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
-        <div class="form-control">
-          <label class="label"><span class="label-text">Issue Number</span></label>
-          <input type="text" name="number" value="{{ form.number|default:'' }}" class="input input-bordered" placeholder="e.g. 42">
+        <div>
+          <label class="cm-label">Issue Number</label>
+          <input type="text" name="number" value="{{ form.number|default:'' }}" class="cm-input w-full" placeholder="e.g. 42">
         </div>
-        <div class="form-control">
-          <label class="label"><span class="label-text">Volume (start year)</span></label>
-          <input type="number" name="volume" value="{{ form.volume|default:'' }}" class="input input-bordered" placeholder="e.g. 1963">
+        <div>
+          <label class="cm-label">Volume (start year)</label>
+          <input type="number" name="volume" value="{{ form.volume|default:'' }}" class="cm-input w-full" placeholder="e.g. 1963">
         </div>
       </div>
 
       <div class="grid grid-cols-2 gap-4">
-        <div class="form-control">
-          <label class="label"><span class="label-text">Year</span></label>
-          <input type="number" name="year" value="{{ form.year|default:'' }}" class="input input-bordered" placeholder="e.g. 1992">
+        <div>
+          <label class="cm-label">Year</label>
+          <input type="number" name="year" value="{{ form.year|default:'' }}" class="cm-input w-full" placeholder="e.g. 1992">
         </div>
-        <div class="form-control">
-          <label class="label"><span class="label-text">Publisher</span></label>
-          <input type="text" name="publisher" value="{{ form.publisher|default:'' }}" class="input input-bordered">
+        <div>
+          <label class="cm-label">Publisher</label>
+          <input type="text" name="publisher" value="{{ form.publisher|default:'' }}" class="cm-input w-full">
         </div>
       </div>
 
-      <div class="form-control">
-        <label class="label"><span class="label-text">Title (story title)</span></label>
-        <input type="text" name="title" value="{{ form.title|default:'' }}" class="input input-bordered">
+      <div>
+        <label class="cm-label">Title (story title)</label>
+        <input type="text" name="title" value="{{ form.title|default:'' }}" class="cm-input w-full">
       </div>
 
-      <div class="form-control">
-        <label class="label"><span class="label-text">Format</span></label>
-        <select name="format" class="select select-bordered">
+      <div>
+        <label class="cm-label">Format</label>
+        <select name="format" class="cm-input w-full">
           {% for f in format_choices %}
           <option value="{{ f }}" {% if form.format == f %}selected{% endif %}>{{ f|default:"(none)" }}</option>
           {% endfor %}
         </select>
       </div>
 
-      <div class="form-control">
-        <label class="label"><span class="label-text">Storage Location</span></label>
-        <input type="text" name="storage_location" value="{{ form.storage_location|default:'' }}" class="input input-bordered" placeholder="e.g. Box 3, Longbox 7, Shelf A">
+      <div>
+        <label class="cm-label">Storage Location</label>
+        <input type="text" name="storage_location" value="{{ form.storage_location|default:'' }}" class="cm-input w-full" placeholder="e.g. Box 3, Longbox 7, Shelf A">
       </div>
 
-      <div class="form-control">
-        <label class="label"><span class="label-text">Notes</span></label>
-        <textarea name="notes" class="textarea textarea-bordered" rows="3">{{ form.notes|default:'' }}</textarea>
+      <div>
+        <label class="cm-label">Notes</label>
+        <textarea name="notes" class="cm-input w-full" rows="3" style="height:72px; resize:vertical;">{{ form.notes|default:'' }}</textarea>
       </div>
 
-      <div class="card-actions justify-end">
-        <a href="/comics/?medium=physical" class="btn btn-ghost">Cancel</a>
-        <button type="submit" class="btn btn-primary">Add Comic</button>
+      <div class="flex justify-end gap-2">
+        <a href="/comics/?medium=physical" class="cm-btn ghost cm-no-underline">Cancel</a>
+        <button type="submit" class="cm-btn primary">Add Comic</button>
       </div>
     </div>
   </form>

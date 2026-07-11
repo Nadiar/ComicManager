@@ -1,0 +1,72 @@
+<div class="cm-card" style="flex-shrink:0; display:flex; flex-direction:column; overflow:hidden;">
+  <div class="cm-card-hd">
+    <div style="display:flex; align-items:baseline; gap:10px;">
+      <h3 style="margin:0;">New comics</h3>
+      {% if new_comics_total > 0 %}
+      <span class="cm-chip accent mono tnum">{{ new_comics_total }}</span>
+      {% endif %}
+    </div>
+    <div style="display:flex; gap:6px; align-items:center;">
+      {% if new_comics_0day_count > 0 %}
+      <button class="cm-btn sm" onclick="runNewPipeline0day(this)" title="Run pipeline on {{ new_comics_0day_count }} comic{{ new_comics_0day_count|pluralize }} imported in the last {{ zero_day_hours }}h">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11" style="flex-shrink:0;"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+        Last {{ zero_day_hours }}h ({{ new_comics_0day_count }})
+      </button>
+      {% endif %}
+      {% if new_comics_total > 0 %}
+      <button class="cm-btn sm primary" onclick="runAllNewPipeline(this)" title="Run pipeline on all {{ new_comics_total }} new CBZ comics">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11" style="flex-shrink:0;"><path d="M13 2 4 14h6l-1 8 9-12h-6z"/></svg>
+        Run all ({{ new_comics_total }})
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if new_comics_non_cbz > 0 %}
+  <div style="padding:10px 14px 8px 14px; border-bottom:1px solid var(--cm-border); display:flex; align-items:center; gap:10px; background:color-mix(in oklch, var(--cm-warn) 5%, transparent);">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="color:var(--cm-warn); flex-shrink:0;"><path d="m10.3 3.9-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8-14a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+    <span style="font-size:11.5px; color:var(--cm-fg-1); flex:1;">{{ new_comics_non_cbz }} file{{ new_comics_non_cbz|pluralize }} need CBR/PDF conversion before pipeline.</span>
+    <a href="/comics/?flag=needs_conversion,is_pdf" class="cm-btn sm">View</a>
+  </div>
+  {% endif %}
+
+  {% if not new_comics %}
+  <div style="padding:36px 18px; text-align:center; color:var(--cm-fg-3); font-size:12.5px;">
+    <span class="cm-chip ok">No new comics — all caught up</span>
+  </div>
+  {% else %}
+  <div id="new-comics-list" style="overflow-y:auto; max-height:max(200px, calc(100vh - 420px));">
+    {% for comic in new_comics %}
+    <div class="cm-hoverable" style="display:grid; grid-template-columns:auto 1fr auto; gap:12px; padding:10px 14px; {% if not forloop.last %}border-bottom:1px solid var(--cm-border);{% endif %} align-items:center;"
+         onclick="window.open('/comics/{{ comic.pk }}/', '_blank')">
+      <img src="/comics/{{ comic.pk }}/thumb/"
+           style="width:36px; height:54px; object-fit:cover; border-radius:2px; flex-shrink:0; background:var(--cm-bg-2);"
+           onerror="this.style.visibility='hidden'" loading="lazy" alt="">
+      <div style="min-width:0;">
+        <div style="font-size:12.5px; font-weight:600; color:var(--cm-fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ comic.proposed_series|default:comic.series|default:"?" }}</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:3px;">
+          <span class="mono" style="font-size:10.5px; color:var(--cm-fg-3);">#{{ comic.proposed_number|default:comic.number|default:"?" }}{% if comic.proposed_year %} · {{ comic.proposed_year }}{% elif comic.year %} · {{ comic.year }}{% endif %}</span>
+          <span style="width:3px; height:3px; border-radius:50%; background:var(--cm-fg-3); flex-shrink:0;"></span>
+          <span class="mono" style="font-size:10.5px; color:var(--cm-fg-3);">{{ comic.imported_at|timesince }} ago</span>
+        </div>
+      </div>
+      <button class="cm-btn sm" style="background:var(--cm-ok-dim); color:var(--cm-ok); border-color:transparent; font-weight:600; flex-shrink:0;"
+              onclick="event.stopPropagation(); runNewPipeline('{{ comic.pk }}', this)">Run</button>
+    </div>
+    {% endfor %}
+    {% if new_comics_total > 8 %}
+    <div id="new-comics-sentinel"
+         hx-get="/new-comics/?offset=8"
+         hx-trigger="intersect once"
+         hx-target="#new-comics-sentinel"
+         hx-swap="outerHTML"
+         style="padding:10px; text-align:center;">
+      <a href="/comics/?state=new" style="font-size:11px; color:var(--cm-fg-3);">Loading more...</a>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+  <div style="padding:8px 14px; text-align:center; border-top:1px solid var(--cm-border);">
+    <a href="/comics/?state=new" class="cm-btn sm">View all {{ new_comics_total }} →</a>
+  </div>
+</div>

@@ -1,163 +1,142 @@
 {% extends "base.html" %}
-
-{% block title %}Tagging Rules - ComicManager{% endblock %}
+{% block title %}Tagging Rules — ComicManager{% endblock %}
 
 {% block content %}
-<div class="flex justify-between items-center mb-6">
+
+<!-- Header -->
+<div class="cm-page-header">
   <div>
-    <h1 class="text-2xl font-bold">Tagging Rules</h1>
-    <p class="text-base-content/70">{{ enabled_count }} enabled / {{ total_count }} total rulesets</p>
+    <h1 class="cm-page-title">Tagging Rules</h1>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;">{{ enabled_count }} enabled / {{ total_count }} total rulesets</p>
   </div>
-  <div class="flex gap-2">
-    <a href="{% url 'tagging:import' %}" class="btn btn-outline btn-sm">Import</a>
-    <a href="{% url 'tagging:export' %}" class="btn btn-outline btn-sm">Export</a>
-    <a href="{% url 'tagging:ruleset_create' %}" class="btn btn-primary btn-sm">Create Ruleset</a>
+  <div style="display:flex; gap:8px;">
+    <a href="{% url 'tagging:import' %}" class="cm-btn sm ghost" cm-no-underline">Import</a>
+    <a href="{% url 'tagging:export' %}" class="cm-btn sm ghost" cm-no-underline">Export</a>
+    <a href="{% url 'tagging:ruleset_create' %}" class="cm-btn sm primary" cm-no-underline">Create Ruleset</a>
   </div>
 </div>
 
-<div class="flex gap-4 items-start">
+<div style="display:flex; gap:0; align-items:flex-start; padding:16px; gap:12px;">
 
   <!-- Folder Tree Sidebar -->
-  <div class="w-56 shrink-0">
-    <div class="card bg-base-200">
-      <div class="card-body p-3">
-        <p class="text-xs font-semibold text-base-content/50 uppercase tracking-wider mb-2">Groups</p>
-        <ul class="space-y-px">
-          <li>
-            <a href="{% url 'tagging:ruleset_list' %}?search={{ search }}&enabled={{ enabled }}"
-               class="flex items-center gap-1.5 px-2 py-1 rounded text-sm {% if not group %}bg-primary text-primary-content font-medium{% else %}hover:bg-base-300{% endif %}">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
-              </svg>
-              All Groups
-            </a>
-          </li>
-          {% for node in group_tree %}
-          <li>
-            <a href="?group={{ node.path }}&search={{ search }}&enabled={{ enabled }}"
-               style="padding-left: calc(0.5rem + {{ node.indent }}px)"
-               class="flex items-center gap-1.5 pr-2 py-1 rounded text-sm
-                      {% if node.is_selected %}bg-primary text-primary-content font-medium
-                      {% elif node.is_ancestor %}bg-base-300 font-medium
-                      {% else %}hover:bg-base-300 text-base-content/80{% endif %}">
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0 opacity-60" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/>
-              </svg>
-              <span class="truncate" title="{{ node.path }}">{{ node.label }}</span>
-            </a>
-          </li>
-          {% endfor %}
-        </ul>
+  <div style="width:200px; flex-shrink:0;">
+    <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:12px;">
+      <div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--cm-fg-3); margin-bottom:8px;">Groups</div>
+      <div style="display:flex; flex-direction:column; gap:1px;">
+        <a href="{% url 'tagging:ruleset_list' %}?search={{ search }}&enabled={{ enabled }}"
+           style="display:flex; align-items:center; gap:6px; padding:5px 8px; border-radius:4px; font-size:12px; text-decoration:none; {% if not group %}background:var(--cm-accent); color:#fff;{% else %}color:var(--cm-fg-2);{% endif %}"
+           onmouseenter="if(!'{{ group }}')this.style.background='var(--cm-bg-2)'" onmouseleave="if(!'{{ group }}')this.style.background=''">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 20 20" fill="currentColor" style="flex-shrink:0;"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+          All Groups
+        </a>
+        {% for node in group_tree %}
+        <a href="?group={{ node.path }}&search={{ search }}&enabled={{ enabled }}"
+           style="display:flex; align-items:center; gap:6px; padding-right:8px; padding-top:5px; padding-bottom:5px; padding-left:calc(8px + {{ node.indent }}px); border-radius:4px; font-size:12px; text-decoration:none;
+                  {% if node.is_selected %}background:var(--cm-accent); color:#fff;
+                  {% elif node.is_ancestor %}background:var(--cm-bg-2); font-weight:600; color:var(--cm-fg-1);
+                  {% else %}color:var(--cm-fg-2);{% endif %}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 20 20" fill="currentColor" style="flex-shrink:0; opacity:.6;"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"/></svg>
+          <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ node.path }}">{{ node.label }}</span>
+        </a>
+        {% endfor %}
       </div>
     </div>
   </div>
 
   <!-- Main Content -->
-  <div class="flex-1 min-w-0">
+  <div style="flex:1; min-width:0;">
 
     <!-- Filters -->
-    <div class="card bg-base-200 mb-4">
-      <div class="card-body p-3">
-        <form method="get" class="flex flex-wrap gap-3 items-end">
-          {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}
-          <div class="form-control">
-            <label class="label py-1">
-              <span class="label-text">Search</span>
-            </label>
-            <input type="text" name="search" value="{{ search }}" placeholder="Name or path..." class="input input-bordered input-sm w-48">
-          </div>
-
-          <div class="form-control">
-            <label class="label py-1">
-              <span class="label-text">Status</span>
-            </label>
-            <select name="enabled" class="select select-bordered select-sm w-32">
-              <option value="">All</option>
-              <option value="true" {% if enabled == "true" %}selected{% endif %}>Enabled</option>
-              <option value="false" {% if enabled == "false" %}selected{% endif %}>Disabled</option>
-            </select>
-          </div>
-
-          <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-          <a href="{% url 'tagging:ruleset_list' %}" class="btn btn-sm btn-ghost">Clear</a>
-        </form>
-        {% if group %}
-        <p class="text-xs text-base-content/50 mt-2">
-          Showing: <span class="font-mono">{{ group }}</span>
-          <a href="{% url 'tagging:ruleset_list' %}?search={{ search }}&enabled={{ enabled }}" class="link link-primary ml-1">clear folder</a>
-        </p>
-        {% endif %}
+    <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:12px; margin-bottom:10px;">
+      <form method="get" style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;">
+        {% if group %}<input type="hidden" name="group" value="{{ group }}">{% endif %}
+        <div>
+          <div style="font-size:11px; font-weight:600; color:var(--cm-fg-3); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em;">Search</div>
+          <input type="text" name="search" value="{{ search }}" placeholder="Name or path..." class="cm-input" style="width:200px; height:28px; font-size:12px;">
+        </div>
+        <div>
+          <div style="font-size:11px; font-weight:600; color:var(--cm-fg-3); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em;">Status</div>
+          <select name="enabled" class="cm-input" style="width:110px; height:28px; font-size:12px;">
+            <option value="">All</option>
+            <option value="true" {% if enabled == "true" %}selected{% endif %}>Enabled</option>
+            <option value="false" {% if enabled == "false" %}selected{% endif %}>Disabled</option>
+          </select>
+        </div>
+        <button type="submit" class="cm-btn sm primary">Filter</button>
+        <a href="{% url 'tagging:ruleset_list' %}" class="cm-btn sm ghost" cm-no-underline">Clear</a>
+      </form>
+      {% if group %}
+      <div style="font-size:11px; color:var(--cm-fg-3); margin-top:8px;">
+        Showing: <code style="font-size:11px;">{{ group }}</code>
+        <a href="{% url 'tagging:ruleset_list' %}?search={{ search }}&enabled={{ enabled }}" style="color:var(--cm-accent); margin-left:6px;">clear folder</a>
       </div>
+      {% endif %}
     </div>
 
     <!-- Rulesets Table -->
-    <div class="card bg-base-200">
-      <div class="overflow-x-auto">
-        <table class="table table-sm">
+    <div style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; overflow:hidden;">
+      <div class="cm-overflow-x">
+        <table class="cm-table">
           <thead>
-            <tr>
-              <th>Priority</th>
-              <th>Name</th>
-              <th>Group Path</th>
-              <th>Mode</th>
-              <th>Rules</th>
-              <th>Actions</th>
-              <th>Status</th>
-              <th>Actions</th>
+            <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1);">
+              <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:60px;">Priority</th>
+              <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Name</th>
+              <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Group Path</th>
+              <th style="padding:8px 12px; text-align:center; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:60px;">Mode</th>
+              <th style="padding:8px 12px; text-align:center; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:60px;">Rules</th>
+              <th style="padding:8px 12px; text-align:center; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:60px;">Actions</th>
+              <th style="padding:8px 12px; text-align:center; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:80px;">Status</th>
+              <th style="padding:8px 12px; width:120px;"></th>
             </tr>
           </thead>
           <tbody>
             {% for ruleset in rulesets %}
-            <tr class="hover">
-              <td class="text-xs text-base-content/50">{{ ruleset.priority }}</td>
-              <td>
-                <a href="{% url 'tagging:ruleset_detail' ruleset.pk %}" class="link link-primary font-medium">
-                  {{ ruleset.name }}
-                </a>
+            <tr class="cm-divider" onmouseenter="this.style.background='var(--cm-bg-2)'" onmouseleave="this.style.background=''">
+              <td style="padding:8px 12px;" class="mono tnum">{{ ruleset.priority }}</td>
+              <td style="padding:8px 12px; font-weight:500;">
+                <a href="{% url 'tagging:ruleset_detail' ruleset.pk %}" class="cm-text-accent">{{ ruleset.name }}</a>
               </td>
-              <td class="text-sm text-base-content/70 max-w-xs truncate" title="{{ ruleset.group_path }}">
-                {{ ruleset.group_path|default:"-" }}
+              <td style="padding:8px 12px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--cm-fg-2);" title="{{ ruleset.group_path }}">
+                {{ ruleset.group_path|default:"—" }}
               </td>
-              <td>
-                <span class="badge badge-sm {% if ruleset.mode == 'AND' %}badge-info{% else %}badge-warning{% endif %}">
-                  {{ ruleset.mode }}
-                </span>
+              <td style="padding:8px 12px; text-align:center;">
+                <span class="cm-chip {% if ruleset.mode == 'AND' %}info{% else %}warn{% endif %}" style="font-size:10.5px;">{{ ruleset.mode }}</span>
               </td>
-              <td class="text-center">{{ ruleset.rule_count }}</td>
-              <td class="text-center">{{ ruleset.action_count }}</td>
-              <td>
-                <button
-                  onclick="toggleRuleset({{ ruleset.pk }}, this)"
-                  class="badge badge-sm cursor-pointer {% if ruleset.is_enabled %}badge-success{% else %}badge-error{% endif %}"
-                >
+              <td style="padding:8px 12px; text-align:center;" class="mono tnum">{{ ruleset.rule_count }}</td>
+              <td style="padding:8px 12px; text-align:center;" class="mono tnum">{{ ruleset.action_count }}</td>
+              <td style="padding:8px 12px; text-align:center;">
+                <button onclick="toggleRuleset({{ ruleset.pk }}, this)"
+                  class="cm-chip {% if ruleset.is_enabled %}ok{% else %}err{% endif %}"
+                  style="font-size:10.5px; cursor:pointer; border:none; background:none;"
+                  data-enabled="{{ ruleset.is_enabled|lower }}">
                   {% if ruleset.is_enabled %}Enabled{% else %}Disabled{% endif %}
                 </button>
               </td>
-              <td>
-                <div class="flex gap-1">
-                  <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="btn btn-xs btn-ghost" title="Edit">Edit</a>
+              <td style="padding:8px 12px;">
+                <div style="display:flex; gap:4px;">
+                  <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="cm-btn sm ghost" cm-no-underline">Edit</a>
                   <form method="post" action="{% url 'tagging:ruleset_duplicate' ruleset.pk %}" class="inline">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                    <button type="submit" class="btn btn-xs btn-ghost" title="Duplicate">Copy</button>
+                    <button type="submit" class="cm-btn sm ghost">Copy</button>
                   </form>
                   <form method="post" action="{% url 'tagging:ruleset_delete' ruleset.pk %}" class="inline">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                    <button type="button" class="btn btn-xs btn-ghost text-error" title="Delete"
-                            onclick="showConfirm('Delete ruleset {{ ruleset.name|escapejs }}?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
+                    <button type="button" class="cm-btn sm ghost" style="color:var(--cm-err);"
+                            onclick="showConfirm('Delete ruleset {{ ruleset.name|escapejs }}?', () => this.closest('form').submit(), 'Delete', true)">Del</button>
                   </form>
                 </div>
               </td>
             </tr>
             {% empty %}
             <tr>
-              <td colspan="8" class="text-center py-8 text-base-content/50">
+              <td colspan="8" style="padding:48px 16px; text-align:center; color:var(--cm-fg-3); font-size:14px;">
                 No rulesets found.
                 {% if search or group or enabled %}
-                <a href="{% url 'tagging:ruleset_list' %}" class="link link-primary">Clear filters</a>
+                <a href="{% url 'tagging:ruleset_list' %}" style="color:var(--cm-accent); margin-left:4px;">Clear filters</a>
                 {% else %}
-                <a href="{% url 'tagging:import' %}" class="link link-primary">Import dataman.dat</a>
+                <a href="{% url 'tagging:import' %}" style="color:var(--cm-accent); margin-left:4px;">Import dataman.dat</a>
                 {% endif %}
               </td>
             </tr>
@@ -169,20 +148,14 @@
 
     <!-- Pagination -->
     {% if rulesets.has_other_pages %}
-    <div class="flex justify-center mt-6">
-      <div class="join">
-        {% if rulesets.has_previous %}
-        <a href="?page={{ rulesets.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="join-item btn btn-sm">«</a>
-        {% endif %}
-
-        <span class="join-item btn btn-sm btn-disabled">
-          Page {{ rulesets.number }} of {{ rulesets.paginator.num_pages }}
-        </span>
-
-        {% if rulesets.has_next %}
-        <a href="?page={{ rulesets.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="join-item btn btn-sm">»</a>
-        {% endif %}
-      </div>
+    <div style="padding:8px 0; display:flex; justify-content:center; gap:4px; margin-top:10px;">
+      {% if rulesets.has_previous %}
+      <a href="?page={{ rulesets.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="cm-btn sm ghost" cm-no-underline">«</a>
+      {% endif %}
+      <span class="cm-btn sm ghost" style="cursor:default;">Page {{ rulesets.number }} of {{ rulesets.paginator.num_pages }}</span>
+      {% if rulesets.has_next %}
+      <a href="?page={{ rulesets.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if group %}&group={{ group }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}" class="cm-btn sm ghost" cm-no-underline">»</a>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -190,27 +163,21 @@
 </div>
 
 <script>
-function getCsrfToken() {
-  return document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
-}
-
 async function toggleRuleset(pk, btn) {
   const resp = await fetch(`/tagging/rulesets/${pk}/toggle/`, {
     method: 'POST',
-    headers: {
-      'X-CSRFToken': getCsrfToken(),
-    },
+    headers: { 'X-CSRFToken': getCsrfToken() },
   });
   const data = await resp.json();
   if (data.success) {
     if (data.is_enabled) {
       btn.textContent = 'Enabled';
-      btn.classList.remove('badge-error');
-      btn.classList.add('badge-success');
+      btn.classList.remove('err');
+      btn.classList.add('ok');
     } else {
       btn.textContent = 'Disabled';
-      btn.classList.remove('badge-success');
-      btn.classList.add('badge-error');
+      btn.classList.remove('ok');
+      btn.classList.add('err');
     }
   }
 }

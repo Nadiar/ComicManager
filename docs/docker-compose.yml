@@ -1,6 +1,7 @@
 services:
   docs:
     build: .
+    container_name: ComicManager_Docs
     volumes:
       - .:/app
       - /app/node_modules

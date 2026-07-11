@@ -1,0 +1,37 @@
+{% if entries %}
+<div style="padding:16px; display:flex; flex-direction:column; gap:6px;">
+  {% for entry in entries %}
+  <div style="padding:8px 12px; background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:6px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div style="width:10px; height:10px; border-radius:50%; flex-shrink:0;
+        background:{% if entry.action == 'scrape_all' %}#a855f7{% elif entry.action == 'tag_all' %}#14b8a6{% elif entry.action == 'organize_error' or entry.action == 'write_error' %}var(--cm-err){% elif entry.action == 'format_all' or entry.action == 'organize_all' %}var(--cm-info){% elif entry.action == 'deduplicate_all' %}var(--cm-accent){% elif entry.action == 'convert_cbr' or entry.action == 'convert_zip' or entry.action == 'delete_pages' or entry.action == 'audit_metadata' %}var(--cm-warn){% else %}var(--cm-ok){% endif %};"></div>
+      <span class="mono tnum" style="font-size:11px; color:var(--cm-fg-3); width:130px; flex-shrink:0;">{{ entry.timestamp|slice:":19"|default:"—" }}</span>
+      <span style="font-size:12.5px; color:var(--cm-fg);">
+        {% if entry.state_before and entry.state_after and entry.state_before != entry.state_after %}{{ entry.state_before }} &rarr; {{ entry.state_after }}{% elif entry.state_after %}{{ entry.state_after }}{% else %}{{ entry.action }}{% endif %}
+      </span>
+      <span class="cm-chip" style="font-size:10px; margin-left:auto;
+        {% if entry.action == 'scrape_all' %}background:rgba(168,85,247,.15); color:#a855f7;
+        {% elif entry.action == 'tag_all' %}background:rgba(20,184,166,.15); color:#14b8a6;
+        {% elif entry.action == 'organize_error' or entry.action == 'write_error' %}background:rgba(239,68,68,.15); color:var(--cm-err);
+        {% elif entry.action == 'audit_metadata' %}background:rgba(245,158,11,.15); color:var(--cm-warn);
+        {% endif %}
+      ">{{ entry.action }}</span>
+    </div>
+    {% if entry.changes %}
+    <div style="margin-top:6px; margin-left:20px; padding-left:10px; border-left:2px solid var(--cm-border); display:flex; flex-direction:column; gap:2px;">
+      {% for key, pair in entry.changes.items %}
+      <div style="display:flex; gap:4px; align-items:baseline; flex-wrap:wrap; font-size:11.5px;">
+        <span style="font-weight:600; color:var(--cm-fg-2);">{{ key }}:</span>
+        <span class="cm-text-muted">{{ pair.0|default:"null" }}</span>
+        <span class="cm-text-muted">&rarr;</span>
+        <span style="color:var(--cm-ok);">{{ pair.1|default:"null" }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div style="padding:20px 16px; font-size:12px; color:var(--cm-fg-3);">No audit history recorded for this comic yet.</div>
+{% endif %}

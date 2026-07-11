@@ -1,8 +1,18 @@
 services:
 
+  # Build the migration runner from source too, so dev migrates with the
+  # working-tree code instead of the pulled prod image.
+  migrate:
+    build: .
+    image: ${IMAGE_REPO}/comicmanager:dev
+    environment:
+      - DEBUG=True
+    volumes:
+      - .:/app                        # migrate against working-tree code, like web/worker
+
   web:
     build: .                          # build locally instead of pulling image
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-dev}
+    image: ${IMAGE_REPO}/comicmanager:dev   # locally built dev image, kept separate from the pulled prod tag
     command: >
       python manage.py runserver 0.0.0.0:8000
     environment:
@@ -21,12 +31,12 @@ services:
 
   worker:
     build: .
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-dev}
+    image: ${IMAGE_REPO}/comicmanager:dev   # locally built dev image, kept separate from the pulled prod tag
     command: >
       celery -A comicmanager worker
         --loglevel=debug
-        --queues=import,scrape,organize,write
-        --concurrency=2
+        --queues=serial,import,scrape,organize,write
+        --concurrency=1
     environment:
       - DEBUG=True
     volumes:
@@ -40,7 +50,7 @@ services:
 
   beat:
     build: .
-    image: ${IMAGE_REPO}/comicmanager:${IMAGE_TAG:-dev}
+    image: ${IMAGE_REPO}/comicmanager:dev   # locally built dev image, kept separate from the pulled prod tag
     environment:
       - DEBUG=True
     volumes:

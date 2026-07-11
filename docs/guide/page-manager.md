@@ -45,6 +45,7 @@ After saving, ComicManager automatically:
 
 - Updates the **page count** in the database to match the new file.
 - Clears the **cover image cache** so the new cover is used everywhere.
-- Rewrites **ComicInfo.xml** inside the CBZ with the updated page count.
+
+The `ComicInfo.xml` inside the CBZ is not rewritten by the page manager. The updated page count will be embedded the next time you run the Write step for that comic.
 
 The comic's workflow state is not changed by page edits. It stays at whatever state it was in before.

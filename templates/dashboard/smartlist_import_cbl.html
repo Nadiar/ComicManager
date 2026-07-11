@@ -2,27 +2,28 @@
 {% block title %}Import CBL — ComicManager{% endblock %}
 {% block nav_smartlists %}active{% endblock %}
 
+{% block main_class %}p-6{% endblock %}
 {% block content %}
 <div class="space-y-6 max-w-xl">
   <div class="flex justify-between items-center">
     <h1 class="text-3xl font-bold">Import CBL File</h1>
-    <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Back to Lists</a>
+    <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn ghost cm-no-underline">Back to Lists</a>
   </div>
 
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <p class="text-sm text-base-content/70 mb-4">
+  <div class="cm-card">
+    <div class="cm-card-body">
+      <p class="text-sm cm-text-muted mb-4">
         Upload a ComicRack <code>.cbl</code> file to create a new Smart List. Filters are mapped to ComicManager equivalents where possible. The result opens in edit mode so you can review and adjust before saving.
       </p>
       <form method="POST" enctype="multipart/form-data" class="space-y-4">
         {% csrf_token %}
-        <div class="form-control">
-          <label class="label"><span class="label-text">CBL File</span></label>
-          <input type="file" name="cbl_file" accept=".cbl" class="file-input file-input-bordered w-full" required />
+        <div>
+          <label class="cm-label">CBL File</label>
+          <input type="file" name="cbl_file" accept=".cbl" class="cm-file w-full" required />
         </div>
         <div class="flex gap-2 justify-end">
-          <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Cancel</a>
-          <button type="submit" class="btn btn-primary">Import</button>
+          <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn ghost cm-no-underline">Cancel</a>
+          <button type="submit" class="cm-btn primary">Import</button>
         </div>
       </form>
     </div>

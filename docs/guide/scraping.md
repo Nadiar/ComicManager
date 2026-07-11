@@ -1,32 +1,45 @@
 # Scraping with ComicVine and I.N.D.U.C.K.S.
 
-Scraping is **Phase 2** of the pipeline. It takes a comic that has been imported (filename parsed, page count measured) and links it to an external database to retrieve rich metadata: series info, issue title, full creator credits, character lists, summaries, and cover images.
+Scraping is **Phase 2** of the pipeline. It takes a comic that has been imported and links it to an external database to retrieve metadata: series info, issue title, full creator credits, character lists, summaries, and cover images.
 
 After a successful scrape, the comic advances to the **Tagging** phase regardless of source.
-
----
 
 ## Data Sources
 
 ComicManager supports multiple operating modes depending on what files you have available. Check your current mode under **Settings → Scraping**.
 
+| Feature | Mode 1: Full DB | Mode 2: API Only | Mode 3: INDUCKS |
+|---------|:-:|:-:|:-:|
+| Cover hash matching | Yes (local) | No | No |
+| Metadata matching | Yes (local) | Yes (API) | Yes (local) |
+| ComicVine API fallback | Optional | Yes (required) | No |
+| Series Audit | Yes | With `latest.mcl` | No |
+| Variant cover fetching | Yes | Yes | No |
+| Batch scraping | Yes | Yes | Manual only |
+| Required file | `comicvine.db` | API key in Settings | `inducks.db` |
+
 ### Mode 1: ComicVine Full DB (Recommended)
+
+![Scraping using `comicvine.db` with automatic cover matching](/scrape_db.png)
 
 Place `comicvine.db` (a SQLite export of the ComicVine index) at `data/comicvine.db`. This is the fastest and most accurate mode because:
 
 - Cover image hashing runs entirely locally, with no API calls needed for matching
-- Metadata lookups are instant SQLite queries
+- Metadata lookups are *almost* instant SQLite queries
 - The API is only used as a last resort fallback
 
 ::: info Where to get comicvine.db
 A proof-of-concept offline ComicVine database was posted here: [An offline ComicVine tagger (r/comicrackusers)](https://old.reddit.com/r/comicrackusers/comments/1q7rex8/here_it_is_an_offline_comicvine_tagger_for/)
 
-This is a static and not an actively maintained project. To keep it up to date you need to write your own scraper against the ComicVine API. I have no affiliation with that project and cannot provide support for it. If you don't have the database, use API mode instead (Mode 3). It works fine, just slower and subject to rate limits. Do not open issues on this repository asking where to get the database.
+This is a static and not an actively maintained project. To keep it up to date you need to write your own scraper against the ComicVine API. I have no affiliation with that project and cannot provide support for it. If you don't have the database, use API mode instead (Mode 2). It works fine, just slower and subject to rate limits. Do not open issues on this repository asking where to get the database.
 :::
 
 ### Mode 2: ComicVine API Only (with optional MCL for Series Audit)
 
-Without `comicvine.db`, ComicManager falls back to the ComicVine REST API for all matching. This covers most functionality: scraping, tagging, formatting, deduplication, and writing all work normally.
+![Scraping using ComicVine API with automatic metadata matching](/scrape_api.png)
+
+
+Without `comicvine.db`, ComicManager falls back to the ComicVine API for all matching. This covers most functionality: scraping, tagging, formatting, deduplication, and writing all work normally.
 
 The one feature that requires an additional file is **Series Audit** (tracking which issues you own vs. are missing from a volume). For that make sure to map your local `data/latest.mcl` file in your `docker-compose.yml`. The MCL is a semicolon-delimited master comic list with volume and issue IDs, updated daily at [gitea.baerentsen.space](https://gitea.baerentsen.space/FrederikBaerentsen/ComicRack_Scripts/src/branch/master/Update%20Missing).
 
@@ -43,20 +56,24 @@ Go to **Settings** and check the **ComicVine Data Sources** section. Each data s
 
 - `comicvine.db`: local SQLite index (hash + metadata matching, Series Audit)
 - `latest.mcl`: volume list with issue IDs (Series Audit fallback)
-- API key: ComicVine REST API (manual search + API-only batch scraping)
+- API key: ComicVine API (manual search + API-only batch scraping)
 
 The active scraping mode is shown below, for example: `Scraping mode: Full local DB`.
 :::
 
-### Mode 4: I.N.D.U.C.K.S. (Disney/European Comics)
+### Mode 3: I.N.D.U.C.K.S. (Disney/European Comics)
 
-For Disney and other *Duck* related comics not typically well-covered by ComicVine, ComicManager integrates with the I.N.D.U.C.K.S. database.
+![Scraping using I.N.D.U.C.K.S.](/scrape_inducks.png)
+
+::: warning 
+I.N.D.U.C.K.S. support is experimental and there will be bugs as the workflow is tailored to ComicVine. 
+:::
+
+For Disney and other Duck related comics not typically well-covered by ComicVine, ComicManager integrates with the I.N.D.U.C.K.S. database.
 Place `inducks.db` (generated from ISV flat files) at `data/inducks.db`.
 - Searches by publication title, story title, author, and country code.
 - Entirely local SQLite lookups.
 - To use I.N.D.U.C.K.S. instead of ComicVine, select it in the scrape modal. (Note: batch scraping defaults to ComicVine unless specifically overridden).
-
----
 
 ## Cover Hash Computation
 
@@ -66,11 +83,11 @@ Before matching begins, ComicManager computes two perceptual hashes of the local
 
 Hashes are computed when a comic is accepted from the New stage (via the Accept button, Accept All, or Run Full Pipeline). The first page of the CBZ is read and both a perceptual hash (pHash) and an average hash (aHash) are saved to the database.
 
-If hashes are missing when Layer 3 API matching runs, they are computed on the fly at that point as a fallback.
+Hash matching also saves hashes to the database as soon as they are computed during scraping, even when no candidate is found within the distance threshold or all candidates fail metadata cross-validation. This ensures hashes are always persisted after the first scrape attempt.
+
+If hashes are missing when the CV API matching runs, they are computed on the fly at that point as a fallback.
 
 Physical comics and comics without a readable CBZ cover will have no hashes stored, which is handled gracefully throughout the pipeline.
-
----
 
 ## How Matching Works
 
@@ -145,7 +162,7 @@ ComicManager uses a layered, fallback matching strategy. Each layer is tried in 
                                       │
                          ┌────────────┴─────────────┐
                     hash agrees or               hash disagrees
-                    no local hash                (dist > 15)
+                    no local hash                 (dist > 15)
                          │                           │
                          ▼                           ▼
                      ┌───────┐         ┌─────────────────────┐
@@ -155,21 +172,41 @@ ComicManager uses a layered, fallback matching strategy. Each layer is tried in 
                                        └─────────────────────┘
 ```
 
+"Hash agrees or no local hash" covers two cases that both accept the match: either the downloaded ComicVine cover's hash is within distance 15 of the comic's stored hash, or the comic has no stored hash to compare against in the first place (physical comics, unhashed archives), so verification is skipped and the match is accepted as-is.
+
 ### Layer 1: Cover Image Hash Match (DB mode only)
 
 The stored cover hashes (computed at accept time, see above) are compared against all covers in `comicvine.db` using Hamming distance.
 
 Why this is the most reliable method: hashes are based on the actual pixels of the cover, so they match even if the filename is completely wrong or the metadata is absent. It also means we avoid needing an LLM or OCR to extract information from the cover image. The downside is that if a cover variant looks significantly different from the one in the database, no hash match will be found. In practice this has not been a major issue.
 
-After hash candidates are found, they are cross-validated against the comic's parsed metadata. Issue number is required: a mismatch immediately disqualifies the candidate. Series name is checked by normalising both strings (lowercase, strip punctuation) and testing for exact match, substring containment, or first-word match. Year is a bonus if within ±2 years.
+After hash candidates are found, they are cross-validated against the comic's parsed metadata. Both checks can disqualify a candidate:
+
+- **Issue number**: a mismatch immediately disqualifies the candidate.
+- **Series name**: both sides are normalised (lowercase, punctuation stripped) and compared for exact match, substring containment, or shared first word. If both the comic's series and the candidate's series are known but share no resemblance at all, the candidate is disqualified. Issue number alone is too ambiguous (every series has a #1) to auto-apply a match.
 
 The match is scored:
-- **Score 0**: Issue number does not match. Candidate discarded.
-- **Score 1**: Issue number matches.
-- **Score 2**: Issue number + series name matches.
-- **Score 3**: Issue number + series name + year within ±2 years.
 
-Only candidates with score > 0 are accepted.
+| Score | Issue number | Series name | Year | Result |
+|-------|-------------|-------------|------|--------|
+| 0 | Mismatch, OR both names known but no resemblance | n/a | n/a | Discarded |
+| 1 | Matches | Not available to validate | Any | Accepted |
+| 2 | Matches | Partial or substring match | Any | Accepted |
+| 3 | Matches | Exact match | Any | Accepted |
+| 3 | Matches | Partial match | Within ±2 | Accepted |
+| 4 | Matches | Exact match | Within ±2 | Accepted (best) |
+
+Only candidates with score > 0 are accepted. The highest-scoring candidate wins; ties are broken by lowest combined hash distance.
+
+**Examples**, given a comic parsed as `Batman #1, 2011`:
+
+- A candidate `Batman #1` from 2011 with no year recorded on the comic side to check: issue number matches, series matches exactly, year can't be checked → score 3, accepted.
+- The same candidate, and the comic also has `2011` recorded: issue number matches, series matches exactly, year matches → score 4, accepted, wins over any lower-scoring candidate.
+- A candidate `Batman and Robin #1`: issue number matches, series is a substring/partial match only → score 2, accepted, but loses to the exact-match candidate above.
+- A candidate `Batman #2`: issue number does not match → score 0, discarded, regardless of how well the series name matches.
+- A candidate `Spawn #1` when the comic's series is known to be `Batman`: issue number matches but the series names share no resemblance at all → score 0, discarded (a matching issue number alone is not enough; every series has a #1).
+
+Exact series matches always outscore partial ones so a trade paperback whose title extends the single issue's name (e.g. `Batman: Batman #1` collecting `Batman #1`) can't win on a shared cover alone.
 
 ### Layer 2: Metadata Match (DB mode only)
 
@@ -186,11 +223,9 @@ In API-only mode (or when the local DB has no match and the **API fallback** set
 
 Cover verification is skipped automatically when the comic has no stored hashes (physical comics, unhashed archives) or when the API returns no cover URL. In those cases the metadata match is accepted as-is.
 
-This costs exactly **3 API calls** and **0 `/volume` calls** per comic. The cover image download is not an API call and does not count against the hourly budget.
+This costs exactly **3 API calls total**: one call each to `/search`, `/issues`, and `/issue` (steps 1 through 3 above), and **0 calls to `/volume`**. The cover image download in step 4 is a plain image fetch, not an API call, and does not count against the hourly budget.
 
 Before attempting a search, the remaining API budget is checked. If fewer than 3 calls are available, the comic is skipped rather than errored and can be retried in the next budget window.
-
----
 
 ## Batch Scraping
 
@@ -198,7 +233,7 @@ The most common way to scrape is in bulk from the Dashboard.
 
 1. From the Dashboard, navigate to the **Scrape** stage.
 2. Click **Scrape All**.
-3. A Celery task runs in the background. The progress toast in the bottom-right shows live progress.
+3. A task runs in the background. The progress in the bottom-right shows live progress.
 
 Comics with blocking flags (e.g. `is_pdf`, `low_page_count`, `needs_conversion`, `scrape_skipped`) are automatically skipped during batch scraping.
 
@@ -206,10 +241,16 @@ Comics with blocking flags (e.g. `is_pdf`, `low_page_count`, `needs_conversion`,
 You can also trigger batch scraping from the command line:
 ```bash
 docker compose exec web python manage.py scrape
+docker compose exec web python manage.py scrape --dry-run             # preview matches without writing
+docker compose exec web python manage.py scrape --limit 50            # process at most 50 comics
+docker compose exec web python manage.py scrape --comic-id <uuid>     # scrape a single comic by UUID
+docker compose exec web python manage.py scrape --method hash         # hash-only matching (no metadata fallback)
+docker compose exec web python manage.py scrape --method metadata     # metadata-only matching (no hash)
+docker compose exec web python manage.py scrape --method both         # use both methods (default)
+docker compose exec web python manage.py scrape --max-distance 10     # override Hamming distance threshold
 ```
 :::
 
----
 
 ## Single Comic Scraping
 
@@ -227,7 +268,10 @@ Re-scraping a comic that already has a match will overwrite the existing metadat
 If you know the exact ComicVine issue ID, you can paste it directly into the manual search field in the scrape modal. Use the format `4000-XXXXXX` (e.g. `4000-123456`). ComicManager will look up that issue directly, bypassing the search and scoring layers entirely. This is the fastest way to match a comic when auto-detection fails.
 :::
 
----
+::: tip Direct match by I.N.D.U.C.K.S. story code
+The INDUCKS tab has a separate story code field next to the general search box. If you already know the story's INDUCKS code, enter it there and press Enter to look up that exact story directly, bypassing the title/author search entirely.
+:::
+
 
 ## Dry Run
 
@@ -239,9 +283,8 @@ Click **Dry Run (N comics)**. The output streams line by line showing:
 - The final match (series, issue number, publisher, CV issue ID) or `NO MATCH FOUND`
 - A summary of total matched vs. failed
 
-Dry run is the right place to debug why a specific comic is failing to match before committing a full batch scrape.
+Dry run is the right place to debug why a specific comic is failing to match before committing a full batch scrape. It's a troubleshooting tool, not part of the regular day-to-day workflow.
 
----
 
 ## What Gets Written
 
@@ -311,22 +354,44 @@ Because `number` and `publisher` are legitimately absent for story-only comics, 
 
 The comic advances to **Tagging**.
 
----
 
 ## Variant Covers
 
-After a ComicVine match is applied, ComicManager automatically fetches all variant cover images for the issue from ComicVine and inserts them into the CBZ file after the primary cover page.
+After a ComicVine match is applied, ComicManager can automatically fetch all variant cover images for the issue from ComicVine and insert them into the CBZ file after the primary cover page. This tries the local `comicvine.db` first and falls back to a live API call if the covers aren't found there, the same DB-first pattern used everywhere else in scraping.
 *(Note: physical comics download covers and cache them locally but do not write to files.)*
 
 This happens only once per comic (tracked via `custom_values.HasAltCovers = "Yes"`). If variants were already inserted, re-scraping will skip this step.
 
 The variant count is stored in `custom_values.AltCoverCount` and the total `page_count` is updated accordingly.
 
+### Immediate vs. deferred insertion
+
+Inserting covers during scraping is I/O-expensive: every matched CBZ must be fully extracted, the cover images downloaded, and the archive recompressed. To avoid this cost at scale, each scrape context has its own setting in **Settings > Scraping**:
+
+| Setting | Default | When it applies |
+|---------|---------|-----------------|
+| `scrape_insert_covers` | `true` | Scraping a single comic manually from the UI |
+| `batch_insert_covers` | `false` | Batch scrape (both auto and "Confirm each" modes) |
+| `pipeline_insert_covers` | `false` | When the full pipeline runs its scrape step |
+
+The split is deliberate: interactive scrapes insert covers by default because you're watching one comic, while batch and pipeline runs default to off so a 40,000-comic run doesn't rewrite every archive.
+
+When a setting is **enabled**, covers are downloaded and inserted into the CBZ immediately after the match is applied.
+
+When a setting is **disabled**, the cover URLs are saved in `custom_values.pending_alt_cover_urls` and no CBZ manipulation happens at scrape time. The **Write** step then picks them up: covers are inserted during the same CBZ pass that writes `ComicInfo.xml`, so the extraction and recompression cost is paid only once. If a comic is re-scraped before it reaches Write, the pending URLs are simply replaced with the new match's URLs.
+
+::: warning These settings control timing, not whether covers are inserted
+None of the three settings above can fully disable variant cover fetching. If a ComicVine match returns cover URLs for a digital CBZ comic that hasn't had covers inserted yet, they will always be inserted eventually, either at scrape time or at Write time. There is currently no setting to skip alt cover insertion entirely for such comics.
+:::
+
+::: tip Recommended for large batches
+Keep all three settings disabled when processing large batches or omnibuses. Scraping stays fast and covers are inserted efficiently at Write time.
+:::
+
 ::: info I.N.D.U.C.K.S. comics
 INDUCKS-sourced comics do not support variant cover fetching. The "Find Alt Covers" action is disabled for them.
 :::
 
----
 
 ## Issue Count Propagation
 
@@ -339,8 +404,6 @@ This keeps your library internally consistent without requiring a re-scrape.
 ::: info I.N.D.U.C.K.S. comics
 INDUCKS does not provide total issue counts. INDUCKS-sourced comics are excluded from count propagation and count mismatch detection entirely.
 :::
-
----
 
 ## Handling Failed Matches & Review Flags
 
@@ -358,13 +421,12 @@ Set when a technical error occurs: network timeout, API error, or a corrupted co
 **Resolution:** For API errors, try again later. For corrupted archives, check the `corrupted_archive` flag and optionally "Try Rezip".
 
 ### `metadata_mismatch`
-Set by a background audit task when ComicInfo.xml is already embedded in the CBZ but its metadata conflicts with what was parsed from the filename, or when the linked CV volume name doesn't match the local series name.
+Set by a background audit task when `ComicInfo.xml` is already embedded in the CBZ but its metadata conflicts with what was parsed from the filename, or when the linked CV volume name doesn't match the local series name.
 **Resolution:** Use the "To Scrape" rollback button in the Audit Log or re-scrape manually.
 
 ### `scrape_skipped`
 If you intentionally skip a comic (via the detail actions menu) so that it doesn't get swept up in batch actions, it will be flagged here.
 
----
 
 ## API Rate Limits
 
@@ -385,7 +447,7 @@ Approximate call costs per operation:
 The figures above are approximate based on observed behaviour. The actual limits and enforcement rules are defined by ComicVine. Check [https://comicvine.gamespot.com/api/](https://comicvine.gamespot.com/api/) for authoritative information, especially if you are being rate limited unexpectedly.
 :::
 
-When the budget is exhausted, comics are skipped (not errored) and can be re-scraped in the next budget window. A warning is logged to the Celery worker log and UI toast.
+When the budget is exhausted, comics are skipped (not errored) and can be re-scraped in the next budget window. A warning is logged to the Celery worker log and the UI.
 
 ::: tip Conserving budget
 Use the local `comicvine.db` whenever possible. Hash and metadata matching against the local DB costs zero API calls. The API is only used as a fallback when the local DB has no result.

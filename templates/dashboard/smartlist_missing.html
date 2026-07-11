@@ -2,63 +2,64 @@
 {% block title %}Missing Issues — {{ smart_list.name }} — ComicManager{% endblock %}
 {% block nav_smartlists %}active{% endblock %}
 
+{% block main_class %}p-6{% endblock %}
 {% block content %}
 <div class="space-y-4">
   <!-- Header -->
   <div class="flex justify-between items-start">
     <div>
       <h1 class="text-3xl font-bold">Missing Issues</h1>
-      <p class="text-lg text-base-content/70 mt-1">{{ smart_list.name }}</p>
+      <p class="text-lg cm-text-muted mt-1">{{ smart_list.name }}</p>
     </div>
     <div class="flex gap-2">
-      <a href="{% url 'dashboard:smartlist_detail' smart_list.pk %}" class="btn btn-ghost">View Owned</a>
-      <a href="{% url 'dashboard:smartlist_index' %}" class="btn btn-ghost">Back to Lists</a>
+      <a href="{% url 'dashboard:smartlist_detail' smart_list.pk %}" class="cm-btn ghost cm-no-underline">View Owned</a>
+      <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn ghost cm-no-underline">Back to Lists</a>
     </div>
   </div>
 
   {% if data %}
   <!-- Volume Info -->
-  <div class="card bg-base-200">
-    <div class="card-body">
+  <div class="cm-card">
+    <div class="cm-card-body">
       <div class="flex flex-wrap gap-6 items-center">
         <div>
-          <div class="text-sm text-base-content/60">Series</div>
+          <div class="text-sm cm-text-muted">Series</div>
           <div class="text-xl font-bold">{{ data.volume_info.name }}</div>
         </div>
         <div>
-          <div class="text-sm text-base-content/60">Publisher</div>
+          <div class="text-sm cm-text-muted">Publisher</div>
           <div class="font-medium">{{ data.volume_info.publisher|default:"Unknown" }}</div>
         </div>
         <div>
-          <div class="text-sm text-base-content/60">Start Year</div>
+          <div class="text-sm cm-text-muted">Start Year</div>
           <div class="font-medium">{{ data.volume_info.start_year|default:"?" }}</div>
         </div>
         <div class="flex-1"></div>
         <div class="text-right">
-          <div class="text-4xl font-bold {% if data.completion == 100 %}text-success{% elif data.completion >= 75 %}text-info{% elif data.completion >= 50 %}text-warning{% else %}text-error{% endif %}">
+          <div class="text-4xl font-bold" style="color:{% if data.completion == 100 %}var(--cm-ok){% elif data.completion >= 75 %}var(--cm-info){% elif data.completion >= 50 %}var(--cm-warn){% else %}var(--cm-err){% endif %};">
             {{ data.completion }}%
           </div>
-          <div class="text-sm text-base-content/60">
+          <div class="text-sm cm-text-muted">
             {{ data.owned_count }} of {{ data.total_count }} issues
           </div>
         </div>
       </div>
 
-      <progress class="progress progress-success w-full mt-2" value="{{ data.completion }}" max="100"></progress>
+      <progress class="cm-progress-el ok w-full mt-2" value="{{ data.completion }}" max="100"></progress>
 
       <!-- Stats -->
       <div class="flex gap-4 mt-2">
-        <div class="stat bg-base-300 rounded-box p-3 flex-1">
-          <div class="stat-title text-xs">Owned</div>
-          <div class="stat-value text-lg text-success">{{ data.owned_count }}</div>
+        <div class="cm-card-sm flex-1">
+          <div class="cm-stat-label">Owned</div>
+          <div style="font-size:18px; font-weight:700; color:var(--cm-ok);">{{ data.owned_count }}</div>
         </div>
-        <div class="stat bg-base-300 rounded-box p-3 flex-1">
-          <div class="stat-title text-xs">Missing</div>
-          <div class="stat-value text-lg text-error">{{ data.missing_count }}</div>
+        <div class="cm-card-sm flex-1">
+          <div class="cm-stat-label">Missing</div>
+          <div style="font-size:18px; font-weight:700; color:var(--cm-err);">{{ data.missing_count }}</div>
         </div>
-        <div class="stat bg-base-300 rounded-box p-3 flex-1">
-          <div class="stat-title text-xs">Total in CV</div>
-          <div class="stat-value text-lg">{{ data.total_count }}</div>
+        <div class="cm-card-sm flex-1">
+          <div class="cm-stat-label">Total in CV</div>
+          <div style="font-size:18px; font-weight:700;">{{ data.total_count }}</div>
         </div>
       </div>
     </div>
@@ -66,51 +67,53 @@
 
   <!-- Toggle view -->
   <div class="flex gap-2">
-    <button class="btn btn-sm btn-primary" onclick="showAll()">All Issues</button>
-    <button class="btn btn-sm btn-error btn-outline" onclick="showMissing()">Missing Only ({{ data.missing_count }})</button>
-    <button class="btn btn-sm btn-success btn-outline" onclick="showOwned()">Owned Only ({{ data.owned_count }})</button>
+    <button class="cm-btn sm primary" onclick="showAll()">All Issues</button>
+    <button class="cm-btn sm" style="color:var(--cm-err); border-color:var(--cm-err);" onclick="showMissing()">Missing Only ({{ data.missing_count }})</button>
+    <button class="cm-btn sm" style="color:var(--cm-ok); border-color:var(--cm-ok);" onclick="showOwned()">Owned Only ({{ data.owned_count }})</button>
   </div>
 
   <!-- Issues Table -->
-  <div class="overflow-x-auto">
-    <table class="table table-zebra w-full">
+  <div class="cm-overflow-x">
+    <table class="cm-table">
       <thead>
-        <tr>
-          <th>Issue #</th>
-          <th>Title</th>
-          <th>Cover Date</th>
-          <th>Status</th>
-          <th></th>
+        <tr class="cm-divider">
+          <th class="cm-th">Issue #</th>
+          <th class="cm-th">Title</th>
+          <th class="cm-th">Cover Date</th>
+          <th class="cm-th">Status</th>
+          <th class="cm-th"></th>
         </tr>
       </thead>
       <tbody id="issues-table">
         {% for issue in data.all_issues %}
-        {% with is_owned=issue.issue_id|stringformat:"d" %}
-        <tr class="issue-row {% if issue.comic_pk %}owned-row{% else %}missing-row{% endif %} {% if not issue.comic_pk %}bg-error/10{% endif %}">
-          <td class="font-medium">#{{ issue.issue_number|default:"?" }}</td>
-          <td class="max-w-md truncate">{{ issue.title|default:"-" }}</td>
-          <td>{{ issue.cover_date|default:"-" }}</td>
-          <td>
+        <tr class="issue-row cm-divider {% if issue.comic_pk %}owned-row{% else %}missing-row{% endif %}"
+            style="{% if not issue.comic_pk %}background:var(--cm-err-dim);{% endif %}"
+            onmouseenter="this.style.background='var(--cm-bg-2)'"
+            onmouseleave="this.style.background='{% if not issue.comic_pk %}var(--cm-err-dim){% endif %}'">
+          <td class="font-medium" style="padding:6px 10px;">#{{ issue.issue_number|default:"?" }}</td>
+          <td class="max-w-md truncate" style="padding:6px 10px;">{{ issue.title|default:"-" }}</td>
+          <td style="padding:6px 10px;">{{ issue.cover_date|default:"-" }}</td>
+          <td style="padding:6px 10px;">
             {% if issue.comic_pk %}
-            <span class="badge badge-success badge-sm">Owned</span>
+            <span class="cm-chip ok">Owned</span>
             {% else %}
-            <span class="badge badge-error badge-sm">Missing</span>
+            <span class="cm-chip err">Missing</span>
             {% endif %}
           </td>
-          <td>
+          <td style="padding:6px 10px;">
             {% if issue.comic_pk %}
-            <a href="/comics/{{ issue.comic_pk }}/" class="btn btn-xs btn-ghost btn-outline">View</a>
+            <a href="/comics/{{ issue.comic_pk }}/" class="cm-btn sm ghost cm-no-underline">View</a>
             {% endif %}
           </td>
         </tr>
-        {% endwith %}
         {% endfor %}
       </tbody>
     </table>
   </div>
 
   {% else %}
-  <div class="alert alert-error">
+  <div class="cm-alert err">
+    <span style="font-size:16px; line-height:1;">✕</span>
     <span>Could not load volume data from ComicVine database.</span>
   </div>
   {% endif %}

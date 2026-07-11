@@ -6,13 +6,13 @@ ComicManager supports several comic archive formats. Some formats require conver
 
 ## Supported Formats
 
-| Extension | Handling |
-|-----------|----------|
-| `.cbz` | Native format. No conversion needed |
-| `.cbr` | Flagged for conversion on import. Convert via the Review Queue or dashboard |
-| `.cb7` | Flagged for conversion on import. Convert via the Review Queue or dashboard |
-| `.zip` | Flagged for manual one-click conversion (see below) |
-| `.pdf` | Flagged for review. PDFs cannot be processed through the standard pipeline |
+| Extension | Flag set on import | Conversion method | Pipeline |
+|-----------|-------------------|-------------------|---------|
+| `.cbz` | None | None | Full pipeline |
+| `.cbr` | `needs_conversion` | Convert button (detail page or dashboard bulk action) | Full pipeline after conversion |
+| `.cb7` | `needs_conversion` | Convert button (detail page or dashboard bulk action) | Full pipeline after conversion |
+| `.zip` | `is_zip` | One-click rename. No repacking required | Full pipeline after rename |
+| `.pdf` | `is_pdf` | External conversion required | Not supported |
 
 ---
 
@@ -38,7 +38,7 @@ The conversion is logged to the Batch Audit Log with action type `convert_zip`, 
 
 ### Bulk conversion
 
-To convert all flagged ZIP files at once, go to the **Review Queue** and use the **Convert All ZIPs** bulk action. A background Celery task processes each file in sequence.
+To convert all flagged ZIP files at once, go to the **Review Queue** and use the **Convert All ZIPs** bulk action. A background task processes each file in sequence.
 
 If a conversion fails (e.g. the target `.cbz` path already exists, or a permission error), that file is skipped and an error is recorded in the task result. Other files in the batch continue processing.
 
@@ -53,6 +53,10 @@ If the bulk task is interrupted, you can safely re-run it. Already-converted fil
 CBR (RAR archive) and CB7 (7-Zip archive) files are not automatically converted. When scanned, they are flagged with `needs_conversion` and placed in the **Review Queue**.
 
 From there you can convert them individually via the **Convert to CBZ** button on the comic detail page, or convert all flagged files at once using **Convert All CBR/CB7** from the dashboard.
+
+::: warning
+ComicManager does not support CBR as a finished format. All comics must be CBZ. 
+:::
 
 ---
 

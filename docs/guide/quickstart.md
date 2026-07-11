@@ -4,7 +4,7 @@ The setup consists of five containers:
 
 | Container | Image | Role |
 |-----------|-------|------|
-| `web` | comicmanager | Django app served by Gunicorn. Handles all web requests. |
+| `web` | comicmanager | Django app served by Daphne. Handles all web requests. |
 | `worker` | comicmanager | Celery worker. Runs background tasks: import, scrape, organize, write. |
 | `beat` | comicmanager | Celery Beat scheduler. Triggers periodic tasks like metadata audits. |
 | `db` | postgres:16 | PostgreSQL database. Stores all comic records, settings, and audit logs. |
@@ -38,14 +38,14 @@ curl -O https://gitea.baerentsen.space/FrederikBaerentsen/ComicManager/raw/branc
 cp .env.sample .env
 ```
 
-Open `.env` and set at minimum `DB_PASSWORD` and `SECRET_KEY`.
+Open `.env` and set at minimum `DB_PASSWORD` and `SECRET_KEY`. To reach the UI from another device, also add that device's host or IP to `ALLOWED_HOSTS`.
 
 ---
 
 ## 3. Create required directories
 
 ```bash
-mkdir -p untagged Comics data/postgres data/redis data/covers data/static data/logs
+mkdir -p untagged Comics data/postgres data/redis data/covers data/logs
 ```
 
 If you have a local `comicvine.db`, `latest.mcl`, or `inducks.db`, place them in `data/` and uncomment the relevant lines in `docker-compose.yml`. Without them, scraping falls back to the ComicVine API. See [Scraping: Data Sources](/guide/scraping#data-sources).
@@ -61,10 +61,12 @@ docker compose up -d
 
 ---
 
-## 5. Initialize
+## 5. Watch the first start
+
+Database migrations and static files are applied automatically when the `web` container starts. Watch the progress with:
 
 ```bash
-docker compose exec web python manage.py migrate
+docker compose logs -f web
 ```
 
 ---
@@ -82,5 +84,6 @@ Go to **Settings** to configure your ComicVine API key and library paths.
 ```bash
 docker compose pull
 docker compose up -d
-docker compose exec web python manage.py migrate
 ```
+
+Migrations run automatically on restart.

@@ -12,7 +12,8 @@ from django.utils.html import strip_tags
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
-from .models import Comic, get_setting
+from .models import Comic, QueuedTask, get_setting
+from .task_queue import enqueue
 from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS
 from .cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
@@ -28,6 +29,17 @@ from apps.scraper.services import (
     normalize_issue_number as _normalize_issue_number,
 )
 from .services import scan_untagged_folder
+
+
+def _mark_recommended(matches):
+    """Mark only the top-scoring match(es) as recommended. Mutates in place."""
+    if not matches:
+        return
+    top = matches[0]["alignment_score"]
+    if top <= 0:
+        return
+    for m in matches:
+        m["recommended"] = m["alignment_score"] == top
 
 
 # Columns editable inline on the STATE_NEW list
@@ -62,6 +74,7 @@ WORKFLOW_STATES = [
     ("deduplicate", "Deduplicate"),
     ("move",        "Move Files"),
     ("write",       "Write to CBZ"),
+    ("done",        "Done"),
 ]
 
 
@@ -111,10 +124,19 @@ def _build_comic_list_queryset(params):
     search = (params.get("q", "") or "").strip()
     char_q = (params.get("char_q", "") or "").strip()
     char_main_only = params.get("char_main_only", "1")
+    if hasattr(params, "getlist"):
+        publisher_list = [p for p in params.getlist("publisher") if p]
+        format_list = [f for f in params.getlist("format") if f]
+    else:
+        publisher_list = [params.get("publisher")] if params.get("publisher") else []
+        format_list = [params.get("format")] if params.get("format") else []
     publisher = params.get("publisher", "") or ""
-    format_filter = params.get("format", "") or ""
+    format_filter = format_list[0] if len(format_list) == 1 else ""
     medium = params.get("medium", "") or ""
     needs_reformat = params.get("needs_reformat", "") or ""
+    stale = params.get("stale", "") or ""
+    year_min = params.get("year_min", "") or ""
+    year_max = params.get("year_max", "") or ""
 
     comics = Comic.objects.all()
 
@@ -163,21 +185,61 @@ def _build_comic_list_queryset(params):
         else:
             comics = comics.filter(
                 Q(main_character_or_team__icontains=char_q) |
-                Q(characters__icontains=char_q)
+                Q(characters__icontains=char_q) |
+                Q(teams__icontains=char_q)
             )
 
     if state:
         comics = comics.filter(state=state)
-    if publisher:
-        comics = comics.filter(publisher=publisher)
-    if format_filter:
-        comics = comics.filter(format=format_filter)
+    if publisher_list:
+        comics = comics.filter(publisher__in=publisher_list)
+    if format_list:
+        comics = comics.filter(format__in=format_list)
     if medium:
         comics = comics.filter(medium=medium)
     if flag:
-        comics = comics.filter(**{f"flags__{flag}": True})
+        flag_list = [f.strip() for f in flag.split(",") if f.strip()]
+        if len(flag_list) == 1:
+            comics = comics.filter(**{f"flags__{flag_list[0]}": True})
+        else:
+            flag_q = Q()
+            for f in flag_list:
+                flag_q |= Q(**{f"flags__{f}": True})
+            comics = comics.filter(flag_q)
     if needs_reformat:
         comics = comics.filter(needs_reformat=True)
+    if stale:
+        from django.db.models import F as _F
+        comics = comics.filter(last_written__isnull=False, updated_at__gt=_F("last_written"))
+    if year_min:
+        try:
+            comics = comics.filter(year__gte=int(year_min))
+        except (ValueError, TypeError):
+            pass
+    if year_max:
+        try:
+            comics = comics.filter(year__lte=int(year_max))
+        except (ValueError, TypeError):
+            pass
+
+    # Per-column text filters (f_<col_id> params)
+    from .utils import COLUMNS_REGISTRY as _CR
+    _NUMERIC_SORTS = {"year", "month", "day", "page_count", "file_size", "id", "count"}
+    _SKIP_SORTS = {"imported_at", "updated_at", "last_written"}
+    for col_id, col_def in _CR.items():
+        val = (params.get(f"f_{col_id}", "") or "").strip()
+        if not val:
+            continue
+        sort_field = col_def["sort"]
+        if sort_field.startswith("custom_values__") or sort_field in _SKIP_SORTS:
+            continue
+        if sort_field in _NUMERIC_SORTS:
+            try:
+                comics = comics.filter(**{sort_field: int(val)})
+            except (ValueError, TypeError):
+                pass
+        else:
+            comics = comics.filter(**{f"{sort_field}__icontains": val})
 
     return comics
 
@@ -213,9 +275,19 @@ def comic_list(request):
     char_q = request.GET.get("char_q", "").strip()
     char_main_only = request.GET.get("char_main_only", "1")
     publisher = request.GET.get("publisher", "")
-    format_filter = request.GET.get("format", "")
+    publisher_list = [p for p in request.GET.getlist("publisher") if p]
+    format_list = [f for f in request.GET.getlist("format") if f]
+    format_filter = format_list[0] if len(format_list) == 1 else ""
     medium = request.GET.get("medium", "")
     needs_reformat = request.GET.get("needs_reformat", "")
+    current_view = request.GET.get("view", "table")
+    if "rail" in request.GET:
+        filter_rail_open = request.GET.get("rail") == "1"
+    else:
+        filter_rail_open = bool(get_setting("filter_rail_default", False))
+    col_filters_open = request.GET.get("col_filters") == "1"
+    year_min = request.GET.get("year_min", "")
+    year_max = request.GET.get("year_max", "")
 
     comics = _build_comic_list_queryset(request.GET)
 
@@ -266,6 +338,27 @@ def comic_list(request):
     publishers = Comic.objects.exclude(publisher__isnull=True).exclude(publisher="").values_list("publisher", flat=True).distinct().order_by("publisher")
     formats = Comic.objects.exclude(format__isnull=True).exclude(format="").values_list("format", flat=True).distinct().order_by("format")
 
+    # Filter rail data
+    from django.db.models import Count as DbCount
+    publisher_counts = list(
+        Comic.objects.exclude(publisher="").exclude(publisher__isnull=True)
+        .values("publisher").annotate(n=DbCount("pk")).order_by("-n")[:10]
+    )
+    state_count_qs = dict(Comic.objects.values_list("state").annotate(n=DbCount("pk")))
+    state_counts = [
+        {"state": key, "label": label, "count": state_count_qs.get(key, 0)}
+        for key, label in WORKFLOW_STATES
+    ]
+    format_counts = list(
+        Comic.objects.exclude(format="").exclude(format__isnull=True)
+        .values("format").annotate(n=DbCount("pk")).order_by("-n")
+    )
+    flag_counts = [
+        {"key": k, "label": v, "count": Comic.objects.filter(**{f"flags__{k}": True}).count()}
+        for k, v in FLAG_LABELS.items()
+        if Comic.objects.filter(**{f"flags__{k}": True}).exists()
+    ]
+
     # Count comics needing conversion (for "Convert All" button)
     needs_conversion_count = Comic.objects.filter(flags__needs_conversion=True).count()
     is_zip_count = Comic.objects.filter(flags__is_zip=True).count()
@@ -275,7 +368,8 @@ def comic_list(request):
     query_params.pop("page", None)
     query_string = query_params.urlencode()
 
-    return render(request, "core/comic_list.html", {
+    template = "core/partials/comic_list_results.html" if request.htmx else "core/comic_list.html"
+    return render(request, template, {
         "comics": page_obj,
         "page_obj": page_obj,
         "total_count": paginator.count,
@@ -288,11 +382,26 @@ def comic_list(request):
         "current_char_q": char_q,
         "current_char_main_only": char_main_only,
         "current_publisher": publisher,
+        "current_publishers": publisher_list,
         "current_format": format_filter,
+        "current_formats": format_list,
         "current_medium": medium,
         "current_sort": sort,
         "current_dir": sort_dir,
+        "current_view": current_view,
+        "filter_rail_open": filter_rail_open,
+        "col_filters_open": col_filters_open,
+        "current_col_filters": {col_id: (request.GET.get(f"f_{col_id}", "") or "") for col_id in COLUMNS_REGISTRY},
+        "col_filter_skip": {"imported", "updated", "last_written", "first_series", "second_series",
+                            "scrape_score", "scrape_source", "cv_issue", "cv_volume",
+                            "dm_processed", "cv_issue_count", "starwars", "has_alt_covers"},
+        "current_year_min": year_min,
+        "current_year_max": year_max,
         "flag_label": FLAG_LABELS.get(flag, flag),
+        "publisher_counts": publisher_counts,
+        "state_counts": state_counts,
+        "format_counts": format_counts,
+        "flag_counts": flag_counts,
         "needs_conversion_count": needs_conversion_count,
         "is_zip_count": is_zip_count,
         "workflow_states": WORKFLOW_STATES,
@@ -334,11 +443,21 @@ def comic_detail(request, pk):
                 comic.save(update_fields=["flags"])
 
     # For digital comics, try to read ComicInfo.xml from the file
+    raw_xml_string = None
     if comic.is_digital and comic.file_path:
         if comic.file_path.lower().endswith('.cbz'):
             xml_data = read_comicinfo_xml(comic.file_path)
             if xml_data is not None:
                 comparison = compare_db_vs_xml(comic, xml_data)
+            try:
+                import zipfile as _zf
+                with _zf.ZipFile(comic.file_path, "r") as _z:
+                    for _name in _z.namelist():
+                        if _name.lower() == "comicinfo.xml":
+                            raw_xml_string = _z.read(_name).decode("utf-8", errors="replace")
+                            break
+            except Exception:
+                pass
 
     # For organized/written comics, show reorganize preview
     if comic.state in (Comic.STATE_WRITTEN, Comic.STATE_DONE):
@@ -389,9 +508,12 @@ def comic_detail(request, pk):
                         "is_main": url == main_cover_url,
                     })
 
+    teams_list = [t.strip() for t in comic.teams.split(",") if t.strip()] if comic.teams else []
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
         "xml_data": xml_data,
+        "raw_xml_string": raw_xml_string,
         "comparison": comparison,
         "reorganize_preview": reorganize_preview,
         "display_custom_values": display_custom_values,
@@ -402,7 +524,20 @@ def comic_detail(request, pk):
         "inducks_country_codes": inducks_country_codes,
         "has_cover": has_cover,
         "physical_covers": physical_covers,
+        "teams_list": teams_list,
     })
+
+
+def comic_audit_history(request, pk):
+    """HTMX partial: per-comic audit log timeline."""
+    from .audit import get_comic_audit_history
+    comic = get_object_or_404(Comic, pk=pk)
+    entries = get_comic_audit_history(str(comic.pk))
+    return render(request, "core/partials/comic_audit_history.html", {
+        "entries": entries,
+        "comic": comic,
+    })
+
 
 
 @require_POST
@@ -456,14 +591,16 @@ def toggle_scrape_skip(request, pk):
 @require_POST
 def convert_cbr(request, pk):
     """
-    Convert a CBR/CB7 file to CBZ format.
+    Dispatch a Celery task to convert a single CBR/CB7 file to CBZ format.
 
-    Extracts the archive to a temp directory, then repacks as a ZIP file
-    with the same name but .cbz extension.
+    Running in the background lets the task toast track progress and keeps the
+    request from blocking on the extract/repack work.
     """
+    from .tasks import convert_cbr_task
+
     comic = get_object_or_404(Comic, pk=pk)
 
-    # Validate this is a convertible file
+    # Validate this is a convertible file before queueing any work
     if comic.file_format not in ("cbr", "cb7"):
         return JsonResponse({
             "success": False,
@@ -476,177 +613,56 @@ def convert_cbr(request, pk):
             "error": "Source file not found"
         }, status=404)
 
-    original_path = Path(comic.file_path)
-    new_path = original_path.with_suffix(".cbz")
 
-    # If a CBZ already exists alongside the CBR, the previous conversion created the
-    # file but failed to update the database record. Recover by updating the DB and
-    # deleting the original CBR instead of returning an error.
-    if new_path.exists():
-        try:
-            zipfile.ZipFile(new_path, "r").close()  # validate it's a real zip
-        except zipfile.BadZipFile:
-            new_path.unlink()  # corrupted — delete and let the conversion proceed
-        else:
-            # Valid CBZ exists: update the record and clean up the CBR
-            from django.db import IntegrityError
-            from .audit import log_batch_entry
-            try:
-                comic.file_path = str(new_path)
-                comic.file_format = "cbz"
-                comic.flags.pop("needs_conversion", None)
-                comic.save()
-            except IntegrityError as e:
-                err_msg = f"CBZ already assigned to another comic: {new_path.name}"
-                log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                                {"error": [None, err_msg]})
-                return JsonResponse({"success": False, "error": err_msg}, status=409)
-            if original_path.exists():
-                original_path.unlink()
-            log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                            {"path": [str(original_path), str(new_path)]})
-            return JsonResponse({
-                "success": True,
-                "message": f"Recovered existing CBZ: {new_path.name}",
-                "new_path": str(new_path),
-            })
-
-    try:
-        import patoolib
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            patoolib.extract_archive(str(original_path), outdir=temp_dir, verbosity=-1)
-
-            with zipfile.ZipFile(new_path, "w", zipfile.ZIP_DEFLATED) as zf:
-                for root, dirs, files in os.walk(temp_dir):
-                    dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__MACOSX"]
-                    for file in sorted(files):
-                        if file.startswith(".") or file == "Thumbs.db":
-                            continue
-                        file_path = Path(root) / file
-                        arc_path = file_path.relative_to(temp_dir)
-                        zf.write(file_path, arc_path)
-
-        old_path_str = comic.file_path
-        comic.file_path = str(new_path)
-        comic.file_format = "cbz"
-        comic.flags.pop("needs_conversion", None)
-        comic.save()
-        original_path.unlink()
-
-        from .audit import log_batch_entry
-        log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                        {"path": [old_path_str, str(new_path)]})
-
-        return JsonResponse({
-            "success": True,
-            "message": f"Converted to {new_path.name}",
-            "new_path": str(new_path),
-        })
-
-    except Exception as e:
-        if new_path.exists():
-            new_path.unlink()
-        err_msg = str(e)
-        from .audit import log_batch_entry
-        log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                        {"error": [None, err_msg]})
-        return JsonResponse({
-            "success": False,
-            "error": err_msg,
-        }, status=500)
+    task = enqueue("convert_cbr", args=[str(comic.pk)], label="Converting file")
+    return JsonResponse({
+        "success": True,
+        "task_id": task.id,
+        "total": 1,
+        "message": "Converting file in background",
+    })
 
 
 @require_POST
 def accept_comic(request, pk):
-    """
-    Accept a comic and move it from 'new' to 'imported' state.
+    """Accept a STATE_NEW comic: copy proposed values into confirmed fields and
+    advance to STATE_IMPORTED."""
+    from apps.core import workflow
 
-    Copies proposed values to confirmed fields.
-    """
     comic = get_object_or_404(Comic, pk=pk)
-
-    if comic.state != Comic.STATE_NEW:
-        return JsonResponse({
-            "success": False,
-            "error": f"Comic is not in 'new' state (current: {comic.state})"
-        }, status=400)
-
-    # Copy proposed values to confirmed fields
-    comic.series = comic.proposed_series
-    comic.number = comic.proposed_number
-    comic.volume = comic.proposed_volume
-    comic.year = comic.proposed_year
-
-    # Compute cover hashes from the local file if not already set
-    if comic.file_path and not comic.phash:
-        hashes = extract_cover_hashes(comic.file_path)
-        if hashes:
-            comic.phash = hashes.phash_hex
-            comic.ahash = hashes.ahash_hex
-
-    # Advance state
-    comic.state = Comic.STATE_IMPORTED
-    comic.save()
-
-    return JsonResponse({
-        "success": True,
-        "message": f"Accepted: {comic.series} #{comic.number}",
-    })
+    result = workflow.accept(comic)
+    if result.skipped:
+        return JsonResponse(result.to_json(), status=400)
+    if not result.success:
+        return JsonResponse(result.to_json(), status=500)
+    return JsonResponse(result.to_json())
 
 
 @require_POST
 def accept_all_comics(request):
-    """
-    Accept all comics in 'new' state, moving them to 'imported'.
+    """Accept every STATE_NEW comic with a proposed_series. Skips comics carrying
+    any of the optional `skip_flags` (POST-comma-separated)."""
+    from apps.core import workflow
 
-    Only accepts comics that have a proposed_series (skips those with no_series flag).
-    """
-    comics = Comic.objects.filter(state=Comic.STATE_NEW)
-
-    # Optionally filter to only accept comics without problematic flags
-    skip_flags = request.POST.get("skip_flags", "").split(",")
-    skip_flags = [f.strip() for f in skip_flags if f.strip()]
-
+    skip_flags = [f.strip() for f in request.POST.get("skip_flags", "").split(",") if f.strip()]
     accepted = 0
     skipped = 0
 
-    for comic in comics:
-        # Skip comics with no series parsed
+    for comic in Comic.objects.filter(state=Comic.STATE_NEW):
         if not comic.proposed_series:
             skipped += 1
             continue
+        if skip_flags and any(comic.flags.get(f) for f in skip_flags):
+            skipped += 1
+            continue
 
-        # Skip comics with specified flags
-        if skip_flags:
-            has_skip_flag = any(comic.flags.get(f) for f in skip_flags)
-            if has_skip_flag:
-                skipped += 1
-                continue
+        result = workflow.accept(comic)
+        if result.success:
+            accepted += 1
+        else:
+            skipped += 1
 
-        # Copy proposed values to confirmed fields
-        comic.series = comic.proposed_series
-        comic.number = comic.proposed_number
-        comic.volume = comic.proposed_volume
-        comic.year = comic.proposed_year
-
-        # Compute cover hashes from the local file if not already set
-        if comic.file_path and not comic.phash:
-            hashes = extract_cover_hashes(comic.file_path)
-            if hashes:
-                comic.phash = hashes.phash_hex
-                comic.ahash = hashes.ahash_hex
-
-        # Advance state
-        comic.state = Comic.STATE_IMPORTED
-        comic.save()
-        accepted += 1
-
-    return JsonResponse({
-        "success": True,
-        "accepted": accepted,
-        "skipped": skipped,
-    })
+    return JsonResponse({"success": True, "accepted": accepted, "skipped": skipped})
 
 
 @require_POST
@@ -657,14 +673,9 @@ def convert_all_cbr(request):
     from celery.result import AsyncResult
     from .tasks import convert_all_cbr_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(flags__needs_conversion=True).count()
-    result = convert_all_cbr_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Converting files"
+    result = enqueue("convert_all_cbr", label="Converting files")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Converting {total} files in background"})
 
 
@@ -709,14 +720,9 @@ def convert_all_zip(request):
     from celery.result import AsyncResult
     from .tasks import convert_all_zip_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(flags__is_zip=True).count()
-    result = convert_all_zip_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Renaming ZIP files"
+    result = enqueue("convert_all_zip", label="Renaming ZIP files")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Renaming {total} ZIP files in background"})
 
 
@@ -796,11 +802,12 @@ def scrape_preview(request, pk):
             "match_type": match.match_type,
             "match_score": match.match_score,
             "alignment_score": score,
-            "recommended": score > 0,
+            "recommended": False,
         })
 
     # Sort by alignment score (desc) then match score (asc)
     all_matches.sort(key=lambda m: (-m["alignment_score"], m["match_score"]))
+    _mark_recommended(all_matches)
 
     return JsonResponse({
         "success": True,
@@ -920,10 +927,11 @@ def scrape_api_search(request, pk):
             "match_type": match.match_type,
             "match_score": match.match_score,
             "alignment_score": score,
-            "recommended": score > 0,
+            "recommended": False,
         })
 
     all_matches.sort(key=lambda m: (-m["alignment_score"], m["match_score"]))
+    _mark_recommended(all_matches)
 
     return JsonResponse({
         "success": True,
@@ -1167,6 +1175,27 @@ def cv_compare(request, pk):
     })
 
 
+def _cover_etag_response(request, data: bytes, cache_path) -> HttpResponse:
+    """Build a response with ETag derived from the cache file mtime.
+
+    Forces browser revalidation on every request (no-cache) but returns 304
+    when the cover has not changed, avoiding redundant data transfer.
+    """
+    try:
+        mtime = cache_path.stat().st_mtime
+    except OSError:
+        mtime = 0
+    etag = f'"{cache_path.stem}-{mtime}"'
+    if request.META.get("HTTP_IF_NONE_MATCH") == etag:
+        response = HttpResponse(status=304)
+        response["ETag"] = etag
+        return response
+    response = HttpResponse(data, content_type="image/jpeg")
+    response["Cache-Control"] = "no-cache"
+    response["ETag"] = etag
+    return response
+
+
 def comic_cover(request, pk):
     """
     Serve the cover image of a comic file.
@@ -1174,17 +1203,24 @@ def comic_cover(request, pk):
     For digital comics: extracts from CBZ on first request and caches.
     For physical comics: serves from cache (populated after scraping or manual upload).
     """
-    from .cover_cache import get_comic_cover
+    from .cover_cache import get_comic_cover, COVER_CACHE_DIR
 
     comic = get_object_or_404(Comic, pk=pk)
-
     cover_data = get_comic_cover(comic)
     if not cover_data:
         return HttpResponse(status=404)
 
-    response = HttpResponse(cover_data, content_type="image/jpeg")
-    response["Cache-Control"] = "public, max-age=86400"
-    return response
+    return _cover_etag_response(request, cover_data, COVER_CACHE_DIR / f"{comic.pk}.jpg")
+
+
+def comic_thumb(request, pk):
+    """Serve a small thumbnail (80px wide) for list row display."""
+    from .cover_cache import get_comic_thumb, COVER_CACHE_DIR
+    comic = get_object_or_404(Comic, pk=pk)
+    thumb_data = get_comic_thumb(comic)
+    if not thumb_data:
+        return HttpResponse(status=404)
+    return _cover_etag_response(request, thumb_data, COVER_CACHE_DIR / f"{comic.pk}_thumb.jpg")
 
 
 @require_POST
@@ -1259,13 +1295,18 @@ def comic_page(request, pk, page_num):
     if not comic.file_path:
         return HttpResponse(status=404)
 
-    page_data = get_comic_page(comic, int(page_num))
+    page_num_int = int(page_num)
+    page_data = get_comic_page(comic, page_num_int)
     if not page_data:
         return HttpResponse(status=404)
 
-    response = HttpResponse(page_data, content_type="image/jpeg")
-    response["Cache-Control"] = "public, max-age=86400"
-    return response
+    from .cover_cache import COVER_CACHE_DIR
+    cache_path = (
+        COVER_CACHE_DIR / f"{comic.pk}.jpg"
+        if page_num_int == 0
+        else COVER_CACHE_DIR / f"{comic.pk}_p{page_num_int}.jpg"
+    )
+    return _cover_etag_response(request, page_data, cache_path)
 
 
 @require_GET
@@ -1280,8 +1321,9 @@ def comic_pages_list(request, pk):
         return JsonResponse({"error": "Not a digital comic with a file"}, status=400)
 
     page_count = comic.page_count or 0
+    v = int(comic.updated_at.timestamp())
     pages = [
-        {"index": i, "url": f"/comics/{pk}/page/{i}/"}
+        {"index": i, "url": f"/comics/{pk}/page/{i}/?v={v}"}
         for i in range(page_count)
     ]
     return JsonResponse({"page_count": page_count, "pages": pages})
@@ -1354,6 +1396,10 @@ def comic_pages_delete(request, pk):
     new_count = (comic.page_count or 0) - len(set(indices))
     comic.page_count = max(0, new_count)
     comic.save(update_fields=["page_count"])
+
+    from .audit import log_batch_entry
+    log_batch_entry("delete_pages", comic, comic.state, comic.state,
+                    {"pages_deleted": [None, sorted(indices)]})
 
     return JsonResponse({"success": True, "page_count": comic.page_count})
 
@@ -1489,167 +1535,56 @@ def cv_cover(request, issue_id):
     return response
 
 
-@require_POST
 def scrape_comic(request, pk):
-    """
-    Scrape a single comic against the ComicVine database.
-
-    If issue_id is provided in POST data (form or JSON), use that specific match.
-    Otherwise, auto-select the best match.
-
-    Query params:
-        force=1: Skip state check (for re-scraping comics in any state)
-    """
+    """Scrape a single comic. Manual issue selection via POST cv_issue_id (form)
+    or JSON body (cv_issue_id / inducks issuecode/storycode). force=1 query param
+    bypasses the imported-state gate."""
     import json
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-
     force = request.GET.get("force") == "1"
 
-    # Parse JSON body for manual match selection
     cv_issue_id = request.POST.get("cv_issue_id") or request.POST.get("issue_id")
     inducks_issuecode = None
     inducks_storycode = None
-    source = None
+    is_batch = False
 
     if not cv_issue_id and request.content_type == "application/json":
         try:
             body = json.loads(request.body)
             source = body.get("source")
-            cv_issue_id = body.get("issue_id") or body.get("cv_issue_id")
-            inducks_issuecode = body.get("issuecode")
-            inducks_storycode = body.get("storycode")
-            if cv_issue_id or inducks_issuecode or inducks_storycode:
-                force = True
+            if source == "inducks":
+                inducks_issuecode = body.get("issuecode")
+                inducks_storycode = body.get("storycode")
+            else:
+                cv_issue_id = body.get("issue_id") or body.get("cv_issue_id")
+            is_batch = bool(body.get("batch"))
         except (json.JSONDecodeError, ValueError):
             pass
 
-    if not force and comic.state != Comic.STATE_IMPORTED:
-        return JsonResponse({
-            "success": False,
-            "error": f"Comic is not in 'imported' state (current: {comic.state})"
-        }, status=400)
-
-    # Handle Inducks match
-    if source == "inducks" and (inducks_issuecode or inducks_storycode):
-        from apps.scraper.services import apply_inducks_match
-
-        scraper = InducksScraper()
-        if inducks_storycode and inducks_issuecode:
-            match = scraper.get_story_details(inducks_issuecode, inducks_storycode)
-        elif inducks_storycode:
-            match = scraper.get_story_only(inducks_storycode)
-        else:
-            match = scraper.get_issue_details(inducks_issuecode)
-        if not match:
-            label = inducks_storycode or inducks_issuecode
-            return JsonResponse({
-                "success": False,
-                "error": f"Not found in Inducks: {label}"
-            }, status=404)
-
-        apply_inducks_match(comic, match)
-
-        msg = f"Matched story: {match.title}" if not match.issuecode else f"Matched: {match.series} #{match.issue_number}"
-        return JsonResponse({
-            "success": True,
-            "message": msg,
-            "match": {
-                "series": match.series,
-                "number": match.issue_number,
-                "publisher": match.publisher,
-                "year": match.start_year,
-                "match_type": "inducks",
-                "cover_url": match.cover_url,
-            }
-        })
-
-    # ComicVine match (existing flow)
-    from apps.scraper.cv_sources import is_cv_db_available
-
-    scraper = ComicVineScraper()
-    match = None
-
-    if cv_issue_id:
-        try:
-            if is_cv_db_available():
-                match = scraper.get_issue_details(int(cv_issue_id))
-            if not match:
-                match = scraper.get_issue_from_api(int(cv_issue_id))
-        except ComicVineRateLimitError as e:
-            logger.warning("scrape_comic [%s]: rate limited — %s", pk, e)
-            return JsonResponse({"success": False, "error": str(e), "rate_limited": True}, status=429)
-        except Exception as e:
-            logger.exception("scrape_comic [%s]: error fetching issue %s", pk, cv_issue_id)
-            return JsonResponse({"success": False, "error": f"Scrape error: {e}"}, status=500)
-        if match:
-            match.match_type = "manual"
+    if is_batch:
+        insert_covers = get_setting("batch_insert_covers", False)
     else:
-        try:
-            match = _find_best_match(comic, scraper)
-        except ComicVineRateLimitError as e:
-            logger.warning("scrape_comic [%s]: rate limited — %s", pk, e)
-            return JsonResponse({"success": False, "error": str(e), "rate_limited": True}, status=429)
-        except Exception as e:
-            logger.exception("scrape_comic [%s]: unexpected error during auto-match", pk)
-            return JsonResponse({"success": False, "error": f"Scrape error: {e}"}, status=500)
+        insert_covers = get_setting("scrape_insert_covers", True)
 
-    if not match:
-        logger.warning(
-            "scrape_comic [%s]: no match found for %s #%s",
-            pk, comic.proposed_series or comic.series, comic.proposed_number or comic.number,
-        )
-        if not cv_issue_id:
-            comic.flags["scrape_no_match"] = True
-            comic.save(update_fields=["flags"])
-        from apps.core.audit import log_batch_entry
-        no_match_changes = {"result": [None, "no_match"]}
-        detail = comic.flags.get("scrape_error_detail")
-        if detail:
-            no_match_changes["reason"] = [None, detail]
-        log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, no_match_changes)
-        return JsonResponse({
-            "success": False,
-            "error": "No match found in ComicVine database"
-        }, status=404)
+    result = workflow.scrape(
+        comic,
+        cv_issue_id=cv_issue_id,
+        inducks_issuecode=inducks_issuecode,
+        inducks_storycode=inducks_storycode,
+        force=force,
+        insert_covers=insert_covers,
+    )
 
-    before_series = comic.series
-    before_publisher = comic.publisher
-    before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-    before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-
-    try:
-        _apply_match(comic, match, scraper)
-    except Exception as e:
-        logger.exception("scrape_comic [%s]: error applying match %s", pk, match.issue_id)
-        return JsonResponse({"success": False, "error": f"Error applying match: {e}"}, status=500)
-
-    from apps.core.audit import log_batch_entry
-    changes = {}
-    if comic.series != before_series:
-        changes["series"] = [before_series, comic.series]
-    if comic.publisher != before_publisher:
-        changes["publisher"] = [before_publisher, comic.publisher]
-    after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-    after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-    if after_cv_issue != before_cv_issue:
-        changes["cv_issue"] = [before_cv_issue, after_cv_issue]
-    if after_cv_volume != before_cv_volume:
-        changes["cv_volume"] = [before_cv_volume, after_cv_volume]
-    log_batch_entry("scrape_all", comic, Comic.STATE_IMPORTED, comic.state, changes)
-
-    return JsonResponse({
-        "success": True,
-        "message": f"Matched: {match.series} #{match.issue_number}",
-        "match": {
-            "series": match.series,
-            "number": match.issue_number,
-            "publisher": match.publisher,
-            "year": match.start_year,
-            "match_type": match.match_type,
-            "cover_url": match.cover_url,
-        }
-    })
+    if result.skipped:
+        return JsonResponse(result.to_json(), status=400)
+    if not result.success:
+        if result.detail.get("rate_limited"):
+            return JsonResponse({**result.to_json(), "rate_limited": True}, status=429)
+        status = 404 if result.detail.get("matched") is False else 500
+        return JsonResponse(result.to_json(), status=status)
+    return JsonResponse(result.to_json())
 
 
 @require_POST
@@ -1660,14 +1595,9 @@ def scrape_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import scrape_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(state=Comic.STATE_IMPORTED).count()
-    result = scrape_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Scraping comics"
+    result = enqueue("scrape_all", label="Scraping comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Scraping {total} comics in background"})
 
 
@@ -1682,45 +1612,46 @@ def run_full_pipeline(request):
     Processes each comic through: accept, scrape, tag, format, deduplicate, organize, write.
     Stops per-comic at deduplication if a duplicate is found.
     """
-    from celery.result import AsyncResult
     from apps.dashboard.tasks import run_full_pipeline_task
 
-    active = request.session.get("pipeline_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse(
-            {"success": False, "error": "Pipeline is already running", "task_id": active},
-            status=409,
-        )
 
     comic_id = request.POST.get("comic_id")
+    pks = request.POST.getlist("pks")
     if comic_id:
         comic = get_object_or_404(Comic, pk=comic_id)
-        if comic.state != Comic.STATE_NEW:
-            return JsonResponse(
-                {"success": False, "error": f"Comic is not in new state (current: {comic.state})"},
-                status=400,
-            )
         if comic.file_format != "cbz":
             return JsonResponse(
                 {"success": False, "error": f"Pipeline only supports CBZ files (this is {comic.file_format or 'unknown'})"},
                 status=400,
             )
         comic_ids = [str(comic.pk)]
+    elif pks:
+        qs = Comic.objects.filter(pk__in=pks, state=Comic.STATE_NEW, file_format="cbz")
+        comic_ids = [str(pk) for pk in qs.values_list("pk", flat=True)]
+        if not comic_ids:
+            return JsonResponse({"success": False, "error": "None of the selected comics are eligible (must be in New state, CBZ format)"}, status=400)
     else:
-        comic_ids = list(
+        qs = (
             Comic.objects.filter(state=Comic.STATE_NEW, file_format="cbz")
             .exclude(proposed_series__isnull=True)
             .exclude(proposed_series="")
-            .values_list("pk", flat=True)
         )
-        comic_ids = [str(pk) for pk in comic_ids]
+        hours = request.POST.get("hours")
+        if hours:
+            from django.utils import timezone
+            from datetime import timedelta
+            try:
+                from_time = timezone.now() - timedelta(hours=int(hours))
+                qs = qs.filter(imported_at__gte=from_time)
+            except (ValueError, TypeError):
+                pass
+        comic_ids = [str(pk) for pk in qs.values_list("pk", flat=True)]
         if not comic_ids:
             return JsonResponse({"success": True, "task_id": None, "total": 0,
                                  "message": "No eligible CBZ comics in new state"})
 
-    result = run_full_pipeline_task.delay(comic_ids)
-    request.session["pipeline_task_id"] = result.id
-    return JsonResponse({"success": True, "task_id": result.id, "total": len(comic_ids)})
+    result = enqueue("run_pipeline", args=[comic_ids], label="Running pipeline")
+    return JsonResponse({"success": True, "task_id": result.celery_task_id, "total": len(comic_ids)})
 
 
 def _populate_missing_counts():
@@ -1728,8 +1659,7 @@ def _populate_missing_counts():
     Find comics with a comicvine_volume but null count,
     and populate count from the CV SQLite DB.
     """
-    import sqlite3
-    from django.conf import settings
+    from apps.scraper.cv_sources import fetch_cv_volume_counts
 
     comics = Comic.objects.filter(
         count__isnull=True,
@@ -1750,27 +1680,7 @@ def _populate_missing_counts():
         if vid:
             volume_ids.add(int(vid))
 
-    # Batch query CV DB for count_of_issues
-    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
-    volume_counts = {}
-    try:
-        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
-        cursor = conn.cursor()
-        # Chunk into batches of 500 to avoid large IN clauses
-        volume_id_list = list(volume_ids)
-        for i in range(0, len(volume_id_list), 500):
-            chunk = volume_id_list[i:i + 500]
-            placeholders = ",".join("?" * len(chunk))
-            cursor.execute(
-                f"SELECT id, count_of_issues FROM cv_volume WHERE id IN ({placeholders})",
-                chunk,
-            )
-            for row in cursor.fetchall():
-                if row[1] is not None:
-                    volume_counts[row[0]] = row[1]
-        conn.close()
-    except Exception:
-        pass
+    volume_counts = fetch_cv_volume_counts(volume_ids)
 
     populated = 0
     failed = 0
@@ -1961,10 +1871,7 @@ def fix_count_mismatches(request):
     Unlike populate_counts_task, this overwrites existing count values.
     Then re-runs mismatch detection to clear resolved flags.
     """
-    from apps.scraper.cv_sources import is_cv_db_available
-    import sqlite3
-
-    from django.conf import settings
+    from apps.scraper.cv_sources import is_cv_db_available, fetch_cv_volume_counts
 
     if not is_cv_db_available():
         return JsonResponse({"success": False, "error": "ComicVine database not available"}, status=400)
@@ -1980,21 +1887,7 @@ def fix_count_mismatches(request):
 
     # Batch-fetch counts from CV DB
     volume_ids = {int(c.custom_values["comicvine_volume"]) for c in comics if c.custom_values.get("comicvine_volume")}
-    db_path = getattr(settings, "CV_DB_PATH", "/cv_db/comicvine.db")
-    volume_counts = {}
-    try:
-        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
-        cursor = conn.cursor()
-        for i in range(0, len(volume_ids), 500):
-            chunk = list(volume_ids)[i:i + 500]
-            placeholders = ",".join("?" * len(chunk))
-            cursor.execute(f"SELECT id, count_of_issues FROM cv_volume WHERE id IN ({placeholders})", chunk)
-            for row in cursor.fetchall():
-                if row[1] is not None:
-                    volume_counts[row[0]] = row[1]
-        conn.close()
-    except Exception as e:
-        return JsonResponse({"success": False, "error": f"CV DB error: {e}"}, status=500)
+    volume_counts = fetch_cv_volume_counts(volume_ids)
 
     updated = 0
     for comic in comics:
@@ -2061,14 +1954,9 @@ def detect_format_upgrades(request):
     from celery.result import AsyncResult
     from .tasks import detect_format_upgrades_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(format__in=Comic.COUNT_BASED_FORMATS, format_ok=False).count()
-    result = detect_format_upgrades_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Detecting format upgrades"
+    result = enqueue("detect_format_upgrades", label="Detecting format upgrades")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Scanning {total} comics for format upgrades"})
 
 
@@ -2130,52 +2018,18 @@ def populate_counts_all(request):
     from celery.result import AsyncResult
     from .tasks import populate_counts_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(count__isnull=True).exclude(
         custom_values__comicvine_volume__isnull=True,
     ).exclude(custom_values__comicvine_volume="").count()
 
-    result = populate_counts_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Populating counts"
+    result = enqueue("populate_counts", label="Populating counts")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Populating counts for {total} comics in background"})
 
 
 # =============================================================================
 # Phase 4: DataManager Tagging (Publisher Management)
 # =============================================================================
-
-
-@require_POST
-def tag_comic(request, pk):
-    """
-    Apply DataManager rules to a single comic.
-
-    This is Phase 4 of the workflow: counted -> tagged
-    """
-    from apps.tagging.services import tag_comic as tagging_service_tag_comic
-
-    comic = get_object_or_404(Comic, pk=pk)
-
-    result = tagging_service_tag_comic(comic)
-
-    if not result["success"]:
-        return JsonResponse({
-            "success": False,
-            "error": result["message"]
-        }, status=400)
-
-    return JsonResponse({
-        "success": True,
-        "message": result["message"],
-        "matched_rulesets": result["matched_rulesets"],
-        "changes": result["changes"],
-        "changes_count": len(result["changes"]),
-        "state": comic.state,
-    })
 
 
 @require_POST
@@ -2186,14 +2040,9 @@ def tag_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import tag_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(state=Comic.STATE_TAGGED).count()
-    result = tag_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Tagging comics"
+    result = enqueue("tag_all", label="Tagging comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Tagging {total} comics in background"})
 
 
@@ -2209,14 +2058,9 @@ def retag_flagged(request):
     if not flag:
         return JsonResponse({"success": False, "error": "No flag specified"}, status=400)
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(**{f"flags__{flag}": True}).count()
-    result = retag_flagged_task.delay(flag)
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = f"Re-tagging {flag} comics"
+    result = enqueue("retag_flagged", args=[flag], label=f"Re-tagging {flag} comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Re-tagging {total} comics in background"})
 
 
@@ -2265,69 +2109,6 @@ def _apply_format_detection(comic):
 
 
 @require_POST
-def format_comic(request, pk):
-    """
-    Apply format detection to a single comic.
-
-    This is Phase 5 of the workflow: tagged -> formatted
-    """
-    comic = get_object_or_404(Comic, pk=pk)
-
-    if comic.state not in (Comic.STATE_TAGGED, Comic.STATE_FORMATTED):
-        return JsonResponse({
-            "success": False,
-            "error": f"Comic is not in 'tagged' or 'formatted' state (current: {comic.state})"
-        }, status=400)
-
-    old_format = comic.format
-    detected_format = _detect_format(comic)
-
-    if detected_format:
-        comic.format = detected_format
-        comic.flags.pop("missing_format", None)
-    elif not comic.format:
-        comic.flags["missing_format"] = True
-
-    if comic.medium == Comic.MEDIUM_PHYSICAL:
-        comic.state = Comic.STATE_WRITTEN
-    elif comic.state == Comic.STATE_FORMATTED:
-        comic.state = Comic.STATE_DEDUPLICATED
-    else:
-        comic.state = Comic.STATE_FORMATTED
-    comic.save()
-
-    _text = f"{comic.series or ''} {comic.title or ''}"
-    _summary = comic.summary or ""
-    _pages = comic.page_count or 0
-    patterns_checked = [
-        {"pattern": "Director's Cut (text)", "matched": detected_format == "Director's Cut"},
-        {"pattern": "Black & White (text)", "matched": detected_format == "Black & White"},
-        {"pattern": "Omnibus (keyword in title/summary)", "matched": detected_format == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
-        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)", "matched": detected_format == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
-        {"pattern": "TPB (keyword)", "matched": detected_format == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
-        {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected_format == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
-        {"pattern": "Annual (keyword)", "matched": detected_format == "Annual"},
-        {"pattern": "One-Shot (count=1)", "matched": detected_format == "One-Shot"},
-        {"pattern": "Limited Series (count 2-15)", "matched": detected_format == "Limited Series"},
-        {"pattern": "Main Series (count>15)", "matched": detected_format == "Main Series"},
-    ]
-
-    return JsonResponse({
-        "success": True,
-        "old_format": old_format,
-        "new_format": comic.format,
-        "detected_format": detected_format,
-        "format_changed": old_format != comic.format,
-        "patterns_checked": patterns_checked,
-        "series": comic.series,
-        "title": comic.title,
-        "count": comic.count,
-        "page_count": comic.page_count,
-        "state": comic.state,
-    })
-
-
-@require_POST
 def format_all_comics(request):
     """
     Dispatch a Celery task to apply format detection to all comics in 'tagged' state.
@@ -2335,14 +2116,9 @@ def format_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import format_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(state=Comic.STATE_FORMATTED).count()
-    result = format_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Formatting comics"
+    result = enqueue("format_all", label="Formatting comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Formatting {total} comics in background"})
 
 
@@ -2641,45 +2417,26 @@ def deduplicate_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import deduplicate_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(state=Comic.STATE_DEDUPLICATED).count()
-    result = deduplicate_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Deduplicating"
+    result = enqueue("deduplicate_all", label="Deduplicating")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Running deduplication on {total} comics in background"})
 
 
 @require_POST
-def organize_comic(request, pk):
+def deduplicate_selected_comics(request):
     """
-    Organize a single comic - move file to library location.
-
-    This is Phase 7 of the workflow: deduplicated -> organized
+    Run duplicate detection on a specific set of comics (by POSTed pks).
+    Comics with no duplicates found advance to the organized state.
     """
-    from apps.organizer.services import organize_comic as organizer_service_organize
+    from apps.duplicates.services import run_duplicate_detection_for_comics
 
-    comic = get_object_or_404(Comic, pk=pk)
+    pks = request.POST.getlist("pks")
+    if not pks:
+        return JsonResponse({"success": False, "error": "No comics selected"}, status=400)
 
-    result = organizer_service_organize(comic)
-
-    if not result["success"]:
-        return JsonResponse({
-            "success": False,
-            "error": result["message"]
-        }, status=400)
-
-    return JsonResponse({
-        "success": True,
-        "message": result["message"],
-        "profile": result["profile"],
-        "old_path": result["old_path"],
-        "new_path": result["new_path"],
-        "moved": result["moved"],
-        "state": comic.state,
-    })
+    result = run_duplicate_detection_for_comics(pks)
+    return JsonResponse(result)
 
 
 @require_POST
@@ -2690,50 +2447,67 @@ def organize_all_comics(request):
     from celery.result import AsyncResult
     from .tasks import organize_all_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
     total = Comic.objects.filter(state=Comic.STATE_ORGANIZED).count()
-    result = organize_all_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Organizing comics"
+    result = enqueue("organize_all", label="Organizing comics")
     return JsonResponse({"success": True, "task_id": result.id, "total": total, "message": f"Organizing {total} comics in background"})
 
 
 @require_POST
 def reorganize_comic(request, pk):
-    """
-    Re-organize a comic that's already been organized or written.
+    """Re-organize a comic that's already organized, written, or done.
 
-    This allows moving a comic to a new location if its metadata
-    (like format, series_group, etc.) has changed after organization.
+    Done comics run the full tag → organize → write sequence so updated metadata
+    and ComicInfo.xml are both refreshed in one step.
+    Organized/written comics use workflow.reorganize for a path-only file move.
     """
-    from apps.organizer.services import reorganize_comic as service_reorganize
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
 
-    if comic.state not in (Comic.STATE_WRITTEN, Comic.STATE_DONE):
+    if comic.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE):
         return JsonResponse({
             "success": False,
-            "error": f"Comic must be in 'write' or 'done' state (current: {comic.state})"
+            "error": f"Comic must be in organized, written, or done state (current: {comic.state})",
         }, status=400)
 
-    result = service_reorganize(comic)
+    if comic.state == Comic.STATE_DONE:
+        old_path = comic.file_path
+        try:
+            tag_result = workflow.tag(comic, force=True)
+            if not tag_result.success:
+                raise Exception(tag_result.error or tag_result.message)
+            org_result = workflow.organize(comic, force=True)
+            if not org_result.success:
+                raise Exception(org_result.error or org_result.message)
+            write_result = workflow.write(comic, force=True)
+            if not write_result.success:
+                raise Exception(write_result.error or write_result.message)
+            return JsonResponse({
+                "success": True,
+                "moved": comic.file_path != old_path,
+                "old_path": old_path,
+                "new_path": comic.file_path,
+            })
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)}, status=500)
 
-    if not result["success"]:
+    result = workflow.reorganize(comic)
+
+    if not result.success:
+        status = 409 if result.detail and result.detail.get("conflict") else 500
         return JsonResponse({
             "success": False,
-            "error": result.get("error", "Unknown error"),
-        }, status=500)
+            "error": result.error or result.message,
+        }, status=status)
 
     return JsonResponse({
         "success": True,
-        "message": result.get("message", "Comic reorganized successfully") if not result.get("moved") else "Comic reorganized successfully",
-        "old_path": result.get("old_path"),
-        "new_path": result.get("new_path"),
-        "moved": result.get("moved", False),
-        "profile": result.get("profile"),
+        "message": result.message,
+        "old_path": result.detail.get("old_path") if result.detail else None,
+        "new_path": result.detail.get("new_path") if result.detail else None,
+        "moved": result.detail.get("moved", False) if result.detail else False,
+        "profile": result.detail.get("profile") if result.detail else None,
     })
 
 
@@ -2769,16 +2543,7 @@ def rewrite_updated_comics(request):
     """
     from celery.result import AsyncResult
 
-    # Prevent double-submit (shares session key with write-all)
-    active_task_id = request.session.get("write_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A write task is already running",
-                "task_id": active_task_id,
-            }, status=409)
+    # Shares session key with write-all
 
     count = Comic.objects.filter(
         flags__count_updated=True,
@@ -2793,68 +2558,13 @@ def rewrite_updated_comics(request):
         })
 
     from .tasks import rewrite_updated_comics_task
-    result = rewrite_updated_comics_task.delay()
-    request.session["write_task_id"] = result.id
+    result = enqueue("rewrite_updated", label="Rewriting updated comics")
 
     return JsonResponse({
         "success": True,
         "task_id": result.id,
         "total": count,
         "message": f"Started rewriting {count} comics in background",
-    })
-
-
-@require_POST
-def write_comic(request, pk):
-    """
-    Write ComicInfo.xml for a single comic in 'organized' state.
-
-    This updates the ComicInfo.xml inside the CBZ file with the
-    current database values, then advances to 'written' state.
-    """
-    from .utils import write_comicinfo_xml, validate_comic_for_write
-    from django.utils import timezone
-
-    comic = get_object_or_404(Comic, pk=pk)
-
-    if comic.state != Comic.STATE_WRITTEN:
-        return JsonResponse({
-            "success": False,
-            "error": f"Comic must be in 'write' state (current: {comic.state})"
-        }, status=400)
-
-    validation_errors = validate_comic_for_write(comic)
-    if validation_errors:
-        return JsonResponse({
-            "success": False,
-            "error": f"Missing required fields: {', '.join(validation_errors)}",
-        }, status=400)
-
-    # For digital comics with CBZ files, write the XML
-    if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
-        success = write_comicinfo_xml(comic.file_path, comic)
-        if not success:
-            return JsonResponse({
-                "success": False,
-                "error": "Failed to write ComicInfo.xml"
-            }, status=500)
-
-    # Advance state and record write time
-    from django.db.models import F
-    comic.state = Comic.STATE_DONE
-
-    # Clear the count_updated flag if set
-    if comic.flags.get("count_updated"):
-        comic.flags.pop("count_updated", None)
-
-    comic.save()
-    # Sync last_written to updated_at so the comic is not immediately stale
-    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
-
-    return JsonResponse({
-        "success": True,
-        "message": "ComicInfo.xml written successfully",
-        "state": comic.state,
     })
 
 
@@ -2866,16 +2576,6 @@ def write_all_comics(request):
     """
     from celery.result import AsyncResult
 
-    # Prevent double-submit
-    active_task_id = request.session.get("write_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A write task is already running",
-                "task_id": active_task_id,
-            }, status=409)
 
     count = Comic.objects.filter(state=Comic.STATE_WRITTEN).count()
     if count == 0:
@@ -2887,8 +2587,7 @@ def write_all_comics(request):
         })
 
     from .tasks import write_all_comics_task
-    result = write_all_comics_task.delay()
-    request.session["write_task_id"] = result.id
+    result = enqueue("write_all", label="Writing comics")
 
     return JsonResponse({
         "success": True,
@@ -2907,15 +2606,6 @@ def write_stale_comics(request):
     from celery.result import AsyncResult
     from django.db.models import F
 
-    active_task_id = request.session.get("write_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A write task is already running",
-                "task_id": active_task_id,
-            }, status=409)
 
     count = Comic.objects.filter(
         state=Comic.STATE_WRITTEN,
@@ -2931,8 +2621,7 @@ def write_stale_comics(request):
         })
 
     from .tasks import write_stale_comics_task
-    result = write_stale_comics_task.delay()
-    request.session["write_task_id"] = result.id
+    result = enqueue("write_stale", label="Writing stale comics")
 
     return JsonResponse({
         "success": True,
@@ -2950,15 +2639,6 @@ def write_missing_comics(request):
     """
     from celery.result import AsyncResult
 
-    active_task_id = request.session.get("write_task_id")
-    if active_task_id:
-        result = AsyncResult(active_task_id)
-        if result.state in ("PENDING", "STARTED", "PROGRESS"):
-            return JsonResponse({
-                "success": False,
-                "error": "A write task is already running",
-                "task_id": active_task_id,
-            }, status=409)
 
     count = Comic.objects.filter(
         state=Comic.STATE_WRITTEN,
@@ -2975,8 +2655,7 @@ def write_missing_comics(request):
         })
 
     from .tasks import write_missing_comics_task
-    result = write_missing_comics_task.delay()
-    request.session["write_task_id"] = result.id
+    result = enqueue("write_missing", label="Writing missing comics")
 
     return JsonResponse({
         "success": True,
@@ -2995,40 +2674,69 @@ def task_progress(request, task_id):
     from celery.result import AsyncResult
 
     result = AsyncResult(task_id)
-    response = {"task_id": task_id, "state": result.state}
 
-    if result.state == "PROGRESS":
-        info = result.info or {}
-        response.update(info)
-        response["current"] = info.get("current", 0)
-        response["total"] = info.get("total", 0)
-    elif result.state == "SUCCESS":
-        response["result"] = result.result
+    # Reading state/result deserializes the stored meta. A task that stored a
+    # malformed exception payload (missing 'exc_type') makes celery raise while
+    # decoding, which would 500 this endpoint on every poll. Treat any decode
+    # failure as a terminal failure so the frontend stops polling cleanly.
+    try:
+        state = result.state
+    except Exception:
         _clear_task_session(request, task_id)
-    elif result.state == "FAILURE":
-        response["error"] = str(result.result)
-        _clear_task_session(request, task_id)
-    elif result.state == "STARTED":
-        response.update({"current": 0, "total": 0})
+        return JsonResponse({
+            "task_id": task_id,
+            "state": "FAILURE",
+            "error": "Task result could not be read (corrupt or expired).",
+        })
 
-    return JsonResponse(response)
+    response = {"task_id": task_id, "state": state}
+
+    try:
+        if state == "PROGRESS":
+            info = result.info or {}
+            response.update(info)
+            response["current"] = info.get("current", 0)
+            response["total"] = info.get("total", 0)
+        elif state == "SUCCESS":
+            response["result"] = result.result
+            _clear_task_session(request, task_id)
+        elif state == "FAILURE":
+            response["error"] = str(result.result)
+            _clear_task_session(request, task_id)
+        elif state == "STARTED":
+            response.update({"current": 0, "total": 0})
+        elif state in ("PENDING", "REVOKED"):
+            # With the django-db result backend a PENDING id is either a
+            # forgotten/cleaned-up task or one that never wrote a result, so it
+            # will never progress. Drop it from the session so the resume block
+            # stops re-injecting it on every page load. REVOKED is terminal too.
+            _clear_task_session(request, task_id)
+    except Exception:
+        _clear_task_session(request, task_id)
+        response["state"] = "FAILURE"
+        response["error"] = "Task result could not be read (corrupt or expired)."
+
+    resp = JsonResponse(response)
+    resp["Cache-Control"] = "no-store"
+    return resp
 
 
 def _clear_task_session(request, task_id):
-    """Remove a completed/failed task ID from all session slots."""
-    session_keys = (
-        "write_task_id",
-        "audit_task_id",
-        "reorganize_task_id",
-        "smartlist_action_task_id",
-        "pipeline_task_id",
-        "active_task_id",
-    )
-    for key in session_keys:
-        if request.session.get(key) == task_id:
-            del request.session[key]
-            if key == "active_task_id":
-                request.session.pop("active_task_label", None)
+    """Remove a completed/failed task ID from the active-task session slot."""
+    if request.session.get("active_task_id") == task_id:
+        del request.session["active_task_id"]
+        request.session.pop("active_task_label", None)
+
+
+@require_POST
+def dismiss_task(request, task_id):
+    """
+    Drop a task ID from the session so a dismissed toast never comes back.
+    Unlike cancel, this makes no attempt to stop the worker; it only forgets
+    the id locally so a stuck/forgotten toast is always recoverable.
+    """
+    _clear_task_session(request, task_id)
+    return JsonResponse({"success": True})
 
 
 @require_POST
@@ -3042,275 +2750,135 @@ def cancel_task(request, task_id):
     return JsonResponse({"success": True})
 
 
+def _revoke_celery(celery_task_id):
+    """Revoke a Celery task by id (cancels it even while still queued)."""
+    if not celery_task_id:
+        return
+    from comicmanager.celery import app as celery_app
+    celery_app.control.revoke(celery_task_id, terminate=False)
+
+
+@require_POST
+def cancel_queued_task(request, pk):
+    """Cancel a queued or running QueuedTask: revoke it, and cooperatively
+    stop it if already running."""
+    from django.utils import timezone
+    from .tasks import request_cancel
+    from .task_queue import broadcast_queue
+
+    qt = get_object_or_404(QueuedTask, pk=pk)
+    if qt.state == QueuedTask.STATE_RUNNING:
+        request_cancel(qt.celery_task_id)
+    _revoke_celery(qt.celery_task_id)
+    if qt.state in QueuedTask.ACTIVE_STATES:
+        qt.state = QueuedTask.STATE_CANCELLED
+        qt.finished_at = timezone.now()
+        qt.save(update_fields=["state", "finished_at"])
+        broadcast_queue()
+    return JsonResponse({"success": True})
+
+
+@require_POST
+def pause_task(request, task_id):
+    from django.core.cache import cache
+    from .task_base import _broadcast
+    cache.set(f"task:pause:{task_id}", "1", timeout=3600)
+    _broadcast(task_id, {"task_id": task_id, "state": "PAUSED"})
+    return JsonResponse({"success": True})
+
+
+@require_POST
+def resume_task(request, task_id):
+    from django.core.cache import cache
+    from .task_base import _broadcast
+    cache.delete(f"task:pause:{task_id}")
+    _broadcast(task_id, {"task_id": task_id, "state": "RESUMED"})
+    return JsonResponse({"success": True})
+
+
 # =============================================================================
 # Force Actions - Allow re-running workflow steps on any comic
 # =============================================================================
 
 @require_POST
 def force_scrape(request, pk):
-    """
-    Force re-scrape a comic against ComicVine, regardless of current state.
-    Uses the stored comicvine_issue ID if available, otherwise tries matching.
-    """
+    """Force re-scrape a comic regardless of state. Prefers the stored
+    comicvine_issue ID; falls back to the auto-match strategy."""
+    from apps.core import workflow
+
     comic = get_object_or_404(Comic, pk=pk)
+    stored_id = (comic.custom_values or {}).get("comicvine_issue")
 
-    from apps.scraper.cv_sources import is_cv_db_available
+    insert_covers = get_setting("scrape_insert_covers", True)
+    result = workflow.scrape(
+        comic,
+        cv_issue_id=int(stored_id) if stored_id else None,
+        force=True,
+        insert_covers=insert_covers,
+    )
 
-    scraper = ComicVineScraper()
-    match = None
+    if not result.success and result.detail.get("matched") is False and stored_id:
+        # Stored ID lookup failed; fall back to auto-match while still forced.
+        result = workflow.scrape(comic, force=True, insert_covers=insert_covers)
 
-    # If we have a stored CV issue ID, use it directly
-    cv_issue_id = comic.custom_values.get("comicvine_issue")
-    if cv_issue_id:
-        if is_cv_db_available():
-            match = scraper.get_issue_details(int(cv_issue_id))
-        if not match:
-            match = scraper.get_issue_from_api(int(cv_issue_id))
-        if match:
-            match.match_type = "refresh"
+    if not result.success:
+        if result.detail.get("rate_limited"):
+            return JsonResponse({**result.to_json(), "rate_limited": True}, status=429)
+        status = 404 if result.detail.get("matched") is False else 500
+        return JsonResponse(result.to_json(), status=status)
 
-    # Otherwise find the best match using the unified strategy (DB or API)
-    if not match:
-        match = _find_best_match(comic, scraper)
-
-    if not match:
-        from apps.core.audit import log_batch_entry
-        no_match_changes = {"result": [None, "no_match"]}
-        detail = comic.flags.get("scrape_error_detail")
-        if detail:
-            no_match_changes["reason"] = [None, detail]
-        log_batch_entry("scrape_all", comic, comic.state, comic.state, no_match_changes)
-        return JsonResponse({
-            "success": False,
-            "error": "No match found in ComicVine database"
-        }, status=404)
-
-    before_series = comic.series
-    before_publisher = comic.publisher
-    before_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-    before_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-
-    # Apply the match (this also enriches with credits)
-    _apply_match(comic, match, scraper)
-
-    from apps.core.audit import log_batch_entry
-    changes = {}
-    if comic.series != before_series:
-        changes["series"] = [before_series, comic.series]
-    if comic.publisher != before_publisher:
-        changes["publisher"] = [before_publisher, comic.publisher]
-    after_cv_issue = (comic.custom_values or {}).get("comicvine_issue")
-    after_cv_volume = (comic.custom_values or {}).get("comicvine_volume")
-    if after_cv_issue != before_cv_issue:
-        changes["cv_issue"] = [before_cv_issue, after_cv_issue]
-    if after_cv_volume != before_cv_volume:
-        changes["cv_volume"] = [before_cv_volume, after_cv_volume]
-    log_batch_entry("scrape_all", comic, comic.state, comic.state, changes)
-
-    return JsonResponse({
-        "success": True,
-        "message": f"Re-scraped: {match.series} #{match.issue_number}",
-        "new_state": comic.state,
-    })
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    payload["message"] = f"Re-scraped: {result.detail['match']['series']} #{result.detail['match']['number']}"
+    return JsonResponse(payload)
 
 
 @require_POST
 def force_tag(request, pk):
-    """
-    Force re-tag a comic with DataManager rules, regardless of current state.
-
-    Unlike the normal tag_comic service, this bypasses the state check
-    and applies rules to comics in any state.
-    """
-    from apps.tagging.engine import apply_datamanager_rules
+    """Force re-tag a comic regardless of state."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-
-    # Apply tagging rules directly (bypassing state check)
-    result = apply_datamanager_rules(comic, save=False)
-
-    # Mark as processed by DataManager
-    comic.custom_values["DataManager_Processed"] = "Yes"
-
-    # Clear unknown_publisher if this publisher is now covered by a ruleset
-    if comic.publisher and comic.has_flag("unknown_publisher"):
-        from apps.tagging.engine import is_publisher_known
-        if is_publisher_known(comic.publisher):
-            comic.remove_flag("unknown_publisher")
-
-    # Advance state if needed (to at least tagged)
-    if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED, Comic.STATE_COUNTED):
-        comic.state = Comic.STATE_TAGGED
-
-    comic.save()
-
-    matched_count = result.get("matched_count", len(result.get("matched_rulesets", [])))
-    changes_count = result.get("changes_count", len(result.get("changes", [])))
-
-    if matched_count > 0:
-        message = f"Applied {matched_count} ruleset(s), made {changes_count} change(s)"
-    else:
-        message = "No matching rulesets found"
-
-    return JsonResponse({
-        "success": True,
-        "message": message,
-        "matched_rulesets": result.get("matched_rulesets", []),
-        "changes": result.get("changes", []),
-        "new_state": comic.state,
-    })
+    result = workflow.tag(comic, force=True)
+    if not result.success:
+        return JsonResponse(result.to_json(), status=500)
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    return JsonResponse(payload)
 
 
 @require_POST
 def force_format(request, pk):
-    """
-    Force re-detect format for a comic, regardless of current state.
-    """
-    from .services import detect_and_set_format
+    """Force-detect format for a comic regardless of state."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-    result = detect_and_set_format(comic)
-    detected = result["detected_format"]
-
-    _text = f"{comic.series or ''} {comic.title or ''}"
-    _summary = comic.summary or ""
-    _pages = comic.page_count or 0
-    patterns_checked = [
-        {"pattern": "Director's Cut (text)", "matched": detected == "Director's Cut"},
-        {"pattern": "Black & White (text)", "matched": detected == "Black & White"},
-        {"pattern": "Omnibus (keyword in title/summary)", "matched": detected == "Omnibus" and bool(re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE))},
-        {"pattern": f"Omnibus (≥{OMNIBUS_MIN_PAGES} pages, no TPB signals)", "matched": detected == "Omnibus" and _pages >= OMNIBUS_MIN_PAGES and not re.search(r"\bOmnibus\b", _text + " " + _summary, re.IGNORECASE)},
-        {"pattern": "TPB (keyword)", "matched": detected == "TPB" and bool(re.search(r"\bTPB\b|\bTrade Paperback\b", _text, re.IGNORECASE))},
-        {"pattern": f"TPB (≥{TPB_MIN_PAGES} pages + issue range in summary)", "matched": detected == "TPB" and _pages >= TPB_MIN_PAGES and bool(TPB_ISSUE_RANGE_RE.search(_summary))},
-        {"pattern": "Annual (keyword)", "matched": detected == "Annual"},
-        {"pattern": "One-Shot (count=1)", "matched": detected == "One-Shot"},
-        {"pattern": "Limited Series (count 2-15)", "matched": detected == "Limited Series"},
-        {"pattern": "Main Series (count>15)", "matched": detected == "Main Series"},
-    ]
-
-    return JsonResponse({
-        "success": True,
-        "message": f"Format: {comic.format or 'None'}",
-        "old_format": result["old_format"],
-        "new_format": result["new_format"],
-        "detected_format": detected,
-        "format_changed": result["format_changed"],
-        "patterns_checked": patterns_checked,
-        "series": comic.series,
-        "title": comic.title,
-        "count": comic.count,
-        "page_count": comic.page_count,
-        "new_state": comic.state,
-    })
+    result = workflow.format(comic, force=True)
+    if not result.success:
+        return JsonResponse(result.to_json(), status=500)
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    return JsonResponse(payload)
 
 
 @require_POST
 def force_organize(request, pk):
-    """
-    Force re-organize a comic (move to correct library path), regardless of current state.
-    """
-    from apps.organizer.services import preview_organization, LIBRARY_BASE
-    import shutil
+    """Force re-organize a comic regardless of state."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
-
-    if not comic.is_digital or not comic.file_path:
-        return JsonResponse({
-            "success": False,
-            "error": "Cannot organize physical comics or comics without file path"
-        }, status=400)
-
-    # Verify file exists
-    if not os.path.exists(comic.file_path):
-        return JsonResponse({
-            "success": False,
-            "error": f"File not found: {comic.file_path}"
-        }, status=400)
-
-    # Get the preview to determine destination path
-    try:
-        preview = preview_organization(comic)
-    except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "error": f"Failed to calculate destination: {str(e)}"
-        }, status=500)
-
-    old_path = comic.file_path
-    new_path = preview["new_path"]
-
-    # Check if file needs to move
-    if os.path.abspath(old_path) == os.path.abspath(new_path):
-        # Still advance state even if no move needed
-        if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
-                           Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
-                           Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
-            comic.state = Comic.STATE_WRITTEN
-            comic.save()
-        return JsonResponse({
-            "success": True,
-            "message": "File is already in the correct location",
-            "moved": False,
-            "old_path": old_path,
-            "new_path": new_path,
-            "profile": preview.get("selected_profile", "(fallback)"),
-            "new_state": comic.state,
-        })
-
-    # Perform the move
-    try:
-        # Create destination directory
-        new_folder = os.path.dirname(new_path)
-        os.makedirs(new_folder, exist_ok=True)
-
-        # Handle collision
-        if os.path.exists(new_path):
-            base, ext = os.path.splitext(new_path)
-            counter = 1
-            while os.path.exists(new_path):
-                new_path = f"{base}_{counter}{ext}"
-                counter += 1
-
-        # Move the file
-        shutil.move(old_path, new_path)
-
-        # Try to remove empty source directories
-        try:
-            old_dir = os.path.dirname(old_path)
-            while old_dir and old_dir != LIBRARY_BASE and old_dir != "/comics/untagged":
-                if os.path.isdir(old_dir) and not os.listdir(old_dir):
-                    os.rmdir(old_dir)
-                    old_dir = os.path.dirname(old_dir)
-                else:
-                    break
-        except OSError:
-            pass  # Ignore errors when cleaning up directories
-
-        # Update comic record
-        comic.file_path = new_path
-        comic.last_organized_path = new_path
-        # Advance state if needed (to at least organized)
-        if comic.state in (Comic.STATE_NEW, Comic.STATE_IMPORTED, Comic.STATE_SCRAPED,
-                           Comic.STATE_COUNTED, Comic.STATE_TAGGED, Comic.STATE_FORMATTED,
-                           Comic.STATE_DEDUPLICATED, Comic.STATE_ORGANIZED):
-            comic.state = Comic.STATE_WRITTEN
-        comic.save()
-
-        return JsonResponse({
-            "success": True,
-            "message": "Comic organized",
-            "moved": True,
-            "old_path": old_path,
-            "new_path": new_path,
-            "profile": preview.get("selected_profile", "(fallback)"),
-            "new_state": comic.state,
-        })
-
-    except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "error": f"Failed to move file: {str(e)}"
-        }, status=500)
+    result = workflow.organize(comic, force=True)
+    if not result.success:
+        if result.detail and result.detail.get("conflict"):
+            status = 409
+        elif "physical" in result.message or "without file path" in result.message or "File not found" in result.message:
+            status = 400
+        else:
+            status = 500
+        return JsonResponse(result.to_json(), status=status)
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    return JsonResponse(payload)
 
 
 @require_POST
@@ -3378,51 +2946,24 @@ def refresh_credits(request, pk):
 
 @require_POST
 def force_write(request, pk):
-    """
-    Force write ComicInfo.xml for a comic, regardless of current state.
-    """
-    from .utils import write_comicinfo_xml
-    from django.utils import timezone
+    """Force-write ComicInfo.xml regardless of state. Rejects physical comics
+    and comics without a .cbz file."""
+    from apps.core import workflow
 
     comic = get_object_or_404(Comic, pk=pk)
+    result = workflow.write(comic, force=True)
 
-    if not comic.is_digital:
-        return JsonResponse({
-            "success": False,
-            "error": "Cannot write to physical comics"
-        }, status=400)
+    if not result.success:
+        status = 400 if (
+            "physical" in result.message
+            or "no CBZ" in result.message
+            or "Missing required fields" in result.message
+        ) else 500
+        return JsonResponse(result.to_json(), status=status)
 
-    if not comic.file_path or not comic.file_path.lower().endswith('.cbz'):
-        return JsonResponse({
-            "success": False,
-            "error": "Comic has no CBZ file"
-        }, status=400)
-
-    success = write_comicinfo_xml(comic.file_path, comic)
-    if not success:
-        return JsonResponse({
-            "success": False,
-            "error": "Failed to write ComicInfo.xml"
-        }, status=500)
-
-    # Advance state to written
-    from django.db.models import F
-    if comic.state != Comic.STATE_DONE:
-        comic.state = Comic.STATE_DONE
-
-    # Clear the count_updated flag if set
-    if comic.flags.get("count_updated"):
-        comic.flags.pop("count_updated", None)
-
-    comic.save()
-    # Sync last_written to updated_at so the comic is not immediately stale
-    Comic.objects.filter(pk=comic.pk).update(last_written=F("updated_at"))
-
-    return JsonResponse({
-        "success": True,
-        "message": "ComicInfo.xml written successfully",
-        "new_state": comic.state,
-    })
+    payload = result.to_json()
+    payload["new_state"] = result.state_after
+    return JsonResponse(payload)
 
 
 # =============================================================================
@@ -3437,13 +2978,8 @@ def scan_untagged(request):
     from celery.result import AsyncResult
     from .tasks import scan_untagged_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
-    result = scan_untagged_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Scanning untagged"
+    result = enqueue("scan_untagged", label="Scanning untagged")
     return JsonResponse({"success": True, "task_id": result.id, "message": "Scanning untagged folder in background"})
 
 
@@ -3469,10 +3005,20 @@ def refresh_file_info(request, pk):
         return JsonResponse({"success": False, "error": result["error"]}, status=404)
 
     updated = result["updated"]
+    hash_status = result.get("hash_status", "skipped")
     count = len(updated)
-    message = f"Refreshed {count} field(s): {', '.join(updated.keys())}." if updated else "No changes detected — file info is already up to date."
 
-    return JsonResponse({"success": True, "updated": updated, "message": message})
+    if updated:
+        message = f"Refreshed {count} field(s): {', '.join(updated.keys())}."
+    else:
+        message = "No changes detected — file info is already up to date."
+
+    if hash_status == "unavailable":
+        message += " Warning: cover image could not be read — hashes not computed."
+    elif hash_status == "skipped":
+        message += " Cover hashes are not supported for this file format."
+
+    return JsonResponse({"success": True, "updated": updated, "hash_status": hash_status, "message": message})
 
 
 # =============================================================================
@@ -3622,10 +3168,9 @@ def search_alt_covers(request, pk):
     if not variants:
         return JsonResponse({"success": False, "error": "No new alternate covers found"})
 
+
     from .tasks import search_alt_covers_task
-    result = search_alt_covers_task.delay(str(comic.pk), variants)
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Inserting covers"
+    result = enqueue("search_alt_covers", args=[str(comic.pk), variants], label="Inserting covers")
     return JsonResponse({
         "success": True,
         "task_id": result.id,
@@ -3672,6 +3217,23 @@ def save_column_layout(request):
     setting.value = ",".join(columns)
     setting.save()
     
+    return JsonResponse({"success": True})
+
+
+@require_POST
+def reset_column_layout(request):
+    """Delete the context-specific saved layout, falling back to layout_default."""
+    from .models import Setting
+
+    state = request.POST.get("state")
+    flag = request.POST.get("flag")
+    if state:
+        key = f"layout_state_{state}"
+    elif flag:
+        key = f"layout_flag_{flag}"
+    else:
+        key = "layout_default"
+    Setting.objects.filter(key=key).delete()
     return JsonResponse({"success": True})
 
 
@@ -3747,7 +3309,7 @@ def comic_inline_field(request, pk):
 # Rollback
 # =============================================================================
 
-_VALID_ROLLBACK_STATES = {"new", "scrape", "count", "tagging"}
+_VALID_ROLLBACK_STATES = {"new", "scrape", "tagging"}
 
 
 @require_POST
@@ -3769,13 +3331,6 @@ def comic_rollback(request, pk):
         comic.custom_values = cv
         comic.state = Comic.STATE_NEW if to_state == "new" else Comic.STATE_IMPORTED
 
-    elif to_state == "count":
-        comic.series_group = None
-        comic.main_character_or_team = None
-        cv.pop("DataManager_Processed", None)
-        comic.custom_values = cv
-        comic.state = Comic.STATE_COUNTED
-
     elif to_state == "tagging":
         comic.format = None
         comic.state = Comic.STATE_TAGGED
@@ -3785,7 +3340,6 @@ def comic_rollback(request, pk):
     label_map = {
         "new":     "New (phase 1)",
         "scrape":  "Scrape (phase 2)",
-        "count":   "Add Count (phase 3)",
         "tagging": "Tagging (phase 4)",
     }
     return HttpResponse(
@@ -3863,13 +3417,8 @@ def audit_metadata_mismatches(request):
     from celery.result import AsyncResult
     from .tasks import audit_metadata_task
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running", "task_id": active}, status=409)
 
-    result = audit_metadata_task.delay()
-    request.session["active_task_id"] = result.id
-    request.session["active_task_label"] = "Auditing metadata"
+    result = enqueue("audit_metadata", label="Auditing metadata")
     return JsonResponse({"success": True, "task_id": result.id, "message": "Auditing metadata mismatches in background"})
 
 
@@ -3932,6 +3481,168 @@ def comic_download(request, pk):
 
 
 @require_POST
+def bulk_delete_comics(request):
+    """Hard delete comics: remove files from disk AND delete DB records."""
+    pks = request.POST.getlist("pks")
+    if not pks:
+        return JsonResponse({"error": "No comics selected"}, status=400)
+    comics = list(Comic.objects.filter(pk__in=pks))
+    errors = []
+    for comic in comics:
+        if comic.file_path and os.path.exists(comic.file_path):
+            try:
+                os.remove(comic.file_path)
+                parent_dir = os.path.dirname(comic.file_path)
+                while parent_dir and parent_dir not in ("/comics", "/comics/library", "/comics/untagged"):
+                    if os.path.isdir(parent_dir) and not os.listdir(parent_dir):
+                        os.rmdir(parent_dir)
+                        parent_dir = os.path.dirname(parent_dir)
+                    else:
+                        break
+            except OSError as e:
+                errors.append(str(e))
+    Comic.objects.filter(pk__in=pks).delete()
+    return JsonResponse({"deleted": len(comics), "errors": errors})
+
+
+def _run_action_sync(comic, action, force=False):
+    """
+    Execute a single-comic action synchronously and return the workflow
+    ActionResult as a dict (``to_json()``). Used by comic_action when
+    show_result is set for a single-comic request.
+
+    Always returns the full envelope — including ``skipped``, ``message`` and
+    ``rate_limited`` — so the caller can tell "nothing to do" apart from a real
+    failure instead of collapsing both into a generic error.
+    """
+    from apps.core import workflow
+
+    if action == "scrape":
+        result = workflow.scrape(comic, force=force, insert_covers=get_setting("scrape_insert_covers", True))
+    elif action == "tag":
+        was_tagged = comic.state == Comic.STATE_TAGGED
+        result = workflow.tag(comic, force=force)
+        # A comic already in the tagging stage exits to the format stage,
+        # matching tag_all_task and the pipeline's TAGGED -> FORMATTED bridge.
+        if result.success and was_tagged:
+            workflow.advance_state(comic, Comic.STATE_FORMATTED)
+    elif action == "format":
+        result = workflow.format(comic, force=force)
+    elif action == "organize":
+        result = workflow.organize(comic, force=force)
+    elif action == "write":
+        result = workflow.write(comic, force=force)
+    elif action == "force_write":
+        result = workflow.write(comic, force=True)
+    else:
+        return {"success": False, "error": f"Unknown action: {action}"}
+
+    return result.to_json()
+
+
+@require_POST
+def comic_action(request):
+    """
+    Unified action endpoint: handles single-comic (sync + optional result modal)
+    and bulk (Celery task + toast polling) from a single call site.
+
+    Parameters (POST):
+        pks: one or more comic PKs
+        action: scrape | tag | format | organize | write | force_write | au_reorganize
+        show_result: "true" — return detailed result dict for modal display (single comics only)
+        force: "true" — skip state check for scrape (used when re-scraping flagged comics)
+    """
+    from celery.result import AsyncResult
+    from .tasks import bulk_action_task
+
+    VALID_ACTIONS = ("scrape", "tag", "format", "organize", "write", "force_write", "au_reorganize")
+    action = request.POST.get("action", "").strip()
+    if action not in VALID_ACTIONS:
+        return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
+
+    pks = request.POST.getlist("pks")
+    if not pks:
+        return JsonResponse({"success": False, "error": "No comics selected"}, status=400)
+
+    show_result = request.POST.get("show_result") == "true" and len(pks) == 1
+    force = request.POST.get("force") == "true"
+
+    if show_result:
+        # Run inline (and return the result modal) only when nothing is queued
+        # or running; otherwise queue it so it stays strictly serial.
+        if QueuedTask.objects.filter(state__in=QueuedTask.ACTIVE_STATES).exists():
+            qt = enqueue("bulk_action", args=[[pks[0]], action], label=f"{action.title()} 1 comic")
+            return JsonResponse({"success": True, "queued": True, "task_id": str(qt.id), "label": qt.label})
+        comic = get_object_or_404(Comic, pk=pks[0])
+        result = _run_action_sync(comic, action, force=force)
+        if not result["success"]:
+            return JsonResponse({
+                "success": False,
+                "error": result.get("error") or result.get("message", "Action failed"),
+                "skipped": result.get("skipped", False),
+                "rate_limited": result.get("rate_limited", False),
+            }, status=400)
+        return JsonResponse({"success": True, "result": result, "modal_type": action})
+
+    # Celery task path
+    comic_ids = [str(pk) for pk in Comic.objects.filter(pk__in=pks).values_list("pk", flat=True)]
+    if not comic_ids:
+        return JsonResponse({"success": True, "total": 0, "message": "No matching comics"})
+
+
+    action_labels = {
+        "scrape": "Scraping", "tag": "Tagging", "format": "Formatting",
+        "organize": "Organizing", "write": "Writing", "force_write": "Force writing",
+        "au_reorganize": "Moving AU comic",
+    }
+    label = action_labels.get(action, action.title())
+    task = enqueue("bulk_action", args=[comic_ids, action], label=f"{label} {len(comic_ids)} comics")
+
+    return JsonResponse({
+        "success": True,
+        "task_id": task.id,
+        "total": len(comic_ids),
+        "message": f"{label} {len(comic_ids)} comics in background",
+    })
+
+
+def bulk_action_from_pks(request):
+    """
+    Run a bulk action on an explicit set of comic PKs (posted as 'pks').
+    Dispatches bulk_action_task and returns a task_id for progress polling.
+    """
+    from celery.result import AsyncResult
+    from .tasks import bulk_action_task
+
+    VALID_ACTIONS = ("scrape", "tag", "format", "organize", "write", "force_write")
+    action = request.POST.get("action", "").strip()
+    if action not in VALID_ACTIONS:
+        return JsonResponse({"success": False, "error": f"Invalid action: {action}"}, status=400)
+
+    pks = request.POST.getlist("pks")
+    if not pks:
+        return JsonResponse({"success": False, "error": "No comics selected"}, status=400)
+
+    comic_ids = [str(pk) for pk in Comic.objects.filter(pk__in=pks).values_list("pk", flat=True)]
+    if not comic_ids:
+        return JsonResponse({"success": True, "total": 0, "message": "No matching comics"})
+
+
+    action_labels = {
+        "scrape": "Scraping", "tag": "Tagging", "format": "Formatting",
+        "organize": "Organizing", "write": "Writing", "force_write": "Force writing",
+    }
+    label = action_labels.get(action, action.title())
+    result = enqueue("bulk_action", args=[comic_ids, action], label=f"{label} {len(comic_ids)} comics")
+
+    return JsonResponse({
+        "success": True,
+        "task_id": result.id,
+        "total": len(comic_ids),
+        "message": f"{label} {len(comic_ids)} comics in background",
+    })
+
+
 def bulk_action_from_filter(request):
     """
     Run a bulk action on all comics matching the current filter params.
@@ -3959,13 +3670,6 @@ def bulk_action_from_filter(request):
         return JsonResponse({"success": True, "processed": 0, "total": 0,
                              "message": "No comics match the current filters"})
 
-    active = request.session.get("active_task_id")
-    if active and AsyncResult(active).state in ("PENDING", "STARTED", "PROGRESS"):
-        return JsonResponse({"success": False, "error": "A task is already running",
-                             "task_id": active}, status=409)
-
-    result = bulk_action_task.delay([str(pk) for pk in comic_ids], action, flag_name or None)
-    request.session["active_task_id"] = result.id
 
     action_labels = {
         "scrape": "Scraping",
@@ -3977,7 +3681,11 @@ def bulk_action_from_filter(request):
         "accept_flag": f"Suppressing '{flag_name}' on",
     }
     label = action_labels.get(action, action.title())
-    request.session["active_task_label"] = f"{label} {len(comic_ids)} comics"
+    result = enqueue(
+        "bulk_action",
+        args=[[str(pk) for pk in comic_ids], action, flag_name or None],
+        label=f"{label} {len(comic_ids)} comics",
+    )
 
     return JsonResponse({
         "success": True,

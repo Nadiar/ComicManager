@@ -1,0 +1,8 @@
+  <script src="/static/js/ui.js"></script>
+  <script src="/static/js/lightbox.js"></script>
+  <script src="/static/js/tasks.js"></script>
+  {# Running/queued tasks are restored by the tasks WebSocket queue.snapshot on connect. #}
+  {% include "partials/modals/_scrape.html" %}
+  <script>window._INDUCKS_COUNTRY_LOCK="{{ inducks_country_lock|escapejs }}";</script>
+  <script src="/static/js/scrape.js"></script>
+  <script src="/static/js/app.js"></script>

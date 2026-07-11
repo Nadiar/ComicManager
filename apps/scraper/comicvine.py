@@ -314,7 +314,7 @@ class ComicVineScraper:
             (cache["ahashes"] ^ query_ahash).view(np.uint8)
         ).reshape(-1, 64).sum(axis=1)
 
-        mask = (phash_dists <= max_distance) & (ahash_dists <= max_distance)
+        mask = (phash_dists <= max_distance) | (ahash_dists <= max_distance)
         candidate_indices = np.where(mask)[0]
 
         if candidate_indices.size == 0:

@@ -7,10 +7,19 @@ export default defineConfig({
   markdown: {
     config: (md) => {
       md.use(lightbox, {})
+      const defaultImageRender = md.renderer.rules.image!
+      md.renderer.rules.image = (tokens, idx, options, env, self) => {
+        const token = tokens[idx]
+        const alt = token.content
+        const rendered = defaultImageRender(tokens, idx, options, env, self)
+        if (!alt) return rendered
+        return `${rendered}<span class="img-caption">${alt}</span>`
+      }
     }
   },
 
   themeConfig: {
+    outline: { level: [2, 4] },
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
@@ -23,10 +32,13 @@ export default defineConfig({
         items: [
           { text: 'Quick Start', link: '/guide/quickstart' },
           { text: 'Getting Started', link: '/guide/getting-started' },
-          { text: 'Philosophy & Scope', link: '/guide/philosophy' },
+          { text: 'Dashboard', link: '/guide/dashboard' },
           { text: 'Searching & Filtering', link: '/guide/searching' },
+          { text: 'Comic Detail Page', link: '/guide/comic-detail' },
+          { text: 'Appearance & Display', link: '/guide/appearance' },
           { text: 'Smart Lists', link: '/guide/smart-lists' },
-          { text: 'Physical Comics', link: '/guide/physical-comics' }
+          { text: 'Physical Comics', link: '/guide/physical-comics' },
+          { text: 'Philosophy & Scope', link: '/guide/philosophy' }
         ]
       },
       {
@@ -44,6 +56,7 @@ export default defineConfig({
       {
         text: 'Advanced Features',
         items: [
+          { text: 'Flags', link: '/guide/flags' },
           { text: 'Audit Log & Rollback', link: '/guide/audit-log' },
           { text: 'CBZ Page Manager', link: '/guide/page-manager' },
           { text: 'Missing Issues Detection', link: '/guide/missing-issues' },
@@ -60,6 +73,9 @@ export default defineConfig({
         ]
       }
     ],
+    search: {
+      provider: 'local'
+    },
     socialLinks: [
       { icon: 'github', link: 'https://gitea.baerentsen.space/FrederikBaerentsen/ComicManager' }
     ]

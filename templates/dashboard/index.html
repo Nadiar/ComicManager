@@ -1,483 +1,166 @@
 {% extends "base.html" %}
+{% load humanize dashboard_tags %}
 {% block title %}Dashboard — ComicManager{% endblock %}
 {% block nav_dashboard %}active{% endblock %}
+{% block main_class %}p-0{% endblock %}
 
 {% block content %}
-<style>
-  /* Allow pipeline step circles to expand into ovals for large numbers */
-  .steps .step:after {
-    width: auto !important;
-    min-width: 2rem !important;
-    padding-inline: 0.5rem !important;
-  }
-</style>
-<div class="space-y-6">
+<div style="overflow-y:auto; flex:1; padding:24px 28px 0;">
+  <div style="display:flex; flex-direction:column; gap:18px;">
 
-  <h1 class="text-3xl font-bold">Dashboard</h1>
+    {% include "dashboard/_hero.html" %}
 
-  <!-- Stats row -->
-  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Total Comics</div>
-      <div class="stat-value text-primary">{{ stats.total }}</div>
+    {% if prefs.dashboard_show_weekly_card %}
+    {% include "dashboard/_weekly_summary.html" %}
+    {% endif %}
+
+    {% if prefs.dashboard_show_priority_banner and bottleneck %}
+    {% include "dashboard/_priority_banner.html" %}
+    {% endif %}
+
+    {% if prefs.dashboard_pipeline == "flow" %}
+      {% include "dashboard/_pipeline_flow.html" %}
+    {% elif prefs.dashboard_pipeline != "none" %}
+      {% include "dashboard/_pipeline_segments.html" %}
+    {% endif %}
+
+    {% include "core/_pipeline_result_modal.html" %}
+
+    <div style="display:grid; grid-template-columns:1fr 2fr; gap:18px; align-items:start; flex-shrink:0;">
+      {% include "dashboard/_new_comics.html" %}
+      {% include "dashboard/_attention.html" %}
     </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Digital</div>
-      <div class="stat-value">{{ stats.digital }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Physical</div>
-      <div class="stat-value">{{ stats.physical }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">New / Unprocessed</div>
-      <div class="stat-value text-warning">{{ stats.new }}</div>
-    </div>
-    <div class="stat bg-base-200 rounded-box">
-      <div class="stat-title">Complete</div>
-      <div class="stat-value text-success">{{ stats.written }}</div>
-    </div>
+
+    <div style="height:120px; flex-shrink:0;"></div>
+
   </div>
+</div>
+{% endblock %}
 
-  <!-- Workflow Pipeline -->
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <h2 class="card-title">Workflow Pipeline</h2>
-      <div class="overflow-x-auto">
-        <ul class="steps steps-horizontal w-full">
-          {% for stage in pipeline %}
-          <li class="step {% if stage.count > 0 %}step-primary{% endif %}" data-content="{{ stage.count }}">
-            <div class="text-xs mt-1">{{ stage.label }}</div>
-          </li>
-          {% endfor %}
-        </ul>
-      </div>
-
-      <!-- Pipeline details table -->
-      <div class="overflow-x-auto mt-4">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Stage</th>
-              <th>Description</th>
-              <th class="text-right">Count</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for stage in pipeline %}
-            <tr class="{% if stage.count > 0 %}bg-base-300{% endif %}">
-              <td class="font-medium">{{ stage.label }}</td>
-              <td class="text-base-content/60">{{ stage.description }}</td>
-              <td class="text-right">
-                {% if stage.state == 'scrape' %}
-                  {% if stats.scrape_scrapeable > 0 %}
-                  <span class="badge badge-primary">{{ stats.scrape_scrapeable }}</span>
-                  {% else %}
-                  <span class="text-base-content/40">0</span>
-                  {% endif %}
-                  {% if stats.scrape_skipped > 0 %}
-                  <span class="badge badge-ghost ml-1">{{ stats.scrape_skipped }} skipped</span>
-                  {% endif %}
-                {% else %}
-                  {% if stage.count > 0 %}
-                  <span class="badge badge-primary">{{ stage.count }}</span>
-                  {% else %}
-                  <span class="text-base-content/40">0</span>
-                  {% endif %}
-                {% endif %}
-              </td>
-              <td class="whitespace-nowrap">
-                <div class="flex gap-1">
-                {% if stage.count > 0 %}
-                <a href="/comics/?state={{ stage.state }}" class="btn btn-xs btn-ghost">View</a>
-                {% endif %}
-
-                {% if stage.state == 'new' %}
-                <button onclick="runAction('/comics/scan-untagged/', this, 'Scanning untagged')" class="btn btn-xs btn-info">Scan Untagged</button>
-                {% if stage.count > 0 %}
-                <button onclick="runAction('/comics/accept-all/', this, 'Accepting comics')" class="btn btn-xs btn-success">Accept All</button>
-                {% endif %}
-                {% if stats.new_cbr_count > 0 %}
-                <button onclick="runAction('/comics/convert-all/', this, 'Converting to CBZ')" class="btn btn-xs btn-warning">Convert to CBZ</button>
-                {% endif %}
-                {% endif %}
-
-                {% if stage.state == 'scrape' and stage.count > 0 %}
-                <button onclick="runAction('/comics/scrape-all/', this, 'Scraping comics')" class="btn btn-xs btn-success{% if stats.scrape_scrapeable == 0 %} btn-disabled{% endif %}">Scrape All</button>
-                {% endif %}
-
-                {% if stage.state == 'tagging' and stage.count > 0 %}
-                <button onclick="runAction('/comics/tag-all/', this, 'Tagging comics')" class="btn btn-xs btn-success">Tag All</button>
-                {% endif %}
-
-                {% if stage.state == 'formats' and stage.count > 0 %}
-                <button onclick="runAction('/comics/format-all/', this, 'Formatting comics')" class="btn btn-xs btn-success">Format All</button>
-                <a href="{% url 'core:format_review' %}" class="btn btn-xs btn-info">Review Formats</a>
-                {% endif %}
-
-                {% if stage.state == 'deduplicate' and stage.count > 0 %}
-                <a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-info">Review Dupes</a>
-                <button onclick="runAction('/comics/deduplicate-all/', this, 'Deduplicating')" class="btn btn-xs btn-success">Detect Dupes</button>
-                {% endif %}
-
-                {% if stage.state == 'move' and stage.count > 0 %}
-                <button onclick="runAction('/comics/organize-all/', this, 'Organizing comics')" class="btn btn-xs btn-success">Organize All</button>
-                {% endif %}
-
-                {% if stage.state == 'write' and stage.count > 0 %}
-                <button onclick="runAction('/comics/write-all/', this, 'Writing comics')" class="btn btn-xs btn-success" id="btn-write-all">Write All</button>
-                {% endif %}
-
-                {% if stage.state == 'done' %}
-                <button onclick="runAction('/comics/sync-library-paths/', this)" class="btn btn-xs btn-info">Sync Paths</button>
-                {% endif %}
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
+{% block extra_js %}
 <script>
-function getCsrfToken() {
-  return document.querySelector('meta[name="csrf-token"]')?.content ||
-         document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1];
+/* ── New Comics pipeline helpers ─────────────────────────────────────────── */
+
+function runNewPipeline(comicId, btn) {
+  var orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '...';
+  var fd = new FormData();
+  fd.append('comic_id', comicId);
+  fd.append('csrfmiddlewaretoken', getCsrfToken());
+  fetch('/comics/run-pipeline/', {method: 'POST', body: fd})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) {
+        btn.disabled = false;
+        btn.textContent = orig;
+        if (window.showQuickToast) window.showQuickToast(data.error || 'Failed to start pipeline', 'error');
+        return;
+      }
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Running pipeline', function() {
+        var t = document.getElementById('task-progress-toast');
+        if (t) t.classList.add('hidden');
+      });
+      _pollPipelineCompletion(data.task_id, btn);
+    })
+    .catch(function() { btn.disabled = false; btn.textContent = orig; });
 }
 
-async function runAction(url, btn, taskLabel) {
-  const originalText = btn.textContent;
+function runNewPipeline0day(btn) {
+  var orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Starting…';
+  var fd = new FormData();
+  fd.append('csrfmiddlewaretoken', getCsrfToken());
+  fd.append('hours', '{{ zero_day_hours }}');
+  fetch('/comics/run-pipeline/', {method: 'POST', body: fd})
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.success) {
+        btn.disabled = false; btn.textContent = orig;
+        if (window.showQuickToast) window.showQuickToast(data.error || 'Failed to start pipeline', 'error');
+        return;
+      }
+      if (data.total === 0) {
+        btn.disabled = false; btn.textContent = orig;
+        if (window.showQuickToast) window.showQuickToast('No eligible comics in last {{ zero_day_hours }}h', 'info');
+        return;
+      }
+      btn.textContent = 'Running…';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Running pipeline on ' + data.total + ' comics');
+    })
+    .catch(function() { btn.disabled = false; btn.textContent = orig; });
+}
 
-  if (window.isTaskActive && window.isTaskActive()) {
-    if (window.enqueueAction) {
-      window.enqueueAction(
-        async () => {
-          const r = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
-          return r.json();
-        },
-        taskLabel || originalText,
-        btn
-      );
-    }
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = 'Starting...';
-
-  try {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {'X-CSRFToken': getCsrfToken()},
-    });
-    const data = await resp.json();
-
+function runAllNewPipeline(btn) {
+  btn.disabled = true; btn.textContent = 'Starting…';
+  fetch('/comics/run-pipeline/', {
+    method: 'POST',
+    headers: {'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json'},
+    body: JSON.stringify({filter: 'all_new'}),
+  })
+  .then(r => r.json())
+  .then(data => {
     if (data.task_id) {
-      // Async task dispatched
-      btn.textContent = 'Running...';
-      btn.classList.remove('btn-success', 'btn-info');
-      btn.classList.add('btn-info');
-      if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id, taskLabel || originalText);
-      }
-    } else if (data.success) {
-      // Synchronous operation completed
-      btn.textContent = 'Done!';
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-info');
-      if (window.showQuickToast) {
-        window.showQuickToast(data.message || 'Done!');
-      } else {
-        setTimeout(() => location.reload(), 1500);
-      }
+      btn.textContent = 'Running…';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, 'Running pipeline');
     } else {
       btn.textContent = data.error || 'Error';
-      btn.classList.remove('btn-success');
-      btn.classList.add('btn-error');
-      setTimeout(() => {
-        btn.textContent = originalText;
-        btn.disabled = false;
-        btn.classList.remove('btn-error');
-        btn.classList.add('btn-success');
-      }, 3000);
+      setTimeout(() => { btn.textContent = 'Run All ({{ new_comics_total }})'; btn.disabled = false; }, 3000);
     }
-  } catch (err) {
+  })
+  .catch(() => { btn.textContent = 'Error'; });
+}
+
+/* ── Pipeline action helper ──────────────────────────────────────────────── */
+async function runAction(url, btn, taskLabel) {
+  var originalText = btn.textContent.trim();
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+  try {
+    var resp = await fetch(url, {method: 'POST', headers: {'X-CSRFToken': getCsrfToken()}});
+    var data = await resp.json();
+    if (data.task_id) {
+      btn.textContent = 'Running…';
+      if (window.startTaskPolling) window.startTaskPolling(data.task_id, taskLabel || originalText);
+    } else if (data.success) {
+      btn.textContent = 'Done!';
+      if (window.showQuickToast) window.showQuickToast(data.message || 'Done!');
+      else setTimeout(() => location.reload(), 1500);
+    } else {
+      btn.textContent = data.error || 'Error';
+      setTimeout(() => { btn.textContent = originalText; btn.disabled = false; }, 3000);
+    }
+  } catch (e) {
     btn.textContent = 'Error';
-    btn.classList.remove('btn-success');
-    btn.classList.add('btn-error');
-    console.error(err);
+    console.error(e);
   }
 }
 
-// Alias for backward compatibility with existing write-all buttons
-async function runWriteTask(url, btn) {
-  return runAction(url, btn, 'Writing comics');
-}
-
-// Disable Write All button if a task is already running
-if (document.getElementById('btn-write-all') && window._activeWriteTaskId) {
-  var wb = document.getElementById('btn-write-all');
-  wb.disabled = true;
-  wb.textContent = 'Running...';
-  wb.classList.remove('btn-success');
-  wb.classList.add('btn-info');
-}
-</script>
-
-  <!-- Review & Maintenance -->
-  <div class="card bg-base-200 {% if flagged_count > 0 or maintenance_count > 0 %}border border-warning{% endif %}">
-    <div class="card-body">
-      <div class="flex justify-between items-center mb-2">
-        <h2 class="card-title {% if flagged_count > 0 %}text-warning{% endif %}">Review &amp; Maintenance</h2>
-        <div class="flex gap-2">
-          {% if flagged_count > 0 %}<span class="badge badge-warning">{{ flagged_count }} active</span>{% endif %}
-          {% if maintenance_count > 0 %}<span class="badge badge-info">{{ maintenance_count }} maintenance</span>{% endif %}
-        </div>
-      </div>
-
-      <div role="tablist" class="tabs tabs-bordered">
-        <input type="radio" name="dash_tabs" role="tab" class="tab"
-               aria-label="Active{% if flagged_count > 0 %} ({{ flagged_count }}){% endif %}"
-               {% if flagged_count > 0 or maintenance_count == 0 %}checked{% endif %} />
-        <div role="tabpanel" class="tab-content pt-4">
-          <div class="overflow-x-auto">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>Issue</th>
-                  <th>Description</th>
-                  <th class="text-right">Count</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in review_queue %}
-                {% if item.flag != 'count_mismatch' and item.flag != 'format_mismatch_in_volume' and item.flag != 'cv_volume_conflict' and item.action != 'reformat' %}
-                {% if item.count > 0 or not hide_zero_maintenance_rows %}
-                <tr class="{% if item.count > 0 %}bg-base-300{% endif %}">
-                  <td class="font-medium">
-                    {% if item.action == 'delete' %}
-                    <span class="text-error">{{ item.label }}</span>
-                    {% elif item.action == 'convert' %}
-                    <span class="text-info">{{ item.label }}</span>
-                    {% elif item.count == 0 %}
-                    <span class="text-base-content/40">{{ item.label }}</span>
-                    {% else %}
-                    <span class="text-warning">{{ item.label }}</span>
-                    {% endif %}
-                  </td>
-                  <td class="text-base-content/60">{{ item.description }}</td>
-                  <td class="text-right">
-                    {% if item.count > 0 %}
-                    <span class="badge badge-warning">{{ item.count }}</span>
-                    {% else %}
-                    <span class="text-base-content/30">0</span>
-                    {% endif %}
-                  </td>
-                  <td class="flex gap-1">
-                    {% if item.count > 0 %}
-                      {% if item.link %}
-                      <a href="{{ item.link }}" class="btn btn-xs btn-ghost">View</a>
-                      {% else %}
-                      <a href="/comics/?flag={{ item.flag }}" class="btn btn-xs btn-ghost">View</a>
-                      {% endif %}
-                    {% endif %}
-                    {% if item.action == 'populate' and item.count > 0 %}
-                    <button onclick="runAction('/comics/populate-counts/', this)" class="btn btn-xs btn-success">Populate Counts</button>
-                    {% endif %}
-                    {% if item.flag == 'count_updated' %}
-                    <button onclick="runAction('/comics/rewrite-updated/', this, 'Rewriting comics')" class="btn btn-xs btn-success">Rewrite All</button>
-                    {% endif %}
-                  </td>
-                </tr>
-                {% endif %}
-                {% endif %}
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <input type="radio" name="dash_tabs" role="tab" class="tab"
-               aria-label="Maintenance{% if maintenance_count > 0 %} ({{ maintenance_count }}){% endif %}"
-               {% if flagged_count == 0 and maintenance_count > 0 %}checked{% endif %} />
-        <div role="tabpanel" class="tab-content pt-4">
-          <table class="table table-sm">
-            <thead><tr><th>Issue</th><th>Detail</th><th class="text-right">Count</th><th></th></tr></thead>
-            <tbody>
-              <!-- Count Mismatch -->
-              {% if not hide_zero_maintenance_rows or count_mismatch_count > 0 %}
-              <tr class="{% if count_mismatch_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if count_mismatch_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Count Mismatch</td>
-                <td class="text-base-content/60">Comics in the same CV volume disagree on issue count</td>
-                <td class="text-right">
-                  {% if count_mismatch_count > 0 %}<span class="badge badge-warning">{{ count_mismatch_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if count_mismatch_count > 0 %}<a href="/comics/?flag=count_mismatch" class="btn btn-xs btn-ghost">View</a>{% endif %}
-                  <button onclick="runAction('/comics/detect-count-mismatches/', this)" class="btn btn-xs btn-info">Detect Mismatches</button>
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Format Mismatch in Volume -->
-              {% if not hide_zero_maintenance_rows or format_mismatch_count > 0 %}
-              <tr class="{% if format_mismatch_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if format_mismatch_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Format Mismatch in Volume</td>
-                <td class="text-base-content/60">Comics linked to the same CV volume have conflicting formats</td>
-                <td class="text-right">
-                  {% if format_mismatch_count > 0 %}<span class="badge badge-warning">{{ format_mismatch_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if format_mismatch_count > 0 %}<a href="/comics/?flag=format_mismatch_in_volume" class="btn btn-xs btn-ghost">View</a>{% endif %}
-                  <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
-                </td>
-              </tr>
-              {% endif %}
-              <!-- CV Volume Conflict -->
-              {% if not hide_zero_maintenance_rows or cv_volume_conflict_count > 0 %}
-              <tr class="{% if cv_volume_conflict_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if cv_volume_conflict_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">CV Volume Conflict</td>
-                <td class="text-base-content/60">Comics with the same Series+Volume+Format are linked to different CV volumes</td>
-                <td class="text-right">
-                  {% if cv_volume_conflict_count > 0 %}<span class="badge badge-warning">{{ cv_volume_conflict_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if cv_volume_conflict_count > 0 %}<a href="/comics/?flag=cv_volume_conflict" class="btn btn-xs btn-ghost">View</a>{% endif %}
-                  <button onclick="runAction('/comics/detect-format-conflicts/', this)" class="btn btn-xs btn-info">Detect Conflicts</button>
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Format Upgrade Needed -->
-              {% if not hide_zero_maintenance_rows or needs_reformat_count > 0 %}
-              <tr class="{% if needs_reformat_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if needs_reformat_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Format Upgrade Needed</td>
-                <td class="text-base-content/60">Issue count changed — format should be upgraded (e.g. One-Shot to Limited Series)</td>
-                <td class="text-right">
-                  {% if needs_reformat_count > 0 %}<span class="badge badge-warning">{{ needs_reformat_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if needs_reformat_count > 0 %}<a href="/comics/format/" class="btn btn-xs btn-ghost">View</a>{% endif %}
-                  <button onclick="runAction('/comics/detect-format-upgrades/', this)" class="btn btn-xs btn-info">Detect Upgrades</button>
-                  {% if needs_reformat_count > 0 %}
-                  <button onclick="runAction('/comics/reformat-flagged/', this, 'Re-formatting flagged')" class="btn btn-xs btn-success">Re-format Flagged</button>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Duplicates -->
-              {% if not hide_zero_maintenance_rows or dup_total > 0 %}
-              <tr class="{% if dup_total > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if dup_total > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Duplicates</td>
-                <td class="text-base-content/60 text-xs">
-                  {% if dup_total > 0 %}
-                    {% if dup_by_method.cv_id %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.cv_id }} by CV ID</span>{% endif %}
-                    {% if dup_by_method.metadata %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.metadata }} by Series/Number</span>{% endif %}
-                    {% if dup_by_method.phash %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.phash }} by pHash</span>{% endif %}
-                    {% if dup_by_method.filename %}<span class="badge badge-xs badge-ghost">{{ dup_by_method.filename }} by Filename</span>{% endif %}
-                  {% else %}No duplicate groups pending{% endif %}
-                </td>
-                <td class="text-right">
-                  {% if dup_total > 0 %}<span class="badge badge-warning">{{ dup_total }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td>
-                  {% if dup_total > 0 %}<a href="{% url 'duplicates:review' %}" class="btn btn-xs btn-ghost">Review</a>{% endif %}
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Needs Re-organize -->
-              {% if not hide_zero_maintenance_rows or needs_reorganize_count > 0 %}
-              <tr class="{% if needs_reorganize_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if needs_reorganize_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Needs Re-organize</td>
-                <td class="text-base-content/60">Metadata changed after last organize, or organizer profile template was updated</td>
-                <td class="text-right">
-                  {% if needs_reorganize_count > 0 %}<span class="badge badge-warning">{{ needs_reorganize_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  <a href="{% url 'organizer:path_audit' %}" class="btn btn-xs btn-ghost">Path Audit</a>
-                  {% if needs_reorganize_count > 0 %}
-                  <button onclick="runAction('{% url 'organizer:start_reorganize_all' %}', this, 'Re-organizing')" class="btn btn-xs btn-info">Re-organize All</button>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Stale Metadata -->
-              {% if not hide_zero_maintenance_rows or stale_count > 0 %}
-              <tr class="{% if stale_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if stale_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Stale Metadata</td>
-                <td class="text-base-content/60">Database updated after last ComicInfo.xml write</td>
-                <td class="text-right">
-                  {% if stale_count > 0 %}<span class="badge badge-warning">{{ stale_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if stale_count > 0 %}
-                  <a href="{% url 'core:list' %}?state=write" class="btn btn-xs btn-ghost">View</a>
-                  <button onclick="runAction('{% url 'core:write_stale' %}', this, 'Writing stale')" class="btn btn-xs btn-warning">Write Stale</button>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endif %}
-              <!-- Missing ComicInfo.xml -->
-              {% if not hide_zero_maintenance_rows or missing_comicinfo_count > 0 %}
-              <tr class="{% if missing_comicinfo_count > 0 %}bg-base-300{% endif %}">
-                <td class="font-medium {% if missing_comicinfo_count > 0 %}text-warning{% else %}text-base-content/40{% endif %}">Missing ComicInfo.xml</td>
-                <td class="text-base-content/60">Written digital comics that have never had ComicInfo.xml written</td>
-                <td class="text-right">
-                  {% if missing_comicinfo_count > 0 %}<span class="badge badge-warning">{{ missing_comicinfo_count }}</span>{% else %}<span class="text-base-content/30">0</span>{% endif %}
-                </td>
-                <td class="flex gap-1">
-                  {% if missing_comicinfo_count > 0 %}
-                  <a href="{% url 'core:list' %}?state=write" class="btn btn-xs btn-ghost">View</a>
-                  <button onclick="runAction('{% url 'core:write_missing' %}', this, 'Writing missing')" class="btn btn-xs btn-success">Write Missing</button>
-                  {% endif %}
-                </td>
-              </tr>
-              {% endif %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Smart Lists -->
-  {% if dashboard_smartlists %}
-  <div class="card bg-base-200">
-    <div class="card-body">
-      <div class="flex justify-between items-center">
-        <h2 class="card-title">Smart Lists</h2>
-        <a href="/smartlists/" class="btn btn-sm btn-ghost">View All</a>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-        {% for entry in dashboard_smartlists %}
-        <a href="{% url 'dashboard:smartlist_detail' entry.smartlist.pk %}" class="card bg-base-300 hover:bg-base-100 transition-colors cursor-pointer">
-          <div class="card-body p-4">
-            <div class="flex justify-between items-start">
-              <div class="font-medium">
-                {% if entry.smartlist.icon %}{{ entry.smartlist.icon }} {% endif %}{{ entry.smartlist.name }}
-              </div>
-              <span class="badge badge-primary badge-sm">{{ entry.count }}</span>
-            </div>
-
-            {% if entry.completion is not None %}
-            <div class="mt-2">
-              <div class="flex justify-between text-xs text-base-content/60 mb-1">
-                <span>{{ entry.owned }}/{{ entry.total_issues }} issues</span>
-                <span class="{% if entry.completion == 100 %}text-success{% elif entry.completion >= 75 %}text-info{% elif entry.completion >= 50 %}text-warning{% else %}text-error{% endif %} font-bold">{{ entry.completion }}%</span>
-              </div>
-              <progress class="progress progress-success w-full h-2" value="{{ entry.completion }}" max="100"></progress>
-            </div>
-            {% endif %}
-          </div>
-        </a>
-        {% endfor %}
-      </div>
-    </div>
-  </div>
+/* ── Flow pipeline node sizing ───────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+  {% if prefs.dashboard_pipeline == "flow" %}
+  var counts = {{ pipeline|json_counts }};
+  var nodes = document.querySelectorAll('.flow-node');
+  nodes.forEach(function(node, i) {
+    var count = parseInt(node.dataset.count) || 0;
+    var state = node.dataset.state;
+    var size = Math.min(46 + Math.log10(Math.max(count, 1)) * 12, 90);
+    node.style.width  = size + 'px';
+    node.style.height = size + 'px';
+    var countEl = node.querySelector('.flow-node-count');
+    if (countEl) countEl.style.fontSize = (size > 60 ? 15 : 13) + 'px';
+    var isPending = count > 0 && state !== 'done';
+    var isDone    = state === 'done';
+    var isEmpty   = count === 0;
+    node.style.background = isEmpty ? 'var(--cm-bg-2)' : 'var(--cm-bg-1)';
+    node.style.border = '2px solid ' + (isEmpty   ? 'var(--cm-border)'  :
+                                         isPending ? 'var(--cm-accent)'  :
+                                         isDone    ? 'var(--cm-ok)'      : 'var(--cm-border-2)');
+    if (countEl) countEl.style.color = isEmpty   ? 'var(--cm-fg-3)'  :
+                                        isPending ? 'var(--cm-accent)' :
+                                        isDone    ? 'var(--cm-ok)'     : 'var(--cm-fg)';
+  });
   {% endif %}
-
-</div>
+});
+</script>
 {% endblock %}
