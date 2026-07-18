@@ -56,7 +56,7 @@ services:
 
   # ── ComicManager ──────────────────────────────────────────────────────────
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     user: "${UID}:${GID}"
     restart: unless-stopped
     environment:
@@ -64,7 +64,7 @@ services:
       POSTGRES_USER: comicmanager
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - ./comicmanager/data/postgres:/var/lib/postgresql/data
+      - ./comicmanager/data/postgres18:/var/lib/postgresql
 
   redis:
     image: redis:7-alpine

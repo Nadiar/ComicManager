@@ -46,7 +46,7 @@ If your machine gets its address over DHCP, the IP can change and start rejectin
 ## 3. Create required directories
 
 ```bash
-mkdir -p untagged Comics data/postgres data/redis data/covers data/logs
+mkdir -p untagged Comics data/postgres18 data/redis data/covers data/logs
 ```
 
 ### Optional: local database files

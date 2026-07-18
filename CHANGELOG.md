@@ -1,11 +1,6 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased] - will be released as v1.0.0
+## [1.0.0]
 
 ### Added
 
@@ -50,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Missing Format review queue item**: Comics that complete format detection with no format assigned are now flagged with `missing_format`. The flag is cleared when a format is eventually set. A "Missing Format" entry in the dashboard Review Queue links to all affected comics for manual assignment.
 
 ### Fixed
+
+- **Stuck "Queued…" task toast that could never be dismissed**: A task-progress toast pinned to a forgotten task id (one Celery reports as `PENDING` because its result row was cleaned up or never written) no longer resumes on page load. The resume block now only restarts polling for `STARTED` or `PROGRESS` states, the `task-progress` endpoint clears the stale id from the session for `PENDING` and `REVOKED` states, and the **Dismiss** button is now shown in every state and clears the session id via a new `task-dismiss/<id>/` endpoint. Previously such a toast showed "Queued…" forever, ignored Cancel, offered no Dismiss, and reappeared on every hard refresh.
 
 - **Cover hashes persisted when hash match finds no candidate**: When hash matching computes cover hashes but finds no candidate within the Hamming distance threshold (or all candidates fail metadata cross-validation), the computed pHash and aHash are now immediately saved to the database. Previously they were only saved as a side effect of applying a match, so they were lost whenever scraping found no match at all.
 
@@ -199,4 +196,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cover ordering now prioritizes matched/official covers**: When scraping, the cover that matched via hash is shown first. For metadata matches, official ComicVine covers are prioritized over user-uploaded variants.
 - **Force-tag now properly applies DataManager rules**: Previously, clicking "Re-tag" on the comic detail page would not apply rules if the comic was not in `counted` state. Now it bypasses the state check and applies all matching rulesets regardless of current state.
 - **Variant cover gallery no longer shows stale images after Search Alt Covers**: Page image URLs now include `?v={page_count}` as a cache-busting parameter. When alt covers are inserted, `page_count` changes, causing the browser to fetch fresh images instead of serving cached story pages.
-[Unreleased]: https://gitea.baerentsen.space/FrederikBaerentsen/ComicManager/commits/branch/master
+
+

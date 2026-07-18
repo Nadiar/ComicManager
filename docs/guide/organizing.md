@@ -65,7 +65,7 @@ Before any file is moved, ComicManager performs a "dry run" to ensure:
 - The target folder structure can be created.
 - There are no file conflicts.
 
-**Error Logging**: Any file move failures (e.g. file in use, permission denied, missing source file) are recorded as `organize_error` events in the **Batch Audit Log** for easy review.
+**Error Logging**: Any file move failures (e.g. file in use, permission denied, missing source file) are recorded as `organize_error` events in the **Audit Log** for easy review.
 
 **Progress Tracking**: Real-time progress bars and toast notifications keep you informed about the status of your batch organization.
 

@@ -4,7 +4,7 @@ ComicManager keeps a detailed log of all actions to help you track changes and r
 
 ## Audit Log Features
 
-All actions are recorded in the **Batch Audit Log**. This includes both batch operations (Scrape All, Tag All, etc.) and single-comic scrapes triggered from the comic list or detail page:
+All actions are recorded in the **Audit Log**. This includes both batch operations (Scrape All, Tag All, etc.) and single-comic scrapes triggered from the comic list or detail page:
 - **Action Type**: See which batch operation was performed (e.g. `scrape_all`, `organize_all`, `audit_metadata`).
 - **Comic Info**: Identify each comic by name and UUID. You can click the Info button to open the comic detail page directly.
 - **State Transition**: Track changes from one workflow state to another.
@@ -23,7 +23,7 @@ If a batch action fails or produces unwanted results, use the **Rollback** featu
 
 ## Accessing the Log
 
-The Batch Audit Log is available from three places:
+The Audit Log is available from three places:
 
 - **Sidebar and top navigation**: Click **Audit Log** in the left sidebar or the top nav bar.
 - **Settings menu**: Navigate directly to `/settings/log/`.

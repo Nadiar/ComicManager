@@ -121,7 +121,7 @@ The final active step embeds a `ComicInfo.xml` file inside the CBZ archive, maki
 
 ### Phase 8: Done
 
-This view shows your entire written library. If metadata was updated after writing, the Maintenance queue surfaces comics that need re-organizing or re-writing. See [Syncing Library Paths](/guide/organizing#syncing-library-paths) for reconciling records where the stored file path no longer matches the file on disk, for example after an external move. That logic exists and works, but is not yet wired to a button in this view.
+This view shows your entire completed library, every comic that has passed through the Write to CBZ state. If metadata was updated after writing, the Maintenance queue surfaces comics that need re-organizing or re-writing. See [Syncing Library Paths](/guide/organizing#syncing-library-paths) for reconciling records where the stored file path no longer matches the file on disk, for example after an external move. That logic exists and works, but is not yet wired to a button in this view.
 
 ## Run Full Pipeline
 

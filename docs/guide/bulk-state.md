@@ -2,6 +2,20 @@
 
 Sometimes you need to move a large number of comics through the pipeline without processing each one individually. This page covers Django shell commands for bulk state changes.
 
+## First-time import of an existing ComicRack library
+
+If you are migrating an entire existing library (already organized and tagged by ComicRack or another tool), you don't need to run it through the full pipeline. Use the `import_library` management command instead:
+
+```bash
+docker compose exec web python manage.py import_library --path /comics/library
+```
+
+Optionally pass `--comicdb /path/to/ComicDb.xml` to enrich imports with Tags, Teams, Locations, and CustomValuesStore data that isn't present in `ComicInfo.xml`. Use `--dry-run` first to preview what would be imported.
+
+This command reads each CBZ's embedded `ComicInfo.xml` and creates a `Comic` record already in the **Write to CBZ** state (it assumes the file is already fully tagged, since it came from an existing library). It does not touch the pipeline states before that (New, Scrape, Tagging, etc.) and it does not advance anything to **Done** on its own.
+
+Once the import finishes, follow the steps below to bulk-advance those records from **Write to CBZ** to **Done**.
+
 ## Advancing old imports past the Write stage
 
 If you have a large backlog of comics in the **Write to CBZ** state that were imported from a previous tool (such as ComicRack), they likely already have correct `ComicInfo.xml` data embedded. Re-writing all of them just to confirm this wastes significant disk I/O and time, especially on large libraries.

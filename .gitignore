@@ -10,6 +10,7 @@ static/css/main.css
 # Development tooling
 .?*
 Comicrack_guide/
+*mobile_ui/
 
 # Git
 .git/
@@ -46,6 +47,7 @@ CVIssueCount.py
 search_inducks.py
 download_isv.sh
 download_isv.sh_server
+cbz_patch_poc.py
 
 # Screenshots
 Screenshot_*.png

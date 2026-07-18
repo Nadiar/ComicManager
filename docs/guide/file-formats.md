@@ -34,7 +34,7 @@ The `is_zip` flag does not block the comic from progressing through the pipeline
 
 On the comic's detail page (or in the Review Queue row), click **Convert to CBZ**. The file is renamed in place. No extraction or repacking happens. ComicManager updates the `file_path`, `file_format`, and clears the `is_zip` flag automatically.
 
-The conversion is logged to the Batch Audit Log with action type `convert_zip`, including the old and new file paths.
+The conversion is logged to the Audit Log with action type `convert_zip`, including the old and new file paths.
 
 ### Bulk conversion
 

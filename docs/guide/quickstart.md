@@ -7,7 +7,7 @@ The setup consists of five containers:
 | `web` | comicmanager | Django app served by Daphne. Handles all web requests. |
 | `worker` | comicmanager | Celery worker. Runs background tasks: import, scrape, organize, write. |
 | `beat` | comicmanager | Celery Beat scheduler. Triggers periodic tasks like metadata audits. |
-| `db` | postgres:16 | PostgreSQL database. Stores all comic records, settings, and audit logs. |
+| `db` | postgres:18 | PostgreSQL database. Stores all comic records, settings, and audit logs. |
 | `redis` | redis:7 | Message broker for Celery and cache for API rate limiting. |
 
 All three ComicManager containers use the same image, just running different commands.
@@ -45,7 +45,7 @@ Open `.env` and set at minimum `DB_PASSWORD` and `SECRET_KEY`. To reach the UI f
 ## 3. Create required directories
 
 ```bash
-mkdir -p untagged Comics data/postgres data/redis data/covers data/logs
+mkdir -p untagged Comics data/postgres18 data/redis data/covers data/logs
 ```
 
 If you have a local `comicvine.db`, `latest.mcl`, or `inducks.db`, place them in `data/` and uncomment the relevant lines in `docker-compose.yml`. Without them, scraping falls back to the ComicVine API. See [Scraping: Data Sources](/guide/scraping#data-sources).

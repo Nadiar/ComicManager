@@ -23,10 +23,13 @@ One digital and one physical copy of the same comic is explicitly **not** a dupl
 
 ## How it Works
 
-1.  **Duplicate Scanning**: During the **Deduplicate** state, ComicManager runs a multi-layered duplicate scan against your entire library.
-2.  **Orphan Attachment**: After the main scan, any comic that still has no group is compared against members of existing pending groups. This catches comics that were processed in a later batch than their duplicate partners.
-3.  **Consolidation**: Groups that share members are merged into one. A set of comics matched by both CV ID and pHash will appear as a single group, not two separate ones. The group with the most members survives; ties are broken by method priority (CV ID > Metadata > Cover Hash > Filename).
-4.  **Grouping**: Grouped duplicates are presented in the **Deduplicated** state for review.
+ComicManager runs duplicate detection in three passes, then presents whatever groups it finds for you to resolve:
+
+1.  **Scan**: Every comic in the **Deduplicate** state is compared against the rest of the library using all four detection methods below (CV ID, Metadata, Cover Hash, Filename) at once.
+2.  **Orphan attachment**: Any comic that didn't land in a group during the scan gets a second pass, this time compared against comics already sitting in an existing pending group. This catches comics that were processed in a later batch than their duplicate partner.
+3.  **Consolidation**: If a comic ends up matched into more than one group (for example, by both CV ID and Cover Hash), those groups are merged so you only see it once. The largest group survives the merge; ties are broken by method priority (CV ID > Metadata > Cover Hash > Filename).
+
+The result is a set of duplicate groups shown in the **Deduplicated** state on the Duplicate Review page, ready for you to work through (see [Resolving Duplicates](#resolving-duplicates) below).
 
 ### Duplicate Methods
 
@@ -67,6 +70,8 @@ Catches OS-generated duplicate files produced when a file is copied and the OS a
 The suffix is stripped and the canonical base name is used as the grouping key. At least one file in the group must carry the suffix. Two different comics that happen to live in the same folder are not grouped.
 
 ### Flow
+
+The diagram below traces a single comic from the top of the comparison pool down to its final outcome, either landing in a duplicate group for review or advancing straight to `STATE_ORGANIZED` because nothing matched it.
 
 ```
           ┌──────────────────────────────────────────────────────────┐
@@ -116,6 +121,8 @@ The suffix is stripped and the canonical base name is used as the grouping key. 
                             │  Duplicate Group │      │  -> STATE_ORGANIZED  │
                             └──────────────────┘      └──────────────────────┘
 ```
+
+Reading it top to bottom: every comic in the pool is checked against all four detection methods at once, comics that match land in a group and go to the Review Queue, comics that don't get one more chance in the orphan attachment pass before being cleared to move on.
 
 ### Why deduplicate after formatting?
 
@@ -181,3 +188,9 @@ You have three copies: a good scan, a low-quality scan, and one that might have 
 Series/Number detection matched a TPB and a single issue with the same series and number. They are not duplicates.
 
 Click **Keep All**. Both advance to Organize and the group is marked intentional.
+
+### Group of three, but you've only checked one so far
+
+A CV ID group has 3 comics. You've confirmed the first is the correct one to keep, but you haven't reviewed the other two yet.
+
+Click **Keep** on the confirmed comic. It advances to Organize and the group stays open with the remaining 2, so you can come back and finish resolving them later instead of deciding everything in one pass.

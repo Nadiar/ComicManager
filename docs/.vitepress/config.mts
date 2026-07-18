@@ -61,8 +61,7 @@ export default defineConfig({
           { text: 'CBZ Page Manager', link: '/guide/page-manager' },
           { text: 'Missing Issues Detection', link: '/guide/missing-issues' },
           { text: 'File Format Handling', link: '/guide/file-formats' },
-          { text: 'Bulk State Operations', link: '/guide/bulk-state' },
-          { text: 'The Comic Ecosystem', link: '/guide/ecosystem' }
+          { text: 'Bulk State Operations', link: '/guide/bulk-state' }
         ]
       },
       {

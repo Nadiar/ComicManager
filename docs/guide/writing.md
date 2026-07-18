@@ -20,7 +20,7 @@ Running **Write All** in the dashboard starts a task that handles the XML insert
 
 - **Non-Destructive Writing**: ComicManager adds or updates the `ComicInfo.xml` file inside your CBZ/CBR without modifying your story pages.
 - **Required Field Validation**: ComicManager enforces data integrity before writing. It will block a write and log an error if essential fields are missing. Required fields are `series`, `publisher`, and `number` (unless the format is a numberless type like TPB, Omnibus, Graphic Novel, Hard Cover, or Absolute Edition). I.N.D.U.C.K.S. story-only comics are exempt from the `number` and `publisher` requirements since those fields are legitimately absent for standalone stories.
-- **Error Logging**: Any failure during the write process (corrupted file, failed validation) is safely logged to the **Batch Audit Log** as a `write_error`.
+- **Error Logging**: Any failure during the write process (corrupted file, failed validation) is safely logged to the **Audit Log** as a `write_error`.
 - **Progress Tracking**: Real-time progress bars and toast notifications keep you informed about the status of your batch writing.
 
 ---
