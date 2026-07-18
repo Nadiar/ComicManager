@@ -1,7 +1,7 @@
 services:
 
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     user: "${UID}:${GID}"
     restart: unless-stopped
     environment:
@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: comicmanager
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - ./data/postgres18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U comicmanager -d comicmanager"]
       interval: 10s
