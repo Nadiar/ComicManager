@@ -6,15 +6,6 @@ The main pipeline overview showing all comics and their current workflow state.
 
 ![Dashboard](/dashboard.png)
 
-### Review and Maintenance
-
-Flagged comics awaiting manual review, grouped by flag type.
-
-![Active](/active.png)
-
-![Maintenance](/maintenance.png)
-
-
 ## Comic Overview
 
 The full comic list with filtering, sorting, and bulk action controls.
@@ -44,6 +35,14 @@ Add, delete and rearrange pages inside the CBZ file.
 Built-in page reader for quickly previewing a comic. Very basic. 
 
 ![Simple Reader](/comic_reader.png)
+
+### Review and Maintenance
+
+Flagged comics awaiting manual review, grouped by flag type.
+
+![Active](/active.png)
+
+![Maintenance](/maintenance.png)
 
 ## Scraping
 
