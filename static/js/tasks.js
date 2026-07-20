@@ -21,6 +21,8 @@
   var queueListEl = document.getElementById('task-queue-list');
   var pendingCount = 0;   // server-side queued items behind the running one
   var lastWsAt = 0;       // last time the WebSocket delivered an update for the active task
+  var finishing = false;  // a local task just completed and its result is on screen;
+                          // don't let the post-task empty queue snapshot hide the toast
 
   function escapeHtml(s) {
     return String(s == null ? '' : s)
@@ -122,6 +124,7 @@
   }
 
   function _finishTask(r) {
+    finishing = true;
     showDismiss();
     if (actionQueue.length === 0 && pendingCount === 0) {
       setTimeout(function() {
@@ -237,6 +240,7 @@
     if (batchTotal === 0) { batchTotal = 1; batchDone = 0; }
     _taskOnComplete = onComplete || null;
     _taskUsedCallback = false;
+    finishing = false;
     activeTaskId = taskId;
     taskLabel = toastLabel || 'Processing';
     cancelRequested = false;
@@ -332,6 +336,7 @@
           labelEl.textContent = taskLabel + ' failed';
           status.textContent = data.error || 'Unknown error';
           bar.classList.add('err');
+          finishing = true;
           activeTaskId = null;
           if (actionQueue.length > 0) {
             updateQueueIndicator();
@@ -400,6 +405,7 @@
     }
     actionQueue = [];
     resetBatch();
+    finishing = false;
     hideToast();
     if (!_taskUsedCallback) {
       _doRefreshOrReload();
@@ -477,7 +483,7 @@
     }
     renderQueueList(queued);
     if (tasks.length) { showToast(); }
-    else if (!activeTaskId) { hideToast(); }
+    else if (!activeTaskId && !finishing) { hideToast(); }
   };
 
   window.cancelQueued = function(id) {
@@ -550,6 +556,7 @@
           labelEl.textContent = taskLabel + ' failed';
           status.textContent = msg.error || 'Unknown error';
           bar.classList.add('err');
+          finishing = true;
           activeTaskId = null;
           if (actionQueue.length > 0) {
             setTimeout(processNextAction, 800);
