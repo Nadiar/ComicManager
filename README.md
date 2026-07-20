@@ -1,15 +1,15 @@
 
-![](docs/public/details_readme.png)
-
-![](docs/public/pipeline.png)
-
 # ComicManager
+
+![](docs/public/details_readme.png)
 
 A web application for managing large comic collections, both digital and physical. Built to replace the ComicRack workflow, it processes comics through an 8-phase pipeline from raw files to a fully organized, tagged, and metadata-enriched library.
 
 <a href="https://www.buymeacoffee.com/frederikb" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="41" width="174"></a>
 
 <a href="https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=48JEEKLCGB8DJ"><img src="https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif" alt="Donate with PayPal" height="40"></a>  
+
+![](docs/public/pipeline.png)
 
 ## Features
 
