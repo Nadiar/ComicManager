@@ -1,3 +1,6 @@
+
+![](docs/public/details_readme.png)
+
 ![](docs/public/pipeline.png)
 
 # ComicManager
