@@ -62,10 +62,19 @@ def enqueue(action: str, args=None, label: str = "", lane: str = "serial"):
     from apps.core.models import QueuedTask
 
     args = list(args or [])
-    qt = QueuedTask.objects.create(action=action, args=args, label=label or action)
-    result = _registry()[action].apply_async(args=args, queue=lane)
-    qt.celery_task_id = result.id
-    qt.save(update_fields=["celery_task_id"])
+    # Pre-generate the Celery task id and persist it on the row BEFORE dispatch.
+    # If we dispatched first and saved the id afterwards, a fast task on an idle
+    # worker could fire task_prerun (which looks the row up by celery_task_id)
+    # before the id was saved, so the "running" snapshot never broadcast and the
+    # client never set activeTaskId, leaving the trigger button stuck on
+    # "Running...". Creating the row with the id first closes that race.
+    import uuid
+
+    task_id = str(uuid.uuid4())
+    qt = QueuedTask.objects.create(
+        action=action, args=args, label=label or action, celery_task_id=task_id
+    )
+    _registry()[action].apply_async(args=args, queue=lane, task_id=task_id)
     broadcast_queue()
     return qt
 

@@ -25,15 +25,41 @@ class QueuedTaskModelTests(TestCase):
 class EnqueueTests(TestCase):
     def test_enqueue_creates_row_and_dispatches(self):
         fake_task = MagicMock()
-        fake_task.apply_async.return_value = MagicMock(id="celery-123")
         with patch.object(task_queue, "_registry", return_value={"tag_all": fake_task}), \
              patch.object(task_queue, "broadcast_queue") as bq:
             qt = task_queue.enqueue("tag_all", args=[], label="Tagging 5")
         self.assertEqual(qt.state, QueuedTask.STATE_QUEUED)
-        self.assertEqual(qt.celery_task_id, "celery-123")
+        self.assertTrue(qt.celery_task_id)
         self.assertEqual(qt.label, "Tagging 5")
-        fake_task.apply_async.assert_called_once_with(args=[], queue="serial")
+        # The task is dispatched with the row's own id so the worker's
+        # task_prerun lookup (by celery_task_id) always finds the row.
+        _, kwargs = fake_task.apply_async.call_args
+        self.assertEqual(kwargs["task_id"], qt.celery_task_id)
+        self.assertEqual(kwargs["queue"], "serial")
         bq.assert_called_once()
+
+    def test_row_persisted_with_celery_id_before_dispatch(self):
+        """Regression: the QueuedTask row must be saved with its celery_task_id
+        BEFORE the task is dispatched. Otherwise a fast task on an idle worker
+        can fire task_prerun (which looks the row up by celery_task_id) before
+        the id is saved, so the 'running' snapshot never broadcasts, the client
+        never sets activeTaskId, and the trigger button stays stuck on
+        'Running...'."""
+        seen = {}
+        fake_task = MagicMock()
+
+        def _capture(*args, **kwargs):
+            # Simulate the worker's task_prerun lookup racing in at dispatch time.
+            seen["task_id_passed"] = kwargs.get("task_id")
+            seen["row_has_id"] = QueuedTask.objects.exclude(celery_task_id="").exists()
+            return MagicMock(id=kwargs.get("task_id"))
+
+        fake_task.apply_async.side_effect = _capture
+        with patch.object(task_queue, "_registry", return_value={"tag_all": fake_task}), \
+             patch.object(task_queue, "broadcast_queue"):
+            task_queue.enqueue("tag_all", args=[], label="Tagging")
+        self.assertTrue(seen["task_id_passed"], "a task_id must be passed to apply_async")
+        self.assertTrue(seen["row_has_id"], "row must be persisted with celery_task_id before dispatch")
 
 
 class LifecycleSignalTests(TestCase):
