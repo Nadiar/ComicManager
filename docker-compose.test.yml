@@ -1,0 +1,40 @@
+# Test stack: builds the production image and runs the test suite against a
+# throwaway Postgres. Uses only generated sample data.
+#
+#   docker compose -f docker-compose.test.yml run --rm --build tests
+#   docker compose -f docker-compose.test.yml down
+name: comicmanager-test
+
+services:
+
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: comicmanager
+      POSTGRES_USER: comicmanager
+      POSTGRES_PASSWORD: test
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U comicmanager -d comicmanager"]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+
+  tests:
+    build: .
+    image: comicmanager:test
+    entrypoint: []
+    command: python manage.py test --noinput
+    environment:
+      DB_PASSWORD: test
+      SECRET_KEY: test-only
+      DEBUG: "False"
+      CELERY_BROKER_URL: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started

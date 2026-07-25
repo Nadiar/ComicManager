@@ -54,6 +54,7 @@ Screenshot_*.png
 # Docker Compose files (not needed inside image)
 docker-compose.yml
 docker-compose.override.yml
+docker-compose.test.yml
 
 # Documentation and planning files
 *.md
