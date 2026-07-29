@@ -5,6 +5,7 @@ All archives are generated in a temp folder by apps.core.sample_data.
 
 import os
 import shutil
+import stat
 import tempfile
 import zipfile
 
@@ -43,6 +44,48 @@ class PageEditTests(TempDirMixin, TestCase):
         p = make_cbz(self.path("a.cbz"), comicinfo="<ComicInfo><Series>Keep</Series></ComicInfo>")
         self.assertTrue(cbz_utils.delete_pages(p, [0]))
         self.assertEqual(read_comicinfo_xml(p).get("series"), "Keep")
+
+    def test_dotfiles_are_not_pages(self):
+        # macOS "._" resource forks must not shift page indexes
+        p = make_cbz(self.path("a.cbz"), ["001.jpg", "002.jpg", "003.jpg"],
+                     extra={"._001.jpg": b"junk", "sub/._002.jpg": b"junk"})
+        self.assertEqual(cbz_utils.list_pages(zipfile.ZipFile(p).namelist()),
+                         ["001.jpg", "002.jpg", "003.jpg"])
+        self.assertTrue(cbz_utils.delete_pages(p, [1]))
+        self.assertEqual(page_colors(p), [0, 2])
+        self.assertIn("._001.jpg", zipfile.ZipFile(p).namelist())
+
+    def test_pages_use_natural_order(self):
+        names = [f"page{i}.jpg" for i in range(1, 12)]
+        p = make_cbz(self.path("a.cbz"), names)
+        self.assertEqual(cbz_utils.list_pages(zipfile.ZipFile(p).namelist()), names)
+        self.assertTrue(cbz_utils.delete_pages(p, [10]))
+        self.assertEqual(page_colors(p), list(range(10)))
+
+    def test_edit_keeps_file_mode_and_leaves_no_temp_files(self):
+        p = make_cbz(self.path("a.cbz"), mode=0o664)
+        self.assertTrue(cbz_utils.reorder_pages(p, [1, 0, 2]))
+        self.assertEqual(stat.S_IMODE(os.stat(p).st_mode), 0o664)
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+
+    def test_failed_edit_leaves_original_untouched(self):
+        p = make_cbz(self.path("a.cbz"))
+        with open(p, "rb") as f:
+            before = f.read()
+        self.assertFalse(cbz_utils.reorder_pages(p, [0, 0, 1]))
+        self.assertFalse(cbz_utils.save_page_layout(p, [{"type": "new", "key": "missing"}], {}))
+        with open(p, "rb") as f:
+            self.assertEqual(f.read(), before)
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+
+    def test_add_and_layout(self):
+        from apps.core.sample_data import page_image, PAGE_COLORS
+        p = make_cbz(self.path("a.cbz"))
+        self.assertTrue(cbz_utils.add_page_from_upload(p, page_image(PAGE_COLORS[5]), 1))
+        self.assertEqual(page_colors(p), [0, 5, 1, 2])
+        layout = [{"type": "existing", "index": 3}, {"type": "new", "key": "f.jpg"}]
+        self.assertTrue(cbz_utils.save_page_layout(p, layout, {"f.jpg": page_image(PAGE_COLORS[7])}))
+        self.assertEqual(page_colors(p), [2, 7])
 
     def test_delete_all_pages_refused(self):
         p = make_cbz(self.path("a.cbz"), ["001.jpg", "002.jpg"])

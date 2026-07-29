@@ -4,6 +4,7 @@ Utilities for manipulating CBZ (ZIP) files and downloading images.
 
 import logging
 import os
+import re
 import shutil
 import tempfile
 import zipfile
@@ -11,6 +12,35 @@ import urllib.request
 from typing import List
 
 logger = logging.getLogger(__name__)
+
+IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
+
+
+def natural_key(name: str) -> list:
+    """Sort key that orders page2 before page10, the way comic readers do."""
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", name)]
+
+
+def is_page_entry(name: str) -> bool:
+    """
+    True if a zip entry is a comic page. Skips folders, __MACOSX and hidden
+    files such as the macOS "._001.jpg" resource forks, at any depth.
+    """
+    if not name.lower().endswith(IMAGE_EXTS):
+        return False
+    if name.startswith("__MACOSX"):
+        return False
+    return not os.path.basename(name).startswith(".")
+
+
+def list_pages(names) -> list:
+    """
+    Return the page entries of an archive in reading order.
+
+    Every place that shows, counts, hashes or edits pages uses this, so a
+    page index always means the same file everywhere.
+    """
+    return sorted((n for n in names if is_page_entry(n)), key=natural_key)
 
 
 def download_image(url: str, dest_path: str) -> bool:
@@ -28,6 +58,79 @@ def download_image(url: str, dest_path: str) -> bool:
         return False
 
 
+def _fsync_dir(path: str) -> None:
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def _rewrite_pages(cbz_path: str, sequence: list) -> None:
+    """
+    Rebuild cbz_path with a new page sequence.
+
+    sequence: ordered list of ("entry", <page entry name>) or
+              ("bytes", <image bytes>, <ext>) items.
+    Pages are renamed 000.ext, 001.ext, ... so every reader shows the same
+    order. All non-page entries (ComicInfo.xml, junk files) are kept as-is.
+
+    The new archive is written to a hidden temp file in the same folder,
+    given the original's permissions, synced, and swapped in with
+    os.replace, so the original is never half-written. Raises on failure
+    and leaves the original untouched.
+    """
+    folder = os.path.dirname(cbz_path) or "."
+    fd, tmp_path = tempfile.mkstemp(prefix=".cm-", suffix=".tmp", dir=folder)
+    os.close(fd)
+    width = max(3, len(str(len(sequence) - 1)))
+    try:
+        with zipfile.ZipFile(cbz_path, "r") as src, \
+                zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as out:
+            pages = set(list_pages(src.namelist()))
+            for idx, item in enumerate(sequence):
+                if item[0] == "entry":
+                    name = item[1]
+                    ext = os.path.splitext(name.lower())[1]
+                    with src.open(name) as r, out.open(f"{idx:0{width}d}{ext}", "w") as w:
+                        shutil.copyfileobj(r, w, 1024 * 1024)
+                else:
+                    out.writestr(f"{idx:0{width}d}{item[2]}", item[1])
+
+            for info in src.infolist():
+                if info.filename in pages or info.is_dir() or info.filename.startswith("__MACOSX"):
+                    continue
+                out.writestr(info, src.read(info))
+
+        st = os.stat(cbz_path)
+        os.chmod(tmp_path, st.st_mode & 0o7777)
+        try:
+            os.chown(tmp_path, st.st_uid, st.st_gid)
+        except OSError:
+            pass
+        fd = os.open(tmp_path, os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp_path, cbz_path)
+        _fsync_dir(folder)
+    except BaseException:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        raise
+
+
+def _read_pages(cbz_path: str) -> list:
+    with zipfile.ZipFile(cbz_path, "r") as zf:
+        return list_pages(zf.namelist())
+
+
 def insert_variant_covers(cbz_path: str, variant_urls: List[str]) -> int:
     """
     Download and insert variant covers into a CBZ file.
@@ -41,92 +144,31 @@ def insert_variant_covers(cbz_path: str, variant_urls: List[str]) -> int:
     if not cbz_path or not os.path.exists(cbz_path) or not variant_urls:
         return 0
 
-    inserted_count = 0
+    images = _read_pages(cbz_path)
+    if not images:
+        return 0
+
+    downloaded = []
     tmp_dir = tempfile.mkdtemp()
     try:
-        # 1. Extract all files to a temp directory
-        with zipfile.ZipFile(cbz_path, "r") as zf:
-            zf.extractall(tmp_dir)
-            all_files = sorted(zf.namelist())
-
-        # 2. Identify image files
-        image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
-        images = [
-            f for f in all_files
-            if os.path.splitext(f.lower())[1] in image_exts
-            and not f.startswith("__MACOSX")
-        ]
-
-        if not images:
-            return 0
-
-        # 3. Download variant covers
-        downloaded_variants = []
         for i, url in enumerate(variant_urls):
-            # Generate a filename that sorts after the first image but before the second
-            # First image is usually something like "000.jpg" or "cover.jpg"
-            # We'll use a prefix that ensures it's between images[0] and images[1]
             ext = os.path.splitext(url.lower())[1] or ".jpg"
-            if ext not in image_exts:
+            if ext not in IMAGE_EXTS:
                 ext = ".jpg"
-
-            # Create a filename like "variant_01.jpg", "variant_02.jpg"
-            # We will then re-sort and re-name all images to ensure order
-            variant_filename = f"___variant_{i+1:03d}{ext}"
-            variant_path = os.path.join(tmp_dir, variant_filename)
-
+            variant_path = os.path.join(tmp_dir, f"variant_{i + 1:03d}{ext}")
             if download_image(url, variant_path):
-                downloaded_variants.append(variant_filename)
-                inserted_count += 1
-
-        if not downloaded_variants:
-            return 0
-
-        # 4. Re-sort all images to determine final order
-        # Logic: First image (original cover) stays first.
-        # Then all downloaded variants.
-        # Then the rest of the original images.
-        original_cover = images[0]
-        rest_of_images = images[1:]
-
-        final_image_list = [original_cover] + downloaded_variants + rest_of_images
-
-        # 5. Create a new CBZ with the re-ordered/new files
-        fd, new_cbz_path = tempfile.mkstemp(suffix=".cbz")
-        os.close(fd)
-
-        try:
-            with zipfile.ZipFile(new_cbz_path, "w", zipfile.ZIP_DEFLATED) as zf_out:
-                # Add all images in the new order
-                for idx, img_name in enumerate(final_image_list):
-                    img_path = os.path.join(tmp_dir, img_name)
-                    # We can rename them to a consistent format like 000.jpg, 001.jpg etc.
-                    # but it's safer to keep original names for non-variants to avoid breaking links
-                    # and just ensure the variants have names that sort correctly.
-                    # Actually, some readers rely on filenames for ordering.
-                    # Let's use a naming scheme that preserves the calculated order.
-                    ext = os.path.splitext(img_name.lower())[1]
-                    new_name = f"{idx:03d}{ext}"
-                    zf_out.write(img_path, new_name)
-
-                # Add non-image files (like ComicInfo.xml if it exists)
-                for f in all_files:
-                    if f not in images and not f.startswith("__MACOSX"):
-                        f_path = os.path.join(tmp_dir, f)
-                        zf_out.write(f_path, f)
-
-            # 6. Replace original with new file
-            shutil.move(new_cbz_path, cbz_path)
-
-        except Exception as e:
-            if os.path.exists(new_cbz_path):
-                os.remove(new_cbz_path)
-            raise e
-
+                with open(variant_path, "rb") as f:
+                    downloaded.append(("bytes", f.read(), ext))
     finally:
-        shutil.rmtree(tmp_dir)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    return inserted_count
+    if not downloaded:
+        return 0
+
+    # Original cover first, then the variants, then the rest of the pages
+    sequence = [("entry", images[0])] + downloaded + [("entry", n) for n in images[1:]]
+    _rewrite_pages(cbz_path, sequence)
+    return len(downloaded)
 
 
 def reorder_pages(cbz_path: str, new_order: list) -> bool:
@@ -141,19 +183,8 @@ def reorder_pages(cbz_path: str, new_order: list) -> bool:
     if not cbz_path or not os.path.exists(cbz_path):
         return False
 
-    tmp_dir = tempfile.mkdtemp()
     try:
-        with zipfile.ZipFile(cbz_path, "r") as zf:
-            zf.extractall(tmp_dir)
-            all_files = sorted(zf.namelist())
-
-        image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
-        images = [
-            f for f in all_files
-            if os.path.splitext(f.lower())[1] in image_exts
-            and not f.startswith("__MACOSX")
-        ]
-
+        images = _read_pages(cbz_path)
         if not images or len(new_order) != len(images):
             return False
 
@@ -162,32 +193,10 @@ def reorder_pages(cbz_path: str, new_order: list) -> bool:
             logger.error("reorder_pages: invalid order indices %s for %d images", new_order, len(images))
             return False
 
-        fd, new_cbz_path = tempfile.mkstemp(suffix=".cbz")
-        os.close(fd)
-
-        try:
-            with zipfile.ZipFile(new_cbz_path, "w", zipfile.ZIP_DEFLATED) as zf_out:
-                for new_idx, old_idx in enumerate(new_order):
-                    img_name = images[old_idx]
-                    img_path = os.path.join(tmp_dir, img_name)
-                    ext = os.path.splitext(img_name.lower())[1]
-                    zf_out.write(img_path, f"{new_idx:03d}{ext}")
-
-                for f in all_files:
-                    if f not in images and not f.startswith("__MACOSX"):
-                        zf_out.write(os.path.join(tmp_dir, f), f)
-
-            shutil.move(new_cbz_path, cbz_path)
-        except Exception as e:
-            if os.path.exists(new_cbz_path):
-                os.remove(new_cbz_path)
-            raise e
-
+        _rewrite_pages(cbz_path, [("entry", images[i]) for i in new_order])
     except Exception as e:
         logger.error("reorder_pages failed for %s: %s", cbz_path, e)
         return False
-    finally:
-        shutil.rmtree(tmp_dir)
 
     return True
 
@@ -202,21 +211,11 @@ def delete_pages(cbz_path: str, page_indices: list) -> bool:
     if not cbz_path or not os.path.exists(cbz_path) or not page_indices:
         return False
 
-    tmp_dir = tempfile.mkdtemp()
     try:
-        with zipfile.ZipFile(cbz_path, "r") as zf:
-            zf.extractall(tmp_dir)
-            all_files = sorted(zf.namelist())
-
-        image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
-        images = [
-            f for f in all_files
-            if os.path.splitext(f.lower())[1] in image_exts
-            and not f.startswith("__MACOSX")
-        ]
+        images = _read_pages(cbz_path)
 
         indices_to_delete = set(page_indices)
-        if not all(0 <= i < len(images) for i in indices_to_delete):
+        if not all(isinstance(i, int) and 0 <= i < len(images) for i in indices_to_delete):
             logger.error("delete_pages: out-of-range indices %s for %d images", page_indices, len(images))
             return False
 
@@ -225,31 +224,10 @@ def delete_pages(cbz_path: str, page_indices: list) -> bool:
             logger.error("delete_pages: would delete all pages, aborting")
             return False
 
-        fd, new_cbz_path = tempfile.mkstemp(suffix=".cbz")
-        os.close(fd)
-
-        try:
-            with zipfile.ZipFile(new_cbz_path, "w", zipfile.ZIP_DEFLATED) as zf_out:
-                for new_idx, img_name in enumerate(remaining):
-                    img_path = os.path.join(tmp_dir, img_name)
-                    ext = os.path.splitext(img_name.lower())[1]
-                    zf_out.write(img_path, f"{new_idx:03d}{ext}")
-
-                for f in all_files:
-                    if f not in images and not f.startswith("__MACOSX"):
-                        zf_out.write(os.path.join(tmp_dir, f), f)
-
-            shutil.move(new_cbz_path, cbz_path)
-        except Exception as e:
-            if os.path.exists(new_cbz_path):
-                os.remove(new_cbz_path)
-            raise e
-
+        _rewrite_pages(cbz_path, [("entry", n) for n in remaining])
     except Exception as e:
         logger.error("delete_pages failed for %s: %s", cbz_path, e)
         return False
-    finally:
-        shutil.rmtree(tmp_dir)
 
     return True
 
@@ -264,59 +242,21 @@ def add_page_from_upload(cbz_path: str, image_bytes: bytes, position: int, ext: 
     if not cbz_path or not os.path.exists(cbz_path) or not image_bytes:
         return False
 
-    if ext not in {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}:
+    if ext not in IMAGE_EXTS:
         ext = ".jpg"
 
-    tmp_dir = tempfile.mkdtemp()
     try:
-        with zipfile.ZipFile(cbz_path, "r") as zf:
-            zf.extractall(tmp_dir)
-            all_files = sorted(zf.namelist())
-
-        image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
-        images = [
-            f for f in all_files
-            if os.path.splitext(f.lower())[1] in image_exts
-            and not f.startswith("__MACOSX")
-        ]
+        images = _read_pages(cbz_path)
 
         # Clamp position
         position = max(0, min(position, len(images)))
 
-        # Write uploaded image to temp dir with a placeholder name
-        upload_filename = "___upload_new" + ext
-        upload_path = os.path.join(tmp_dir, upload_filename)
-        with open(upload_path, "wb") as f:
-            f.write(image_bytes)
-
-        # Build final image list with new page inserted
-        final_images = images[:position] + [upload_filename] + images[position:]
-
-        fd, new_cbz_path = tempfile.mkstemp(suffix=".cbz")
-        os.close(fd)
-
-        try:
-            with zipfile.ZipFile(new_cbz_path, "w", zipfile.ZIP_DEFLATED) as zf_out:
-                for new_idx, img_name in enumerate(final_images):
-                    img_path = os.path.join(tmp_dir, img_name)
-                    out_ext = os.path.splitext(img_name.lower())[1]
-                    zf_out.write(img_path, f"{new_idx:03d}{out_ext}")
-
-                for f in all_files:
-                    if f not in images and not f.startswith("__MACOSX"):
-                        zf_out.write(os.path.join(tmp_dir, f), f)
-
-            shutil.move(new_cbz_path, cbz_path)
-        except Exception as e:
-            if os.path.exists(new_cbz_path):
-                os.remove(new_cbz_path)
-            raise e
-
+        sequence = [("entry", n) for n in images]
+        sequence.insert(position, ("bytes", image_bytes, ext))
+        _rewrite_pages(cbz_path, sequence)
     except Exception as e:
         logger.error("add_page_from_upload failed for %s: %s", cbz_path, e)
         return False
-    finally:
-        shutil.rmtree(tmp_dir)
 
     return True
 
@@ -336,75 +276,34 @@ def save_page_layout(cbz_path: str, layout: list, uploaded_files: dict) -> bool:
     if not cbz_path or not os.path.exists(cbz_path) or not layout:
         return False
 
-    tmp_dir = tempfile.mkdtemp()
     try:
-        with zipfile.ZipFile(cbz_path, "r") as zf:
-            zf.extractall(tmp_dir)
-            all_files = sorted(zf.namelist())
+        images = _read_pages(cbz_path)
 
-        image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
-        images = [
-            f for f in all_files
-            if os.path.splitext(f.lower())[1] in image_exts
-            and not f.startswith("__MACOSX")
-        ]
-
-        # Validate layout
+        sequence = []
         for entry in layout:
             if entry.get("type") == "existing":
                 idx = entry.get("index", -1)
-                if not (0 <= idx < len(images)):
-                    logger.error("save_page_layout: existing index %d out of range (%d images)", idx, len(images))
+                if not (isinstance(idx, int) and 0 <= idx < len(images)):
+                    logger.error("save_page_layout: existing index %s out of range (%d images)", idx, len(images))
                     return False
+                sequence.append(("entry", images[idx]))
             elif entry.get("type") == "new":
                 key = entry.get("key", "")
                 if key not in uploaded_files:
                     logger.error("save_page_layout: uploaded key '%s' not found", key)
                     return False
+                # Key already includes the extension (e.g. "file_0.jpg")
+                _, ext = os.path.splitext(key.lower())
+                if ext not in IMAGE_EXTS:
+                    ext = ".jpg"
+                sequence.append(("bytes", uploaded_files[key], ext))
             else:
                 logger.error("save_page_layout: unknown entry type: %s", entry)
                 return False
 
-        # Write uploaded files to temp dir
-        # Key already includes the extension (e.g. "file_0.jpg") — don't append again.
-        upload_paths = {}
-        for key, data in uploaded_files.items():
-            _, ext = os.path.splitext(key.lower())
-            if ext not in image_exts:
-                ext = ".jpg"
-            upload_path = os.path.join(tmp_dir, f"__upload_{key}")
-            with open(upload_path, "wb") as f:
-                f.write(data)
-            upload_paths[key] = (upload_path, ext)
-
-        fd, new_cbz_path = tempfile.mkstemp(suffix=".cbz")
-        os.close(fd)
-
-        try:
-            with zipfile.ZipFile(new_cbz_path, "w", zipfile.ZIP_DEFLATED) as zf_out:
-                for new_idx, entry in enumerate(layout):
-                    if entry["type"] == "existing":
-                        img_name = images[entry["index"]]
-                        src_path = os.path.join(tmp_dir, img_name)
-                        ext = os.path.splitext(img_name.lower())[1]
-                    else:
-                        src_path, ext = upload_paths[entry["key"]]
-                    zf_out.write(src_path, f"{new_idx:03d}{ext}")
-
-                for f in all_files:
-                    if f not in images and not f.startswith("__MACOSX"):
-                        zf_out.write(os.path.join(tmp_dir, f), f)
-
-            shutil.move(new_cbz_path, cbz_path)
-        except Exception as e:
-            if os.path.exists(new_cbz_path):
-                os.remove(new_cbz_path)
-            raise e
-
+        _rewrite_pages(cbz_path, sequence)
     except Exception as e:
         logger.error("save_page_layout failed for %s: %s", cbz_path, e)
         return False
-    finally:
-        shutil.rmtree(tmp_dir)
 
     return True

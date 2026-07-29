@@ -11,6 +11,8 @@ from typing import Optional
 from PIL import Image
 import imagehash
 
+from apps.core.cbz_utils import list_pages
+
 
 @dataclass
 class CoverHashes:
@@ -37,14 +39,8 @@ def extract_cover_hashes(file_path: str | Path) -> Optional[CoverHashes]:
 
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
-            # Get image files sorted by name (first is typically the cover)
-            image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
-            images = sorted([
-                name for name in zf.namelist()
-                if name.lower().endswith(image_extensions)
-                and not name.startswith("__MACOSX")
-                and not name.startswith(".")
-            ])
+            # Pages in reading order (first is the cover)
+            images = list_pages(zf.namelist())
 
             if not images:
                 return None
@@ -91,14 +87,8 @@ def extract_comic_page(file_path: str | Path, page_index: int = 0) -> Optional[b
 
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
-            # Get image files sorted by name
-            image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
-            images = sorted([
-                name for name in zf.namelist()
-                if name.lower().endswith(image_extensions)
-                and not name.startswith("__MACOSX")
-                and not name.startswith(".")
-            ])
+            # Pages in reading order
+            images = list_pages(zf.namelist())
 
             if not images or page_index >= len(images):
                 return None
@@ -137,14 +127,8 @@ def extract_cover_image(file_path: str | Path) -> Optional[bytes]:
 
     try:
         with zipfile.ZipFile(file_path, "r") as zf:
-            # Get image files sorted by name (first is typically the cover)
-            image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
-            images = sorted([
-                name for name in zf.namelist()
-                if name.lower().endswith(image_extensions)
-                and not name.startswith("__MACOSX")
-                and not name.startswith(".")
-            ])
+            # Pages in reading order (first is the cover)
+            images = list_pages(zf.namelist())
 
             if not images:
                 return None

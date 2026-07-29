@@ -14,6 +14,7 @@ from django.core.management.base import BaseCommand
 from django.conf import settings
 
 from apps.core.models import Comic, get_setting
+from apps.core.cbz_utils import list_pages
 
 
 class Command(BaseCommand):
@@ -217,13 +218,7 @@ class Command(BaseCommand):
         """
         try:
             with zipfile.ZipFile(cbz_path, "r") as zf:
-                image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
-                count = sum(
-                    1 for name in zf.namelist()
-                    if name.lower().endswith(image_extensions)
-                    and not name.startswith("__MACOSX")
-                    and not name.startswith(".")
-                )
+                count = len(list_pages(zf.namelist()))
                 return (count if count > 0 else None, False)
         except (zipfile.BadZipFile, EOFError):
             return (None, True)

@@ -464,12 +464,8 @@ def _build_pages_element(cbz_path: str) -> list[dict] | None:
 
     try:
         with zipfile.ZipFile(cbz_path, "r") as zf:
-            image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
-            image_files = sorted(
-                n for n in zf.namelist()
-                if os.path.splitext(n.lower())[1] in image_exts
-                and not n.startswith("__MACOSX")
-            )
+            from .cbz_utils import list_pages
+            image_files = list_pages(zf.namelist())
             if not image_files:
                 return None
 

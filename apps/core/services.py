@@ -230,13 +230,8 @@ def try_rezip_cbz(cbz_path: Path) -> dict:
         if not extracted:
             return {"success": False, "error": "No entries could be extracted from the archive"}
 
-        image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
-        image_count = sum(
-            1 for f in extracted
-            if f.lower().endswith(image_extensions)
-            and not f.startswith("__MACOSX")
-            and not f.startswith(".")
-        )
+        from .cbz_utils import list_pages
+        image_count = len(list_pages(extracted))
 
         with zipfile.ZipFile(tmp_out, "w", zipfile.ZIP_DEFLATED) as zf_out:
             for filename in sorted(extracted):
@@ -270,14 +265,9 @@ def _get_cbz_page_count(cbz_path: Path) -> tuple[int | None, bool]:
     - (None, True) if the archive is corrupted or truncated
     """
     try:
+        from .cbz_utils import list_pages
         with zipfile.ZipFile(cbz_path, "r") as zf:
-            image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
-            count = sum(
-                1 for name in zf.namelist()
-                if name.lower().endswith(image_extensions)
-                and not name.startswith("__MACOSX")
-                and not name.startswith(".")
-            )
+            count = len(list_pages(zf.namelist()))
             return (count if count > 0 else None, False)
     except (zipfile.BadZipFile, EOFError):
         return (None, True)

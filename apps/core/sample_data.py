@@ -18,11 +18,18 @@ PAGE_COLORS = [
 
 
 def page_image(color, size=(60, 90), fmt="JPEG") -> bytes:
-    """Return a solid-colour image as bytes."""
-    from PIL import Image
+    """
+    Return an image filled with color, plus a dark band whose position depends
+    on the colour so different pages also get different cover hashes.
+    """
+    from PIL import Image, ImageDraw
 
+    img = Image.new("RGB", size, color)
+    w, h = size
+    band = (sum(color) // 7) % 4
+    ImageDraw.Draw(img).rectangle([0, band * h // 8, w, band * h // 8 + h // 10], fill=(0, 0, 0))
     buf = io.BytesIO()
-    Image.new("RGB", size, color).save(buf, fmt)
+    img.save(buf, fmt)
     return buf.getvalue()
 
 
@@ -51,11 +58,13 @@ def make_cbz(path, page_names=None, comicinfo: str = None, extra: dict = None, m
 
 def page_colors(path) -> list:
     """
-    Return the colour of every image entry in archive order, for asserting
+    Return the colour of every page entry in archive order, for asserting
     page order after an edit. Colours are matched back to PAGE_COLORS indexes
     (JPEG is lossy, so the nearest colour wins).
     """
     from PIL import Image
+
+    from apps.core.cbz_utils import is_page_entry
 
     def nearest(rgb):
         return min(
@@ -66,7 +75,7 @@ def page_colors(path) -> list:
     result = []
     with zipfile.ZipFile(path) as zf:
         for name in zf.namelist():
-            if os.path.splitext(name.lower())[1] in (".jpg", ".jpeg", ".png"):
+            if is_page_entry(name):
                 img = Image.open(io.BytesIO(zf.read(name))).convert("RGB")
                 result.append(nearest(img.getpixel((img.width // 2, img.height // 2))))
     return result
