@@ -1309,6 +1309,14 @@ def comic_page(request, pk, page_num):
     return _cover_etag_response(request, page_data, cache_path)
 
 
+def _refresh_after_page_edit(comic):
+    """Re-read page count, file size and cover hashes after the pages changed,
+    and touch updated_at so page URLs get a new cache-busting version."""
+    from .services import refresh_file_info
+    refresh_file_info(comic)
+    comic.save(update_fields=["updated_at"])
+
+
 @require_GET
 def comic_pages_list(request, pk):
     """
@@ -1320,7 +1328,14 @@ def comic_pages_list(request, pk):
     if not comic.is_digital or not comic.file_path:
         return JsonResponse({"error": "Not a digital comic with a file"}, status=400)
 
-    page_count = comic.page_count or 0
+    # Count from the archive itself so indexes always match the edit functions
+    import zipfile as _zf
+    from .cbz_utils import list_pages
+    try:
+        with _zf.ZipFile(comic.file_path) as z:
+            page_count = len(list_pages(z.namelist()))
+    except (OSError, _zf.BadZipFile):
+        page_count = comic.page_count or 0
     v = int(comic.updated_at.timestamp())
     pages = [
         {"index": i, "url": f"/comics/{pk}/page/{i}/?v={v}"}
@@ -1358,8 +1373,7 @@ def comic_pages_reorder(request, pk):
         return JsonResponse({"error": "Reorder failed"}, status=500)
 
     invalidate_comic_pages(comic.pk)
-    comic.page_count = len(new_order)
-    comic.save(update_fields=["page_count"])
+    _refresh_after_page_edit(comic)
 
     return JsonResponse({"success": True, "page_count": comic.page_count})
 
@@ -1393,9 +1407,7 @@ def comic_pages_delete(request, pk):
         return JsonResponse({"error": "Delete failed"}, status=500)
 
     invalidate_comic_pages(comic.pk)
-    new_count = (comic.page_count or 0) - len(set(indices))
-    comic.page_count = max(0, new_count)
-    comic.save(update_fields=["page_count"])
+    _refresh_after_page_edit(comic)
 
     from .audit import log_batch_entry
     log_batch_entry("delete_pages", comic, comic.state, comic.state,
@@ -1439,8 +1451,7 @@ def comic_pages_add(request, pk):
         return JsonResponse({"error": "Add page failed"}, status=500)
 
     invalidate_comic_pages(comic.pk)
-    comic.page_count = (comic.page_count or 0) + 1
-    comic.save(update_fields=["page_count"])
+    _refresh_after_page_edit(comic)
 
     return JsonResponse({"success": True, "page_count": comic.page_count})
 
@@ -1505,11 +1516,9 @@ def comic_pages_save(request, pk):
         return JsonResponse({"error": "Save failed"}, status=500)
 
     invalidate_comic_pages(comic.pk)
-    new_count = len(layout)
-    comic.page_count = new_count
-    comic.save(update_fields=["page_count"])
+    _refresh_after_page_edit(comic)
 
-    return JsonResponse({"success": True, "page_count": new_count})
+    return JsonResponse({"success": True, "page_count": comic.page_count})
 
 
 @require_GET

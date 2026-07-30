@@ -3,6 +3,7 @@
 All archives are generated in a temp folder by apps.core.sample_data.
 """
 
+import json
 import os
 import shutil
 import stat
@@ -91,6 +92,27 @@ class PageEditTests(TempDirMixin, TestCase):
         p = make_cbz(self.path("a.cbz"), ["001.jpg", "002.jpg"])
         self.assertFalse(cbz_utils.delete_pages(p, [0, 1]))
         self.assertEqual(page_colors(p), [0, 1])
+
+
+class PageManagerViewTests(TempDirMixin, TestCase):
+
+    def test_delete_first_page_refreshes_count_and_cover_hash(self):
+        from apps.scraper.hasher import extract_cover_hashes
+        p = make_cbz(self.path("a.cbz"), ["001.jpg", "002.jpg", "003.jpg"], extra={"._001.jpg": b"junk"})
+        hashes = extract_cover_hashes(p)
+        comic = Comic.objects.create(file_path=p, file_format="cbz", page_count=3,
+                                     phash=hashes.phash_hex, ahash=hashes.ahash_hex)
+        listing = self.client.get(f"/comics/{comic.pk}/pages/").json()
+        self.assertEqual(listing["page_count"], 3)
+        resp = self.client.post(f"/comics/{comic.pk}/pages/delete/", json.dumps({"indices": [0]}),
+                                content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["page_count"], 2)
+        self.assertEqual(page_colors(p), [1, 2])
+        comic.refresh_from_db()
+        self.assertEqual(comic.page_count, 2)
+        self.assertEqual(comic.phash, extract_cover_hashes(p).phash_hex)
+        self.assertNotEqual(comic.phash, hashes.phash_hex)
 
 
 class ComicInfoWriteTests(TempDirMixin, TestCase):
