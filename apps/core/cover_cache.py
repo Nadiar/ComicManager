@@ -12,10 +12,11 @@ Two types of cached covers:
 import hashlib
 import logging
 from pathlib import Path
-from urllib.request import urlopen, Request
 from urllib.error import URLError
 
 from django.conf import settings
+
+from .net import UnsafeURLError, host_matches, safe_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -142,10 +143,8 @@ def get_cv_cover(issue_id: int, cover_url: str) -> bytes | None:
         return None
 
     try:
-        req = Request(cover_url, headers={"User-Agent": "ComicManager/1.0"})
-        with urlopen(req, timeout=10) as resp:
-            cover_data = resp.read()
-    except (URLError, OSError, TimeoutError) as e:
+        cover_data = safe_fetch(cover_url, {"User-Agent": "ComicManager/1.0"}, timeout=10)
+    except (URLError, OSError, TimeoutError, UnsafeURLError) as e:
         logger.warning("Failed to download CV cover %s: %s", issue_id, e)
         return None
 
@@ -193,15 +192,14 @@ def get_inducks_cover(issuecode: str, cover_url: str) -> bytes | None:
     headers = {
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:137.0) Gecko/20100101 Firefox/137.0",
     }
-    if username and password:
+    # Only ever send the inducks.org login to inducks.org
+    if username and password and host_matches(cover_url, "inducks.org"):
         credentials = base64.b64encode(f"{username}:{password}".encode()).decode()
         headers["Authorization"] = f"Basic {credentials}"
 
     try:
-        req = Request(cover_url, headers=headers)
-        with urlopen(req, timeout=15) as resp:
-            cover_data = resp.read()
-    except (URLError, OSError, TimeoutError) as e:
+        cover_data = safe_fetch(cover_url, headers, timeout=15)
+    except (URLError, OSError, TimeoutError, UnsafeURLError) as e:
         logger.warning("Failed to download Inducks cover %s: %s", issuecode, e)
         return None
 
@@ -223,10 +221,8 @@ def cache_physical_cover(comic_pk, cover_url: str) -> bool:
         return False
     cache_path = COVER_CACHE_DIR / f"{comic_pk}.jpg"
     try:
-        req = Request(cover_url, headers={"User-Agent": "ComicManager/1.0"})
-        with urlopen(req, timeout=10) as resp:
-            cover_data = resp.read()
-    except (URLError, OSError, TimeoutError) as e:
+        cover_data = safe_fetch(cover_url, {"User-Agent": "ComicManager/1.0"}, timeout=10)
+    except (URLError, OSError, TimeoutError, UnsafeURLError) as e:
         logger.warning("Failed to download cover for physical %s: %s", comic_pk, e)
         return False
     if not cover_data:

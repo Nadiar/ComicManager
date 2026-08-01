@@ -8,7 +8,6 @@ import re
 import shutil
 import tempfile
 import zipfile
-import urllib.request
 from typing import List
 
 logger = logging.getLogger(__name__)
@@ -45,13 +44,13 @@ def list_pages(names) -> list:
 
 def download_image(url: str, dest_path: str) -> bool:
     """Download an image from a URL to a local path."""
+    from .net import safe_fetch
     try:
-        req = urllib.request.Request(url, headers={
+        data = safe_fetch(url, {
             "User-Agent": "ComicManager/1.0 (https://github.com/comicmanager)",
-        })
-        with urllib.request.urlopen(req, timeout=30) as response:
-            with open(dest_path, "wb") as f:
-                f.write(response.read())
+        }, timeout=30)
+        with open(dest_path, "wb") as f:
+            f.write(data)
         return True
     except Exception as e:
         logger.error("Failed to download image from %s: %s", url, e)
