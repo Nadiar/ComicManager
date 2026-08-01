@@ -15,7 +15,7 @@ from django.test import TestCase
 from apps.core import cbz_utils
 from apps.core.models import Comic
 from apps.core.sample_data import make_cbz, make_sample_library, page_colors
-from apps.core.services import scan_untagged_folder
+from apps.core.services import check_missing_files, scan_untagged_folder
 from apps.core.utils import read_comicinfo_xml, write_comicinfo_xml
 
 
@@ -152,3 +152,39 @@ class UntaggedScanTests(TempDirMixin, TestCase):
         result = scan_untagged_folder(path=self.tmp)
         self.assertEqual(result["imported"], 0)
         self.assertEqual(result["skipped"], len(created))
+
+    def test_missing_files_are_flagged_not_deleted(self):
+        make_sample_library(self.tmp)
+        scan_untagged_folder(path=self.tmp)
+        worked = Comic.objects.get(file_path__endswith="Sample Hero 001 (2020).cbz")
+        worked.state = Comic.STATE_FORMATTED
+        worked.series = "Sample Hero"
+        worked.save()
+        untouched = Comic.objects.get(file_path__endswith="Another Book 001 (1999).cbz")
+        os.remove(worked.file_path)
+        os.remove(untouched.file_path)
+
+        result = scan_untagged_folder(path=self.tmp)
+        self.assertEqual(result["cleaned"], 1)
+        self.assertFalse(Comic.objects.filter(pk=untouched.pk).exists())
+        worked.refresh_from_db()
+        self.assertEqual(worked.series, "Sample Hero")
+        self.assertTrue(worked.has_flag("file_missing"))
+
+        # File comes back: the flag clears
+        make_cbz(worked.file_path)
+        scan_untagged_folder(path=self.tmp)
+        worked.refresh_from_db()
+        self.assertFalse(worked.has_flag("file_missing"))
+
+    def test_unmounted_folder_changes_nothing(self):
+        make_sample_library(self.tmp)
+        scan_untagged_folder(path=self.tmp)
+        count = Comic.objects.count()
+        for entry in os.listdir(self.tmp):
+            shutil.rmtree(self.path(entry))
+        result = check_missing_files(self.tmp)
+        self.assertTrue(result["skipped"])
+        self.assertEqual(Comic.objects.count(), count)
+        self.assertFalse(Comic.objects.filter(flags__file_missing=True).exists())
+

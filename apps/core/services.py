@@ -47,9 +47,13 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
         "dry_run": dry_run,
     }
 
-    # Cleanup: remove comics whose files no longer exist
+    # Cleanup: drop untouched comics whose files are gone, flag the rest
     if cleanup and not dry_run:
-        result["cleaned"] = _cleanup_missing_files(untagged_path)
+        missing = check_missing_files(untagged_path)
+        result["cleaned"] = missing["removed"]
+        result["flagged_missing"] = missing["flagged"]
+        if missing["skipped"]:
+            result["errors"].append(missing["reason"])
 
     # Find all comic files
     extensions = (".cbz", ".cbr", ".cb7", ".pdf", ".zip")
@@ -113,20 +117,64 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
     return result
 
 
-def _cleanup_missing_files(untagged_path: str) -> int:
-    """Remove comics from database whose files no longer exist on disk."""
-    untagged_comics = Comic.objects.filter(
-        file_path__startswith=untagged_path,
+# Above this share of missing files the folder is assumed to be unmounted or
+# being moved, and nothing is changed.
+MISSING_FILES_ABORT_RATIO = 0.5
+MISSING_FILES_ABORT_MIN = 10
+
+
+def check_missing_files(untagged_path: str, dry_run: bool = False) -> dict:
+    """
+    Handle comics under the untagged folder whose files are gone.
+
+    Only untouched comics (state 'new') are removed from the database. Comics
+    further along keep their record and get a file_missing flag, so scraped
+    and hand-edited metadata is never lost; the flag clears itself when the
+    file is back. If the folder looks unmounted (it is empty, or most files
+    are missing) nothing is changed at all.
+
+    Returns a dict: removed, flagged, unflagged, skipped (bool), reason.
+    """
+    result = {"removed": 0, "flagged": 0, "unflagged": 0, "skipped": False, "reason": ""}
+    prefix = untagged_path.rstrip("/") + "/"
+    comics = list(Comic.objects.filter(
+        file_path__startswith=prefix,
         medium=Comic.MEDIUM_DIGITAL,
-    )
+    ))
+    if not comics:
+        return result
 
-    removed = 0
-    for comic in untagged_comics:
-        if not os.path.exists(comic.file_path):
-            comic.delete()
-            removed += 1
+    missing = [c for c in comics if not os.path.exists(c.file_path)]
+    folder_empty = not any(os.scandir(untagged_path))
+    if missing and (folder_empty or (
+            len(missing) >= MISSING_FILES_ABORT_MIN
+            and len(missing) / len(comics) > MISSING_FILES_ABORT_RATIO)):
+        result["skipped"] = True
+        result["reason"] = (
+            f"{len(missing)} of {len(comics)} files under {untagged_path} are missing; "
+            "the folder may not be mounted, so nothing was removed or flagged"
+        )
+        return result
 
-    return removed
+    missing_pks = {c.pk for c in missing}
+    for comic in comics:
+        if comic.pk in missing_pks:
+            if comic.state == Comic.STATE_NEW:
+                if not dry_run:
+                    comic.delete()
+                result["removed"] += 1
+            elif not comic.has_flag("file_missing"):
+                if not dry_run:
+                    comic.add_flag("file_missing")
+                    comic.save(update_fields=["flags"])
+                result["flagged"] += 1
+        elif comic.has_flag("file_missing"):
+            if not dry_run:
+                comic.remove_flag("file_missing")
+                comic.save(update_fields=["flags"])
+            result["unflagged"] += 1
+
+    return result
 
 
 def _parse_filename(filename: str) -> dict:

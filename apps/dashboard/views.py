@@ -49,6 +49,13 @@ def index(request):
             "action": "review",
         },
         {
+            "flag": "file_missing",
+            "label": "File Missing",
+            "description": "The file is gone from the untagged folder; metadata was kept",
+            "count": Comic.objects.filter(flags__file_missing=True).count(),
+            "action": "review",
+        },
+        {
             "flag": "low_page_count",
             "label": "Low Page Count",
             "description": "Less than 5 pages - likely incomplete",
@@ -181,6 +188,7 @@ def index(request):
     # cv_volume_conflict, needs_reformat) which live in the Maintenance tab
     _active_flags_q = (
         Q(flags__corrupted_archive=True) |
+        Q(flags__file_missing=True) |
         Q(flags__low_page_count=True) |
         Q(flags__is_pdf=True) |
         Q(flags__no_series=True) |
@@ -272,6 +280,7 @@ def index(request):
     # Severity for "Needs your attention" card
     _severity = {
         "corrupted_archive": "err", "low_page_count": "err",
+        "file_missing": "err",
         "cover_only": "err",        "scrape_error": "err",
         "is_pdf": "warn",           "no_series": "warn",
         "missing_count": "warn",    "count_updated": "warn",
@@ -592,6 +601,7 @@ FILTER_FIELD_OPTIONS = [
     ("imported_at", "Import Date"),
     # Flags (stored in JSONField — use flags__<key> syntax)
     ("flags__corrupted_archive", "Flag: Corrupted Archive"),
+    ("flags__file_missing", "Flag: File Missing"),
     ("flags__low_page_count", "Flag: Low Page Count"),
     ("flags__is_pdf", "Flag: PDF"),
     ("flags__no_series", "Flag: No Series"),

@@ -48,6 +48,7 @@ _INLINE_EDITABLE_FIELDS = {"proposed_series", "proposed_number", "proposed_volum
 # Flag display names for the UI
 FLAG_LABELS = {
     "corrupted_archive": "Corrupted Archive",
+    "file_missing": "File Missing",
     "low_page_count": "Low Page Count",
     "is_pdf": "PDF File",
     "no_series": "No Series Parsed",

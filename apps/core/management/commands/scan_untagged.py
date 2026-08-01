@@ -35,7 +35,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--no-cleanup",
             action="store_true",
-            help="Skip removing comics whose files no longer exist",
+            help="Skip removing or flagging comics whose files no longer exist",
         )
 
     def handle(self, *args, **options):
@@ -275,27 +275,15 @@ class Command(BaseCommand):
         return flags
 
     def _cleanup_missing_files(self, untagged_path: str, dry_run: bool):
-        """Remove comics from database whose files no longer exist on disk."""
-        # Get all comics in untagged folder (file_path starts with untagged_path)
-        untagged_comics = Comic.objects.filter(
-            file_path__startswith=untagged_path,
-            medium=Comic.MEDIUM_DIGITAL,
-        )
+        """Drop untouched comics whose files are gone and flag the rest."""
+        from apps.core.services import check_missing_files
 
-        removed = 0
-        for comic in untagged_comics:
-            if not os.path.exists(comic.file_path):
-                if dry_run:
-                    self.stdout.write(
-                        self.style.WARNING(f"  Would remove: {comic.proposed_series} #{comic.proposed_number} (file missing)")
-                    )
-                else:
-                    self.stdout.write(
-                        self.style.WARNING(f"  Removed: {comic.proposed_series} #{comic.proposed_number} (file missing)")
-                    )
-                    comic.delete()
-                removed += 1
-
-        if removed > 0:
-            self.stdout.write(f"Cleaned up {removed} missing file(s)")
+        result = check_missing_files(untagged_path, dry_run=dry_run)
+        if result["skipped"]:
+            self.stdout.write(self.style.WARNING(f"Skipped cleanup: {result['reason']}"))
+        verb = "Would remove" if dry_run else "Removed"
+        if result["removed"]:
+            self.stdout.write(f"{verb} {result['removed']} new comic(s) with missing files")
+        if result["flagged"]:
+            self.stdout.write(f"Flagged {result['flagged']} comic(s) as file_missing")
         self.stdout.write("")
