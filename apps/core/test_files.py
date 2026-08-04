@@ -188,3 +188,44 @@ class UntaggedScanTests(TempDirMixin, TestCase):
         self.assertEqual(Comic.objects.count(), count)
         self.assertFalse(Comic.objects.filter(flags__file_missing=True).exists())
 
+
+class ConvertTests(TempDirMixin, TestCase):
+
+    def _make_cb7(self, name):
+        import subprocess
+        src = self.path("src")
+        os.makedirs(src, exist_ok=True)
+        from apps.core.sample_data import page_image, PAGE_COLORS
+        for i in range(3):
+            with open(os.path.join(src, f"{i:03d}.jpg"), "wb") as f:
+                f.write(page_image(PAGE_COLORS[i]))
+        out = self.path(name)
+        subprocess.run(["7z", "a", "-bd", "-y", out, os.path.join(src, "*")],
+                       check=True, capture_output=True)
+        shutil.rmtree(src)
+        os.chmod(out, 0o664)
+        return out
+
+    def test_convert_cb7(self):
+        from apps.core.tasks import _convert_comic_to_cbz
+        p = self._make_cb7("Book 001.cb7")
+        comic = Comic.objects.create(file_path=p, file_format="cb7")
+        result = _convert_comic_to_cbz(comic)
+        self.assertTrue(result["success"], result)
+        comic.refresh_from_db()
+        self.assertEqual(comic.file_path, self.path("Book 001.cbz"))
+        self.assertEqual(page_colors(comic.file_path), [0, 1, 2])
+        self.assertEqual(stat.S_IMODE(os.stat(comic.file_path).st_mode), 0o664)
+        self.assertEqual(os.listdir(self.tmp), ["Book 001.cbz"])
+
+    def test_existing_cbz_with_same_name_is_left_alone(self):
+        from apps.core.tasks import _convert_comic_to_cbz
+        p = self._make_cb7("Book 001.cb7")
+        other = make_cbz(self.path("Book 001.cbz"), ["a.jpg"])
+        comic = Comic.objects.create(file_path=p, file_format="cb7")
+        result = _convert_comic_to_cbz(comic)
+        self.assertFalse(result["success"])
+        self.assertTrue(os.path.exists(p))
+        self.assertEqual(page_colors(other), [0])
+        comic.refresh_from_db()
+        self.assertEqual(comic.file_path, p)

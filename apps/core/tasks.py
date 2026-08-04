@@ -127,9 +127,10 @@ def scan_untagged_task(self):
 def _convert_comic_to_cbz(comic):
     """Convert a single CBR/CB7 comic to CBZ in place.
 
-    Extracts the archive to a temp directory, repacks it as a ZIP with a .cbz
-    extension, updates the DB record, and deletes the original. A previous
-    conversion that wrote the CBZ but failed to update the DB is recovered.
+    Extracts the archive to a temp directory, repacks it into a hidden temp
+    file next to the original, renames that to .cbz, updates the DB record,
+    and only then deletes the original. An existing .cbz with the same name
+    is a different file and is never adopted or overwritten.
 
     Returns a dict: {"success": bool, "error": str|None, "fatal": bool, "skipped": bool}.
       - skipped=True: the comic is not a CBR/CB7, so there is nothing to do.
@@ -140,7 +141,6 @@ def _convert_comic_to_cbz(comic):
     import zipfile
     import errno as _errno
     from pathlib import Path
-    from django.db import IntegrityError
     from .audit import log_batch_entry
 
     if comic.file_format not in ("cbr", "cb7"):
@@ -152,38 +152,20 @@ def _convert_comic_to_cbz(comic):
     original_path = Path(comic.file_path)
     new_path = original_path.with_suffix(".cbz")
 
-    # A CBZ alongside the CBR means a previous conversion wrote the file but
-    # failed to update the DB record. Recover by adopting it (or deleting it if
-    # corrupt and re-converting).
     if new_path.exists():
-        try:
-            zipfile.ZipFile(new_path, "r").close()
-        except zipfile.BadZipFile:
-            new_path.unlink()
-        else:
-            try:
-                comic.file_path = str(new_path)
-                comic.file_format = "cbz"
-                comic.flags.pop("needs_conversion", None)
-                comic.save()
-            except IntegrityError:
-                err_msg = f"CBZ already assigned to another comic: {new_path.name}"
-                log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                                {"error": [None, err_msg]})
-                return {"success": False, "error": err_msg, "fatal": False, "skipped": False}
-            if original_path.exists():
-                original_path.unlink()
-            log_batch_entry("convert_cbr", comic, comic.state, comic.state,
-                            {"path": [str(original_path), str(new_path)]})
-            return {"success": True, "error": None, "fatal": False, "skipped": False}
+        err_msg = f"A CBZ with the same name already exists: {new_path.name}"
+        log_batch_entry("convert_cbr", comic, comic.state, comic.state,
+                        {"error": [None, err_msg]})
+        return {"success": False, "error": err_msg, "fatal": False, "skipped": False}
 
+    tmp_path = original_path.with_name(f".cm-convert-{original_path.stem}.tmp")
     try:
         import patoolib
 
         with tempfile.TemporaryDirectory() as temp_dir:
             patoolib.extract_archive(str(original_path), outdir=temp_dir, verbosity=-1)
 
-            with zipfile.ZipFile(new_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            with zipfile.ZipFile(tmp_path, "w", zipfile.ZIP_DEFLATED) as zf:
                 for root, dirs, files in os.walk(temp_dir):
                     dirs[:] = [d for d in dirs if not d.startswith(".") and d != "__MACOSX"]
                     for file in sorted(files):
@@ -193,19 +175,29 @@ def _convert_comic_to_cbz(comic):
                         arc_path = file_path.relative_to(temp_dir)
                         zf.write(file_path, arc_path)
 
+        os.chmod(tmp_path, os.stat(original_path).st_mode & 0o7777)
+        if new_path.exists():
+            raise FileExistsError(f"A CBZ with the same name appeared during conversion: {new_path.name}")
+        os.replace(tmp_path, new_path)
+
         old_path_str = comic.file_path
         comic.file_path = str(new_path)
         comic.file_format = "cbz"
         comic.flags.pop("needs_conversion", None)
-        comic.save()
+        try:
+            comic.save()
+        except Exception:
+            # Keep the original as the source of truth if the DB update fails
+            new_path.unlink()
+            raise
         original_path.unlink()
         log_batch_entry("convert_cbr", comic, comic.state, comic.state,
                         {"path": [old_path_str, str(new_path)]})
         return {"success": True, "error": None, "fatal": False, "skipped": False}
 
     except Exception as e:
-        if new_path.exists():
-            new_path.unlink()
+        if tmp_path.exists():
+            tmp_path.unlink()
         err_msg = str(e)
         fatal = isinstance(e, PermissionError) or getattr(e, "errno", None) == _errno.ENOSPC
         log_batch_entry("convert_cbr", comic, comic.state, comic.state,
