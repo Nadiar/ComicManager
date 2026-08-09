@@ -616,6 +616,64 @@ def _patch_comicinfo_entry(zip_path: str, xml_bytes: bytes) -> None:
         zf.writestr("ComicInfo.xml", xml_bytes)
 
 
+def _index_backup_path(zip_path: str) -> str:
+    folder, name = os.path.split(zip_path)
+    return os.path.join(folder, f".{name}.cm-index")
+
+
+def _fsync_file(path: str) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _save_index_backup(zip_path: str) -> str:
+    """
+    Save the archive's index (central directory and end record) to a hidden
+    file next to it before an in-place patch.
+
+    An in-place patch writes the new entry over the old index and only writes
+    the new index at the end. If it is interrupted in between, the original
+    archive is exactly the bytes before the old index plus this saved tail,
+    which restore_index_backup puts back.
+    """
+    with zipfile.ZipFile(zip_path, "r") as zf:
+        start = zf.start_dir
+    size = os.path.getsize(zip_path)
+    backup = _index_backup_path(zip_path)
+    with open(zip_path, "rb") as src, open(backup, "wb") as out:
+        src.seek(start)
+        out.write(start.to_bytes(8, "little"))
+        out.write(src.read(size - start))
+        out.flush()
+        os.fsync(out.fileno())
+    return backup
+
+
+def restore_index_backup(zip_path: str) -> bool:
+    """
+    Undo an interrupted in-place ComicInfo write using the saved index.
+    Returns True if a backup was found and the archive was restored.
+    """
+    backup = _index_backup_path(zip_path)
+    if not os.path.exists(backup):
+        return False
+    with open(backup, "rb") as f:
+        start = int.from_bytes(f.read(8), "little")
+        tail = f.read()
+    with open(zip_path, "r+b") as f:
+        f.truncate(start)
+        f.seek(start)
+        f.write(tail)
+        f.flush()
+        os.fsync(f.fileno())
+    zipfile.ZipFile(zip_path, "r").close()
+    os.remove(backup)
+    return True
+
+
 def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
     """
     Write/update ComicInfo.xml inside a CBZ file.
@@ -627,8 +685,9 @@ def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
     - CoW filesystems (btrfs/XFS): patch a near-free reflink clone in the same
       directory, then atomically swap it over the original. Fast and crash-safe.
     - Other filesystems (e.g. ext4): patch the archive in place. Still fast (no
-      O(size) copy), but not crash-atomic. Page data is never rewritten, so an
-      interrupted write leaves the images intact and recoverable (try_rezip_cbz).
+      O(size) copy). The archive index is saved to a hidden file first, so an
+      interrupted write can be undone exactly (restore_index_backup); the
+      backup is removed once the patched archive is synced to disk.
 
     Returns True on success, False on failure.
     """
@@ -642,7 +701,7 @@ def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
         # Probe for a cheap reflink clone in the same directory (so a later
         # os.replace stays on one filesystem). If it works, patch the clone and
         # swap atomically; the original is untouched until then.
-        fd, tmp_path = tempfile.mkstemp(suffix=".cbz", dir=os.path.dirname(cbz_path))
+        fd, tmp_path = tempfile.mkstemp(prefix=".cm-", suffix=".tmp", dir=os.path.dirname(cbz_path))
         os.close(fd)
         try:
             if _try_reflink(cbz_path, tmp_path):
@@ -658,7 +717,17 @@ def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
-        _patch_comicinfo_entry(cbz_path, xml_bytes)
+        # A backup left by an interrupted earlier write: put the archive back first
+        restore_index_backup(cbz_path)
+
+        backup = _save_index_backup(cbz_path)
+        try:
+            _patch_comicinfo_entry(cbz_path, xml_bytes)
+            _fsync_file(cbz_path)
+        except Exception:
+            restore_index_backup(cbz_path)
+            raise
+        os.remove(backup)
         return True
 
     except (zipfile.BadZipFile, OSError, PermissionError):

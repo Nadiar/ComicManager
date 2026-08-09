@@ -16,7 +16,7 @@ from apps.core import cbz_utils
 from apps.core.models import Comic
 from apps.core.sample_data import make_cbz, make_sample_library, page_colors
 from apps.core.services import check_missing_files, scan_untagged_folder
-from apps.core.utils import read_comicinfo_xml, write_comicinfo_xml
+from apps.core.utils import read_comicinfo_xml, restore_index_backup, write_comicinfo_xml
 
 
 class TempDirMixin:
@@ -133,6 +133,63 @@ class ComicInfoWriteTests(TempDirMixin, TestCase):
             self.assertIsNone(zf.testzip())
         self.assertEqual(len(names), 1)
         self.assertEqual(page_colors(p), [0, 1, 2])
+
+
+class InterruptedWriteTests(TempDirMixin, TestCase):
+    """An in-place ComicInfo write that dies halfway must be recoverable."""
+
+    def _interrupt(self, p, comic):
+        from unittest.mock import patch
+        from apps.core import utils
+
+        def dying_patch(zip_path, xml_bytes):
+            # Simulate a crash after the new entry overwrote the old index but
+            # before the new index was written
+            with zipfile.ZipFile(zip_path) as zf:
+                start = zf.start_dir
+            with open(zip_path, "r+b") as f:
+                f.seek(start)
+                f.write(b"PK\x03\x04 partial entry")
+                f.truncate()
+            raise SystemExit("killed")
+
+        with patch.object(utils, "_patch_comicinfo_entry", dying_patch), \
+                patch.object(utils, "restore_index_backup", lambda path: False):
+            with self.assertRaises(SystemExit):
+                write_comicinfo_xml(p, comic)
+
+    def test_backup_restores_original_archive(self):
+        p = make_cbz(self.path("a.cbz"), comicinfo="<ComicInfo><Series>Old</Series></ComicInfo>")
+        with open(p, "rb") as f:
+            original = f.read()
+        comic = Comic.objects.create(file_path=p, series="New", number="1", publisher="Pub")
+        self._interrupt(p, comic)
+        with self.assertRaises(zipfile.BadZipFile):
+            zipfile.ZipFile(p)
+        self.assertTrue(restore_index_backup(p))
+        with open(p, "rb") as f:
+            self.assertEqual(f.read(), original)
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+
+    def test_rezip_and_next_write_recover(self):
+        from pathlib import Path
+        from apps.core.services import try_rezip_cbz
+        p = make_cbz(self.path("a.cbz"))
+        comic = Comic.objects.create(file_path=p, series="New", number="1", publisher="Pub")
+        self._interrupt(p, comic)
+        self.assertTrue(try_rezip_cbz(Path(p))["success"])
+        self.assertEqual(page_colors(p), [0, 1, 2])
+
+        self._interrupt(p, comic)
+        self.assertTrue(write_comicinfo_xml(p, comic))
+        self.assertEqual(read_comicinfo_xml(p).get("series"), "New")
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+
+    def test_successful_write_leaves_no_backup(self):
+        p = make_cbz(self.path("a.cbz"))
+        comic = Comic.objects.create(file_path=p, series="New", number="1", publisher="Pub")
+        self.assertTrue(write_comicinfo_xml(p, comic))
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
 
 
 class UntaggedScanTests(TempDirMixin, TestCase):

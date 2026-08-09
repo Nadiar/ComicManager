@@ -256,6 +256,18 @@ def try_rezip_cbz(cbz_path: Path) -> dict:
     """
     import shutil
     import tempfile
+    from .utils import restore_index_backup
+
+    # An interrupted ComicInfo write left its index backup: undo it exactly
+    try:
+        if restore_index_backup(str(cbz_path)):
+            from .cbz_utils import list_pages
+            with zipfile.ZipFile(cbz_path, "r") as zf:
+                names = zf.namelist()
+            count = len(list_pages(names))
+            return {"success": True, "page_count": count or None, "extracted": len(names)}
+    except (OSError, zipfile.BadZipFile):
+        pass
 
     tmp_dir = Path(tempfile.mkdtemp())
     tmp_out = cbz_path.with_suffix(".cbz.tmp")
