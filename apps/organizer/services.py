@@ -2,6 +2,7 @@
 Library Organizer Service - Organizes comics into library folder structure.
 """
 
+import errno
 import os
 import shutil
 from pathlib import Path
@@ -41,12 +42,43 @@ def _safe_move(old_path: str, new_path: str, allowed_root: str) -> None:
     root = Path(allowed_root).resolve()
     if not dest.is_relative_to(root):
         raise ValueError(f"Refusing to move outside library root {root}: {dest}")
-    if os.path.exists(new_path) and os.path.abspath(old_path) != os.path.abspath(new_path):
-        raise FileOverwriteError(
-            f"Refusing to overwrite existing file: {new_path} "
-            f"(would clobber it with {old_path})"
-        )
-    shutil.move(old_path, new_path)
+    if os.path.abspath(old_path) == os.path.abspath(new_path):
+        return
+    overwrite_error = FileOverwriteError(
+        f"Refusing to overwrite existing file: {new_path} "
+        f"(would clobber it with {old_path})"
+    )
+    if os.path.exists(new_path):
+        raise overwrite_error
+
+    # os.link never replaces an existing file, so the destination check above
+    # cannot race with another writer. Different mounts (untagged and library
+    # are separate volumes) cannot be linked: copy to a hidden temp file next
+    # to the destination first, so a crash never leaves a half-copied comic
+    # under the real name.
+    try:
+        os.link(old_path, new_path)
+    except FileExistsError:
+        raise overwrite_error
+    except OSError as e:
+        if e.errno not in (errno.EXDEV, errno.EPERM, errno.ENOTSUP):
+            raise
+        tmp_path = os.path.join(os.path.dirname(new_path), f".cm-move-{os.path.basename(new_path)}.tmp")
+        try:
+            shutil.copy2(old_path, tmp_path)
+            fd = os.open(tmp_path, os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            try:
+                os.link(tmp_path, new_path)
+            except FileExistsError:
+                raise overwrite_error
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+    os.remove(old_path)
 
 
 DEFAULT_PROFILE_NAME = "Default"

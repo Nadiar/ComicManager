@@ -4,7 +4,6 @@ import os
 import tempfile
 
 from django.test import SimpleTestCase
-
 from apps.organizer.services import FileOverwriteError, _safe_move
 from apps.organizer.template_engine import _pad_number
 
@@ -91,3 +90,28 @@ class SafeMoveTests(SimpleTestCase):
                 _safe_move(src, dst, library)
             self.assertTrue(os.path.exists(src))
             self.assertFalse(os.path.exists(os.path.join(outside, "dst.cbz")))
+
+    def test_move_across_mounts_copies_via_hidden_temp(self):
+        import errno
+        from unittest.mock import patch
+        real_link = os.link
+        calls = []
+
+        def link(src, dst):
+            calls.append(src)
+            if len(calls) == 1:
+                raise OSError(errno.EXDEV, "Invalid cross-device link")
+            return real_link(src, dst)
+
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src.cbz")
+            dst = os.path.join(d, "dst.cbz")
+            with open(src, "w") as f:
+                f.write("source")
+            with patch("apps.organizer.services.os.link", side_effect=link):
+                _safe_move(src, dst, d)
+            self.assertEqual(os.listdir(d), ["dst.cbz"])
+            with open(dst) as f:
+                self.assertEqual(f.read(), "source")
+            self.assertIn(".cm-move-", calls[1])
+
