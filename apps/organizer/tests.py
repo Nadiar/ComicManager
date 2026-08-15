@@ -181,3 +181,22 @@ class MissingFileTests(TestCase):
         sync_library_paths()
         comic.refresh_from_db()
         self.assertEqual(comic.file_path, target)
+
+
+class DefaultProfileTests(TestCase):
+
+    def test_default_profile_fills_in_fields(self):
+        from apps.organizer.services import preview_organization
+        comic = Comic.objects.create(file_path="/comics/untagged/x.cbz", series="Sample Hero",
+                                     number="1", publisher="Pub", volume=2020, year=2020)
+        self.assertEqual(preview_organization(comic)["new_path"],
+                         "/comics/library/Pub/Sample Hero (2020)/Sample Hero #1 (2020).cbz")
+
+    def test_recreated_default_profile_fills_in_fields(self):
+        from apps.organizer.services import get_default_profile, preview_organization
+        OrganizerProfile.objects.filter(name="Default").delete()
+        get_default_profile()
+        comic = Comic.objects.create(file_path="/comics/untagged/x.cbz", series="Sample Hero",
+                                     number="1", publisher="Pub")
+        self.assertEqual(preview_organization(comic)["new_path"],
+                         "/comics/library/Pub/Sample Hero/Sample Hero #1.cbz")

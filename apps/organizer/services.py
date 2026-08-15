@@ -96,8 +96,8 @@ def get_default_profile() -> OrganizerProfile:
         defaults={
             "priority": 9999,  # evaluated last; only catches what nothing else does
             "is_enabled": True,
-            "folder_template": "<publisher>/<series>{ (<volume>)}",
-            "file_template": "<series>{ #<number>}{ (<year>)}",
+            "folder_template": "{<publisher>}/{<series>}{ (<volume>)}",
+            "file_template": "{<series>}{ #<number>}{ (<year>)}",
             "base_folder": LIBRARY_BASE,
             "exclude_rules": {},
         },
