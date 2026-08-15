@@ -51,7 +51,7 @@ def index(request):
         {
             "flag": "file_missing",
             "label": "File Missing",
-            "description": "The file is gone from the untagged folder; metadata was kept",
+            "description": "The file is missing on disk; its metadata was kept",
             "count": Comic.objects.filter(flags__file_missing=True).count(),
             "action": "review",
         },

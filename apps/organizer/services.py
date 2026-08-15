@@ -465,9 +465,13 @@ def _find_file_in_folder(folder: str, series: str, number: str) -> str | None:
         if not fname.lower().endswith(".cbz"):
             continue
         fname_norm = _normalize_for_match(fname)
-        # Check series name appears in filename (normalized)
-        if series_norm and series_norm not in fname_norm:
-            continue
+        # The file name must start with the series name, followed by the
+        # number or nothing ("Batman 001" matches Batman, "Batman Beyond 001"
+        # does not)
+        if series_norm:
+            rest = fname_norm[len(series_norm):] if fname_norm.startswith(series_norm) else None
+            if rest is None or (rest and not re.match(r" \d", rest)):
+                continue
         # Match #027, #27, etc. - extract number and normalize
         num_match = re.search(r'#(\d+)', fname)
         if num_match:
@@ -496,7 +500,7 @@ def sync_library_paths() -> dict:
     """
     comics = list(
         Comic.objects.filter(
-            state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN],
+            state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE],
             medium=Comic.MEDIUM_DIGITAL,
         ).exclude(file_path__isnull=True).exclude(file_path="")
     )
@@ -577,6 +581,52 @@ def sync_library_paths() -> dict:
         "not_found": not_found,
         "errors": errors,
     }
+
+
+def find_moved_file(comic: Comic) -> str | None:
+    """
+    Look for a comic whose file is no longer at file_path: its organizer
+    target path, a matching file in the target folder, or a matching file in
+    the folder it used to be in. Returns the path only if exactly one
+    candidate is found and no other comic already uses it.
+    """
+    preview = preview_organization(comic)
+    candidates = []
+    if os.path.exists(preview["new_path"]):
+        candidates.append(preview["new_path"])
+    else:
+        for folder in (preview["new_folder"], os.path.dirname(comic.file_path or "")):
+            found = _find_file_in_folder(folder, comic.series, comic.number)
+            if found:
+                candidates.append(found)
+                break
+    for path in candidates:
+        if not Comic.objects.filter(file_path=path).exclude(pk=comic.pk).exists():
+            return path
+    return None
+
+
+def relink_missing_comic(comic: Comic) -> dict:
+    """Point a comic flagged file_missing at its file's new location."""
+    if comic.file_path and os.path.exists(comic.file_path):
+        comic.remove_flag("file_missing")
+        comic.save(update_fields=["flags"])
+        return {"success": True, "relinked": False, "path": comic.file_path}
+
+    found = find_moved_file(comic)
+    if not found:
+        return {"success": False, "error": "No single matching file found in the library"}
+
+    old_path = comic.file_path
+    comic.file_path = found
+    comic.last_organized_path = found
+    comic.remove_flag("file_missing")
+    comic.needs_reorganize = False
+    comic.expected_path = None
+    comic.save()
+    from apps.core.audit import log_batch_entry
+    log_batch_entry("relink_missing", comic, comic.state, comic.state, {"path": [old_path, found]})
+    return {"success": True, "relinked": True, "path": found}
 
 
 def get_organization_stats() -> dict:

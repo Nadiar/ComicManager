@@ -26,6 +26,8 @@ urlpatterns = [
     path("path-audit/start/", views.start_audit, name="start_audit"),
     path("path-audit/reorganize-all/", views.start_reorganize_all, name="start_reorganize_all"),
     path("path-audit/reorganize/<uuid:pk>/", views.reorganize_single, name="reorganize_single"),
+    path("path-audit/relink/<uuid:pk>/", views.relink_missing, name="relink_missing"),
+    path("path-audit/remove-missing/<uuid:pk>/", views.remove_missing, name="remove_missing"),
 
     # AU Scan
     path("au-scan/", views.au_scan, name="au_scan"),

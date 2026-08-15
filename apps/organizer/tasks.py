@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 def audit_paths_task(self):
     """
     Scan all written/done digital comics.
-    Compare file_path vs computed target path.
-    Flag mismatches with needs_reorganize=True and store expected_path.
+    Files that are gone get the file_missing flag and are never offered for a
+    move. For the rest, compare file_path vs computed target path and flag
+    mismatches with needs_reorganize=True and store expected_path.
     """
     from apps.core.models import Comic
 
@@ -38,12 +39,13 @@ def audit_paths_task(self):
 
     mismatched = 0
     matched = 0
+    missing = 0
     errors = []
 
     # Send initial progress so the UI shows the total immediately
     self.update_state(
         state="PROGRESS",
-        meta={"current": 0, "total": total, "mismatched": 0, "matched": 0, "errors": []},
+        meta={"current": 0, "total": total, "mismatched": 0, "matched": 0, "missing": 0, "errors": []},
     )
 
     for i, comic_id in enumerate(comic_ids):
@@ -51,7 +53,7 @@ def audit_paths_task(self):
             self.clear_cancel()
             return {
                 "scanned": i, "mismatched": mismatched, "matched": matched,
-                "total": total, "errors": errors, "cancelled": True,
+                "missing": missing, "total": total, "errors": errors, "cancelled": True,
             }
 
         try:
@@ -60,6 +62,18 @@ def audit_paths_task(self):
             continue
 
         try:
+            if not os.path.exists(comic.file_path):
+                if not comic.has_flag("file_missing") or comic.needs_reorganize:
+                    comic.add_flag("file_missing")
+                    comic.needs_reorganize = False
+                    comic.expected_path = None
+                    comic.save(update_fields=["flags", "needs_reorganize", "expected_path"])
+                missing += 1
+                continue
+            if comic.has_flag("file_missing"):
+                comic.remove_flag("file_missing")
+                comic.save(update_fields=["flags"])
+
             preview = preview_organization(comic)
             old_path = comic.file_path
             new_path = preview["new_path"]
@@ -85,6 +99,7 @@ def audit_paths_task(self):
                 "total": total,
                 "mismatched": mismatched,
                 "matched": matched,
+                "missing": missing,
                 "errors": errors,
             },
         )
@@ -93,6 +108,7 @@ def audit_paths_task(self):
         "scanned": total,
         "mismatched": mismatched,
         "matched": matched,
+        "missing": missing,
         "total": total,
         "errors": errors,
         "cancelled": False,

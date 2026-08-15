@@ -1,9 +1,14 @@
 """Tests for the Library Organizer template engine and move safety."""
 
 import os
+import shutil
 import tempfile
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
+
+from apps.core.models import Comic
+from apps.core.sample_data import make_cbz
+from apps.organizer.models import OrganizerProfile
 from apps.organizer.services import FileOverwriteError, _safe_move
 from apps.organizer.template_engine import _pad_number
 
@@ -115,3 +120,64 @@ class SafeMoveTests(SimpleTestCase):
                 self.assertEqual(f.read(), "source")
             self.assertIn(".cm-move-", calls[1])
 
+
+class MissingFileTests(TestCase):
+    """Path Audit must not offer moves for files that are gone (Gitea #4)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        OrganizerProfile.objects.update_or_create(
+            name="Default",
+            defaults={"priority": 9999, "is_enabled": True, "base_folder": self.tmp,
+                      "folder_template": "{<publisher>}/{<series>}",
+                      "file_template": "{<series>}{ #<number3>}", "exclude_rules": {}},
+        )
+
+    def _comic(self, path, **kw):
+        defaults = dict(series="Sample Hero", number="1", publisher="Pub",
+                        state=Comic.STATE_DONE, file_format="cbz")
+        defaults.update(kw)
+        return Comic.objects.create(file_path=path, **defaults)
+
+    def test_audit_flags_missing_instead_of_reorganize(self):
+        from apps.organizer.tasks import audit_paths_task
+        gone = self._comic(os.path.join(self.tmp, "old", "gone.cbz"))
+        audit_paths_task.apply()
+        gone.refresh_from_db()
+        self.assertTrue(gone.has_flag("file_missing"))
+        self.assertFalse(gone.needs_reorganize)
+        page = self.client.get("/organizer/path-audit/")
+        self.assertEqual(page.context["total_missing"], 1)
+        self.assertEqual(page.context["total_flagged"], 0)
+
+    def test_relink_finds_file_in_target_folder(self):
+        target = make_cbz(os.path.join(self.tmp, "Pub", "Sample Hero", "Sample Hero #001 (2020).cbz"))
+        comic = self._comic(os.path.join(self.tmp, "old", "gone.cbz"), flags={"file_missing": True})
+        resp = self.client.post(f"/organizer/path-audit/relink/{comic.pk}/")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        comic.refresh_from_db()
+        self.assertEqual(comic.file_path, target)
+        self.assertFalse(comic.has_flag("file_missing"))
+
+    def test_relink_ignores_other_series_with_same_prefix(self):
+        make_cbz(os.path.join(self.tmp, "Pub", "Sample Hero", "Sample Hero Beyond #001.cbz"))
+        comic = self._comic(os.path.join(self.tmp, "old", "gone.cbz"), flags={"file_missing": True})
+        resp = self.client.post(f"/organizer/path-audit/relink/{comic.pk}/")
+        self.assertEqual(resp.status_code, 404)
+
+    def test_remove_missing_only_when_file_is_gone(self):
+        present = self._comic(make_cbz(os.path.join(self.tmp, "here.cbz")))
+        gone = self._comic(os.path.join(self.tmp, "gone.cbz"), number="2")
+        self.assertEqual(self.client.post(f"/organizer/path-audit/remove-missing/{present.pk}/").status_code, 409)
+        self.assertTrue(os.path.exists(present.file_path))
+        self.assertEqual(self.client.post(f"/organizer/path-audit/remove-missing/{gone.pk}/").status_code, 200)
+        self.assertFalse(Comic.objects.filter(pk=gone.pk).exists())
+
+    def test_sync_relinks_done_comics(self):
+        from apps.organizer.services import sync_library_paths
+        target = make_cbz(os.path.join(self.tmp, "Pub", "Sample Hero", "Sample Hero #1.cbz"))
+        comic = self._comic(os.path.join(self.tmp, "old", "gone.cbz"))
+        sync_library_paths()
+        comic.refresh_from_db()
+        self.assertEqual(comic.file_path, target)

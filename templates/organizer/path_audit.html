@@ -28,9 +28,46 @@
   </div>
   <div class="cm-card-sm">
     <div class="cm-stat-label">Correct Location</div>
-    <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ total_organized|add:"-"|add:total_flagged }}</div>
+    <div style="font-size:26px; font-weight:700; color:var(--cm-ok); margin-top:2px;" class="mono tnum">{{ total_organized|add:"-"|add:total_flagged|add:"-"|add:total_missing }}</div>
+  </div>
+  <div class="cm-card-sm">
+    <div class="cm-stat-label">Missing Files</div>
+    <div style="font-size:26px; font-weight:700; {% if total_missing > 0 %}color:var(--cm-err){% else %}color:var(--cm-ok){% endif %}; margin-top:2px;" class="mono tnum">{{ total_missing }}</div>
   </div>
 </div>
+
+{% if total_missing > 0 %}
+<!-- Missing files: the file is gone, so these can only be relinked or removed -->
+<div style="padding:10px 16px; border-bottom:1px solid var(--cm-border); font-size:12px; color:var(--cm-fg-2);">
+  <strong style="color:var(--cm-err);">Missing files ({{ total_missing }}{% if total_missing > 200 %}, first 200 shown{% endif %})</strong>
+  - the database has these comics but the file is not on disk. Relink looks for the file in the library; Remove deletes only the database record.
+</div>
+<div class="cm-overflow-x">
+  <table class="cm-table">
+    <thead>
+      <tr style="border-bottom:1px solid var(--cm-border); background:var(--cm-bg-1);">
+        <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Series</th>
+        <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2); width:60px;">#</th>
+        <th style="padding:8px 12px; text-align:left; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-2);">Last Known Path</th>
+        <th style="padding:8px 12px; width:140px;"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for comic in missing_comics %}
+      <tr class="cm-divider">
+        <td style="padding:8px 12px; font-weight:500;"><a href="/comics/{{ comic.pk }}/" class="cm-text-accent">{{ comic.series }}</a></td>
+        <td style="padding:8px 12px;" class="mono tnum">{{ comic.number }}</td>
+        <td style="padding:8px 12px; max-width:360px;"><code style="font-size:10.5px; color:var(--cm-fg-2); word-break:break-all;">{{ comic.file_path }}</code></td>
+        <td style="padding:8px 12px; text-align:right; white-space:nowrap;">
+          <button onclick="missingAction(this, 'relink')" data-url="{% url 'organizer:relink_missing' pk=comic.pk %}" class="cm-btn sm ghost">Relink</button>
+          <button onclick="missingAction(this, 'remove')" data-url="{% url 'organizer:remove_missing' pk=comic.pk %}" class="cm-btn sm ghost">Remove</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 
 {% if total_flagged == 0 %}
 <div style="padding:48px 16px; text-align:center; color:var(--cm-fg-3); font-size:14px;">
@@ -197,6 +234,39 @@ async function reorganizeSingle(btn) {
     btn.textContent = 'Error';
     window.showResultToast({ label: 'Network error', success: false });
     setTimeout(() => { btn.textContent = 'Move'; btn.disabled = false; }, 3000);
+  }
+}
+
+async function missingAction(btn, kind) {
+  const run = async () => {
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '...';
+    try {
+      const resp = await fetch(btn.dataset.url, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken() } });
+      const data = await resp.json();
+      if (data.success) {
+        btn.closest('tr').style.opacity = '0.3';
+        btn.textContent = 'Done';
+        window.showResultToast({
+          label: kind === 'remove' ? 'Record removed' : (data.relinked ? 'Relinked to ' + data.path : 'File is back in place'),
+          success: true,
+        });
+      } else {
+        btn.textContent = orig;
+        btn.disabled = false;
+        window.showResultToast({ label: kind === 'remove' ? 'Remove failed' : 'Relink failed', success: false, errors: [data.error || 'Unknown error'] });
+      }
+    } catch (e) {
+      btn.textContent = orig;
+      btn.disabled = false;
+      window.showResultToast({ label: 'Network error', success: false });
+    }
+  };
+  if (kind === 'remove') {
+    showConfirm('Remove this comic from the database? Its metadata will be lost. No files are touched.', run, 'Remove', true);
+  } else {
+    run();
   }
 }
 

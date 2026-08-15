@@ -357,8 +357,19 @@ def path_audit(request):
             medium=Comic.MEDIUM_DIGITAL,
             state__in=[Comic.STATE_WRITTEN, Comic.STATE_DONE],
         )
+        .exclude(flags__file_missing=True)
         .order_by("publisher", "series", "number")
     )
+
+    missing_comics = (
+        Comic.objects.filter(
+            flags__file_missing=True,
+            medium=Comic.MEDIUM_DIGITAL,
+            state__in=[Comic.STATE_WRITTEN, Comic.STATE_DONE],
+        )
+        .order_by("publisher", "series", "number")
+    )
+    total_missing = missing_comics.count()
 
     total_flagged = comics.count()
     total_organized = Comic.objects.filter(
@@ -395,6 +406,8 @@ def path_audit(request):
         "page_obj": page_obj,
         "total_flagged": total_flagged,
         "total_organized": total_organized,
+        "missing_comics": missing_comics[:200],
+        "total_missing": total_missing,
         "active_audit_task_id": active_audit_task_id,
         "active_au_scan_task_id": active_au_scan_task_id,
         "active_reorganize_task_id": active_reorganize_task_id,
@@ -544,3 +557,25 @@ def reorganize_single(request, pk):
         "old_path": result.detail.get("old_path") if result.detail else None,
         "new_path": result.detail.get("new_path") if result.detail else None,
     })
+
+
+@require_POST
+def relink_missing(request, pk):
+    """Find a missing comic's file in the library and update its path."""
+    from .services import relink_missing_comic
+
+    comic = get_object_or_404(Comic, pk=pk)
+    result = relink_missing_comic(comic)
+    return JsonResponse(result, status=200 if result["success"] else 404)
+
+
+@require_POST
+def remove_missing(request, pk):
+    """Delete the record of a comic whose file is gone. Never touches files."""
+    comic = get_object_or_404(Comic, pk=pk)
+    if comic.file_path and os.path.exists(comic.file_path):
+        return JsonResponse({"success": False, "error": "The file exists, so the comic was not removed"}, status=409)
+    from apps.core.audit import log_batch_entry
+    log_batch_entry("remove_missing", comic, comic.state, comic.state, {"path": [comic.file_path, None]})
+    comic.delete()
+    return JsonResponse({"success": True})
