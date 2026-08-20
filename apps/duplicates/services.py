@@ -589,6 +589,28 @@ def _run_all_detectors(pool: list) -> tuple[list, dict]:
     return all_groups, counts
 
 
+# Fields the detectors and group creation read; skips large text columns
+_POOL_FIELDS = (
+    "id", "medium", "custom_values", "series", "number", "volume", "year",
+    "page_count", "phash", "file_path", "state", "duplicate_group",
+)
+
+
+def _library_pool(exclude_pks) -> list[Comic]:
+    """
+    Every comic a new candidate is compared against: all comics outside the
+    Deduplicate stage, including ones kept or marked intentional in earlier
+    duplicate groups. Comics in a still-pending group are left out; candidates
+    that match them are attached to that group afterwards.
+    """
+    return list(
+        Comic.objects.exclude(state=Comic.STATE_DEDUPLICATED)
+        .exclude(pk__in=exclude_pks)
+        .exclude(duplicate_group__status=DuplicateGroup.STATUS_PENDING)
+        .only(*_POOL_FIELDS)
+    )
+
+
 def run_duplicate_detection_for_comics(comic_pks: list) -> dict:
     """
     Run duplicate detection for a specific set of comics.
@@ -597,19 +619,14 @@ def run_duplicate_detection_for_comics(comic_pks: list) -> dict:
     candidates = list(Comic.objects.filter(
         pk__in=comic_pks,
         state=Comic.STATE_DEDUPLICATED,
-        duplicate_group__isnull=True,
-    ))
+    ).exclude(duplicate_group__status=DuplicateGroup.STATUS_PENDING))
 
     if not candidates:
         return {"success": True, "message": "No eligible comics to process", "total_comics": 0, "groups_created": 0, "advanced": 0}
 
     candidate_pks = set(c.pk for c in candidates)
 
-    library_comics = list(Comic.objects.filter(
-        duplicate_group__isnull=True,
-    ).exclude(
-        state=Comic.STATE_DEDUPLICATED,
-    ).exclude(pk__in=candidate_pks))
+    library_comics = _library_pool(candidate_pks)
 
     comparison_pool = candidates + library_comics
 
@@ -668,8 +685,7 @@ def run_duplicate_detection() -> dict:
     # Get candidates: deduplicated comics without existing group
     candidates = list(Comic.objects.filter(
         state=Comic.STATE_DEDUPLICATED,
-        duplicate_group__isnull=True,
-    ))
+    ).exclude(duplicate_group__status=DuplicateGroup.STATUS_PENDING))
 
     logger.info(f"run_duplicate_detection: found {len(candidates)} deduplicated candidates")
 
@@ -684,14 +700,10 @@ def run_duplicate_detection() -> dict:
 
     candidate_pks = set(c.pk for c in candidates)
 
-    # Build comparison pool: candidates + all library comics without a group.
-    # This catches duplicates of already-processed comics (e.g. a new import
-    # that matches an already-written comic).
-    library_comics = list(Comic.objects.filter(
-        duplicate_group__isnull=True,
-    ).exclude(
-        state=Comic.STATE_DEDUPLICATED,
-    ))
+    # Build comparison pool: candidates + the library, including comics kept in
+    # earlier duplicate groups. This catches duplicates of already-processed
+    # comics (e.g. a new import that matches an already-written comic).
+    library_comics = _library_pool(candidate_pks)
 
     comparison_pool = candidates + library_comics
     logger.info(
