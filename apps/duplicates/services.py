@@ -28,7 +28,12 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
-def detect_duplicates_by_cv_id(comics: list[Comic]) -> list[DuplicateGroup]:
+def _includes_any(comics: list[Comic], must_include) -> bool:
+    """With must_include set, only groups containing one of those comics count."""
+    return must_include is None or any(c.pk in must_include for c in comics)
+
+
+def detect_duplicates_by_cv_id(comics: list[Comic], must_include=None) -> list[DuplicateGroup]:
     """
     Detect duplicates by ComicVine issue ID.
 
@@ -72,7 +77,7 @@ def detect_duplicates_by_cv_id(comics: list[Comic]) -> list[DuplicateGroup]:
         if len(physical) > 1:
             dup_comics.extend(physical)
 
-        if len(dup_comics) >= 2:
+        if len(dup_comics) >= 2 and _includes_any(dup_comics, must_include):
             logger.info(f"CV ID {cv_id}: creating group with {len(dup_comics)} duplicates")
             for c in dup_comics:
                 logger.info(f"  - {c.series} #{c.number} ({c.medium}): {c.file_path}")
@@ -87,7 +92,7 @@ def detect_duplicates_by_cv_id(comics: list[Comic]) -> list[DuplicateGroup]:
     return created_groups
 
 
-def detect_duplicates_by_metadata(comics: list[Comic]) -> list[DuplicateGroup]:
+def detect_duplicates_by_metadata(comics: list[Comic], must_include=None) -> list[DuplicateGroup]:
     """
     Detect duplicates by series + number + volume match.
 
@@ -133,7 +138,7 @@ def detect_duplicates_by_metadata(comics: list[Comic]) -> list[DuplicateGroup]:
         if len(physical) > 1:
             dup_comics.extend(physical)
 
-        if len(dup_comics) >= 2:
+        if len(dup_comics) >= 2 and _includes_any(dup_comics, must_include):
             # Page-count sanity check: a TPB and a single issue often share the
             # same series+number+volume but are not duplicates.  If the largest
             # page count is more than 3× the smallest, skip this group.
@@ -154,15 +159,53 @@ def detect_duplicates_by_metadata(comics: list[Comic]) -> list[DuplicateGroup]:
     return created_groups
 
 
+def _phash_neighbors(hashes: list[str], max_distance: int):
+    """
+    Return neighbors(i) -> indexes whose hash is within max_distance of hashes[i].
+
+    64-bit hashes (the imagehash default) are compared with numpy in one pass
+    per anchor; anything else falls back to Python integers.
+    """
+    try:
+        import numpy as np
+        if not all(len(h) <= 16 for h in hashes):
+            raise ValueError("hash wider than 64 bits")
+        values = np.array([int(h, 16) for h in hashes], dtype=np.uint64)
+
+        def neighbors(i):
+            dist = np.bitwise_count(values ^ values[i])
+            return [int(j) for j in np.nonzero(dist <= max_distance)[0] if j != i]
+    except (ImportError, AttributeError, ValueError, OverflowError):
+        ints = []
+        for h in hashes:
+            try:
+                ints.append(int(h, 16))
+            except (ValueError, TypeError):
+                ints.append(None)
+
+        def neighbors(i):
+            if ints[i] is None:
+                return []
+            return [j for j, v in enumerate(ints)
+                    if j != i and v is not None and (v ^ ints[i]).bit_count() <= max_distance]
+    return neighbors
+
+
 def detect_duplicates_by_phash(
     comics: list[Comic],
     max_distance: int = 5,
+    must_include=None,
 ) -> list[DuplicateGroup]:
     """
     Detect duplicates by pHash similarity.
 
     Uses hamming distance between cover image hashes.
     Only considers digital comics (physical have no hash).
+
+    Groups are built around an anchor comic: every member is within
+    max_distance of the anchor, so near matches cannot chain unrelated covers
+    into one group. With must_include, only those comics are anchors and the
+    rest of the pool is compared against them, not against each other.
     """
     from apps.core.models import get_setting
 
@@ -178,56 +221,47 @@ def detect_duplicates_by_phash(
     if len(hashable) < 2:
         return []
 
-    # Build groups using union-find approach
-    parent: dict[str, str] = {}  # comic.pk -> group representative pk
-    distances: dict[tuple, int] = {}  # (pk1, pk2) -> distance
+    neighbors = _phash_neighbors([c.phash for c in hashable], max_distance)
 
-    def find(pk: str) -> str:
-        if pk not in parent:
-            parent[pk] = pk
-        if parent[pk] != pk:
-            parent[pk] = find(parent[pk])
-        return parent[pk]
+    if must_include is None:
+        anchors = range(len(hashable))
+    else:
+        anchors = [i for i, c in enumerate(hashable) if c.pk in must_include]
 
-    def union(pk1: str, pk2: str):
-        p1, p2 = find(pk1), find(pk2)
-        if p1 != p2:
-            parent[p1] = p2
+    # Star groups: (anchor index, member indexes)
+    stars = []
+    assigned = set()
+    for a in anchors:
+        if must_include is None and a in assigned:
+            continue
+        near = neighbors(a)
+        if must_include is None:
+            near = [j for j in near if j not in assigned]
+        if not near:
+            continue
+        members = [a] + near
+        assigned.update(members)
+        stars.append((a, members))
 
-    # Compare all pairs
-    for i, c1 in enumerate(hashable):
-        for c2 in hashable[i + 1:]:
-            distance = _hamming_distance(c1.phash, c2.phash)
-            if distance <= max_distance:
-                pk1, pk2 = str(c1.pk), str(c2.pk)
-                union(pk1, pk2)
-                distances[(pk1, pk2)] = distance
-                distances[(pk2, pk1)] = distance
-
-    # Collect groups
-    groups: dict[str, list[Comic]] = defaultdict(list)
-    comic_by_pk = {str(c.pk): c for c in hashable}
-
-    for pk in parent:
-        root = find(pk)
-        groups[root].append(comic_by_pk[pk])
+    # Candidates may share a library match; merge those stars so a comic is
+    # never put in two groups.
+    merged = []
+    for anchor, members in stars:
+        members = set(members)
+        for other in [m for m in merged if m[1] & members]:
+            merged.remove(other)
+            members |= other[1]
+            anchor = other[0]
+        merged.append((anchor, members))
 
     created_groups = []
 
-    for root_pk, group_comics in groups.items():
-        if len(group_comics) < 2:
-            continue
-
-        # Calculate max distance in group
-        max_dist = 0
-        for c1 in group_comics:
-            for c2 in group_comics:
-                if c1.pk != c2.pk:
-                    d = distances.get((str(c1.pk), str(c2.pk)), 0)
-                    max_dist = max(max_dist, d)
-
-        # Use anchor comic's hash as the match key
-        anchor = comic_by_pk[root_pk]
+    for anchor_idx, member_idx in merged:
+        anchor = hashable[anchor_idx]
+        group_comics = [hashable[i] for i in sorted(member_idx)]
+        max_dist = max(
+            _hamming_distance(anchor.phash, c.phash) for c in group_comics if c.pk != anchor.pk
+        )
 
         group = _create_duplicate_group(
             comics=group_comics,
@@ -241,7 +275,7 @@ def detect_duplicates_by_phash(
     return created_groups
 
 
-def detect_duplicates_by_filename(comics: list[Comic]) -> list[DuplicateGroup]:
+def detect_duplicates_by_filename(comics: list[Comic], must_include=None) -> list[DuplicateGroup]:
     """
     Detect duplicates by OS-generated duplicate filename patterns.
 
@@ -296,7 +330,7 @@ def detect_duplicates_by_filename(comics: list[Comic]) -> list[DuplicateGroup]:
                 has_suffix = True
                 break
 
-        if not has_suffix:
+        if not has_suffix or not _includes_any(group_comics, must_include):
             continue
 
         base_name = os.path.basename(canonical_key)
@@ -569,16 +603,19 @@ def _consolidate_pending_groups() -> int:
 # ============================================================================
 
 
-def _run_all_detectors(pool: list) -> tuple[list, dict]:
+def _run_all_detectors(pool: list, must_include=None) -> tuple[list, dict]:
     """Run every duplicate-detection method over `pool`.
+
+    With must_include (a set of pks), only groups containing one of those
+    comics are created, so a batch run never regroups old library comics.
 
     Returns the combined list of groups plus a per-method count breakdown
     so callers that report statistics don't have to repeat the four calls.
     """
-    by_cv_id = detect_duplicates_by_cv_id(pool)
-    by_metadata = detect_duplicates_by_metadata(pool)
-    by_phash = detect_duplicates_by_phash(pool)
-    by_filename = detect_duplicates_by_filename(pool)
+    by_cv_id = detect_duplicates_by_cv_id(pool, must_include)
+    by_metadata = detect_duplicates_by_metadata(pool, must_include)
+    by_phash = detect_duplicates_by_phash(pool, must_include=must_include)
+    by_filename = detect_duplicates_by_filename(pool, must_include)
     all_groups = by_cv_id + by_metadata + by_phash + by_filename
     counts = {
         "by_cv_id": len(by_cv_id),
@@ -630,7 +667,7 @@ def run_duplicate_detection_for_comics(comic_pks: list) -> dict:
 
     comparison_pool = candidates + library_comics
 
-    all_groups, _ = _run_all_detectors(comparison_pool)
+    all_groups, _ = _run_all_detectors(comparison_pool, must_include=candidate_pks)
 
     candidates_with_groups = set()
     for group in all_groups:
@@ -711,8 +748,8 @@ def run_duplicate_detection() -> dict:
         f"+ {len(library_comics)} library comics = {len(comparison_pool)} total"
     )
 
-    # Run detection methods on the full pool
-    all_groups, method_counts = _run_all_detectors(comparison_pool)
+    # Run detection methods: candidates against the whole pool
+    all_groups, method_counts = _run_all_detectors(comparison_pool, must_include=candidate_pks)
     logger.info(f"run_duplicate_detection: created {len(all_groups)} total groups")
 
     # Collect IDs of candidates that ended up in groups
