@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -111,6 +112,18 @@ CELERY_TASK_QUEUES = {
     "write": {},
 }
 CELERY_RESULT_EXTENDED = True
+
+# Shared cache in Redis, so the web and worker processes see the same values
+# (the ComicVine API call budget lives here). Defaults to Redis database 1 on
+# the broker's server.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get(
+            "CACHE_URL", re.sub(r"/\d+$", "", CELERY_BROKER_URL) + "/1"
+        ),
+    }
+}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

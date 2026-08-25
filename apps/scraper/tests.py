@@ -55,3 +55,48 @@ class ApplyCvMatchStoryArcTests(TestCase):
 
         self.assertIn("<StoryArc>Arc One, Arc Two</StoryArc>", xml)
         self.assertEqual(parse_comicinfo_xml(xml.encode())["story_arc"], "Arc One, Arc Two")
+
+
+class SharedCacheTests(TestCase):
+    """The API budget must be shared by the web and worker processes (Redis)."""
+
+    def test_cache_backend_is_redis(self):
+        from django.core.cache import caches
+        from django.core.cache.backends.redis import RedisCache
+        self.assertIsInstance(caches["default"], RedisCache)
+
+    def test_budget_counter_is_visible_to_another_connection(self):
+        from django.core.cache.backends.redis import RedisCache
+        from django.conf import settings
+        from apps.scraper import cv_sources
+        from django.core.cache import cache
+
+        cache.delete(cv_sources.CV_API_BUDGET_KEY)
+        self.addCleanup(cache.delete, cv_sources.CV_API_BUDGET_KEY)
+        cv_sources.increment_api_call_count(3)
+        other = RedisCache(settings.CACHES["default"]["LOCATION"], {})
+        self.assertEqual(other.get(cv_sources.CV_API_BUDGET_KEY), 3)
+
+
+class MclIndexTests(TestCase):
+
+    def test_index_reloads_when_file_changes(self):
+        import os
+        import tempfile
+        from unittest.mock import patch
+        from apps.scraper import cv_sources
+
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "latest.mcl")
+            with open(path, "w") as f:
+                f.write("7205;51379,75503;24,1\n")
+            with patch.object(cv_sources, "_get_mcl_path", return_value=path):
+                first = cv_sources.load_mcl_index()
+                self.assertIs(cv_sources.load_mcl_index(), first)
+                self.assertEqual(first["7205"][1], {"issue_id": "75503", "number": "1"})
+                with open(path, "w") as f:
+                    f.write("7205;51379,75503,75504;24,1,2\n9;1;1\n")
+                os.utime(path, ns=(1, 1))
+                second = cv_sources.load_mcl_index()
+                self.assertEqual(len(second["7205"]), 3)
+                self.assertIn("9", second)

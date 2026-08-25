@@ -28,9 +28,9 @@ CV_API_PATH_KEYS = {
     "issues":  "cv_api_calls_issues",
 }
 
-# MCL cache key (parsed index lives in cache to avoid re-parsing on every request)
-CV_MCL_CACHE_KEY = "cv_mcl_index"
-CV_MCL_CACHE_TTL = 3600  # 1 hour
+# Parsed MCL index, kept in process memory and reloaded when the file changes.
+# It is too large to round-trip through the shared Redis cache on every call.
+_mcl_memo = {"stamp": None, "index": {}}
 
 
 # ---------------------------------------------------------------------------
@@ -171,19 +171,19 @@ def load_mcl_index(force_reload: bool = False) -> dict[str, list[dict]]:
     Returns:
         { "7205": [{"issue_id": "51379", "number": "24"}, ...], ... }
 
-    The result is cached for CV_MCL_CACHE_TTL seconds. Pass force_reload=True
-    to bypass the cache (e.g. after the user replaces the file).
+    The result is kept in memory until the file's size or modification time
+    changes. Pass force_reload=True to re-read it anyway.
     """
-    if not force_reload:
-        cached = cache.get(CV_MCL_CACHE_KEY)
-        if cached is not None:
-            return cached
-
     mcl_path = _get_mcl_path()
     index: dict[str, list[dict]] = {}
 
     if not is_mcl_available():
         return index
+
+    st = os.stat(mcl_path)
+    stamp = (mcl_path, st.st_mtime_ns, st.st_size)
+    if not force_reload and _mcl_memo["stamp"] == stamp:
+        return _mcl_memo["index"]
 
     try:
         with open(mcl_path, newline="", encoding="utf-8-sig") as fh:
@@ -209,7 +209,8 @@ def load_mcl_index(force_reload: bool = False) -> dict[str, list[dict]]:
         logger.warning("Failed to parse latest.mcl: %s", exc)
         return {}
 
-    cache.set(CV_MCL_CACHE_KEY, index, CV_MCL_CACHE_TTL)
+    _mcl_memo["stamp"] = stamp
+    _mcl_memo["index"] = index
     logger.info("Loaded MCL index: %d volumes", len(index))
     return index
 
