@@ -57,9 +57,10 @@ class Command(BaseCommand):
 
         # Find all comic files
         extensions = (".cbz", ".cbr", ".cb7", ".pdf")
-        comic_files = []
-        for ext in extensions:
-            comic_files.extend(Path(untagged_path).rglob(f"*{ext}"))
+        comic_files = [
+            p for p in Path(untagged_path).rglob("*")
+            if p.suffix.lower() in extensions and not p.name.startswith(".") and p.is_file()
+        ]
 
         self.stdout.write(f"Found {len(comic_files)} comic files")
 

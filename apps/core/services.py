@@ -57,9 +57,10 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
 
     # Find all comic files
     extensions = (".cbz", ".cbr", ".cb7", ".pdf", ".zip")
-    comic_files = []
-    for ext in extensions:
-        comic_files.extend(Path(untagged_path).rglob(f"*{ext}"))
+    comic_files = [
+        p for p in Path(untagged_path).rglob("*")
+        if p.suffix.lower() in extensions and not p.name.startswith(".") and p.is_file()
+    ]
 
     for file_path in comic_files:
         file_path_str = str(file_path)

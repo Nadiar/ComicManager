@@ -246,6 +246,14 @@ class UntaggedScanTests(TempDirMixin, TestCase):
         self.assertFalse(Comic.objects.filter(flags__file_missing=True).exists())
 
 
+    def test_scan_finds_uppercase_extensions_and_skips_hidden_files(self):
+        make_cbz(self.path("Loud", "LOUD 001.CBZ"))
+        make_cbz(self.path("Loud", "._LOUD 001.cbz"))
+        result = scan_untagged_folder(path=self.tmp)
+        self.assertEqual(result["imported"], 1)
+        self.assertTrue(Comic.objects.filter(file_path__endswith="LOUD 001.CBZ").exists())
+
+
 class ConvertTests(TempDirMixin, TestCase):
 
     def _make_cb7(self, name):
