@@ -122,6 +122,7 @@
   </div>
 </form>
 
+{% if smart_list.filters %}{{ smart_list.filters|json_script:"existing-filters" }}{% endif %}
 <script>
 const fieldOptions = [
   {% for value, label in field_options %}
@@ -352,7 +353,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   {% if smart_list.filters %}
-  const existingFilters = {{ smart_list.filters|safe }};
+  const existingFilters = JSON.parse(document.getElementById('existing-filters').textContent);
   existingFilters.forEach(f => {
     if (f.mode !== undefined) addGroup(f.mode, f.filters || []);
     else addLeafRow(f.field, f.lookup, f.value);

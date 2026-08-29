@@ -8,7 +8,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 from django.shortcuts import render, get_object_or_404
-from django.utils.html import strip_tags
+from django.utils.html import escape, strip_tags
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
@@ -3329,7 +3329,7 @@ def comic_rollback(request, pk):
     to_state = request.POST.get("to_state", "")
 
     if to_state not in _VALID_ROLLBACK_STATES:
-        return HttpResponse(f"<tr><td colspan='6' class='text-error text-xs'>Invalid state: {to_state}</td></tr>")
+        return HttpResponse(f"<tr><td colspan='6' class='text-error text-xs'>Invalid state: {escape(to_state)}</td></tr>")
 
     cv = comic.custom_values or {}
 

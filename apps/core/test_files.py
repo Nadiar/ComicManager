@@ -286,3 +286,23 @@ class ConvertTests(TempDirMixin, TestCase):
         self.assertEqual(page_colors(other), [0])
         comic.refresh_from_db()
         self.assertEqual(comic.file_path, p)
+
+
+class EscapingTests(TestCase):
+
+    def test_rollback_escapes_invalid_state(self):
+        comic = Comic.objects.create(series="S", number="1")
+        resp = self.client.post(f"/comics/{comic.pk}/rollback/", {"to_state": "<img src=x onerror=alert(1)>"})
+        self.assertNotIn(b"<img", resp.content)
+        self.assertIn(b"&lt;img", resp.content)
+
+    def test_smartlist_filters_cannot_break_out_of_script(self):
+        from apps.dashboard.models import SmartList
+        sl = SmartList.objects.create(name="x", filters=[
+            {"field": "series", "lookup": "icontains", "value": "</script><b>boom</b>"},
+            {"field": "series", "lookup": "isnull", "value": True},
+        ])
+        resp = self.client.get(f"/smartlists/{sl.pk}/edit/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertNotIn(b"</script><b>boom", resp.content)
+        self.assertIn(b'id="existing-filters"', resp.content)
