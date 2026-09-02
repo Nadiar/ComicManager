@@ -622,6 +622,7 @@ def _index_backup_path(zip_path: str) -> str:
 
 
 def _fsync_file(path: str) -> None:
+    """fsync a file, or a folder (to persist a rename inside it)."""
     fd = os.open(path, os.O_RDONLY)
     try:
         os.fsync(fd)
@@ -695,6 +696,10 @@ def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
         return False
 
     try:
+        # A backup left by an interrupted earlier in-place write: put the
+        # archive back before reading it
+        restore_index_backup(cbz_path)
+
         # Generate new XML content (pass cbz_path for Pages element)
         xml_bytes = generate_comicinfo_xml(comic, cbz_path=cbz_path).encode("utf-8")
 
@@ -706,7 +711,12 @@ def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
         try:
             if _try_reflink(cbz_path, tmp_path):
                 _patch_comicinfo_entry(tmp_path, xml_bytes)
+                # Sync the patched clone before the swap and the folder after
+                # it, so a power loss leaves the old or the new archive, never
+                # a renamed file whose data was not written yet
+                _fsync_file(tmp_path)
                 os.replace(tmp_path, cbz_path)
+                _fsync_file(os.path.dirname(cbz_path) or ".")
                 return True
         except Exception:
             if os.path.exists(tmp_path):
@@ -716,9 +726,6 @@ def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
         # rather than paying for a full O(size) byte copy.
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
-
-        # A backup left by an interrupted earlier write: put the archive back first
-        restore_index_backup(cbz_path)
 
         backup = _save_index_backup(cbz_path)
         try:

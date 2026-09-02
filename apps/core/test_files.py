@@ -135,6 +135,73 @@ class ComicInfoWriteTests(TempDirMixin, TestCase):
         self.assertEqual(page_colors(p), [0, 1, 2])
 
 
+class CopyOnWriteWriteTests(TempDirMixin, TestCase):
+    """The btrfs/XFS path: patch a reflink clone and swap it in atomically.
+
+    Test machines run ext4, where reflinks fail, so the clone is simulated
+    with a plain copy.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from unittest.mock import patch
+        from apps.core import utils
+
+        def fake_reflink(src, dst):
+            shutil.copyfile(src, dst)
+            shutil.copystat(src, dst)
+            return True
+
+        p = patch.object(utils, "_try_reflink", fake_reflink)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_clone_is_synced_then_swapped_in(self):
+        from unittest.mock import patch
+        from apps.core import utils
+
+        p = make_cbz(self.path("a.cbz"), mode=0o664)
+        inode = os.stat(p).st_ino
+        comic = Comic.objects.create(file_path=p, series="Cow", number="1", publisher="Pub")
+        events = []
+        real_fsync, real_replace = utils._fsync_file, os.replace
+
+        def fsync(path):
+            events.append(("fsync", os.path.basename(path) if path != self.tmp else "<folder>"))
+            real_fsync(path)
+
+        def replace(src, dst):
+            events.append(("replace", os.path.basename(dst)))
+            real_replace(src, dst)
+
+        with patch.object(utils, "_fsync_file", fsync), \
+                patch.object(utils.os, "replace", replace), \
+                patch.object(utils, "_save_index_backup", side_effect=AssertionError("in-place path used")):
+            self.assertTrue(write_comicinfo_xml(p, comic))
+
+        self.assertEqual([e[0] for e in events], ["fsync", "replace", "fsync"])
+        self.assertTrue(events[0][1].startswith(".cm-"))
+        self.assertEqual(events[2][1], "<folder>")
+        self.assertNotEqual(os.stat(p).st_ino, inode)
+        self.assertEqual(stat.S_IMODE(os.stat(p).st_mode), 0o664)
+        self.assertEqual(read_comicinfo_xml(p).get("series"), "Cow")
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+
+    def test_failed_patch_leaves_original_untouched(self):
+        from unittest.mock import patch
+        from apps.core import utils
+
+        p = make_cbz(self.path("a.cbz"))
+        with open(p, "rb") as f:
+            before = f.read()
+        comic = Comic.objects.create(file_path=p, series="Cow", number="1", publisher="Pub")
+        with patch.object(utils, "_patch_comicinfo_entry", side_effect=OSError("disk full")):
+            self.assertFalse(write_comicinfo_xml(p, comic))
+        with open(p, "rb") as f:
+            self.assertEqual(f.read(), before)
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+
+
 class InterruptedWriteTests(TempDirMixin, TestCase):
     """An in-place ComicInfo write that dies halfway must be recoverable."""
 
