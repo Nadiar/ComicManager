@@ -455,3 +455,26 @@ class MisnamedArchiveTests(TempDirMixin, TestCase):
         self.assertEqual(comic.page_count, 3)
         self.assertFalse(comic.has_flag("corrupted_archive"))
         self.assertEqual(page_colors(p), [0, 1, 2])
+
+    def test_command_converts_library_files_and_import_hints(self):
+        from io import StringIO
+        from django.core.management import call_command
+        rar = make_rar(self.path("Pub", "Book 001.cbz"))
+        good = make_cbz(self.path("Pub", "Book 002.cbz"))
+
+        out = StringIO()
+        call_command("import_library", path=self.tmp, stdout=out, stderr=StringIO())
+        self.assertIn("convert_misnamed_archives", out.getvalue())
+
+        out = StringIO()
+        call_command("convert_misnamed_archives", path=self.tmp, dry_run=True, stdout=out)
+        self.assertIn("Would convert (RAR)", out.getvalue())
+        with open(rar, "rb") as f:
+            self.assertTrue(f.read(4) == b"Rar!")
+
+        out = StringIO()
+        call_command("convert_misnamed_archives", path=self.tmp, stdout=out)
+        self.assertIn("Converted: 1", out.getvalue())
+        self.assertIn("import_library", out.getvalue())
+        self.assertEqual(page_colors(rar), [0, 1, 2])
+        self.assertEqual(page_colors(good), [0, 1, 2])

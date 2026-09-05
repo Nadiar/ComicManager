@@ -17,10 +17,15 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.conf import settings
 
+from apps.core.archives import misnamed_format
 from apps.core.models import Comic
 
 
 COMICDB_STRIP_PREFIX = "B:\\Comics\\ComicRack\\"
+
+
+class MisnamedArchiveError(ValueError):
+    """A .cbz that is really a RAR or 7-Zip archive."""
 
 
 class Command(BaseCommand):
@@ -81,6 +86,7 @@ class Command(BaseCommand):
         imported = 0
         skipped = 0
         errors = 0
+        misnamed = 0
         enriched = 0
 
         with open(log_path, "a") as log_file:
@@ -148,6 +154,8 @@ class Command(BaseCommand):
                 self.stderr.write(self.style.ERROR(msg))
                 log_error(msg)
                 errors += 1
+                if isinstance(e, MisnamedArchiveError):
+                    misnamed += 1
 
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(f"Imported: {imported}"))
@@ -157,6 +165,11 @@ class Command(BaseCommand):
         if errors:
             self.stdout.write(self.style.WARNING(f"Errors: {errors}"))
             self.stdout.write(self.style.WARNING(f"Error log: {log_path}"))
+        if misnamed:
+            self.stdout.write(self.style.WARNING(
+                f"{misnamed} of the errors are RAR/7-Zip archives named .cbz. Convert them with "
+                f"`python manage.py convert_misnamed_archives`, then run import_library again."
+            ))
 
     def parse_comicdb(self, comicdb_path: str) -> dict:
         """
@@ -242,6 +255,11 @@ class Command(BaseCommand):
                     return self.parse_comic_info_xml(f.read())
 
         except zipfile.BadZipFile:
+            if misnamed_format(cbz_path):
+                raise MisnamedArchiveError(
+                    "RAR or 7-Zip archive named .cbz; convert it with "
+                    "`manage.py convert_misnamed_archives`, then run import_library again"
+                )
             raise ValueError("Invalid or corrupted CBZ file")
 
     def parse_comic_info_xml(self, xml_content: bytes) -> dict:
