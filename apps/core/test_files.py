@@ -14,7 +14,7 @@ from django.test import TestCase
 
 from apps.core import cbz_utils
 from apps.core.models import Comic
-from apps.core.sample_data import make_cbz, make_sample_library, page_colors
+from apps.core.sample_data import make_cbz, make_rar, make_sample_library, page_colors
 from apps.core.services import check_missing_files, scan_untagged_folder
 from apps.core.utils import read_comicinfo_xml, restore_index_backup, write_comicinfo_xml
 
@@ -381,3 +381,77 @@ class EscapingTests(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertNotIn(b"</script><b>boom", resp.content)
         self.assertIn(b'id="existing-filters"', resp.content)
+
+
+class MisnamedArchiveTests(TempDirMixin, TestCase):
+    """RAR (and 7-Zip) archives named .cbz are converted, not reported as corrupted."""
+
+    def test_sniff(self):
+        from apps.core.archives import misnamed_format, sniff_archive
+        rar = make_rar(self.path("a.cbz"))
+        zip_ = make_cbz(self.path("b.cbz"))
+        self.assertEqual(sniff_archive(rar), "rar")
+        self.assertEqual(misnamed_format(rar), "cbr")
+        self.assertEqual(sniff_archive(zip_), "zip")
+        self.assertIsNone(misnamed_format(zip_))
+        self.assertIsNone(misnamed_format(make_rar(self.path("c.cbr"))))
+
+    def test_scan_flags_rar_named_cbz_for_conversion(self):
+        make_rar(self.path("Book", "Book 001.cbz"))
+        scan_untagged_folder(path=self.tmp)
+        comic = Comic.objects.get()
+        self.assertEqual(comic.file_format, "cbr")
+        self.assertTrue(comic.has_flag("needs_conversion"))
+        self.assertFalse(comic.has_flag("corrupted_archive"))
+
+    def test_convert_rar_named_cbz_in_place(self):
+        from apps.core.tasks import _convert_comic_to_cbz
+        p = make_rar(self.path("Book 001.cbz"), mode=0o664)
+        comic = Comic.objects.create(file_path=p, file_format="cbr",
+                                     flags={"needs_conversion": True, "corrupted_archive": True})
+        result = _convert_comic_to_cbz(comic)
+        self.assertTrue(result["success"], result)
+        comic.refresh_from_db()
+        self.assertEqual(comic.file_path, p)
+        self.assertEqual(comic.file_format, "cbz")
+        self.assertEqual(comic.flags, {})
+        self.assertEqual(comic.page_count, 3)
+        self.assertIsNotNone(comic.phash)
+        self.assertEqual(page_colors(p), [0, 1, 2])
+        self.assertEqual(stat.S_IMODE(os.stat(p).st_mode), 0o664)
+        self.assertEqual(os.listdir(self.tmp), ["Book 001.cbz"])
+
+    def test_convert_real_cbr(self):
+        from apps.core.tasks import _convert_comic_to_cbz
+        p = make_rar(self.path("Book 001.cbr"))
+        comic = Comic.objects.create(file_path=p, file_format="cbr")
+        self.assertTrue(_convert_comic_to_cbz(comic)["success"])
+        self.assertEqual(os.listdir(self.tmp), ["Book 001.cbz"])
+        self.assertEqual(page_colors(self.path("Book 001.cbz")), [0, 1, 2])
+
+    def test_broken_rar_is_left_untouched(self):
+        from apps.core.tasks import _convert_comic_to_cbz
+        p = make_rar(self.path("Book 001.cbz"))
+        with open(p, "r+b") as f:
+            f.truncate(os.path.getsize(p) - 2000)
+        with open(p, "rb") as f:
+            before = f.read()
+        comic = Comic.objects.create(file_path=p, file_format="cbr")
+        result = _convert_comic_to_cbz(comic)
+        self.assertFalse(result["success"])
+        with open(p, "rb") as f:
+            self.assertEqual(f.read(), before)
+        self.assertEqual(os.listdir(self.tmp), ["Book 001.cbz"])
+        comic.refresh_from_db()
+        self.assertEqual(comic.file_format, "cbr")
+
+    def test_rezip_converts_rar_named_cbz(self):
+        p = make_rar(self.path("Book 001.cbz"))
+        comic = Comic.objects.create(file_path=p, file_format="cbz", flags={"corrupted_archive": True})
+        resp = self.client.post(f"/comics/{comic.pk}/rezip/")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertIn("converted", resp.json()["message"])
+        comic.refresh_from_db()
+        self.assertEqual(comic.page_count, 3)
+        self.assertFalse(comic.has_flag("corrupted_archive"))
+        self.assertEqual(page_colors(p), [0, 1, 2])

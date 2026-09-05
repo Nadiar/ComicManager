@@ -566,9 +566,15 @@ def try_rezip(request, pk):
         if result.get("page_count"):
             comic.page_count = result["page_count"]
         comic.save(update_fields=["flags", "page_count"])
+        if result.get("converted"):
+            from .services import refresh_file_info
+            refresh_file_info(comic)
+            message = "The file was a RAR/7-Zip archive named .cbz and has been converted to a real CBZ."
+        else:
+            message = f"Recovered {result['extracted']} entries. The file has been repacked."
         return JsonResponse({
             "success": True,
-            "message": f"Recovered {result['extracted']} entries. The file has been repacked.",
+            "message": message,
             "page_count": result.get("page_count"),
         })
 

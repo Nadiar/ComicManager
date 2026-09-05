@@ -14,6 +14,7 @@ from django.core.management.base import BaseCommand
 from django.conf import settings
 
 from apps.core.models import Comic, get_setting
+from apps.core.archives import misnamed_format
 from apps.core.cbz_utils import list_pages
 
 
@@ -89,6 +90,11 @@ class Command(BaseCommand):
                 is_corrupted = False
                 if file_format == "cbz":
                     page_count, is_corrupted = self.get_cbz_page_count(file_path)
+                    if is_corrupted:
+                        # A RAR or 7-Zip archive named .cbz: flag it for conversion
+                        actual = misnamed_format(file_path)
+                        if actual:
+                            file_format, is_corrupted = actual, False
 
                 # Detect flags for review queue
                 flags = self.detect_flags(

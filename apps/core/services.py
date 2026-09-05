@@ -83,6 +83,13 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
             is_corrupted = False
             if file_format == "cbz":
                 page_count, is_corrupted = _get_cbz_page_count(file_path)
+                if is_corrupted:
+                    # A RAR or 7-Zip archive named .cbz is not corrupted: record
+                    # its real format so it gets flagged for conversion
+                    from .archives import misnamed_format
+                    actual = misnamed_format(file_path)
+                    if actual:
+                        file_format, is_corrupted = actual, False
 
             # Detect flags for review queue
             flags = _detect_flags(
@@ -277,6 +284,15 @@ def try_rezip_cbz(cbz_path: Path) -> dict:
         try:
             zf_in = zipfile.ZipFile(cbz_path, "r")
         except (zipfile.BadZipFile, EOFError) as exc:
+            # A RAR or 7-Zip archive named .cbz is not broken: convert it in place
+            from .archives import convert_archive_to_cbz, misnamed_format
+            if misnamed_format(cbz_path):
+                try:
+                    pages = convert_archive_to_cbz(cbz_path, cbz_path)
+                except Exception as conv_exc:
+                    return {"success": False,
+                            "error": f"RAR/7-Zip archive named .cbz could not be converted: {conv_exc}"}
+                return {"success": True, "page_count": pages, "extracted": pages, "converted": True}
             return {"success": False, "error": f"Archive cannot be opened: {exc}"}
 
         extracted = []
