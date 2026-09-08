@@ -478,3 +478,20 @@ class MisnamedArchiveTests(TempDirMixin, TestCase):
         self.assertIn("import_library", out.getvalue())
         self.assertEqual(page_colors(rar), [0, 1, 2])
         self.assertEqual(page_colors(good), [0, 1, 2])
+
+
+class ImportLibraryTests(TempDirMixin, TestCase):
+
+    def test_import_writes_error_log_next_to_audit_log(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from django.test import override_settings
+        logs = self.path("logs")
+        make_cbz(self.path("lib", "Pub", "No Info 001.cbz"))
+        make_cbz(self.path("lib", "Pub", "Tagged 001.cbz"),
+                 comicinfo="<ComicInfo><Series>Tagged</Series><Number>1</Number></ComicInfo>")
+        with override_settings(AUDIT_LOG_PATH=os.path.join(logs, "batch_actions.jsonl")):
+            call_command("import_library", path=self.path("lib"), stdout=StringIO(), stderr=StringIO())
+        self.assertTrue(Comic.objects.filter(series="Tagged", state=Comic.STATE_WRITTEN).exists())
+        with open(os.path.join(logs, "import_errors.log")) as f:
+            self.assertIn("No ComicInfo.xml in: No Info 001.cbz", f.read())

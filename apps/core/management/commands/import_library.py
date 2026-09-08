@@ -76,7 +76,9 @@ class Command(BaseCommand):
             comicdb_lookup = self.parse_comicdb(comicdb_path)
             self.stdout.write(f"Loaded {len(comicdb_lookup)} entries from ComicDb.xml")
 
-        log_dir = Path(settings.BASE_DIR) / "data" / "logs"
+        # Next to the audit log in /app/logs, which is mounted to data/logs on the
+        # host (the image's /app is not writable by the container user)
+        log_dir = Path(settings.AUDIT_LOG_PATH).parent
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / "import_errors.log"
 
