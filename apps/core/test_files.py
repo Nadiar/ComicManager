@@ -495,3 +495,15 @@ class ImportLibraryTests(TempDirMixin, TestCase):
         self.assertTrue(Comic.objects.filter(series="Tagged", state=Comic.STATE_WRITTEN).exists())
         with open(os.path.join(logs, "import_errors.log")) as f:
             self.assertIn("No ComicInfo.xml in: No Info 001.cbz", f.read())
+
+    def test_import_finds_uppercase_extensions_and_skips_hidden_files(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from django.test import override_settings
+        lib = self.path("lib")
+        make_cbz(os.path.join(lib, "Pub", "Loud 003.CBZ"),
+                 comicinfo="<ComicInfo><Series>Loud</Series><Number>3</Number></ComicInfo>")
+        make_cbz(os.path.join(lib, "Pub", "._Loud 003.cbz"))
+        with override_settings(AUDIT_LOG_PATH=self.path("logs", "batch_actions.jsonl")):
+            call_command("import_library", path=lib, stdout=StringIO(), stderr=StringIO())
+        self.assertEqual(list(Comic.objects.values_list("series", flat=True)), ["Loud"])

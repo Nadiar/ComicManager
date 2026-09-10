@@ -82,7 +82,10 @@ class Command(BaseCommand):
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / "import_errors.log"
 
-        cbz_files = list(Path(library_path).rglob("*.cbz"))
+        cbz_files = [
+            p for p in Path(library_path).rglob("*")
+            if p.suffix.lower() == ".cbz" and not p.name.startswith(".") and p.is_file()
+        ]
         self.stdout.write(f"Found {len(cbz_files)} .cbz files")
 
         imported = 0
