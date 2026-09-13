@@ -47,7 +47,8 @@ class Command(BaseCommand):
             "--comicdb",
             type=str,
             default=None,
-            help="Path to ComicRack's ComicDb.xml for enriching imports with Tags, Teams, Locations, and CustomValuesStore",
+            help="Path to ComicRack's ComicDb.xml for enriching imports with Tags, Teams, Locations, and "
+                 "CustomValuesStore, and for importing files without ComicInfo.xml from their ComicDb.xml entry",
         )
 
     def handle(self, *args, **options):
@@ -93,6 +94,9 @@ class Command(BaseCommand):
         errors = 0
         misnamed = 0
         enriched = 0
+        from_comicdb = 0
+        # Files without ComicInfo.xml; imported from their ComicDb.xml entry below
+        no_info = []
 
         with open(log_path, "a") as log_file:
             run_header = f"\n--- Import run {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | library: {library_path} ---\n"
@@ -101,6 +105,44 @@ class Command(BaseCommand):
         def log_error(msg: str) -> None:
             with open(log_path, "a") as lf:
                 lf.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+
+        def save(comic_data: dict, cbz_path: Path) -> None:
+            nonlocal imported, enriched
+            file_path_str = str(cbz_path)
+            comic_data["file_path"] = file_path_str
+            comic_data["file_format"] = "cbz"
+            comic_data["file_size"] = cbz_path.stat().st_size
+            comic_data["state"] = Comic.STATE_WRITTEN
+            comic_data["medium"] = Comic.MEDIUM_DIGITAL
+
+            # Enrich with ComicDb.xml data if available
+            if comicdb_lookup:
+                rel_path = file_path_str[len(library_path):].lstrip("/")
+                if rel_path in comicdb_lookup:
+                    db_extra = comicdb_lookup[rel_path]
+                    # Set fields that ComicInfo.xml might not have
+                    for field in ("tags", "teams", "locations", "main_character_or_team", "series_group"):
+                        if field in db_extra and not comic_data.get(field):
+                            comic_data[field] = db_extra[field]
+                    # Merge custom values (ComicInfo.xml takes precedence)
+                    if "custom_values" in db_extra:
+                        merged_cv = dict(db_extra["custom_values"])
+                        merged_cv.update(comic_data.get("custom_values", {}))
+                        comic_data["custom_values"] = merged_cv
+                    enriched += 1
+
+            if dry_run:
+                extra = ""
+                rel_path = file_path_str[len(library_path):].lstrip("/")
+                if comicdb_lookup and rel_path in comicdb_lookup:
+                    extra = " [+ComicDb]"
+                self.stdout.write(f"  Would import: {comic_data.get('series', 'Unknown')} #{comic_data.get('number', '?')}{extra}")
+            else:
+                Comic.objects.create(**comic_data)
+                imported += 1
+
+                if imported % 100 == 0:
+                    self.stdout.write(f"  Imported {imported} comics...")
 
         for cbz_path in cbz_files:
             file_path_str = str(cbz_path)
@@ -112,6 +154,9 @@ class Command(BaseCommand):
 
             try:
                 comic_data = self.extract_comic_info(cbz_path)
+                if comic_data is None and comicdb_lookup:
+                    no_info.append(cbz_path)
+                    continue
                 if comic_data is None:
                     msg = f"No ComicInfo.xml in: {cbz_path.name}"
                     self.stderr.write(self.style.WARNING(msg))
@@ -119,40 +164,7 @@ class Command(BaseCommand):
                     errors += 1
                     continue
 
-                comic_data["file_path"] = file_path_str
-                comic_data["file_format"] = "cbz"
-                comic_data["file_size"] = cbz_path.stat().st_size
-                comic_data["state"] = Comic.STATE_WRITTEN
-                comic_data["medium"] = Comic.MEDIUM_DIGITAL
-
-                # Enrich with ComicDb.xml data if available
-                if comicdb_lookup:
-                    rel_path = file_path_str[len(library_path):].lstrip("/")
-                    if rel_path in comicdb_lookup:
-                        db_extra = comicdb_lookup[rel_path]
-                        # Set fields that ComicInfo.xml might not have
-                        for field in ("tags", "teams", "locations", "main_character_or_team", "series_group"):
-                            if field in db_extra and not comic_data.get(field):
-                                comic_data[field] = db_extra[field]
-                        # Merge custom values (ComicInfo.xml takes precedence)
-                        if "custom_values" in db_extra:
-                            merged_cv = dict(db_extra["custom_values"])
-                            merged_cv.update(comic_data.get("custom_values", {}))
-                            comic_data["custom_values"] = merged_cv
-                        enriched += 1
-
-                if dry_run:
-                    extra = ""
-                    rel_path = file_path_str[len(library_path):].lstrip("/")
-                    if comicdb_lookup and rel_path in comicdb_lookup:
-                        extra = " [+ComicDb]"
-                    self.stdout.write(f"  Would import: {comic_data.get('series', 'Unknown')} #{comic_data.get('number', '?')}{extra}")
-                else:
-                    Comic.objects.create(**comic_data)
-                    imported += 1
-
-                    if imported % 100 == 0:
-                        self.stdout.write(f"  Imported {imported} comics...")
+                save(comic_data, cbz_path)
 
             except Exception as e:
                 msg = f"Error processing {cbz_path.name}: {e}"
@@ -162,11 +174,33 @@ class Command(BaseCommand):
                 if isinstance(e, MisnamedArchiveError):
                     misnamed += 1
 
+        if no_info:
+            self.stdout.write(f"Reading ComicDb.xml entries for {len(no_info)} file(s) without ComicInfo.xml")
+            wanted = {str(p)[len(library_path):].lstrip("/"): p for p in no_info}
+            books = self.parse_comicdb_books(comicdb_path, set(wanted))
+            for rel_path, cbz_path in wanted.items():
+                comic_data = books.get(rel_path)
+                if not comic_data or not comic_data.get("series"):
+                    msg = f"No ComicInfo.xml and no ComicDb.xml entry for: {cbz_path.name}"
+                    self.stderr.write(self.style.WARNING(msg))
+                    log_error(msg)
+                    errors += 1
+                    continue
+                try:
+                    save(comic_data, cbz_path)
+                    from_comicdb += 1
+                except Exception as e:
+                    msg = f"Error processing {cbz_path.name}: {e}"
+                    self.stderr.write(self.style.ERROR(msg))
+                    log_error(msg)
+                    errors += 1
+
         self.stdout.write("")
         self.stdout.write(self.style.SUCCESS(f"Imported: {imported}"))
         self.stdout.write(f"Skipped (already exists): {skipped}")
         if comicdb_lookup:
             self.stdout.write(f"Enriched from ComicDb.xml: {enriched}")
+            self.stdout.write(f"Imported from ComicDb.xml (no ComicInfo.xml in the file): {from_comicdb}")
         if errors:
             self.stdout.write(self.style.WARNING(f"Errors: {errors}"))
             self.stdout.write(self.style.WARNING(f"Error log: {log_path}"))
@@ -241,6 +275,29 @@ class Command(BaseCommand):
             elem.clear()
 
         return lookup
+
+    def parse_comicdb_books(self, comicdb_path: str, rel_paths: set) -> dict:
+        """
+        Read the full metadata of the given files from ComicDb.xml, keyed by
+        relative path. ComicRack's Book elements use the same field names as
+        ComicInfo.xml, so they are parsed with the same parser.
+        """
+        from xml.etree.ElementTree import tostring
+
+        books = {}
+        for event, elem in ET.iterparse(comicdb_path, events=("end",)):
+            if elem.tag != "Book":
+                continue
+            file_attr = elem.get("File", "")
+            if file_attr.startswith(COMICDB_STRIP_PREFIX):
+                rel_path = file_attr[len(COMICDB_STRIP_PREFIX):]
+            else:
+                rel_path = file_attr
+            rel_path = rel_path.replace("\\", "/")
+            if rel_path in rel_paths:
+                books[rel_path] = self.parse_comic_info_xml(tostring(elem))
+            elem.clear()
+        return books
 
     def extract_comic_info(self, cbz_path: Path) -> dict | None:
         """Extract metadata from ComicInfo.xml inside a CBZ file."""

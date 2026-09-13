@@ -507,3 +507,35 @@ class ImportLibraryTests(TempDirMixin, TestCase):
         with override_settings(AUDIT_LOG_PATH=self.path("logs", "batch_actions.jsonl")):
             call_command("import_library", path=lib, stdout=StringIO(), stderr=StringIO())
         self.assertEqual(list(Comic.objects.values_list("series", flat=True)), ["Loud"])
+
+    def test_import_uses_comicdb_for_files_without_comicinfo(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from django.test import override_settings
+        lib = self.path("lib")
+        make_cbz(os.path.join(lib, "Pub", "Tagged 001.cbz"),
+                 comicinfo="<ComicInfo><Series>Tagged</Series><Number>1</Number></ComicInfo>")
+        make_cbz(os.path.join(lib, "Pub", "No Info 002.cbz"))
+        make_cbz(os.path.join(lib, "Pub", "Loud 003.CBZ"),
+                 comicinfo="<ComicInfo><Series>Loud</Series><Number>3</Number></ComicInfo>")
+        make_cbz(os.path.join(lib, "Pub", "._Tagged 001.cbz"))
+        comicdb = self.path("ComicDb.xml")
+        with open(comicdb, "w") as f:
+            f.write(
+                '<?xml version="1.0"?><ComicDatabase><Books>'
+                '<Book File="B:\\Comics\\ComicRack\\Pub\\No Info 002.cbz">'
+                "<Series>From ComicDb</Series><Number>2</Number><Volume>1999</Volume>"
+                "<Publisher>Pub</Publisher><Tags>Romance</Tags></Book>"
+                '<Book File="B:\\Comics\\ComicRack\\Pub\\Elsewhere.cbz"><Series>Other</Series></Book>'
+                "</Books></ComicDatabase>"
+            )
+        out = StringIO()
+        with override_settings(AUDIT_LOG_PATH=self.path("logs", "batch_actions.jsonl")):
+            call_command("import_library", path=lib, comicdb=comicdb, stdout=out, stderr=StringIO())
+        self.assertEqual(Comic.objects.count(), 3)
+        from_db = Comic.objects.get(file_path__endswith="No Info 002.cbz")
+        self.assertEqual((from_db.series, from_db.number, from_db.volume, from_db.publisher, from_db.tags),
+                         ("From ComicDb", "2", 1999, "Pub", "Romance"))
+        self.assertEqual(from_db.state, Comic.STATE_WRITTEN)
+        self.assertTrue(Comic.objects.filter(file_path__endswith="Loud 003.CBZ").exists())
+        self.assertIn("Imported from ComicDb.xml (no ComicInfo.xml in the file): 1", out.getvalue())
