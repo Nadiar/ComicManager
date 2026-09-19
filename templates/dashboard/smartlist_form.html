@@ -38,13 +38,13 @@
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
       <div style="font-size:15px; font-weight:700;">Filters</div>
       <div style="display:flex; gap:8px;">
-        <button type="button" class="cm-btn sm ghost" onclick="addGroup()">Add OR Group</button>
+        <button type="button" class="cm-btn sm ghost" onclick="addGroup()">Add Group</button>
         <button type="button" class="cm-btn sm primary" onclick="addLeafRow()">Add Filter</button>
       </div>
     </div>
     <div id="filter-rows" style="display:flex; flex-direction:column; gap:6px;"></div>
     <input type="hidden" name="filters_json" id="filters-json" />
-    <p style="font-size:11px; color:var(--cm-fg-3); margin-top:8px;">Top-level filters use AND logic. Use OR groups to match any of several conditions.</p>
+    <p style="font-size:11px; color:var(--cm-fg-3); margin-top:8px;">Top-level filters must all match (AND). A group matches ANY or ALL of its filters and can contain more groups. For example, (A and B) or (C and D): add a group set to Match ANY, then add two groups set to Match ALL inside it.</p>
   </div>
 
   <!-- ComicVine Volume -->
@@ -229,10 +229,13 @@ function createLeafRow(field = '', lookup = 'exact', value = '') {
   return row;
 }
 
-function createGroup(mode = 'or') {
+// Groups can contain groups up to this many levels deep
+const MAX_GROUP_DEPTH = 3;
+
+function createGroup(mode = 'or', depth = 1) {
   const div = document.createElement('div');
   div.dataset.type = 'group';
-  div.style.cssText = 'border:1px solid color-mix(in srgb, var(--cm-accent) 40%, transparent); border-radius:6px; padding:10px 12px; background:var(--cm-bg-1);';
+  div.style.cssText = 'border:1px solid color-mix(in srgb, var(--cm-accent) 40%, transparent); border-radius:6px; padding:10px 12px; background:' + (depth % 2 ? 'var(--cm-bg-1)' : 'var(--cm-bg)') + ';';
 
   const header = document.createElement('div');
   header.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
@@ -268,17 +271,40 @@ function createGroup(mode = 'or') {
   rows.dataset.role = 'group-rows';
   rows.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
 
+  const buttons = document.createElement('div');
+  buttons.style.cssText = 'display:flex; gap:6px; margin-top:6px;';
+
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
   addBtn.className = 'cm-btn sm ghost';
+  addBtn.dataset.role = 'add-filter';
   addBtn.textContent = '+ Add filter';
-  addBtn.style.cssText = 'margin-top:6px; align-self:flex-start;';
   addBtn.onclick = () => rows.appendChild(createLeafRow());
+  buttons.appendChild(addBtn);
+
+  if (depth < MAX_GROUP_DEPTH) {
+    const addGroupBtn = document.createElement('button');
+    addGroupBtn.type = 'button';
+    addGroupBtn.className = 'cm-btn sm ghost';
+    addGroupBtn.dataset.role = 'add-group';
+    addGroupBtn.textContent = '+ Add group';
+    addGroupBtn.onclick = () => rows.appendChild(createGroup(mode === 'or' ? 'and' : 'or', depth + 1));
+    buttons.appendChild(addGroupBtn);
+  }
 
   div.appendChild(header);
   div.appendChild(rows);
-  div.appendChild(addBtn);
+  div.appendChild(buttons);
   return div;
+}
+
+// Build the form element for a saved filter item (a leaf or a nested group)
+function createItem(item, depth = 1) {
+  if (item.mode === undefined) return createLeafRow(item.field, item.lookup, item.value);
+  const groupEl = createGroup(item.mode, depth);
+  const rows = groupEl.querySelector('[data-role="group-rows"]');
+  (item.filters || []).forEach(sub => rows.appendChild(createItem(sub, depth + 1)));
+  return groupEl;
 }
 
 function addLeafRow(field = '', lookup = 'exact', value = '') {
@@ -286,10 +312,7 @@ function addLeafRow(field = '', lookup = 'exact', value = '') {
 }
 
 function addGroup(mode = 'or', existingFilters = []) {
-  const groupEl = createGroup(mode);
-  const rows = groupEl.querySelector('[data-role="group-rows"]');
-  existingFilters.forEach(f => rows.appendChild(createLeafRow(f.field, f.lookup, f.value)));
-  document.getElementById('filter-rows').appendChild(groupEl);
+  document.getElementById('filter-rows').appendChild(createItem({mode, filters: existingFilters}));
 }
 
 function serializeItem(el) {
@@ -302,9 +325,9 @@ function serializeItem(el) {
     return value ? {field, lookup, value} : null;
   }
   if (el.dataset.type === 'group') {
-    const mode = el.querySelector('[data-role="mode"]').value;
+    const mode = el.querySelector(':scope > div > [data-role="mode"]').value;
     const subFilters = [];
-    for (const sub of el.querySelector('[data-role="group-rows"]').children) {
+    for (const sub of el.querySelector(':scope > [data-role="group-rows"]').children) {
       const item = serializeItem(sub);
       if (item) subFilters.push(item);
     }

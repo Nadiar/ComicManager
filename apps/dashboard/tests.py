@@ -205,3 +205,38 @@ class WeeklyAggregationTests(TestCase):
         last_week = sum(history[:7])
         self.assertEqual(this_week, 3)
         self.assertEqual(last_week, 1)
+
+
+class NestedSmartListGroupTests(TestCase):
+    """Gitea #3: groups inside groups, e.g. (A and B) or (C and D)."""
+
+    FILTERS = [{"mode": "or", "filters": [
+        {"mode": "and", "filters": [
+            {"field": "series", "lookup": "exact", "value": "Hulk"},
+            {"field": "publisher", "lookup": "exact", "value": "Marvel"},
+        ]},
+        {"mode": "and", "filters": [
+            {"field": "series", "lookup": "exact", "value": "Thor"},
+            {"field": "publisher", "lookup": "exact", "value": "DC Comics"},
+        ]},
+    ]}]
+
+    def test_query_matches_either_and_group(self):
+        from apps.dashboard.models import SmartList
+        from apps.dashboard.services import build_queryset
+        hulk = Comic.objects.create(series="Hulk", publisher="Marvel", number="1")
+        Comic.objects.create(series="Hulk", publisher="DC Comics", number="1")
+        thor = Comic.objects.create(series="Thor", publisher="DC Comics", number="1")
+        Comic.objects.create(series="Thor", publisher="Marvel", number="1")
+        sl = SmartList.objects.create(name="nested", filters=self.FILTERS)
+        self.assertEqual(set(build_queryset(sl).values_list("pk", flat=True)), {hulk.pk, thor.pk})
+
+    def test_form_saves_nested_groups_unchanged(self):
+        import json
+        from apps.dashboard.models import SmartList
+        resp = self.client.post("/smartlists/create/", {"name": "nested", "filters_json": json.dumps(self.FILTERS)})
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(SmartList.objects.get(name="nested").filters, self.FILTERS)
+        edit = self.client.get(f"/smartlists/{SmartList.objects.get(name='nested').pk}/edit/")
+        self.assertContains(edit, "MAX_GROUP_DEPTH")
+        self.assertContains(edit, 'id="existing-filters"')
