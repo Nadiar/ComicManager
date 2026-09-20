@@ -761,13 +761,17 @@ class ComicVineScraper:
 
         logger.debug("CV API request: %s", url.replace(api_key, "***"))
 
-        # Rate limit: ComicVine enforces ~1 request/second
-        now = time.monotonic()
-        if hasattr(self, '_last_api_call'):
-            elapsed = now - self._last_api_call
-            if elapsed < 1.1:
-                time.sleep(1.1 - elapsed)
-        self._last_api_call = time.monotonic()
+        # Rate limit: ComicVine enforces ~1 request/second per API key, so the
+        # pacing is shared by every process through Redis. If Redis is down,
+        # fall back to pacing this scraper instance only.
+        from apps.scraper.cv_sources import wait_for_api_slot
+        if not wait_for_api_slot():
+            now = time.monotonic()
+            if hasattr(self, '_last_api_call'):
+                elapsed = now - self._last_api_call
+                if elapsed < 1.1:
+                    time.sleep(1.1 - elapsed)
+            self._last_api_call = time.monotonic()
 
         req = urllib.request.Request(url, headers={
             "User-Agent": "ComicManager/1.0 (https://github.com/comicmanager)",

@@ -100,3 +100,38 @@ class MclIndexTests(TestCase):
                 second = cv_sources.load_mcl_index()
                 self.assertEqual(len(second["7205"]), 3)
                 self.assertIn("9", second)
+
+
+class SharedPacingTests(TestCase):
+    """ComicVine requests from any process are spaced by the shared Redis slot."""
+
+    def setUp(self):
+        from apps.scraper import cv_sources
+        cv_sources._redis().delete(cv_sources.CV_API_SLOT_KEY)
+
+    def test_second_request_waits_for_the_slot(self):
+        import time
+        from unittest.mock import patch
+        from apps.scraper import cv_sources
+        with patch.object(cv_sources, "CV_API_MIN_INTERVAL_MS", 300):
+            start = time.monotonic()
+            self.assertTrue(cv_sources.wait_for_api_slot())
+            first = time.monotonic() - start
+            self.assertTrue(cv_sources.wait_for_api_slot())
+            second = time.monotonic() - start
+        self.assertLess(first, 0.1)
+        self.assertGreaterEqual(second, 0.28)
+
+    def test_slot_is_shared_with_another_connection(self):
+        import redis
+        from django.conf import settings
+        from apps.scraper import cv_sources
+        other = redis.from_url(settings.CACHES["default"]["LOCATION"])
+        self.assertTrue(cv_sources.wait_for_api_slot())
+        self.assertFalse(other.set(cv_sources.CV_API_SLOT_KEY, "1", nx=True, px=1100))
+
+    def test_falls_back_when_redis_is_down(self):
+        from unittest.mock import patch
+        from apps.scraper import cv_sources
+        with patch.object(cv_sources, "_redis", side_effect=ConnectionError("down")):
+            self.assertFalse(cv_sources.wait_for_api_slot())

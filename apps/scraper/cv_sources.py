@@ -10,6 +10,7 @@ import csv
 import logging
 import os
 import sqlite3
+import time
 
 from django.core.cache import cache
 
@@ -300,6 +301,47 @@ def get_volume_completion_from_mcl(cv_volume_id: str) -> dict | None:
         "completion": round((owned_count / total * 100), 1) if total > 0 else 0,
         "source": "mcl",
     }
+
+
+# ---------------------------------------------------------------------------
+# Request pacing shared by all processes
+# ---------------------------------------------------------------------------
+
+# ComicVine allows about one request per second per API key
+CV_API_MIN_INTERVAL_MS = 1100
+CV_API_SLOT_KEY = "cv_api:slot"
+_slot_client = None
+
+
+def _redis():
+    global _slot_client
+    if _slot_client is None:
+        import redis
+        from django.conf import settings
+        _slot_client = redis.from_url(settings.CACHES["default"]["LOCATION"])
+    return _slot_client
+
+
+def wait_for_api_slot(max_wait: float = 30.0) -> bool:
+    """
+    Wait until a ComicVine request may be sent, across the web and worker
+    processes: a Redis key that expires after the minimum interval acts as a
+    shared ticket. Returns False if Redis could not be used (the caller then
+    paces itself locally).
+    """
+    deadline = time.monotonic() + max_wait
+    try:
+        client = _redis()
+        while True:
+            if client.set(CV_API_SLOT_KEY, "1", nx=True, px=CV_API_MIN_INTERVAL_MS):
+                return True
+            if time.monotonic() >= deadline:
+                return True
+            ttl = client.pttl(CV_API_SLOT_KEY)
+            time.sleep(max(ttl, 20) / 1000 if ttl > 0 else 0.02)
+    except Exception as e:
+        logger.warning("Shared ComicVine pacing unavailable, pacing locally: %s", e)
+        return False
 
 
 # ---------------------------------------------------------------------------
