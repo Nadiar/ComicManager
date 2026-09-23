@@ -117,6 +117,19 @@ class PageManagerViewTests(TempDirMixin, TestCase):
 
 class ComicInfoWriteTests(TempDirMixin, TestCase):
 
+    def test_repeated_writes_do_not_grow_the_archive(self):
+        p = make_cbz(self.path("a.cbz"), comicinfo="<ComicInfo><Series>Old</Series></ComicInfo>")
+        comic = Comic.objects.create(file_path=p, series="Same", number="1", publisher="Pub")
+        sizes = []
+        for _ in range(5):
+            self.assertTrue(write_comicinfo_xml(p, comic))
+            sizes.append(os.path.getsize(p))
+        self.assertEqual(len(set(sizes[1:])), 1, sizes)
+        with zipfile.ZipFile(p) as zf:
+            self.assertIsNone(zf.testzip())
+            self.assertEqual([n for n in zf.namelist() if n.lower() == "comicinfo.xml"], ["ComicInfo.xml"])
+        self.assertEqual(page_colors(p), [0, 1, 2])
+
     def test_write_then_read_back(self):
         p = make_cbz(self.path("a.cbz"))
         comic = Comic.objects.create(file_path=p, series="Sample Hero", number="1", publisher="Pub")
@@ -251,6 +264,34 @@ class InterruptedWriteTests(TempDirMixin, TestCase):
         self.assertTrue(write_comicinfo_xml(p, comic))
         self.assertEqual(read_comicinfo_xml(p).get("series"), "New")
         self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+
+    def test_interrupted_overwrite_of_old_comicinfo_is_restored(self):
+        from unittest.mock import patch
+        from apps.core import utils
+        p = make_cbz(self.path("a.cbz"))
+        comic = Comic.objects.create(file_path=p, series="First", number="1", publisher="Pub")
+        self.assertTrue(write_comicinfo_xml(p, comic))   # ComicInfo.xml is now the last entry
+        with open(p, "rb") as f:
+            original = f.read()
+
+        def dying_patch(zip_path, xml_bytes):
+            # Crash halfway through writing over the old ComicInfo.xml entry
+            with zipfile.ZipFile(zip_path) as zf:
+                offset = utils._patch_offset(zf)
+            with open(zip_path, "r+b") as f:
+                f.seek(offset)
+                f.write(b"PK\x03\x04 partial")
+                f.truncate()
+            raise SystemExit("killed")
+
+        comic.series = "Second"
+        with patch.object(utils, "_patch_comicinfo_entry", dying_patch), \
+                patch.object(utils, "restore_index_backup", lambda path: False):
+            with self.assertRaises(SystemExit):
+                write_comicinfo_xml(p, comic)
+        self.assertTrue(restore_index_backup(p))
+        with open(p, "rb") as f:
+            self.assertEqual(f.read(), original)
 
     def test_successful_write_leaves_no_backup(self):
         p = make_cbz(self.path("a.cbz"))

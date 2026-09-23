@@ -600,6 +600,21 @@ def _try_reflink(src: str, dst: str) -> bool:
         return False
 
 
+def _patch_offset(zf: zipfile.ZipFile) -> int:
+    """
+    Where _patch_comicinfo_entry starts writing: over the old ComicInfo.xml
+    when it is the last entry in the file (true after the first patch), so
+    repeated writes do not pile up old copies; otherwise at the central
+    directory.
+    """
+    infos = zf.infolist()
+    if infos:
+        last = max(infos, key=lambda i: i.header_offset)
+        if last.filename.lower() == "comicinfo.xml":
+            return last.header_offset
+    return zf.start_dir
+
+
 def _patch_comicinfo_entry(zip_path: str, xml_bytes: bytes) -> None:
     """Replace (or add) the ComicInfo.xml entry in an existing archive using
     ZIP append mode. Page images are never read, decompressed, or recompressed.
@@ -607,12 +622,15 @@ def _patch_comicinfo_entry(zip_path: str, xml_bytes: bytes) -> None:
     Append mode does not overwrite an existing entry of the same name; it would
     write a duplicate. Drop any stale ComicInfo.xml from the in-memory directory
     first (match case-insensitively, since casing varies across taggers) so the
-    rewritten central directory points only at the new entry."""
+    rewritten central directory points only at the new entry. Writing starts at
+    _patch_offset, and the file is truncated after the new central directory."""
     with zipfile.ZipFile(zip_path, "a", zipfile.ZIP_DEFLATED) as zf:
+        offset = _patch_offset(zf)
         for info in [i for i in zf.infolist()
                      if i.filename.lower() == "comicinfo.xml"]:
             zf.NameToInfo.pop(info.filename, None)
             zf.filelist.remove(info)
+        zf.start_dir = offset
         zf.writestr("ComicInfo.xml", xml_bytes)
 
 
@@ -632,16 +650,17 @@ def _fsync_file(path: str) -> None:
 
 def _save_index_backup(zip_path: str) -> str:
     """
-    Save the archive's index (central directory and end record) to a hidden
-    file next to it before an in-place patch.
+    Save everything the patch will overwrite (the old ComicInfo.xml when it is
+    the last entry, the central directory and end record) to a hidden file
+    next to the archive before an in-place patch.
 
-    An in-place patch writes the new entry over the old index and only writes
-    the new index at the end. If it is interrupted in between, the original
-    archive is exactly the bytes before the old index plus this saved tail,
-    which restore_index_backup puts back.
+    An in-place patch writes the new entry over these bytes and only writes the
+    new index at the end. If it is interrupted in between, the original archive
+    is exactly the bytes before the patch offset plus this saved tail, which
+    restore_index_backup puts back.
     """
     with zipfile.ZipFile(zip_path, "r") as zf:
-        start = zf.start_dir
+        start = _patch_offset(zf)
     size = os.path.getsize(zip_path)
     backup = _index_backup_path(zip_path)
     with open(zip_path, "rb") as src, open(backup, "wb") as out:
