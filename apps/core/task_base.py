@@ -135,10 +135,6 @@ class ProgressTask(Task):
     def clear_cancel(self):
         clear_cancel(self.request.id)
 
-    def is_paused(self):
-        from django.core.cache import cache
-        return bool(cache.get(f"task:pause:{self.request.id}"))
-
 
 
 def batch_workflow_run(

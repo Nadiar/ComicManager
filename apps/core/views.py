@@ -2794,24 +2794,6 @@ def cancel_queued_task(request, pk):
     return JsonResponse({"success": True})
 
 
-@require_POST
-def pause_task(request, task_id):
-    from django.core.cache import cache
-    from .task_base import _broadcast
-    cache.set(f"task:pause:{task_id}", "1", timeout=3600)
-    _broadcast(task_id, {"task_id": task_id, "state": "PAUSED"})
-    return JsonResponse({"success": True})
-
-
-@require_POST
-def resume_task(request, task_id):
-    from django.core.cache import cache
-    from .task_base import _broadcast
-    cache.delete(f"task:pause:{task_id}")
-    _broadcast(task_id, {"task_id": task_id, "state": "RESUMED"})
-    return JsonResponse({"success": True})
-
-
 # =============================================================================
 # Force Actions - Allow re-running workflow steps on any comic
 # =============================================================================
