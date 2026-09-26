@@ -9,7 +9,7 @@
 <div class="cm-page-header">
   <div>
     <h1 class="cm-page-title">Batch Audit Log</h1>
-    <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;" class="mono tnum">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} total</p>
+    <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;" class="mono tnum">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} total{% if shown_count < total_count %}, newest {{ shown_count }} shown{% endif %}</p>
   </div>
   <a href="{% url 'settings:index' %}" class="cm-btn sm ghost" cm-no-underline">Back to Settings</a>
 </div>
@@ -37,7 +37,7 @@
 <!-- Pagination top -->
 {% if page_obj.paginator.num_pages > 1 %}
 <div style="padding:7px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--cm-border); font-size:11.5px; color:var(--cm-fg-3);">
-  <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ total_count }}</span></span>
+  <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ shown_count }}</span></span>
   <div style="display:flex; gap:3px;">
     {% if page_obj.has_previous %}
     <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost" cm-no-underline">First</a>

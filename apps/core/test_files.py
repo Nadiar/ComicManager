@@ -580,3 +580,40 @@ class ImportLibraryTests(TempDirMixin, TestCase):
         self.assertEqual(from_db.state, Comic.STATE_WRITTEN)
         self.assertTrue(Comic.objects.filter(file_path__endswith="Loud 003.CBZ").exists())
         self.assertIn("Imported from ComicDb.xml (no ComicInfo.xml in the file): 1", out.getvalue())
+
+
+class AuditLogTests(TempDirMixin, TestCase):
+
+    def _write_log(self, entries):
+        import json as _json
+        path = self.path("batch_actions.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            for e in entries:
+                f.write(_json.dumps(e) + "\n")
+        return path
+
+    def test_history_and_log_page(self):
+        from django.test import override_settings
+        from apps.core.audit import get_comic_audit_history, recent_log_entries
+        a, b = "6f1c1d2e-0000-4000-8000-00000000000a", "6f1c1d2e-0000-4000-8000-00000000000b"
+        entries = []
+        for i in range(30):
+            entries.append({"timestamp": f"2026-01-01T00:00:{i:02d}", "action": "write_all" if i % 3 else "convert_cbr",
+                            "uuid": a if i % 2 else b, "name": f"x #{i}",
+                            "state_before": "write", "state_after": "done", "changes": {"n": [i, i + 1]}})
+        path = self._write_log(entries)
+        with override_settings(AUDIT_LOG_PATH=path):
+            hist = get_comic_audit_history(a)
+            self.assertEqual([e["name"] for e in hist], [f"x #{i}" for i in range(29, 0, -2)])
+
+            shown, total = recent_log_entries(limit=5)
+            self.assertEqual(total, 30)
+            self.assertEqual([e["name"] for e in shown], ["x #29", "x #28", "x #27", "x #26", "x #25"])
+
+            # The action filter searches the whole log, not only its last lines
+            shown, total = recent_log_entries("convert_cbr", limit=3)
+            self.assertEqual(total, 10)
+            self.assertEqual([e["name"] for e in shown], ["x #27", "x #24", "x #21"])
+
+            page = self.client.get("/settings/log/?action=convert_cbr")
+            self.assertContains(page, "10 entries total")

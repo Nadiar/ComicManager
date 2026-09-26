@@ -1,4 +1,3 @@
-import json
 
 from django.core.paginator import Paginator
 from django.http import HttpResponse
@@ -96,42 +95,20 @@ def update_preferences(request):
 
 def settings_log(request):
     """Display the batch audit log, newest first, with optional action filter."""
-    from django.conf import settings as django_settings
+    from .audit import AUDIT_ACTIONS, recent_log_entries
 
-    log_path = getattr(django_settings, "AUDIT_LOG_PATH", "/app/logs/batch_actions.jsonl")
     action_filter = request.GET.get("action", "")
 
-    entries = []
-    try:
-        with open(log_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        # Take last 2000 lines to avoid loading huge files
-        lines = lines[-2000:]
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-                if action_filter and entry.get("action") != action_filter:
-                    continue
-                entries.append(entry)
-            except (json.JSONDecodeError, ValueError):
-                continue
-    except FileNotFoundError:
-        entries = []
-
-    # Newest first
-    entries.reverse()
+    # Newest entries first; the action filter searches the whole log
+    entries, total = recent_log_entries(action_filter)
 
     paginator = Paginator(entries, 50)
     page_obj = paginator.get_page(request.GET.get("page", 1))
 
-    from .audit import AUDIT_ACTIONS
-
     return render(request, "core/settings_log.html", {
         "page_obj": page_obj,
-        "total_count": paginator.count,
+        "total_count": total,
+        "shown_count": paginator.count,
         "action_filter": action_filter,
         "actions": AUDIT_ACTIONS,
     })

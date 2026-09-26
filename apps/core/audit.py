@@ -7,6 +7,7 @@ batch operation so users can review what changed and roll back if needed.
 
 import json
 import os
+from collections import deque
 from datetime import datetime, timezone
 
 from django.conf import settings
@@ -106,23 +107,70 @@ def diff_fields(comic, snapshot: dict) -> dict:
     }
 
 
-def get_comic_audit_history(uuid_str: str) -> list:
-    """Return all audit log entries for a specific comic UUID, newest first."""
-    entries = []
-    path = _log_path()
+# Most entries the Settings > Log page lists
+LOG_PAGE_LIMIT = 2000
+
+
+def _iter_matching(needle: str = None):
+    """
+    Yield parsed log entries, oldest first. With needle, lines that do not
+    contain it are skipped before JSON parsing, which is most of the cost on a
+    large log (entries are written with json.dumps, so '"uuid": "<id>"' and
+    '"action": "<name>"' appear literally).
+    """
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(_log_path(), "r", encoding="utf-8") as f:
             for line in f:
+                if needle and needle not in line:
+                    continue
                 line = line.strip()
                 if not line:
                     continue
                 try:
-                    entry = json.loads(line)
-                    if entry.get("uuid") == uuid_str:
-                        entries.append(entry)
+                    yield json.loads(line)
                 except (json.JSONDecodeError, ValueError):
                     continue
     except FileNotFoundError:
-        pass
+        return
+
+
+def get_comic_audit_history(uuid_str: str) -> list:
+    """Return all audit log entries for a specific comic UUID, newest first."""
+    entries = [e for e in _iter_matching(f'"uuid": "{uuid_str}"') if e.get("uuid") == uuid_str]
     entries.reverse()
     return entries
+
+
+def recent_log_entries(action: str = "", limit: int = LOG_PAGE_LIMIT) -> tuple[list, int]:
+    """
+    Return (newest entries first, at most limit; number of matching entries in
+    the whole log). With action, only entries of that action are counted and
+    returned, from the whole log rather than only its last lines.
+    """
+    total = 0
+    if action:
+        kept = deque(maxlen=limit)
+        for entry in _iter_matching(f'"action": "{action}"'):
+            if entry.get("action") == action:
+                kept.append(entry)
+                total += 1
+        entries = list(kept)
+    else:
+        # Count every line, but only parse the ones that will be shown
+        raw = deque(maxlen=limit)
+        try:
+            with open(_log_path(), "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        raw.append(line)
+                        total += 1
+        except FileNotFoundError:
+            pass
+        entries = []
+        for line in raw:
+            try:
+                entries.append(json.loads(line))
+            except (json.JSONDecodeError, ValueError):
+                continue
+    entries.reverse()
+    return entries, total
