@@ -35,13 +35,20 @@ How the write is applied depends on the filesystem your library lives on. ComicM
 
 On a copy-on-write filesystem, ComicManager makes an instant, space-free clone of the archive, patches the clone, and then atomically swaps it into place. The clone shares the original's data blocks, so even a 2 GB file is cloned with no real copying.
 
-This path is **crash-safe**: if the machine loses power or the process is killed at any point during the write, you are always left with either the complete old file or the complete new file. The original is never in a half-written state.
+This path is **crash-safe**: the patched clone is flushed to disk before the swap, so if the machine loses power or the process is killed at any point during the write, you are always left with either the complete old file or the complete new file. The original is never in a half-written state.
 
 ### On other filesystems (ext4 and similar)
 
 On filesystems without copy-on-write support, a cheap clone is not available, so ComicManager patches the archive in place. This is still fast, because it only rewrites the small `ComicInfo.xml` entry and the archive's index, not the page images. ComicManager deliberately avoids copying the whole file, which on a large archive would mean gigabytes of needless disk I/O on every write.
 
-The trade-off is that an in-place write is **not atomic**. The only moment of risk is the split second while the archive index is being rewritten. If the machine loses power or the process is hard-killed in that exact window, the index can be left incomplete. Your page images are never rewritten, so they stay physically intact inside the file, but the archive may need a repair tool to rebuild its index before it opens again. In normal operation, including ordinary application errors and graceful shutdowns, this cannot happen.
+An in-place write is **not atomic**: the new metadata entry is written over the old archive index, and the new index is only written at the end. If the machine loses power, the disk fills up, or the process is hard-killed in between, the archive cannot be opened.
+
+To make that recoverable, ComicManager first saves the archive's index to a small hidden file next to the comic (named `.<file name>.cm-index`) and flushes it to disk. Once the write has finished and is flushed, the backup is deleted. If a write is interrupted, the backup stays, and the original archive is restored exactly:
+
+- automatically, the next time that comic is written, or
+- when you click **Rezip** on a comic flagged as a corrupted archive.
+
+The backup holds only the index, usually a few kilobytes. Measured on a 2 GB omnibus on an SSD, the backup added about 6 ms to a write, while copying the whole file took over 4 seconds (longer on a hard disk).
 
 ---
 

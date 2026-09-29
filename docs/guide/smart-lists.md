@@ -77,6 +77,7 @@ Filter by any pipeline flag. Use the exact flag key shown:
 | Field | Description |
 |-------|-------------|
 | `Flag: Corrupted Archive` | CBZ file cannot be read |
+| `Flag: File Missing` | The file is not on disk; the record and metadata were kept |
 | `Flag: Low Page Count` | Fewer pages than the threshold |
 | `Flag: PDF` | PDF file (not processable) |
 | `Flag: No Series` | Series could not be parsed from filename |

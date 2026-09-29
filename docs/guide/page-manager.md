@@ -43,8 +43,10 @@ For more severe issues (corrupt files, wrong issue entirely), re-importing the f
 
 After saving, ComicManager automatically:
 
-- Updates the **page count** in the database to match the new file.
+- Updates the **page count**, **file size**, and **cover hashes** in the database to match the new file, so duplicate detection and cover verification use the new cover.
 - Clears the **cover image cache** so the new cover is used everywhere.
+
+Pages are listed in natural order (`page2` before `page10`), the same order comic readers use, and saved pages are renamed `000.jpg`, `001.jpg`, and so on so every reader agrees. Hidden files such as the macOS `._001.jpg` resource forks are not shown as pages and are kept unchanged. The new file is written next to the original with the same permissions and swapped in at the end, so an interrupted save leaves the original untouched.
 
 The `ComicInfo.xml` inside the CBZ is not rewritten by the page manager. The updated page count will be embedded the next time you run the Write step for that comic.
 

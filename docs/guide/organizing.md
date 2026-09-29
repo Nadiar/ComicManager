@@ -77,6 +77,10 @@ Over time, your library structure might change or metadata might be updated afte
 
 - **`needs_reorganize` flag**: Whenever a core metadata field (like Series, Publisher, or Format) changes on a comic that is already in the `Organized` or `Written` state, ComicManager sets this flag. The comic appears in the Maintenance tab of your dashboard so you can safely move it to its new, correct path.
 - **Scan Path Audit**: A manual tool to scan your entire library and compare current file paths with the "Expected" paths based on your organization profile. It identifies any comics that are in the wrong location or have the wrong filename.
+- **Missing files**: If a comic's file is not on disk at all, the audit does not offer to move it. It gets the `file_missing` flag and is listed in a separate **Missing files** table on the Path Audit page with two actions:
+  - **Relink** looks for the file at the comic's expected path, in the expected folder, and in the folder it used to be in. If exactly one matching file is found and no other comic uses it, the comic's path is updated and the flag is cleared.
+  - **Remove** deletes only the database record (and its metadata). It never touches files, and it refuses if the file is back on disk.
+- **Moves never overwrite**: A move refuses to replace an existing file. When the file moves between the untagged folder and the library (separate volumes), it is copied to a hidden temporary file next to the destination first, so an interrupted move never leaves a half-copied comic under its real name.
 
 ::: info Path Audit scope
 Path Audit only considers comics in the **Write to CBZ** or **Done** states. Comics still in earlier pipeline stages are excluded, they will be organized as they progress through the pipeline naturally.
@@ -485,12 +489,12 @@ print(sync_library_paths())
 "
 ```
 
-1. It scans every organized or written digital comic whose recorded `file_path` does not exist on disk.
-2. For each missing file, it computes the expected organized path from your active profile and checks whether the file exists there.
+1. It scans every organized, written, or done digital comic whose recorded `file_path` does not exist on disk.
+2. For each missing file, it computes the expected organized path from your active profile and checks whether the file exists there. If not, it looks in the expected folder for a single file whose name starts with the series name followed by the issue number (so `Batman Beyond #001` is never taken for `Batman #001`).
 3. If found, the database record is updated to the new path. If not found, the comic is left in place for manual review.
 4. Duplicate database entries found during the scan are also removed automatically.
 
-Run this after any external library reorganization or after migrating to a new storage location. A dedicated UI button is planned.
+Run this after any external library reorganization or after migrating to a new storage location. For individual comics, the **Relink** button in the Missing files table on the Path Audit page does the same search.
 
 ## Physical Comics
 

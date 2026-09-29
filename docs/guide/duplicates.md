@@ -25,7 +25,7 @@ One digital and one physical copy of the same comic is explicitly **not** a dupl
 
 ComicManager runs duplicate detection in three passes, then presents whatever groups it finds for you to resolve:
 
-1.  **Scan**: Every comic in the **Deduplicate** state is compared against the rest of the library using all four detection methods below (CV ID, Metadata, Cover Hash, Filename) at once.
+1.  **Scan**: Every comic in the **Deduplicate** state is compared against the rest of the library using all four detection methods below (CV ID, Metadata, Cover Hash, Filename) at once. The library includes comics you kept or marked intentional in earlier duplicate groups. Only groups that contain at least one of the comics being processed are created, so a run never regroups old library comics among themselves.
 2.  **Orphan attachment**: Any comic that didn't land in a group during the scan gets a second pass, this time compared against comics already sitting in an existing pending group. This catches comics that were processed in a later batch than their duplicate partner.
 3.  **Consolidation**: If a comic ends up matched into more than one group (for example, by both CV ID and Cover Hash), those groups are merged so you only see it once. The largest group survives the merge; ties are broken by method priority (CV ID > Metadata > Cover Hash > Filename).
 
@@ -54,7 +54,7 @@ Two additional filters prevent false positives:
 
 Matches comics whose cover images are visually near-identical, measured by the Hamming distance between their pHash fingerprints. The default threshold is a distance of 5 bits, adjustable via **Settings > Deduplication > Cover Hash max distance**. Two covers can be resized, re-encoded, or slightly different scans and still match.
 
-Only digital comics with a computed pHash are considered. Groups are built using a union-find algorithm so that transitively similar covers end up in the same group.
+Only digital comics with a computed pHash are considered. Each group is built around one anchor comic, and every member is within the threshold of that anchor. Near matches therefore cannot chain together: if A is close to B and B is close to C, but A and C are far apart, A and C are not put in the same group.
 
 The distance for each member is shown in the review table. Lower is more similar; 0 means bit-for-bit identical.
 
@@ -77,8 +77,8 @@ The diagram below traces a single comic from the top of the comparison pool down
           ┌──────────────────────────────────────────────────────────┐
           │                     Comparison Pool                      │
           │                                                          │
-          │  • Comics in STATE_DEDUPLICATED (no existing group)      │
-          │  • All library comics without a group                    │
+          │  • Comics in STATE_DEDUPLICATED (no pending group)       │
+          │  • All library comics not in a pending group             │
           │    (catches dupes of already-organized comics)           │
           └──────────────────────────┬───────────────────────────────┘
                                      │
