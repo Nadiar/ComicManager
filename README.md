@@ -52,6 +52,17 @@ A web application for managing large comic collections, both digital and physica
 - [Settings Reference](https://comicmanager.baerentsen.space/reference/settings) - all configurable options
 - [Philosophy & Scope](https://comicmanager.baerentsen.space/guide/philosophy) - what ComicManager is and is not
 
+## Development
+
+The test suite runs inside the production Docker image against a throwaway Postgres, using generated sample comics only:
+
+```bash
+docker compose -f docker-compose.test.yml run --rm --build tests
+docker compose -f docker-compose.test.yml down
+```
+
+`python manage.py make_sample_library <folder>` writes the same kind of sample comics into a folder, for trying out a fresh install.
+
 ## AI Usage
 
 AI was used for the UI redesign (Claude Design). The old design can be seen in [`docs/public/old_UI/`](docs/public/old_UI/). AI was also used for the first draft of documentation and code comments. Code and architecture are human-made. 
