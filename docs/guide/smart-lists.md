@@ -14,7 +14,7 @@ Create Smart Lists to keep track of specific parts of your collection:
 
 1. Go to `/smartlists/` and click **New Smart List**.
 2. Add filter criteria (field, lookup, and value). You can filter on almost any field, including custom values and dates.
-3. Use **Add OR Group** to create a sub-group where any condition can match (e.g. format is One-Shot OR TPB). Top-level filters are always combined with AND.
+3. Use **Add Group** to create a sub-group that matches **any** (OR) or **all** (AND) of its conditions (e.g. format is One-Shot OR TPB). Groups can contain groups. Top-level filters are always combined with AND.
 4. Choose sorting options (ascending/descending).
 5. Select which columns to display in the list view.
 6. Optionally set an **Icon** to visually distinguish the list in the sidebar and index page.
@@ -146,11 +146,19 @@ These two lookups do not need a value. The value input hides automatically when 
 
 Top-level filter rows are always combined with **AND** (every condition must match).
 
-Use **Add OR Group** to create a sub-block where **any** condition in the group can match. For example:
+Use **Add Group** to create a sub-block. Each group has its own setting: **Match ANY (OR)** or **Match ALL (AND)**. For example:
 
-- Format is One-Shot **OR** Format is TPB (a group with two rows)
+- Format is One-Shot **OR** Format is TPB (a group set to Match ANY, with two rows)
 
-This group itself becomes one item in the top-level AND chain.
+The group itself becomes one item in the top-level AND chain.
+
+Groups can contain groups, up to three levels deep (use **+ Add group** inside a group). A new group inside a group starts with the opposite setting, which is usually what you want. For example, to list Hulk comics from Marvel **or** Thor comics from DC:
+
+1. **Add Group**, set to Match ANY (OR).
+2. Inside it, **+ Add group** twice. Both start as Match ALL (AND).
+3. In the first inner group: Series is Hulk, Publisher is Marvel. In the second: Series is Thor, Publisher is DC Comics.
+
+That is (Series is Hulk AND Publisher is Marvel) OR (Series is Thor AND Publisher is DC Comics).
 
 ---
 

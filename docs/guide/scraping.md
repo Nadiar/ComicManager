@@ -46,7 +46,7 @@ The one feature that requires an additional file is **Series Audit** (tracking w
 If neither `comicvine.db` nor `latest.mcl` is present, Series Audit is disabled with an explanatory message.
 
 ::: tip API rate limits
-ComicVine enforces a 200 calls/hour limit. ComicManager tracks usage in Redis and will skip comics when the budget is exhausted. API calls are rate-limited to approximately 1 call/second.
+ComicVine enforces a 200 calls/hour limit. ComicManager tracks usage in Redis and will skip comics when the budget is exhausted. API calls are spaced at least 1.1 seconds apart across the whole app (web and worker share the spacing through Redis).
 :::
 
 To use API mode, set your **ComicVine API Key** in Settings.

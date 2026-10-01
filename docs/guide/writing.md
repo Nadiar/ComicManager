@@ -43,12 +43,14 @@ On filesystems without copy-on-write support, a cheap clone is not available, so
 
 An in-place write is **not atomic**: the new metadata entry is written over the old archive index, and the new index is only written at the end. If the machine loses power, the disk fills up, or the process is hard-killed in between, the archive cannot be opened.
 
-To make that recoverable, ComicManager first saves the archive's index to a small hidden file next to the comic (named `.<file name>.cm-index`) and flushes it to disk. Once the write has finished and is flushed, the backup is deleted. If a write is interrupted, the backup stays, and the original archive is restored exactly:
+After the first write, `ComicInfo.xml` is the last entry in the archive, so later writes start at the old `ComicInfo.xml` and replace it. Rewriting a comic many times (for example with **Write Stale**) therefore does not make the file grow.
+
+To make an interrupted write recoverable, ComicManager first saves everything the write will overwrite (the old `ComicInfo.xml` when it is the last entry, and the archive's index) to a small hidden file next to the comic (named `.<file name>.cm-index`) and flushes it to disk. Once the write has finished and is flushed, the backup is deleted. If a write is interrupted, the backup stays, and the original archive is restored exactly:
 
 - automatically, the next time that comic is written, or
 - when you click **Rezip** on a comic flagged as a corrupted archive.
 
-The backup holds only the index, usually a few kilobytes. Measured on a 2 GB omnibus on an SSD, the backup added about 6 ms to a write, while copying the whole file took over 4 seconds (longer on a hard disk).
+The backup holds only the index and the old metadata, usually a few kilobytes. Measured on a 2 GB omnibus on an SSD, the backup added about 6 ms to a write, while copying the whole file took over 4 seconds (longer on a hard disk).
 
 ---
 

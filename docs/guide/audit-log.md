@@ -29,7 +29,7 @@ The Audit Log is available from three places:
 - **Settings menu**: Navigate directly to `/settings/log/`.
 - **Comic detail page**: Open any comic and click the **Pipeline history** tab to see only the audit entries for that specific comic.
 
-Filter by action type (e.g., Scrape, Tag, Format, Errors).
+Filter by action type (e.g., Scrape, Tag, Format, Errors). The page lists the newest 2,000 matching entries and shows how many there are in total; the action filter searches the whole log.
 
 The log is stored physically in `data/logs/batch_actions.jsonl`, keeping it completely independent of your primary PostgreSQL database, ensuring that heavy batch activity doesn't bloat your database.
 
@@ -43,7 +43,7 @@ This is the fastest way to answer "what happened to this comic?" without filteri
 
 ## Import Errors Log
 
-Errors that occur during the CLI import command (`import_library`, `scan_untagged`) are written to a separate persistent log file at `data/logs/import_errors.log` on the host. This includes messages like "Invalid or corrupted CBZ file" or "No ComicInfo.xml in: X.cbz" that would otherwise only be visible in the terminal during a large import run.
+Errors that occur during the `import_library` command are written to a separate persistent log file at `data/logs/import_errors.log` on the host. This includes messages like "Invalid or corrupted CBZ file", "No ComicInfo.xml in: X.cbz", or "RAR or 7-Zip archive named .cbz" that would otherwise only be visible in the terminal during a large import run.
 
 Check this file after any large import to review files that could not be processed without having to keep the terminal open the entire time.
 

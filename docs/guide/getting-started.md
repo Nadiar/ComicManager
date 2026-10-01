@@ -131,12 +131,29 @@ docker compose exec web python manage.py import_library [flags]
 
 | Flag | What it does |
 |------|-------------|
-| _(none)_ | Import all CBZ files found under the configured library path |
+| _(none)_ | Import all CBZ files (`.cbz` or `.CBZ`) found under the configured library path |
 | `--dry-run` | Preview what would be imported without writing anything |
 | `--path /comics/library` | Override the library path (default: `/comics/library`) |
 | `--comicdb /path/to/ComicDb.xml` | Enrich imports with ComicRack's database (see below) |
 
 The `--comicdb` flag accepts ComicRack's `ComicDb.xml` and enriches each imported comic with data that `ComicInfo.xml` does not carry: Tags, Teams, Locations, `MainCharacterOrTeam`, `SeriesGroup`, and `CustomValuesStore` entries. This is the only way to preserve that data on import. Entries are matched by relative file path, so it's safe to test against a small library subset (a couple of comics) with your full `ComicDb.xml`. Only the comics actually present in the scanned folder are enriched; everything else in the file is simply ignored.
+
+With `--comicdb`, files that have no `ComicInfo.xml` at all are imported from their `ComicDb.xml` entry (series, number, volume, publisher, credits, and so on) instead of being skipped. ComicRack keeps that metadata in its database, so files it never wrote tags into can still be imported. Run **Write All** afterwards to embed the metadata in the files.
+
+**`convert_misnamed_archives`**: finds files named `.cbz` that are really RAR or 7-Zip archives and converts them into real CBZ files in place. `import_library` skips these files and points to this command.
+
+```bash
+docker compose exec web python manage.py convert_misnamed_archives --dry-run
+docker compose exec web python manage.py convert_misnamed_archives
+```
+
+| Flag | What it does |
+|------|-------------|
+| _(none)_ | Convert every misnamed archive under the library path |
+| `--dry-run` | Only list the misnamed archives |
+| `--path /comics/untagged` | Search another folder (default: `/comics/library`) |
+
+Each file is extracted and repacked into a hidden temporary file next to it, and only replaces the original once it is complete and contains pages. If extraction fails (for example, a damaged archive), the original is left unchanged and the error is reported. Afterwards, run `import_library` (with `--comicdb` if the files have no `ComicInfo.xml`) to add the converted files.
 
 ---
 

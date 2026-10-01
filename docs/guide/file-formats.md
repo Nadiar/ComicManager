@@ -13,6 +13,7 @@ ComicManager supports several comic archive formats. Some formats require conver
 | `.cb7` | `needs_conversion` | Convert button (detail page or dashboard bulk action) | Full pipeline after conversion |
 | `.zip` | `is_zip` | One-click rename. No repacking required | Full pipeline after rename |
 | `.pdf` | `is_pdf` | External conversion required | Not supported |
+| `.cbz` that is really RAR or 7-Zip | `needs_conversion` | Convert button, replaced in place | Full pipeline after conversion |
 
 ---
 
@@ -54,9 +55,21 @@ CBR (RAR archive) and CB7 (7-Zip archive) files are not automatically converted.
 
 From there you can convert them individually via the **Convert to CBZ** button on the comic detail page, or convert all flagged files at once using **Convert All CBR/CB7** from the dashboard.
 
+Conversion extracts the archive and repacks it into a hidden temporary file next to the original. The new `.cbz` only takes its place once it is complete and contains pages; the original is deleted after the database has been updated. If a `.cbz` with the same name already exists, it is a different file: the conversion stops with an error and both files are kept. Page count and cover hashes are refreshed after converting.
+
 ::: warning
 ComicManager does not support CBR as a finished format. All comics must be CBZ. 
 :::
+
+---
+
+## RAR or 7-Zip Archives Named .cbz
+
+Some files have a `.cbz` extension but are really RAR or 7-Zip archives (an old tagger or a renamed CBR). ComicManager checks the file's actual format:
+
+- **Untagged scan**: such a file is recorded with its real format and the `needs_conversion` flag instead of being reported as corrupted. **Convert** replaces it in place with a real CBZ (same file name).
+- **Rezip** on a comic flagged as a corrupted archive converts it if it turns out to be RAR or 7-Zip.
+- **Library files** that are not in the database yet: run `convert_misnamed_archives`, then `import_library` (see [Getting Started](/guide/getting-started)).
 
 ---
 
