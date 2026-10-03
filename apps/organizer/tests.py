@@ -151,6 +151,17 @@ class MissingFileTests(TestCase):
         self.assertEqual(page.context["total_missing"], 1)
         self.assertEqual(page.context["total_flagged"], 0)
 
+    def test_page_lists_comics_to_move_next_to_missing_ones(self):
+        from apps.organizer.tasks import audit_paths_task
+        self._comic(make_cbz(os.path.join(self.tmp, "Pub", "Sample Hero", "Sample Hero #001.cbz")))
+        misplaced = self._comic(make_cbz(os.path.join(self.tmp, "elsewhere", "x.cbz")), number="2")
+        self._comic(os.path.join(self.tmp, "old", "gone.cbz"), number="3")
+        audit_paths_task.apply()
+        page = self.client.get("/organizer/path-audit/")
+        self.assertEqual(page.context["total_flagged"], 1)
+        self.assertEqual([c.pk for c in page.context["comics"]], [misplaced.pk])
+        self.assertEqual(page.context["total_missing"], 1)
+
     def test_relink_finds_file_in_target_folder(self):
         target = make_cbz(os.path.join(self.tmp, "Pub", "Sample Hero", "Sample Hero #001 (2020).cbz"))
         comic = self._comic(os.path.join(self.tmp, "old", "gone.cbz"), flags={"file_missing": True})

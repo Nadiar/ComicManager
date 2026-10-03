@@ -357,7 +357,9 @@ def path_audit(request):
             medium=Comic.MEDIUM_DIGITAL,
             state__in=[Comic.STATE_WRITTEN, Comic.STATE_DONE],
         )
-        .exclude(flags__file_missing=True)
+        # Not exclude(flags__file_missing=True): for a comic without that key
+        # the comparison is NULL, and NOT NULL would hide the comic as well
+        .exclude(flags__contains={"file_missing": True})
         .order_by("publisher", "series", "number")
     )
 
