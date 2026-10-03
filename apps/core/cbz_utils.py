@@ -15,9 +15,58 @@ logger = logging.getLogger(__name__)
 IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp")
 
 
-def natural_key(name: str) -> list:
-    """Sort key that orders page2 before page10, the way comic readers do."""
-    return [int(t) if t.isdigit() else t.lower() for t in re.split(r"(\d+)", name)]
+_DIGITS = re.compile(r"(\d+)")
+
+
+def _is_spread(run: str, width: int) -> bool:
+    """True for a number like "0304": two consecutive page numbers of the given width."""
+    return len(run) == 2 * width and int(run[:width]) + 1 == int(run[width:])
+
+
+def _spread_width(pages) -> int:
+    """
+    Page-number width of an archive that names double-page spreads by joining
+    two page numbers ("p0304.jpg" between "p02.jpg" and "p05.jpg"), else 0.
+    That is the width w for which most page numbers twice as long are such
+    pairs, so long unpadded numbering (page1011 in a 1100-page book) is not
+    mistaken for spreads.
+    """
+    last_runs = []
+    for name in pages:
+        runs = _DIGITS.findall(os.path.splitext(name)[0])
+        if runs:
+            last_runs.append(runs[-1])
+    lengths = {len(r) for r in last_runs}
+    for width in sorted(lengths):
+        if width < 2 or 2 * width not in lengths:
+            continue
+        doubles = [r for r in last_runs if len(r) == 2 * width]
+        if 2 * sum(_is_spread(r, width) for r in doubles) > len(doubles):
+            return width
+    return 0
+
+
+def _page_sort_key(name: str, spread_width: int) -> list:
+    """
+    Sort key for a page name: plain alphabetical order ignoring case, except
+    that numbers compare by value, so page2 comes before page10. Scanners name
+    pages for plain sorting, so everything else keeps that order: a text part
+    that is followed by a number gets a "0" appended (it stands for "a digit
+    comes next"), which keeps "ifc.jpg" before "ifc2.jpg", and a spread
+    ("0304") sorts at its first page.
+    """
+    parts = _DIGITS.split(name.lower())
+    key, carry = [], ""
+    for i, part in enumerate(parts):
+        if i % 2 == 0:
+            text, carry = carry + part, ""
+            key.append(text + "0" if i + 1 < len(parts) else text)
+        elif spread_width and _is_spread(part, spread_width):
+            key.append(int(part[:spread_width]))
+            carry = part[spread_width:]
+        else:
+            key.append(int(part))
+    return key
 
 
 def is_page_entry(name: str) -> bool:
@@ -39,7 +88,9 @@ def list_pages(names) -> list:
     Every place that shows, counts, hashes or edits pages uses this, so a
     page index always means the same file everywhere.
     """
-    return sorted((n for n in names if is_page_entry(n)), key=natural_key)
+    pages = [n for n in names if is_page_entry(n)]
+    width = _spread_width(pages)
+    return sorted(pages, key=lambda n: (_page_sort_key(n, width), n))
 
 
 def download_image(url: str, dest_path: str) -> bool:

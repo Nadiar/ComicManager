@@ -94,6 +94,37 @@ class PageEditTests(TempDirMixin, TestCase):
         self.assertEqual(page_colors(p), [0, 1])
 
 
+class PageOrderTests(TestCase):
+    """Numbers compare by value and case is ignored; everything else keeps the
+    plain sorted order that scanners name their pages for."""
+
+    def assertOrder(self, names):
+        self.assertEqual(cbz_utils.list_pages(list(reversed(names))), names)
+
+    def test_numbers_compare_by_value(self):
+        self.assertOrder(["1.png", "2.png", "10.png", "11.png"])
+
+    def test_case_is_ignored(self):
+        self.assertOrder(["sho00801.jpg", "sho00802.jpg", "SHO00803.JPG"])
+
+    def test_suffixes_keep_plain_order(self):
+        self.assertOrder(["00fc.jpg", "00ifc.jpg", "00ifc2.jpg", "01.jpg",
+                          "13.jpg", "13ad.jpg", "13ad2.jpg", "14.jpg"])
+
+    def test_spreads_stay_in_place(self):
+        self.assertOrder(["bt_02_01.jpg", "bt_02_02.jpg", "bt_02_0304.jpg", "bt_02_05.jpg",
+                          "bt_02_10.jpg", "bt_02_1112.jpg", "bt_02_13.jpg"])
+        self.assertOrder(["gl-71.jpg", "gl-7273.jpg", "gl-72x.jpg", "gl-73x.jpg", "gl-74.jpg"])
+
+    def test_spreads_stay_in_place_when_most_pages_are_spreads(self):
+        self.assertOrder(["p02.jpg", "p0304.jpg", "p05.jpg", "p0607.jpg",
+                          "p0809.jpg", "p1011.jpg", "p12.jpg"])
+
+    def test_long_numbering_is_not_read_as_spreads(self):
+        self.assertOrder([f"{i}.jpg" for i in range(1, 1101)])
+        self.assertOrder([f"Book v02 - {i:04d}.jpg" for i in range(1, 151)])
+
+
 class PageManagerViewTests(TempDirMixin, TestCase):
 
     def test_delete_first_page_refreshes_count_and_cover_hash(self):
