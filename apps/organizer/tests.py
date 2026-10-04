@@ -161,6 +161,8 @@ class MissingFileTests(TestCase):
         self.assertEqual(page.context["total_flagged"], 1)
         self.assertEqual([c.pk for c in page.context["comics"]], [misplaced.pk])
         self.assertEqual(page.context["total_missing"], 1)
+        self.assertEqual(page.context["total_correct"], 1)
+        self.assertRegex(page.content.decode(), r"Correct Location</div>\s*<div[^>]*>1</div>")
 
     def test_relink_finds_file_in_target_folder(self):
         target = make_cbz(os.path.join(self.tmp, "Pub", "Sample Hero", "Sample Hero #001 (2020).cbz"))

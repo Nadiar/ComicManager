@@ -410,6 +410,7 @@ def path_audit(request):
         "total_organized": total_organized,
         "missing_comics": missing_comics[:200],
         "total_missing": total_missing,
+        "total_correct": total_organized - total_flagged - total_missing,
         "active_audit_task_id": active_audit_task_id,
         "active_au_scan_task_id": active_au_scan_task_id,
         "active_reorganize_task_id": active_reorganize_task_id,
