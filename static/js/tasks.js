@@ -205,6 +205,7 @@
       var parts = [];
       if (r.mismatched > 0) parts.push(r.mismatched + ' mismatched');
       if (r.matched > 0) parts.push(r.matched + ' matched');
+      if (r.missing > 0) parts.push(r.missing + ' missing');
       if (r.errors && r.errors.length > 0) parts.push(r.errors.length + ' errors');
       return (parts.length ? parts.join(', ') : 'No changes') + ' (of ' + (r.total || 0) + ' checked)';
     }
@@ -229,6 +230,15 @@
       if (r.failed > 0) parts.push(r.failed + ' failed');
       if (r.errors && r.errors.length > 0) parts.push(r.errors.length + ' errors');
       return parts.length ? parts.join(', ') + ' (of ' + (r.total || 0) + ')' : 'Done';
+    }
+    if (r.imported !== undefined && r.cleaned !== undefined) {
+      // Untagged scan
+      var parts = [(r.imported || 0) + ' imported'];
+      if (r.cleaned > 0) parts.push(r.cleaned + ' removed');
+      if (r.flagged_missing > 0) parts.push(r.flagged_missing + ' flagged File Missing');
+      if (r.unflagged_missing > 0) parts.push(r.unflagged_missing + ' found again');
+      if (r.errors && r.errors.length > 0) parts.push(r.errors.length + ' errors');
+      return parts.join(', ');
     }
     return (r.processed || 0) + ' of ' + (r.total || 0) + ' processed' +
       (r.errors && r.errors.length > 0 ? ', ' + r.errors.length + ' errors' : '');

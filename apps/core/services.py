@@ -43,6 +43,8 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
         "imported": 0,
         "skipped": 0,
         "cleaned": 0,
+        "flagged_missing": 0,
+        "unflagged_missing": 0,
         "errors": [],
         "dry_run": dry_run,
     }
@@ -52,6 +54,7 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
         missing = check_missing_files(untagged_path)
         result["cleaned"] = missing["removed"]
         result["flagged_missing"] = missing["flagged"]
+        result["unflagged_missing"] = missing["unflagged"]
         if missing["skipped"]:
             result["errors"].append(missing["reason"])
 

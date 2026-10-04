@@ -119,6 +119,8 @@ def scan_untagged_task(self):
         "imported": result["imported"],
         "skipped": result["skipped"],
         "cleaned": result["cleaned"],
+        "flagged_missing": result["flagged_missing"],
+        "unflagged_missing": result["unflagged_missing"],
         "errors": result.get("errors", []),
         "cancelled": False,
     }

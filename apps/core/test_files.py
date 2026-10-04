@@ -362,6 +362,7 @@ class UntaggedScanTests(TempDirMixin, TestCase):
 
         result = scan_untagged_folder(path=self.tmp)
         self.assertEqual(result["cleaned"], 1)
+        self.assertEqual(result["flagged_missing"], 1)
         self.assertFalse(Comic.objects.filter(pk=untouched.pk).exists())
         worked.refresh_from_db()
         self.assertEqual(worked.series, "Sample Hero")
@@ -369,9 +370,23 @@ class UntaggedScanTests(TempDirMixin, TestCase):
 
         # File comes back: the flag clears
         make_cbz(worked.file_path)
-        scan_untagged_folder(path=self.tmp)
+        result = scan_untagged_folder(path=self.tmp)
+        self.assertEqual(result["unflagged_missing"], 1)
         worked.refresh_from_db()
         self.assertFalse(worked.has_flag("file_missing"))
+
+    def test_scan_task_reports_missing_file_counts(self):
+        from apps.core.tasks import scan_untagged_task
+        make_sample_library(self.tmp)
+        scan_untagged_folder(path=self.tmp)
+        worked = Comic.objects.get(file_path__endswith="Sample Hero 001 (2020).cbz")
+        worked.state = Comic.STATE_FORMATTED
+        worked.save()
+        os.remove(worked.file_path)
+        with self.settings(UNTAGGED_DIR=self.tmp):
+            result = scan_untagged_task.apply().get()
+        self.assertEqual(result["flagged_missing"], 1)
+        self.assertEqual(result["unflagged_missing"], 0)
 
     def test_unmounted_folder_changes_nothing(self):
         make_sample_library(self.tmp)
