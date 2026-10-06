@@ -278,10 +278,15 @@
 
   function pollProgress() {
     if (!activeTaskId) return;
+    var polledId = activeTaskId;
 
-    fetch('/comics/task-progress/' + activeTaskId + '/')
+    fetch('/comics/task-progress/' + polledId + '/')
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        // The WebSocket may have finished this task while the request was in
+        // flight. Finishing it a second time would refresh the page, closing a
+        // result that is still on screen (the Run Pipeline popup).
+        if (activeTaskId !== polledId) return;
         if (data.state === 'PROGRESS') {
           var taskFrac = data.total > 0 ? (data.current / data.total) : 0;
           // For a multi-task batch the bar tracks overall progress across all
