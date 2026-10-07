@@ -687,6 +687,22 @@ class ImportLibraryTests(TempDirMixin, TestCase):
         self.assertTrue(Comic.objects.filter(file_path__endswith="Loud 003.CBZ").exists())
         self.assertIn("Imported from ComicDb.xml (no ComicInfo.xml in the file): 1", out.getvalue())
 
+    def test_dry_run_counts_what_it_would_import(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from django.test import override_settings
+        lib = self.path("lib")
+        make_cbz(os.path.join(lib, "Pub", "Tagged 001.cbz"),
+                 comicinfo="<ComicInfo><Series>Tagged</Series><Number>1</Number></ComicInfo>")
+        make_cbz(os.path.join(lib, "Pub", "Loud 003.CBZ"),
+                 comicinfo="<ComicInfo><Series>Loud</Series><Number>3</Number></ComicInfo>")
+        out = StringIO()
+        with override_settings(AUDIT_LOG_PATH=self.path("logs", "batch_actions.jsonl")):
+            call_command("import_library", path=lib, dry_run=True, stdout=out, stderr=StringIO())
+        self.assertEqual(Comic.objects.count(), 0)
+        self.assertIn("Would import: 2", out.getvalue())
+        self.assertNotIn("Imported: 0", out.getvalue())
+
 
 class AuditLogTests(TempDirMixin, TestCase):
 

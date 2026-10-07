@@ -139,10 +139,10 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Would import: {comic_data.get('series', 'Unknown')} #{comic_data.get('number', '?')}{extra}")
             else:
                 Comic.objects.create(**comic_data)
-                imported += 1
+            imported += 1
 
-                if imported % 100 == 0:
-                    self.stdout.write(f"  Imported {imported} comics...")
+            if not dry_run and imported % 100 == 0:
+                self.stdout.write(f"  Imported {imported} comics...")
 
         for cbz_path in cbz_files:
             file_path_str = str(cbz_path)
@@ -196,9 +196,15 @@ class Command(BaseCommand):
                     errors += 1
 
         self.stdout.write("")
-        self.stdout.write(self.style.SUCCESS(f"Imported: {imported}"))
+        if dry_run:
+            self.stdout.write(self.style.SUCCESS(f"Would import: {imported}"))
+        else:
+            self.stdout.write(self.style.SUCCESS(f"Imported: {imported}"))
         self.stdout.write(f"Skipped (already exists): {skipped}")
-        if comicdb_lookup:
+        if comicdb_lookup and dry_run:
+            self.stdout.write(f"Would be enriched from ComicDb.xml: {enriched}")
+            self.stdout.write(f"Would be imported from ComicDb.xml (no ComicInfo.xml in the file): {from_comicdb}")
+        elif comicdb_lookup:
             self.stdout.write(f"Enriched from ComicDb.xml: {enriched}")
             self.stdout.write(f"Imported from ComicDb.xml (no ComicInfo.xml in the file): {from_comicdb}")
         if errors:
