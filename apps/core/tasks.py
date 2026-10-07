@@ -287,6 +287,7 @@ def convert_all_zip_task(self):
     """
     import os
     from pathlib import Path
+    from .archives import misnamed_format, rename_no_clobber
     from .models import Comic
 
     comic_ids = list(
@@ -325,12 +326,23 @@ def convert_all_zip_task(self):
         original_path = Path(comic.file_path)
         new_path = original_path.with_suffix(".cbz")
 
+        actual = misnamed_format(original_path)
+        if actual:
+            # Really a RAR or 7-Zip archive: a rename would leave a broken .cbz
+            comic.file_format = actual
+            comic.flags.pop("is_zip", None)
+            comic.add_flag("needs_conversion")
+            comic.save()
+            errors.append(f"{comic.proposed_series} #{comic.proposed_number}: not renamed, "
+                          f"really a {'RAR' if actual == 'cbr' else '7-Zip'} archive; flagged for conversion")
+            continue
+
         if new_path.exists():
             errors.append(f"{comic.proposed_series} #{comic.proposed_number}: target already exists")
             continue
 
         try:
-            original_path.rename(new_path)
+            rename_no_clobber(original_path, new_path)
             comic.file_path = str(new_path)
             comic.file_format = "cbz"
             comic.flags.pop("is_zip", None)

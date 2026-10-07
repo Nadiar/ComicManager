@@ -40,12 +40,31 @@ def sniff_archive(path) -> str | None:
 
 def misnamed_format(path) -> str | None:
     """
-    For a .cbz that is really a RAR or 7-Zip archive, return the file_format
-    it should have ("cbr" or "cb7"). None for real ZIPs and anything else.
+    For a .cbz or .zip that is really a RAR or 7-Zip archive, return the
+    file_format it should have ("cbr" or "cb7"). None for real ZIPs and
+    anything else.
     """
-    if not str(path).lower().endswith(".cbz"):
+    if not str(path).lower().endswith((".cbz", ".zip")):
         return None
     return FORMAT_FOR_KIND.get(sniff_archive(path))
+
+
+def rename_no_clobber(src, dest) -> None:
+    """
+    Rename src to dest without ever replacing an existing dest: raises
+    FileExistsError instead. Both paths must be on the same filesystem.
+    """
+    try:
+        os.link(src, dest)
+    except OSError as e:
+        if e.errno not in (errno.EPERM, errno.ENOTSUP):
+            raise
+        # No hard links on this filesystem: check, then rename
+        if os.path.exists(dest):
+            raise FileExistsError(errno.EEXIST, "File exists", str(dest))
+        os.rename(src, dest)
+        return
+    os.unlink(src)
 
 
 def _fsync(path) -> None:

@@ -567,6 +567,66 @@ class MisnamedArchiveTests(TempDirMixin, TestCase):
         self.assertEqual(page_colors(good), [0, 1, 2])
 
 
+class ZipRenameTests(TempDirMixin, TestCase):
+    """A .zip becomes a .cbz only when it really is a ZIP, and never replaces a file."""
+
+    def _comic(self, path):
+        return Comic.objects.create(file_path=path, file_format="zip", flags={"is_zip": True})
+
+    def test_scan_flags_rar_named_zip_for_conversion(self):
+        make_rar(self.path("Book 001.zip"))
+        make_cbz(self.path("Other 001.zip"))
+        scan_untagged_folder(path=self.tmp)
+        rar = Comic.objects.get(file_path__endswith="Book 001.zip")
+        self.assertEqual(rar.file_format, "cbr")
+        self.assertTrue(rar.has_flag("needs_conversion"))
+        self.assertFalse(rar.has_flag("is_zip"))
+        self.assertTrue(Comic.objects.get(file_path__endswith="Other 001.zip").has_flag("is_zip"))
+
+    def test_rename_real_zip(self):
+        comic = self._comic(make_cbz(self.path("Book 001.zip")))
+        resp = self.client.post(f"/comics/{comic.pk}/convert-zip/")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(os.listdir(self.tmp), ["Book 001.cbz"])
+        comic.refresh_from_db()
+        self.assertEqual((comic.file_format, comic.flags), ("cbz", {}))
+
+    def test_rar_named_zip_is_flagged_not_renamed(self):
+        from apps.core.tasks import _convert_comic_to_cbz
+        comic = self._comic(make_rar(self.path("Book 001.zip")))
+        resp = self.client.post(f"/comics/{comic.pk}/convert-zip/")
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(os.listdir(self.tmp), ["Book 001.zip"])
+        comic.refresh_from_db()
+        self.assertEqual((comic.file_format, comic.flags), ("cbr", {"needs_conversion": True}))
+
+        # Convert then writes a real CBZ next to it and removes the .zip
+        self.assertTrue(_convert_comic_to_cbz(comic)["success"])
+        self.assertEqual(os.listdir(self.tmp), ["Book 001.cbz"])
+        self.assertEqual(page_colors(self.path("Book 001.cbz")), [0, 1, 2])
+
+    def test_rename_never_replaces_an_existing_file(self):
+        from apps.core.archives import rename_no_clobber
+        src = make_cbz(self.path("a.zip"))
+        dest = make_cbz(self.path("a.cbz"), ["x.jpg"])
+        with self.assertRaises(FileExistsError):
+            rename_no_clobber(src, dest)
+        self.assertEqual(sorted(os.listdir(self.tmp)), ["a.cbz", "a.zip"])
+        self.assertEqual(cbz_utils.list_pages(zipfile.ZipFile(dest).namelist()), ["x.jpg"])
+
+    def test_batch_rename_skips_rar_named_zip(self):
+        from apps.core.tasks import convert_all_zip_task
+        self._comic(make_cbz(self.path("Real 001.zip")))
+        rar = self._comic(make_rar(self.path("Rar 001.zip")))
+        result = convert_all_zip_task.apply().get()
+        self.assertEqual(result["converted"], 1)
+        self.assertEqual(len(result["errors"]), 1)
+        self.assertEqual(sorted(os.listdir(self.tmp)), ["Rar 001.zip", "Real 001.cbz"])
+        rar.refresh_from_db()
+        self.assertEqual(rar.file_format, "cbr")
+        self.assertTrue(rar.has_flag("needs_conversion"))
+
+
 class ImportLibraryTests(TempDirMixin, TestCase):
 
     def test_import_writes_error_log_next_to_audit_log(self):

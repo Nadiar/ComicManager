@@ -93,6 +93,11 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
                     actual = misnamed_format(file_path)
                     if actual:
                         file_format, is_corrupted = actual, False
+            elif file_format == "zip":
+                # Renaming a .zip that is really a RAR or 7-Zip archive to
+                # .cbz would break it, so flag it for conversion instead
+                from .archives import misnamed_format
+                file_format = misnamed_format(file_path) or file_format
 
             # Detect flags for review queue
             flags = _detect_flags(

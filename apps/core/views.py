@@ -699,14 +699,30 @@ def convert_zip(request, pk):
     if not comic.file_path or not os.path.exists(comic.file_path):
         return JsonResponse({"success": False, "error": "Source file not found"}, status=404)
 
+    from .archives import misnamed_format, rename_no_clobber
+
     original_path = Path(comic.file_path)
     new_path = original_path.with_suffix(".cbz")
+
+    actual = misnamed_format(original_path)
+    if actual:
+        # Really a RAR or 7-Zip archive: a rename would leave a broken .cbz
+        comic.file_format = actual
+        comic.flags.pop("is_zip", None)
+        comic.add_flag("needs_conversion")
+        comic.save()
+        kind = "RAR" if actual == "cbr" else "7-Zip"
+        return JsonResponse({
+            "success": False,
+            "error": f"Not renamed: this .zip is really a {kind} archive. "
+                     "It is flagged Needs Conversion now; use Convert.",
+        }, status=400)
 
     if new_path.exists():
         return JsonResponse({"success": False, "error": f"Target already exists: {new_path.name}"}, status=400)
 
     try:
-        original_path.rename(new_path)
+        rename_no_clobber(original_path, new_path)
         comic.file_path = str(new_path)
         comic.file_format = "cbz"
         comic.flags.pop("is_zip", None)
@@ -715,6 +731,8 @@ def convert_zip(request, pk):
         log_batch_entry("convert_zip", comic, comic.state, comic.state,
                         {"file": [str(original_path), str(new_path)]})
         return JsonResponse({"success": True, "message": f"Renamed to {new_path.name}"})
+    except FileExistsError:
+        return JsonResponse({"success": False, "error": f"Target already exists: {new_path.name}"}, status=400)
     except Exception as e:
         return JsonResponse({"success": False, "error": str(e)}, status=500)
 
