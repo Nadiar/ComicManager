@@ -119,7 +119,7 @@ docker compose exec web python manage.py scan_untagged [flags]
 | `--path /alt/path` | Override the scan folder (default: `/comics/untagged`) |
 | `--no-cleanup` | Skip the missing-file check (see below) |
 
-When a file in the untagged folder disappears, the scan only deletes the database record if the comic is still in the **New** state. Comics further along keep their record and metadata and get the `file_missing` flag, which clears itself when the file is back. If the untagged folder is empty or most of its files are missing (for example, the disk is not mounted), the scan changes nothing and reports why.
+When a file in the untagged folder disappears, the scan only deletes the database record if the comic is still in the **New** state. Comics further along keep their record and metadata and get the `file_missing` flag, which clears itself when the file is back. If the untagged folder is empty or most of its files are missing (for example, the disk is not mounted), the scan changes nothing and reports why. The scan result shows how many comics were imported, removed, flagged File Missing or found again.
 
 ---
 

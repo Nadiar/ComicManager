@@ -14,26 +14,27 @@ ComicManager supports several comic archive formats. Some formats require conver
 | `.zip` | `is_zip` | One-click rename. No repacking required | Full pipeline after rename |
 | `.pdf` | `is_pdf` | External conversion required | Not supported |
 | `.cbz` that is really RAR or 7-Zip | `needs_conversion` | Convert button, replaced in place | Full pipeline after conversion |
+| `.zip` that is really RAR or 7-Zip | `needs_conversion` | Convert button, a `.cbz` is written next to it | Full pipeline after conversion |
 
 ---
 
 ## ZIP to CBZ Conversion
 
-ZIP and CBZ are identical archive formats. A `.zip` file is a valid comic archive that just needs to be renamed.
+ZIP and CBZ are identical archive formats. A `.zip` file is a valid comic archive that just needs to be renamed. ComicManager checks the content first: a `.zip` that is really a RAR or 7-Zip archive would be broken by a rename, so it is flagged `needs_conversion` instead (see [RAR or 7-Zip Archives Named .cbz or .zip](#rar-or-7-zip-archives-named-cbz-or-zip)).
 
 ### How it works
 
 When a `.zip` file is scanned into the library, ComicManager:
 
 1. Imports it normally (page count measured, filename parsed).
-2. Sets the `is_zip` flag.
+2. Sets the `is_zip` flag, or `needs_conversion` if the file is really a RAR or 7-Zip archive.
 3. Adds it to the **Review & Maintenance Queue** under the **Active Review** tab.
 
 The `is_zip` flag does not block the comic from progressing through the pipeline on its own, but the file must be renamed to `.cbz` before it reaches the Write phase, since `.zip` is not a standard comic container.
 
 ### Converting a single ZIP file
 
-On the comic's detail page (or in the Review Queue row), click **Convert to CBZ**. The file is renamed in place. No extraction or repacking happens. ComicManager updates the `file_path`, `file_format`, and clears the `is_zip` flag automatically.
+On the comic's detail page (or in the Review Queue row), click **Convert to CBZ**. The file is renamed in place. No extraction or repacking happens. ComicManager updates the `file_path`, `file_format`, and clears the `is_zip` flag automatically. The rename never replaces an existing file: if a `.cbz` with the same name exists, it stops with an error. A file that turns out to be a RAR or 7-Zip archive is not renamed; it is flagged `needs_conversion`, and **Convert** turns it into a real CBZ.
 
 The conversion is logged to the Audit Log with action type `convert_zip`, including the old and new file paths.
 
@@ -41,7 +42,7 @@ The conversion is logged to the Audit Log with action type `convert_zip`, includ
 
 To convert all flagged ZIP files at once, go to the **Review Queue** and use the **Convert All ZIPs** bulk action. A background task processes each file in sequence.
 
-If a conversion fails (e.g. the target `.cbz` path already exists, or a permission error), that file is skipped and an error is recorded in the task result. Other files in the batch continue processing.
+If a conversion fails (e.g. the target `.cbz` path already exists, or a permission error), that file is skipped and an error is recorded in the task result. Files that are really RAR or 7-Zip archives are skipped too, flagged `needs_conversion` and listed in the task result. Other files in the batch continue processing.
 
 ::: tip
 If the bulk task is interrupted, you can safely re-run it. Already-converted files are no longer flagged with `is_zip` and will be skipped.
@@ -63,11 +64,12 @@ ComicManager does not support CBR as a finished format. All comics must be CBZ.
 
 ---
 
-## RAR or 7-Zip Archives Named .cbz
+## RAR or 7-Zip Archives Named .cbz or .zip
 
-Some files have a `.cbz` extension but are really RAR or 7-Zip archives (an old tagger or a renamed CBR). ComicManager checks the file's actual format:
+Some files have a `.cbz` or `.zip` extension but are really RAR or 7-Zip archives (an old tagger or a renamed CBR). ComicManager checks the file's actual format:
 
 - **Untagged scan**: such a file is recorded with its real format and the `needs_conversion` flag instead of being reported as corrupted. **Convert** replaces it in place with a real CBZ (same file name).
+- **Untagged scan of a `.zip`**: the same check; **Convert** writes a real CBZ next to it and removes the `.zip`.
 - **Rezip** on a comic flagged as a corrupted archive converts it if it turns out to be RAR or 7-Zip.
 - **Library files** that are not in the database yet: run `convert_misnamed_archives`, then `import_library` (see [Getting Started](/guide/getting-started)).
 
