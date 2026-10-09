@@ -1,5 +1,67 @@
 # Changelog
 
+## [1.1.0]
+
+A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.
+
+### Added
+
+- **Nested Smart List groups (#3)**: Groups can contain groups, up to three levels deep, so lists like (A and B) or (C and D) can be built. Each group matches ANY or ALL of its filters, and a group added inside a group starts with the opposite setting. The **Add OR Group** button is now **Add Group**. Saved lists with nested groups (for example from a CBL import) no longer lose them when the list is edited and saved.
+
+- **Missing files on the Path Audit page (#4)**: Comics whose files are not on disk get the `file_missing` flag and are listed in a separate **Missing files** table with **Relink** (find the file in the library) and **Remove** (delete only the database record; refused if the file is back). They are no longer offered for a move. The flag also appears in the dashboard Review Queue and as a Smart List field.
+
+- **RAR and 7-Zip archives named .cbz or .zip**: The untagged scan detects the real format and flags such files for conversion, instead of reporting them as corrupted or renaming a `.zip` into a broken `.cbz`. **Convert** and **Rezip** turn them into real CBZ files. A file is only replaced once the new archive is complete and contains pages.
+
+- **`convert_misnamed_archives` command**: Converts RAR or 7-Zip archives named `.cbz` in the library in place. Use `--dry-run` to list them first.
+
+- **`import_library` reads ComicDb.xml for files without ComicInfo.xml**: With `--comicdb`, files that have no ComicInfo.xml are imported from their ComicDb.xml entry. Files with an uppercase `.CBZ` extension are found too, and a dry run reports how many comics it would import.
+
+- **Test suite**: Tests run in the production Docker image against generated sample data: `docker compose -f docker-compose.test.yml run --rm --build tests`.
+
+### Fixed
+
+- **Page manager could edit the wrong page**: Hidden files such as the macOS `._001.jpg` resource forks were counted as pages, so deleting, reordering or adding pages could change the wrong page, and a junk file could become the cover. Every part of the app now uses the same page list.
+
+- **Page edits locked out other readers**: Files edited in the page manager or by variant cover insertion ended up with mode 0600, which could lock out ComicOPDS or SMB clients. They now keep their permissions, and the new file is written next to the original and swapped in at the end, so an interrupted edit leaves the original untouched. Page count, file size and cover hashes are refreshed after an edit.
+
+- **Interrupted ComicInfo.xml writes could break an archive**: On ext4 and similar filesystems, a power loss, full disk or killed process during a write could leave an archive that would not open, even with Rezip. The archive index is now backed up first, and an interrupted write is undone on the next write or with Rezip. On btrfs and XFS the patched copy is flushed to disk before it replaces the original. Rewrites reuse the space of the old ComicInfo.xml instead of growing the archive by one copy per write.
+
+- **Untagged scan deleted the metadata of missing files**: A comic whose file was missing lost its record, including scraped and hand-edited metadata, for example when the disk was not mounted. Only untouched New comics are removed now; the others get the `file_missing` flag, which clears itself when the file is back. If the folder looks unmounted, nothing is changed. The scan result says how many comics were removed, flagged or found again, and the scan finds uppercase extensions and skips hidden files.
+
+- **CBR conversion could delete the original**: When a CBZ with the same name already existed, the CBR was deleted without being converted. Conversion now refuses and keeps both files.
+
+- **Moves could overwrite files**: Organizer moves never replace an existing file. Moves between the untagged folder and the library copy through a hidden temporary file, so an interrupted move never leaves a half-copied comic.
+
+- **Default organizer profile**: The built-in Default profile filed every comic that matched none of your own profiles under `[publisher]/[series]`. A migration corrects it if it still has the original templates.
+
+- **Path Audit**: Sync Paths covers Done comics and no longer matches a different series that starts with the same name. The Correct Location count shows a number, and the audit result says how many files are missing.
+
+- **Duplicates**: New comics are compared against comics kept or marked intentional in earlier duplicate groups; before, a new copy of such a comic was never detected. Deduplicating a batch no longer creates groups among old library comics and is faster. Cover-hash groups no longer chain loosely similar covers together.
+
+- **Cover proxy fetched local files and LAN addresses**: The cover endpoints fetched any URL they were given, including local files such as the container environment (database password and secret key) and addresses on your network. Only http(s) to public addresses is allowed now, with a size limit, and the Inducks login is only sent to inducks.org.
+
+- **Unescaped text**: The rollback response and the Smart List form put user-provided text into the page without escaping it.
+
+- **ComicVine API budget and pacing**: The API call budget was counted separately by the web and worker processes and reset on every restart; it is kept in Redis now. API calls are spaced 1.1 seconds apart across processes, not only within one task.
+
+- **Batch Audit Log page**: The action filter only searched the newest 2000 lines, and the page called 2000 the total. The filter searches the whole log and the page shows the real total. A comic's Pipeline history loads about 9 times faster on a large log.
+
+- **Run Pipeline result closed by itself**: The single-comic result popup no longer closes when the task toast refreshes the page.
+
+- **import_library permission error**: Running it as the container user no longer fails. Its error log is `data/logs/import_errors.log` on the host.
+
+- **Static files**: The WhiteNoise setting was ignored on current Django versions; static files are now served compressed.
+
+### Changed
+
+- **Page order**: Pages are sorted by name with numbers compared by value (page2 before page10) and case ignored. Everything else keeps plain name order, so double-page spreads named like `0304.jpg` and suffixes like `ifc` and `ifc2` keep their place. Archives with unpadded page numbers or mixed upper and lower case show their pages in a different, now correct, order.
+
+- **Django cache in Redis**: Redis database 1 on the same server holds the Django cache (override with `CACHE_URL`). No configuration change is needed.
+
+- **Pinned dependencies**: Python dependencies are pinned to the tested versions.
+
+- **Removed**: The unused task pause endpoints.
+
 ## [1.0.0]
 
 ### Added
