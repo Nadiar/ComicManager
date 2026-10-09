@@ -19,6 +19,12 @@ If you used ComicRack's Library Organizer, you can import your existing `.lop` f
 
 Go to **Organizer** and click **Import Profile**. Upload your `.lop` file and choose whether to clear existing profiles before importing. The profiles appear immediately in the profile list and are ready to use.
 
+::: warning Check the base folder after importing
+ComicRack saves a base folder in every profile, usually a Windows path such as `D:\Comics`. The import keeps that path, but inside the container your library is at `/comics/library`. After importing, edit each profile and set **Base Folder** to `/comics/library` before you move any files.
+
+With a Windows base folder, Move Files fails with a permission error, and Path Audit lists the comics as needing reorganization. If the containers run as root, the move goes through but puts the files inside the container, where they are lost when it is recreated.
+:::
+
 Importing also carries over a few behaviors from the original ComicRack profile that have no equivalent form field in ComicManager today: the post-move flags (`RemoveEmptyFolder`, `AutoSpaceFields`, `ReplaceMultipleSpaces`, all On by default) and the illegal-character replacement map used to sanitize path segments (e.g. `:` becomes ` -`, `/` becomes `-`). A profile created from scratch in the UI gets the same defaults. To change any of these values, re-import an edited `.lop`.
 
 ### Exporting Organizer Profiles
