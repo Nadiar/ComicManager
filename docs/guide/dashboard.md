@@ -80,12 +80,13 @@ The attention card covers two categories:
 Issues that block a comic from properly proceeding through the pipeline.
 - **Missing Series / Parse errors:** Filename couldn't be parsed.
 - **ZIP Files:** Files with a `.zip` extension that need a one-click rename to `.cbz` before the Write phase.
-- **Needs Conversion (CBR/CB7):** Non-native archives that must be converted to CBZ.
+- **Needs Conversion (CBR/CB7):** Non-native archives that must be converted to CBZ, including RAR or 7-Zip archives that were named `.cbz` or `.zip`.
 - **Low Page Count / PDFs / Cover Only:** Flagged for deletion or manual confirmation.
 - **Scrape Errors:** Matches couldn't be found on ComicVine or API errors occurred.
 - **Metadata Mismatches:** Local metadata conflicts with ComicVine volume information.
 - **Missing Format / Conflicts:** Missing format, or comics in the same volume have conflicting formats.
 - **Corrupted Archives:** The CBZ file cannot be read or unzipped. Use **Try Rezip** to attempt recovery.
+- **File Missing:** The comic's file is no longer on disk; its record and metadata were kept. See [`file_missing`](/guide/flags#file-missing).
 
 ### Maintenance
 Issues that affect comics already deep in the pipeline (or fully written) that need your attention.

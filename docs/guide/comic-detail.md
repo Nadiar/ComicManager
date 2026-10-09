@@ -18,11 +18,11 @@ The page is split into three zones:
 
 ### Cover
 
-The cover image is extracted from the CBZ file or served from the cover cache. Below it are two quick-access buttons:
+The cover image is extracted from the CBZ file or served from the cover cache. Below it are up to three quick-access buttons:
 
 - **Read**: opens the CBZ in the built-in reader
 - **Download**: downloads the raw CBZ file
-- **View on ComicVine**: direct link to ComicVine if the comic has a ComicVine ID.
+- **View on ComicVine**: direct link to ComicVine. Only shown when the comic has a ComicVine match.
 
 Variant or alternate covers (when present) are displayed in a horizontal strip below the main cover row.
 
@@ -47,19 +47,22 @@ The actions card contains buttons for every pipeline operation that can be run o
 
 | Button | What it does |
 |--------|-------------|
+| **Run Pipeline** | Runs the whole pipeline on this comic (accept, scrape, tag, format, deduplicate, move, write) and shows the outcome of each step in a window. CBZ files only. |
 | **Edit** | Opens the full metadata edit form |
 | **Scrape** | Opens the scrape modal to find and apply ComicVine metadata |
 | **Tag** | Applies DataManager tagging rules to this comic |
 | **Format** | Runs format detection (Main Series, TPB, One-Shot, etc.) |
+| **Deduplicate** | Checks this comic for duplicates in the library. Only acts on a comic waiting in the Deduplicate stage. |
 | **Move** | Organizes the file to its target folder path |
 | **Write** | Writes the current metadata to `ComicInfo.xml` inside the CBZ |
-| **Manage Pages** | Opens the page manager for reordering or deleting pages |
+| **Manage Pages** | Opens the [page manager](/guide/page-manager) for reordering, deleting or adding pages |
 | **Refresh File Info** | Re-reads file size, page count, and cover hashes from disk. If any values changed the page reloads automatically. The button label reflects the hash outcome: **Up to date** (CBZ, hashes current), **No cover image** (CBZ but cover could not be read), or **No hashes (format)** (PDF, CBR, and other non-CBZ formats do not support cover hashing). |
 | **Refresh Credits** | Re-fetches credits from ComicVine |
 | **Search Alt Covers** | Searches ComicVine for alternate cover images |
 | **Compare All Sources** | Opens a side-by-side comparison of all available scrape sources |
 | **Export as JSON** | Downloads the comic's full metadata as a JSON file |
 | **Delete Comic** | Permanently removes the comic from the database and deletes the file from disk |
+| **Upload Cover** | Physical comics only: upload a cover image |
 
 ::: tip Re-running a step from the detail page
 **Tag**, **Format**, **Move**, and **Write** here re-run that step on demand, *regardless* of the comic's current pipeline state, so you can redo any step on a single comic without sending it back through the workflow. The matching buttons in the comic list only act on comics actually waiting at that stage. Hover any button for a reminder of what it does.
@@ -67,7 +70,9 @@ The actions card contains buttons for every pipeline operation that can be run o
 
 ### Flags
 
-The flags card shows any active quality issues detected on this comic, for example `low_page_count`, `is_pdf`, `count_mismatch`, or `corrupted_archive`. A green "clean" badge is shown when no flags are active.
+The flags card shows any active quality issues detected on this comic, for example `low_page_count`, `is_pdf`, `count_mismatch`, or `corrupted_archive`. A green "clean" badge is shown when no flags are active. See [Flags](/guide/flags) for what each flag means and how it clears.
+
+If the CBZ cannot be opened (`corrupted_archive`), a banner at the top of the page offers **Try Rezip**. It recovers the pages that can still be read, and converts a RAR or 7-Zip archive that was named `.cbz` into a real CBZ.
 
 ### Characters & Teams
 

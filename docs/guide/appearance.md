@@ -82,7 +82,7 @@ Toggles the cover thumbnail column in the comic list table views. Disable to red
 
 ## Dashboard Pipeline Variant
 
-Controls which pipeline visualization is shown on the dashboard. See [Workflow Pipeline](/guide/workflow#dashboard) for a description of each variant (Segments, Flow, None).
+Controls which pipeline visualization is shown on the dashboard. See [Dashboard](/guide/dashboard) for a description of each variant (Segments, Flow, None).
 
 ---
 

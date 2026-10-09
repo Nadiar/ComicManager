@@ -10,13 +10,14 @@ Some flags can be **accepted**, which permanently suppresses them for that comic
 
 | Flag | Severity | Set by | Cleared by | Accepts |
 |------|----------|--------|------------|---------|
-| `corrupted_archive` | error | Import scan or detail page view | Successful rezip | No |
+| `corrupted_archive` | error | Import scan or detail page view | Successful rezip or conversion | No |
+| `file_missing` | error | Untagged scan or Path Audit: the file is no longer on disk | A scan or audit that finds the file again, Relink, or Remove | No |
 | `low_page_count` | error | Import scan | Manually | No |
 | `is_pdf` | warn | Import scan | Manually | No |
 | `no_series` | warn | Import scan | Manually | No |
 | `cover_only` | error | Import scan | Manually | No |
-| `needs_conversion` | info | Import scan | Conversion to CBZ | No |
-| `is_zip` | info | Import scan | File renamed from `.zip` to `.cbz` | No |
+| `needs_conversion` | info | Import scan: CBR, CB7, or a RAR or 7-Zip archive named `.cbz` or `.zip` | Conversion to CBZ | No |
+| `is_zip` | info | Import scan: a real ZIP archive named `.zip` | File renamed from `.zip` to `.cbz` | No |
 | `scrape_no_match` | warn | Batch scrape finds no match | Successful scrape | No |
 | `scrape_error` | error | Scraper throws an exception | Successful scrape | No |
 | `scrape_error_detail` | n/a | Cover hash rejection (value, not boolean) | Successful scrape | No |
@@ -69,7 +70,22 @@ These evaluate immediately when a file is scanned: `import_library`, `scan_untag
 
 `needs_conversion` and `is_zip` are housekeeping: CBR and CB7 files can't be read for cover hashes or page counts, and ZIP is just a naming issue. Both have one-click fixes from the detail page, and batch conversion is available from the dashboard.
 
+A file whose extension does not match its content is judged by the content: a `.cbz` or `.zip` that is really a RAR or 7-Zip archive gets `needs_conversion` instead of `corrupted_archive` or `is_zip`, and **Convert** turns it into a real CBZ. See [File Format Handling](/guide/file-formats#rar-or-7-zip-archives-named-cbz-or-zip).
+
 `is_pdf`, `no_series`, and `cover_only` don't have automated fixes. They stay until you manually resolve the underlying issue and clear the flag.
+
+---
+
+## File Flags
+
+### `file_missing`
+
+The comic is in the database but its file is no longer on disk, for example because it was deleted or moved outside ComicManager. The record and all its metadata are kept.
+
+- **Scan for New** sets it on comics in the untagged folder that are past the New stage. Untouched New comics whose file is gone are removed instead. If the untagged folder is empty or most of its files are missing (for example, the disk is not mounted), the scan changes nothing.
+- **Path Audit** sets it on comics in the Write to CBZ or Done stage and lists them in the Missing files table instead of offering a move.
+
+The flag clears itself when a scan or audit finds the file again. On the Path Audit page, **Relink** looks for the file in the library, and **Remove** deletes only the database record.
 
 ---
 
