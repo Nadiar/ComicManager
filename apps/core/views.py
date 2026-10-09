@@ -25,6 +25,7 @@ from apps.scraper.services import (
     find_best_match as _find_best_match,
     apply_cv_match as _apply_match,
     metadata_alignment_score as _metadata_alignment_score,
+    filter_by_publisher as _filter_by_publisher,
     series_matches as _series_matches,
     normalize_issue_number as _normalize_issue_number,
 )
@@ -807,6 +808,11 @@ def scrape_preview(request, pk):
             for match in meta_matches[:3]:
                 if match.issue_id not in existing_ids:
                     raw_matches.append(match)
+
+        # Drop publishers excluded by the auto-match lists before enriching, so
+        # the suggestion list offers the same candidates auto-scrape would pick.
+        # The "Search API" tab stays unfiltered — that query is deliberate.
+        raw_matches = _filter_by_publisher(raw_matches)
 
         # Enrich all matches with all cover URLs
         raw_matches = scraper.enrich_matches_with_covers(raw_matches)

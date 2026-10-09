@@ -8,8 +8,58 @@ Contains the canonical matching and apply logic shared between:
 """
 
 import re
+import time
 
 from apps.scraper.hasher import extract_cover_hashes
+
+# 30s TTL cache so a batch scrape does not hit the Setting table
+# twice per candidate. Settings changes take effect within 30 seconds.
+_PUBLISHER_FILTER_TTL = 30
+_publisher_filter_cache = {"expires": 0.0, "value": ((), ())}
+
+
+def _publisher_filters():
+    """Return (allow, block) as lowercase name tuples from settings."""
+    now = time.monotonic()
+    if now >= _publisher_filter_cache["expires"]:
+        from apps.core.models import get_setting
+
+        def split(raw):
+            return tuple(p.strip().lower() for p in (raw or "").split(",") if p.strip())
+
+        _publisher_filter_cache["value"] = (
+            split(get_setting("scrape_publisher_allow", "")),
+            split(get_setting("scrape_publisher_block", "")),
+        )
+        _publisher_filter_cache["expires"] = now + _PUBLISHER_FILTER_TTL
+    return _publisher_filter_cache["value"]
+
+
+def publisher_allowed(publisher):
+    """
+    Check a match's publisher against the auto-match allow/block lists.
+
+    Both lists are substring matches on the lowercased publisher name, so
+    "panini" blocks "Panini Comics", "Panini Verlag" and "Editorial Panini".
+    An empty allow list allows everything. Matches with no publisher recorded
+    pass both lists: plenty of ComicVine volumes have none, and dropping them
+    would cost real matches to exclude a publisher that was never named.
+    """
+    allow, block = _publisher_filters()
+    if not allow and not block:
+        return True
+
+    name = (publisher or "").strip().lower()
+    if not name:
+        return True
+    if allow and not any(a in name for a in allow):
+        return False
+    return not any(b in name for b in block)
+
+
+def filter_by_publisher(matches):
+    """Drop matches whose publisher is excluded by the auto-match lists."""
+    return [m for m in matches if publisher_allowed(m.publisher)]
 
 
 def normalize_issue_number(num):
@@ -63,7 +113,7 @@ def metadata_alignment_score(comic, match):
 
     Returns 0 if the match is disqualified, >0 for viable matches.
     Score breakdown:
-      0 = disqualified (wrong number, or series known on both sides but share no resemblance)
+      0 = disqualified (publisher excluded, wrong number, or series known on both sides but share no resemblance)
       1 = number only (no series to validate)
       2 = number + partial/substring series match
       3 = number + exact series match  OR  number + partial series + year
@@ -73,6 +123,9 @@ def metadata_alignment_score(comic, match):
     whose series name extends the original with a subtitle) do not beat the
     correct single-issue match on hash distance alone.
     """
+    if not publisher_allowed(match.publisher):
+        return 0
+
     cv_series = comic.series or comic.proposed_series
     cv_number = comic.number or comic.proposed_number
     cv_year = comic.year or comic.proposed_year
@@ -175,11 +228,11 @@ def try_metadata_match(comic, scraper):
     if not cv_series:
         return None
 
-    matches = scraper.match_by_metadata(
+    matches = filter_by_publisher(scraper.match_by_metadata(
         series=cv_series,
         issue_number=cv_number or "",
         year=cv_year,
-    )
+    ))
 
     return matches[0] if matches else None
 

@@ -13,6 +13,7 @@ from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
 from apps.scraper.services import (
     metadata_alignment_score,
+    filter_by_publisher,
     normalize_issue_number,
     series_matches,
     apply_cv_match,
@@ -195,11 +196,11 @@ class Command(BaseCommand):
             self.stdout.write("    Missing series or number, skipping metadata match")
             return None
 
-        matches = scraper.match_by_metadata(
+        matches = filter_by_publisher(scraper.match_by_metadata(
             series=cv_series,
             issue_number=cv_number,
             year=cv_year,
-        )
+        ))
 
         if matches:
             best = matches[0]

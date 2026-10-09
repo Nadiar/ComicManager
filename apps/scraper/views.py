@@ -12,6 +12,7 @@ from apps.core.utils import natural_number_annotation
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
 from apps.scraper.services import metadata_alignment_score as _metadata_alignment_score
+from apps.scraper.services import filter_by_publisher as _filter_by_publisher
 
 
 def index(request):
@@ -179,11 +180,11 @@ def _try_metadata_match_with_log(comic, scraper):
         log.write('</div>\n')
         return None, log.getvalue()
 
-    matches = scraper.match_by_metadata(
+    matches = _filter_by_publisher(scraper.match_by_metadata(
         series=comic.proposed_series,
         issue_number=comic.proposed_number,
         year=comic.proposed_year,
-    )
+    ))
 
     if matches:
         log.write(f'<div>Found {len(matches)} metadata matches:</div>\n')

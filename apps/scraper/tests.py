@@ -2,10 +2,15 @@
 
 from django.test import TestCase
 
-from apps.core.models import Comic
+from apps.core.models import Comic, Setting
 from apps.core.utils import generate_comicinfo_xml, parse_comicinfo_xml
 from apps.scraper.comicvine import CVMatch
-from apps.scraper.services import apply_cv_match
+from apps.scraper.services import (
+    apply_cv_match,
+    metadata_alignment_score,
+    publisher_allowed,
+)
+from apps.scraper import services
 
 
 def _make_match(**overrides) -> CVMatch:
@@ -25,6 +30,54 @@ def _make_match(**overrides) -> CVMatch:
     )
     fields.update(overrides)
     return CVMatch(**fields)
+
+
+class PublisherFilterTests(TestCase):
+    """Auto-match must respect the publisher allow/block lists."""
+
+    def _set_lists(self, allow="", block=""):
+        Setting.objects.update_or_create(
+            key="scrape_publisher_allow", defaults={"value": allow, "type": "text"}
+        )
+        Setting.objects.update_or_create(
+            key="scrape_publisher_block", defaults={"value": block, "type": "text"}
+        )
+        services._publisher_filter_cache["expires"] = 0.0
+
+    def tearDown(self):
+        services._publisher_filter_cache["expires"] = 0.0
+
+    def test_empty_lists_allow_everything(self):
+        self._set_lists()
+        self.assertTrue(publisher_allowed("Panini Comics"))
+        self.assertTrue(publisher_allowed(None))
+
+    def test_block_list_matches_substring(self):
+        self._set_lists(block="panini")
+        self.assertFalse(publisher_allowed("Panini Comics"))
+        self.assertFalse(publisher_allowed("Editorial Panini"))
+        self.assertTrue(publisher_allowed("DC Comics"))
+
+    def test_allow_list_rejects_everything_else(self):
+        self._set_lists(allow="DC, Marvel")
+        self.assertTrue(publisher_allowed("DC Comics"))
+        self.assertTrue(publisher_allowed("Marvel"))
+        self.assertFalse(publisher_allowed("Panini Comics"))
+
+    def test_unknown_publisher_passes_both_lists(self):
+        self._set_lists(allow="DC", block="panini")
+        self.assertTrue(publisher_allowed(None))
+        self.assertTrue(publisher_allowed(""))
+        self.assertTrue(publisher_allowed("  "))
+
+    def test_blocked_publisher_disqualifies_a_perfect_match(self):
+        self._set_lists(block="panini")
+        comic = Comic.objects.create(series="Batman", number="1", year=2011, state="counted")
+        good = _make_match(series="Batman", issue_number="1", start_year=2011, publisher="DC Comics")
+        bad = _make_match(series="Batman", issue_number="1", start_year=2011, publisher="Panini Comics")
+
+        self.assertEqual(metadata_alignment_score(comic, good), 4)
+        self.assertEqual(metadata_alignment_score(comic, bad), 0)
 
 
 class ApplyCvMatchStoryArcTests(TestCase):

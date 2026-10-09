@@ -208,6 +208,8 @@ Only candidates with score > 0 are accepted. The highest-scoring candidate wins;
 
 Exact series matches always outscore partial ones so a trade paperback whose title extends the single issue's name (e.g. `Batman: Batman #1` collecting `Batman #1`) can't win on a shared cover alone.
 
+A candidate also scores 0 if its publisher is excluded by the allow or block lists, no matter how well the series and number line up. See [Publisher filtering](#publisher-filtering).
+
 ### Layer 2: Metadata Match (DB mode only)
 
 If no hash match passes validation, ComicManager queries the local DB using the comic's `proposed_series` and `proposed_number`. It first attempts an exact case-insensitive series name match, then falls back to a substring query if nothing is found. Series name variations like "Batman: Year One" vs "Batman Year One" are handled by the same string normalisation used in Layer 1.
@@ -226,6 +228,42 @@ Cover verification is skipped automatically when the comic has no stored hashes 
 This costs exactly **3 API calls total**: one call each to `/search`, `/issues`, and `/issue` (steps 1 through 3 above), and **0 calls to `/volume`**. The cover image download in step 4 is a plain image fetch, not an API call, and does not count against the hourly budget.
 
 Before attempting a search, the remaining API budget is checked. If fewer than 3 calls are available, the comic is skipped rather than errored and can be retried in the next budget window.
+
+## Publisher Filtering
+
+ComicVine indexes every regional edition of a series, so a cover hash lookup for an American issue can just as easily return the Italian, Brazilian, or German reprint. Two settings under **Settings → Scraping** constrain which publishers auto-match is allowed to choose.
+
+| Setting | Effect |
+|---------|--------|
+| `scrape_publisher_allow` | If set, only matches whose publisher contains one of these names are accepted. Blank allows everything. |
+| `scrape_publisher_block` | Matches whose publisher contains one of these names are never accepted. Applied after the allow list. |
+
+Both take a comma-separated list and compare case-insensitively as a **substring** of the publisher name, so a single entry covers a publisher's imprints. `Panini` blocks `Panini Comics`, `Panini Verlag`, and `Editorial Panini` in one go.
+
+The two settings answer different needs and can be combined:
+
+- **Block only**: keep matching everything except a few unwanted publishers. Set `scrape_publisher_block` to `Panini` and the rest of ComicVine stays available.
+- **Allow only**: restrict the library to a known set. Set `scrape_publisher_allow` to `DC, Marvel, Image` and nothing else can be picked.
+- **Both**: the allow list narrows the field first, then the block list carves out exceptions inside it.
+
+**Matches with no publisher recorded always pass both lists.** Plenty of ComicVine volumes have no publisher set, and rejecting them would cost real matches in order to exclude a publisher that was never named.
+
+### Where the filter applies
+
+The lists govern automatic selection, not what you are allowed to pick by hand:
+
+| Surface | Filtered |
+|---------|----------|
+| Batch scrape, pipeline scrape, `manage.py scrape` | Yes |
+| Dry run preview | Yes |
+| Scrape modal suggestion list | Yes |
+| Scrape modal **Search API** tab | No |
+
+The **Search API** tab stays unfiltered because typing a query there is a deliberate act. If you genuinely want the Panini edition for one comic, search for it and select it, and the excluded publisher is applied normally. The lists only stop ComicManager from reaching that conclusion on its own.
+
+::: tip
+Changes take effect within 30 seconds. The lists are cached briefly so a large batch scrape does not re-read them for every candidate.
+:::
 
 ## Batch Scraping
 
