@@ -60,6 +60,10 @@ docker-compose.override.yml
 # Documentation and planning files
 *.md
 LICENSE
+# ...except the docs site, so new pages are not silently left out
+!docs/**/*.md
+!docs/.vitepress/
+docs/.vitepress/cache/
 
 # Misc
 *.log
