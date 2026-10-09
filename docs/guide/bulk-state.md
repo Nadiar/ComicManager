@@ -10,7 +10,7 @@ If you are migrating an entire existing library (already organized and tagged by
 docker compose exec web python manage.py import_library --path /comics/library
 ```
 
-Optionally pass `--comicdb /path/to/ComicDb.xml` to enrich imports with Tags, Teams, Locations, and CustomValuesStore data that isn't present in `ComicInfo.xml`. Use `--dry-run` first to preview what would be imported.
+Optionally pass `--comicdb /path/to/ComicDb.xml` to enrich imports with Tags, Teams, Locations, and CustomValuesStore data that isn't present in `ComicInfo.xml`. Files that have no `ComicInfo.xml` at all are then imported from their ComicDb.xml entry. Use `--dry-run` first to preview what would be imported.
 
 This command reads each CBZ's embedded `ComicInfo.xml` and creates a `Comic` record already in the **Write to CBZ** state (it assumes the file is already fully tagged, since it came from an existing library). It does not touch the pipeline states before that (New, Scrape, Tagging, etc.) and it does not advance anything to **Done** on its own.
 

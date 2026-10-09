@@ -34,6 +34,7 @@ Open `.env` and set the required variables:
 | `ALLOWED_HOSTS` | Optional. Hostnames or IPs the UI may be accessed on. Add your server's address if you open ComicManager from another machine. Default: `localhost,127.0.0.1`. |
 | `UNTAGGED_DIR` | Host path for incoming comics. Default: `./untagged`. |
 | `LIBRARY_DIR` | Host path for your organised library. Default: `./Comics`. |
+| `CACHE_URL` | Optional. Redis URL for the cache that holds the ComicVine API budget. Default: the Celery Redis server, database `1`. |
 
 ::: tip Accessing from another device
 If you open ComicManager from a phone or another computer and get an `Invalid HTTP_HOST header` error, add that machine's address to `ALLOWED_HOSTS` (comma-separated) and restart the `web` container.
