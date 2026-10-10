@@ -2,13 +2,13 @@
 import DefaultTheme from "vitepress/theme";
 import { onMounted } from "vue";
 import { useRouter } from "vitepress";
-import GLightbox from "glightbox";
 import "glightbox/dist/css/glightbox.css";
 import ComicHero from "./ComicHero.vue";
 
 const { Layout } = DefaultTheme;
 const router = useRouter();
 
+let GLightbox = null;
 let lightbox = null;
 
 const setupLightbox = () => {
@@ -20,7 +20,10 @@ const setupLightbox = () => {
   });
 };
 
-onMounted(() => {
+onMounted(async () => {
+  // glightbox uses window when it is imported, and vitepress build renders
+  // every page in Node first, so load it in the browser only.
+  GLightbox = (await import("glightbox")).default;
   setupLightbox();
   router.onAfterRouteChange = setupLightbox;
 });

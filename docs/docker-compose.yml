@@ -2,11 +2,5 @@ services:
   docs:
     build: .
     container_name: ComicManager_Docs
-    volumes:
-      - .:/app
-      - /app/node_modules
     ports:
-      - "5174:5173"
-    environment:
-      - CHOKIDAR_USEPOLLING=true # Useful for Docker on some OSes
-    command: npm run docs:dev -- --host
+      - "5174:80"

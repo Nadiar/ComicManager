@@ -1,5 +1,5 @@
-# Dockerfile for VitePress
-FROM node:18-alpine
+# Dockerfile for VitePress: build the site, then serve the static files with nginx
+FROM node:18-alpine AS build
 
 WORKDIR /app
 
@@ -7,7 +7,11 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+RUN npm run docs:build
 
-EXPOSE 5173
+FROM nginx:alpine
 
-CMD ["npm", "run", "docs:dev", "--", "--host"]
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/.vitepress/dist /usr/share/nginx/html
+
+EXPOSE 80
