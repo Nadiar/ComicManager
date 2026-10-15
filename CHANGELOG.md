@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1]
+
+A hotfix release.
+
+### Fixed
+
+- **Scraping failed with some local comicvine.db files (#8)**: A comicvine.db that stores cover hashes as plain SQLite integers keeps some of them as negative numbers. Loading those failed, so the scrape window showed `Unexpected token '<' ... is not valid JSON` and cover matching did not work. These hashes are now read correctly, and a hash table that can't be read turns off cover matching instead of stopping the scrape.
+
 ## [1.1.0]
 
 A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.
