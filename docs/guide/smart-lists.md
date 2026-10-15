@@ -33,6 +33,7 @@ You can filter on any of the following fields:
 | `Number` | Issue number |
 | `Volume` | Volume number |
 | `Publisher` | Publisher name |
+| `Imprint` | Imprint name |
 | `Year` | Publication year |
 | `Month` | Publication month |
 | `Day` | Publication day |
@@ -216,7 +217,7 @@ This is distinct from the per-comic **Series Audit** (which is anchored to a sin
 
 ComicRack smart lists exported as `.cbl` files can be imported directly. Click **Import CBL** on the Smart List Index page and upload the file.
 
-Supported matchers: Publisher, Series, Title, Number, Volume, Year, Full Path, File Name, Format, Main Character/Team, Tags (mapped to Genre), Summary, and Custom Values. OR/AND groups are preserved. Unsupported matcher types are skipped with a warning shown on the edit page.
+Supported matchers: Publisher, Imprint, Series, Title, Number, Volume, Year, Full Path, File Name, Format, Main Character/Team, Tags (mapped to Genre), Summary, and Custom Values. OR/AND groups are preserved. Unsupported matcher types are skipped with a warning shown on the edit page.
 
 If the CBL contains filter fields that are not recognised by ComicManager (for example, custom values not in the standard list), a mapping step is shown before the Smart List is created. For each unknown field you can either choose the correct internal field from a dropdown or skip all filters that use it.
 

@@ -102,6 +102,7 @@ Rules can match and modify the following fields:
 | `Series` | Comic series name | Yes |
 | `Title` | Issue title | Yes |
 | `Publisher` | Publisher name | Yes |
+| `Imprint` | Imprint name (e.g. `Vertigo`) | Not verified |
 | `Writer` | Writer credits | Yes |
 | `Format` | Format type (Main Series, TPB, One-Shot, etc.) | Yes |
 | `Volume` | Volume number | Yes |

@@ -2,11 +2,13 @@
 
 ## [1.1.1]
 
-A hotfix release.
+A hotfix release. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field.
 
 ### Fixed
 
 - **Scraping failed with some local comicvine.db files (#8)**: A comicvine.db that stores cover hashes as plain SQLite integers keeps some of them as negative numbers. Loading those failed, so the scrape window showed `Unexpected token '<' ... is not valid JSON` and cover matching did not work. These hashes are now read correctly, and a hash table that can't be read turns off cover matching instead of stopping the scrape.
+
+- **Imprint was not supported**: Comics had no Imprint field, so the `<Imprint>` element in ComicInfo.xml was dropped by `import_library` and never written, and ComicRack templates like `{<publisher>}/{<imprint>}/{<series>}` could not be used. Imprint is now a standard field. It is read from and written to ComicInfo.xml, can be edited on the comic's edit page, and works as the `{<imprint>}` organizer variable, as a profile condition, as a tagging rule field, as a Smart List filter, and in CBL import and export (`ComicBookImprintMatcher`). Changing a comic's imprint marks it for reorganizing, like a publisher change. ComicVine does not provide imprints, so scraping does not fill it in.
 
 ## [1.1.0]
 
