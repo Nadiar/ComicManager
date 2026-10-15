@@ -575,6 +575,7 @@ FILTER_FIELD_OPTIONS = [
     ("volume", "Volume"),
     ("year", "Year"),
     ("publisher", "Publisher"),
+    ("imprint", "Imprint"),
     ("format", "Format"),
     ("medium", "Medium"),
     ("state", "State"),
@@ -707,6 +708,7 @@ def _parse_cbl(xml_bytes):
 
     FIELD_MAP = {
         "ComicBookPublisherMatcher": "publisher",
+        "ComicBookImprintMatcher": "imprint",
         "ComicBookSeriesMatcher": "series",
         "ComicBookTitleMatcher": "title",
         "ComicBookNumberMatcher": "number",
@@ -926,6 +928,7 @@ def _export_cbl_xml(smart_list, complete=False):
 
     FIELD_MAP = {
         "publisher": "ComicBookPublisherMatcher",
+        "imprint": "ComicBookImprintMatcher",
         "series": "ComicBookSeriesMatcher",
         "title": "ComicBookTitleMatcher",
         "number": "ComicBookNumberMatcher",

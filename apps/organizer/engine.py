@@ -17,6 +17,7 @@ FIELD_MAP = {
     "Year": "year",
     "Month": "month",
     "Publisher": "publisher",
+    "Imprint": "imprint",
     "Format": "format",
     "Genre": "genre",
     "Writer": "writer",

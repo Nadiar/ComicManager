@@ -213,3 +213,41 @@ class DefaultProfileTests(TestCase):
                                      number="1", publisher="Pub")
         self.assertEqual(preview_organization(comic)["new_path"],
                          "/comics/library/Pub/Sample Hero/Sample Hero #1.cbz")
+
+
+class ImprintTests(TestCase):
+    """Imprint works as a template variable, a profile condition and a rule field."""
+
+    def setUp(self):
+        self.profile = OrganizerProfile(
+            name="Imprint", base_folder="/comics/library",
+            folder_template="{<publisher>}/{<imprint>}/{<series>}{ (V<volume>)}",
+            file_template="{<series>}{ #<number3>}", exclude_rules={},
+        )
+
+    def test_imprint_becomes_a_folder(self):
+        from apps.organizer.template_engine import generate_paths
+        comic = Comic(series="Sandman", number="1", volume=1989, publisher="DC Comics", imprint="Vertigo")
+        folder, _ = generate_paths(comic, self.profile)
+        self.assertEqual(folder.replace("\\", "/"), "DC Comics/Vertigo/Sandman (V1989)")
+
+    def test_empty_imprint_leaves_out_the_folder(self):
+        from apps.organizer.template_engine import generate_paths
+        comic = Comic(series="Batman", number="1", volume=2016, publisher="DC Comics")
+        folder, _ = generate_paths(comic, self.profile)
+        self.assertEqual(folder.replace("\\", "/"), "DC Comics/Batman (V2016)")
+
+    def test_profile_condition_on_imprint(self):
+        from apps.organizer.engine import matches_profile
+        self.profile.exclude_rules = {"operator": "All", "mode": "Only", "rules": [
+            {"type": "rule", "field": "Imprint", "operator": "is", "value": "Vertigo"}]}
+        self.assertTrue(matches_profile(Comic(imprint="Vertigo"), self.profile))
+        self.assertFalse(matches_profile(Comic(imprint="Black Label"), self.profile))
+
+    def test_rule_sets_imprint_field(self):
+        from apps.tagging.engine import FIELD_MAP, action_set_value
+        comic = Comic(series="Sandman")
+        action_set_value(comic, "Imprint", "Vertigo")
+        self.assertEqual(comic.imprint, "Vertigo")
+        self.assertNotIn("Imprint", comic.custom_values)
+        self.assertIn("Imprint", FIELD_MAP)

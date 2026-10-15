@@ -22,6 +22,7 @@ FIELD_MAP = {
     "Series": "series",
     "Title": "title",
     "Publisher": "publisher",
+    "Imprint": "imprint",
     "Writer": "writer",
     "Format": "format",
     "Volume": "volume",
