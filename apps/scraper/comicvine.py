@@ -40,6 +40,17 @@ _volume_cache_lock = threading.Lock()
 _VOLUME_CACHE_MAX = 2000
 
 
+def _to_uint64(value) -> int:
+    """
+    Read a stored cover hash as an unsigned 64-bit integer.
+
+    SQLite integers are signed, so a database that stores the 64-bit hash as
+    an INTEGER keeps hashes with the top bit set as negative numbers. Masking
+    gives back the same 64 bits; positive values are unchanged.
+    """
+    return int(value) & 0xFFFFFFFFFFFFFFFF
+
+
 def _load_hash_cache(db_path: str) -> dict:
     """
     Load comic_covers hashes into numpy arrays, cached by DB mtime.
@@ -82,18 +93,18 @@ def _load_hash_cache(db_path: str) -> dict:
                 rows = cursor.fetchall()
             finally:
                 conn.close()
+
+            if not rows:
+                cache = empty
+            else:
+                cvids   = np.array([r[0] for r in rows], dtype=np.int64)
+                phashes = np.array([_to_uint64(r[1]) for r in rows], dtype=np.uint64)
+                ahashes = np.array([_to_uint64(r[2]) for r in rows], dtype=np.uint64)
+                cache = {"cvids": cvids, "phashes": phashes, "ahashes": ahashes}
+                logger.info("Hash cache loaded: %d entries from %s", len(rows), db_path)
         except Exception:
             logger.exception("Failed to load hash cache from %s", db_path)
             return empty
-
-        if not rows:
-            cache = empty
-        else:
-            cvids   = np.array([r[0] for r in rows], dtype=np.int64)
-            phashes = np.array([int(r[1]) for r in rows], dtype=np.uint64)
-            ahashes = np.array([int(r[2]) for r in rows], dtype=np.uint64)
-            cache = {"cvids": cvids, "phashes": phashes, "ahashes": ahashes}
-            logger.info("Hash cache loaded: %d entries from %s", len(rows), db_path)
 
         _hash_cache = cache
         _hash_cache_db_path = db_path

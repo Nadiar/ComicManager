@@ -188,3 +188,54 @@ class SharedPacingTests(TestCase):
         from apps.scraper import cv_sources
         with patch.object(cv_sources, "_redis", side_effect=ConnectionError("down")):
             self.assertFalse(cv_sources.wait_for_api_slot())
+
+
+class HashCacheTests(TestCase):
+    """Cover hashes in comicvine.db may be stored as signed 64-bit integers (#8)."""
+
+    HASH = 0xA4580F3A9C21B7E0  # top bit set: stored by SQLite as a negative number
+
+    def _make_db(self, d, phash, ahash):
+        import os
+        import sqlite3
+
+        path = os.path.join(d, "comicvine.db")
+        conn = sqlite3.connect(path)
+        conn.executescript("""
+            CREATE TABLE cv_publisher (id INTEGER PRIMARY KEY, name TEXT);
+            CREATE TABLE cv_volume (id INTEGER PRIMARY KEY, name TEXT, start_year TEXT,
+                                    count_of_issues INTEGER, publisher_id INTEGER);
+            CREATE TABLE cv_issue (id INTEGER PRIMARY KEY, volume_id INTEGER, name TEXT,
+                                   issue_number TEXT, cover_date TEXT, description TEXT,
+                                   image_url TEXT);
+            CREATE TABLE comic_covers (id INTEGER PRIMARY KEY, cvid INTEGER, cv_url TEXT,
+                                       ct_phash INTEGER, ct_ahash INTEGER);
+            INSERT INTO cv_publisher VALUES (1, 'Image');
+            INSERT INTO cv_volume VALUES (139839, 'Gunslinger', '2021', 58, 1);
+            INSERT INTO cv_issue VALUES (1188248, 139839, NULL, '57', '2026-08-19', NULL, NULL);
+        """)
+        conn.execute("INSERT INTO comic_covers VALUES (1, 1188248, 'https://example.com/57.jpg', ?, ?)",
+                     (phash, ahash))
+        conn.commit()
+        conn.close()
+        return path
+
+    def test_negative_hash_matches_as_unsigned(self):
+        import tempfile
+        from apps.scraper.comicvine import ComicVineScraper
+
+        signed = self.HASH - (1 << 64)
+        self.assertLess(signed, 0)
+        with tempfile.TemporaryDirectory() as d:
+            scraper = ComicVineScraper(self._make_db(d, signed, signed))
+            matches = scraper.match_by_hash_fast(self.HASH, self.HASH, max_distance=0)
+            self.assertEqual([(m.issue_id, m.match_score) for m in matches], [(1188248, 0)])
+
+    def test_unreadable_hash_gives_no_matches(self):
+        import tempfile
+        from apps.scraper.comicvine import ComicVineScraper
+
+        with tempfile.TemporaryDirectory() as d:
+            scraper = ComicVineScraper(self._make_db(d, "not a hash", "not a hash"))
+            with self.assertLogs("apps.scraper.comicvine", level="ERROR"):
+                self.assertEqual(scraper.match_by_hash_fast(self.HASH, self.HASH), [])
