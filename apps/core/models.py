@@ -61,6 +61,7 @@ class Comic(models.Model):
     month     = models.IntegerField(null=True, blank=True)
     day       = models.IntegerField(null=True, blank=True)
     publisher = models.CharField(max_length=256, null=True, blank=True)
+    imprint   = models.CharField(max_length=256, null=True, blank=True)
     summary   = models.TextField(null=True, blank=True)
     genre     = models.CharField(max_length=256, null=True, blank=True)
     web       = models.URLField(max_length=512, null=True, blank=True)

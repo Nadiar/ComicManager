@@ -179,6 +179,40 @@ class ComicInfoWriteTests(TempDirMixin, TestCase):
         self.assertEqual(page_colors(p), [0, 1, 2])
 
 
+class ImprintTests(TempDirMixin, TestCase):
+
+    def test_imprint_is_written_after_publisher_and_read_back(self):
+        p = make_cbz(self.path("a.cbz"))
+        comic = Comic.objects.create(file_path=p, series="Sandman", number="1",
+                                     publisher="DC Comics", imprint="Vertigo")
+        self.assertTrue(write_comicinfo_xml(p, comic))
+        self.assertEqual(read_comicinfo_xml(p).get("imprint"), "Vertigo")
+        with zipfile.ZipFile(p) as zf:
+            xml = zf.read("ComicInfo.xml").decode()
+        self.assertLess(xml.index("<Publisher>"), xml.index("<Imprint>"))
+        self.assertNotIn('name="Imprint"', xml)
+
+    def test_library_import_reads_imprint(self):
+        from apps.core.management.commands.import_library import Command
+        data = Command().parse_comic_info_xml(
+            b"<ComicInfo><Publisher>DC Comics</Publisher><Imprint>Vertigo</Imprint></ComicInfo>")
+        self.assertEqual(data.get("imprint"), "Vertigo")
+
+    def test_migration_moves_custom_imprint_into_the_field(self):
+        import importlib
+        from django.apps import apps
+        migration = importlib.import_module("apps.core.migrations.0022_comic_imprint")
+        moved = Comic.objects.create(series="A", custom_values={"Imprint": "Vertigo", "Other": "x"})
+        kept = Comic.objects.create(series="B", imprint="Black Label", custom_values={"Imprint": "Old"})
+        migration.move_custom_imprint(apps, None)
+        moved.refresh_from_db()
+        kept.refresh_from_db()
+        self.assertEqual(moved.imprint, "Vertigo")
+        self.assertEqual(moved.custom_values, {"Other": "x"})
+        self.assertEqual(kept.imprint, "Black Label")
+        self.assertEqual(kept.custom_values, {})
+
+
 class CopyOnWriteWriteTests(TempDirMixin, TestCase):
     """The btrfs/XFS path: patch a reflink clone and swap it in atomically.
 

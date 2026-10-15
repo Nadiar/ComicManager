@@ -3451,7 +3451,7 @@ def export_comic_json(request, pk):
     fields = [
         "proposed_series", "proposed_number", "proposed_volume", "proposed_year",
         "series", "title", "number", "count", "volume", "year", "month", "day",
-        "publisher", "format", "summary", "notes", "genre", "web",
+        "publisher", "imprint", "format", "summary", "notes", "genre", "web",
         "page_count", "characters", "teams", "locations", "tags",
         "scan_information", "series_group", "main_character_or_team",
         "writer", "penciller", "inker", "colorist", "letterer", "cover_artist", "editor",

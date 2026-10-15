@@ -419,6 +419,7 @@
         <div class="cm-section-label-accent">Publication</div>
         <div style="display:flex; flex-direction:column; gap:5px; font-size:12px;">
           <div><span class="cm-text-muted">Publisher:</span> <span class="cm-text-primary">{{ comic.publisher|default:"-" }}</span></div>
+          {% if comic.imprint %}<div><span class="cm-text-muted">Imprint:</span> <span class="cm-text-primary">{{ comic.imprint }}</span></div>{% endif %}
           <div><span class="cm-text-muted">Year:</span> <span class="cm-text-primary">{{ comic.year|default:"-" }}</span></div>
           <div><span class="cm-text-muted">Month:</span> <span class="cm-text-primary">{{ comic.month|default:"-" }}</span></div>
           <div><span class="cm-text-muted">Format:</span> <span class="cm-text-primary">{{ comic.format|default:"-" }}</span></div>

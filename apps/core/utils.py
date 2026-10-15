@@ -73,6 +73,7 @@ FIELD_MAP = {
     "Month": "month",
     "Day": "day",
     "Publisher": "publisher",
+    "Imprint": "imprint",
     "Summary": "summary",
     "Notes": "notes",
     "Genre": "genre",
@@ -105,7 +106,7 @@ INT_FIELDS = {"count", "volume", "year", "month", "day", "page_count"}
 # Fields that are editable in the UI
 EDITABLE_FIELDS = [
     "series", "number", "title", "count", "volume", "year", "month", "day",
-    "publisher", "summary", "notes", "genre", "web", "format", "characters",
+    "publisher", "imprint", "summary", "notes", "genre", "web", "format", "characters",
     "teams", "locations", "story_arc", "tags", "scan_information", "series_group", "main_character_or_team",
     "writer", "penciller", "inker", "colorist", "letterer", "cover_artist", "editor",
     "storage_location",
@@ -122,6 +123,7 @@ FIELD_LABELS = {
     "month": "Month",
     "day": "Day",
     "publisher": "Publisher",
+    "imprint": "Imprint",
     "summary": "Summary",
     "notes": "Notes",
     "genre": "Genre",
@@ -157,6 +159,7 @@ COLUMNS_REGISTRY = {
     "month": {"label": "Month", "sort": "month", "attr": "month"},
     "day": {"label": "Day", "sort": "day", "attr": "day"},
     "publisher": {"label": "Publisher", "sort": "publisher", "attr": "publisher"},
+    "imprint": {"label": "Imprint", "sort": "imprint", "attr": "imprint"},
     "summary": {"label": "Summary", "sort": "summary", "attr": "summary"},
     "notes": {"label": "Notes", "sort": "notes", "attr": "notes"},
     "genre": {"label": "Genre", "sort": "genre", "attr": "genre"},
@@ -354,7 +357,7 @@ CV_FIELD_MAP = {
 
 # DB/XML fields that have no CV equivalent
 DB_ONLY_FIELDS = [
-    "volume", "month", "day", "notes", "genre", "format", "tags",
+    "volume", "month", "day", "imprint", "notes", "genre", "format", "tags",
     "scan_information", "series_group", "main_character_or_team", "page_count",
 ]
 
