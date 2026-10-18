@@ -10,6 +10,8 @@ A hotfix release. Back up the database before upgrading. The upgrade runs one mi
 
 - **Imprint was not supported**: Comics had no Imprint field, so the `<Imprint>` element in ComicInfo.xml was dropped by `import_library` and never written, and ComicRack templates like `{<publisher>}/{<imprint>}/{<series>}` could not be used. Imprint is now a standard field. It is read from and written to ComicInfo.xml, can be edited on the comic's edit page, and works as the `{<imprint>}` organizer variable, as a profile condition, as a tagging rule field, as a Smart List filter, and in CBL import and export (`ComicBookImprintMatcher`). Changing a comic's imprint marks it for reorganizing, like a publisher change. ComicVine does not provide imprints, so scraping does not fill it in.
 
+- **Move Files failed on drives without hard links (#10)**: Moves use a hard link so they never overwrite an existing file. On filesystems without hard links, such as SMB shares, exFAT or Windows drives under Docker Desktop, every move failed with `[Errno 1] Operation not permitted` on a `.cm-move-*.tmp` file. The copied file is now renamed into place instead, still only after checking that nothing exists under that name. The original file was never touched by the failed moves.
+
 ## [1.1.0]
 
 A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.
