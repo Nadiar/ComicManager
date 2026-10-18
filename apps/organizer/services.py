@@ -9,6 +9,7 @@ from pathlib import Path
 
 from django.db import transaction
 
+from apps.core.archives import rename_no_clobber
 from apps.core.models import Comic
 
 from .engine import find_matching_profile, preview_profile_matches
@@ -55,7 +56,9 @@ def _safe_move(old_path: str, new_path: str, allowed_root: str) -> None:
     # cannot race with another writer. Different mounts (untagged and library
     # are separate volumes) cannot be linked: copy to a hidden temp file next
     # to the destination first, so a crash never leaves a half-copied comic
-    # under the real name.
+    # under the real name. Filesystems without hard links (SMB shares, exFAT,
+    # Windows drives under Docker Desktop) also land here, so the temp file is
+    # renamed into place when it cannot be linked either.
     try:
         os.link(old_path, new_path)
     except FileExistsError:
@@ -72,7 +75,7 @@ def _safe_move(old_path: str, new_path: str, allowed_root: str) -> None:
             finally:
                 os.close(fd)
             try:
-                os.link(tmp_path, new_path)
+                rename_no_clobber(tmp_path, new_path)
             except FileExistsError:
                 raise overwrite_error
         finally:

@@ -120,6 +120,55 @@ class SafeMoveTests(SimpleTestCase):
                 self.assertEqual(f.read(), "source")
             self.assertIn(".cm-move-", calls[1])
 
+    def _no_hard_links(self):
+        """Patch os.link to fail like a filesystem without hard links (Gitea #10)."""
+        import errno
+        from unittest.mock import patch
+        return patch("apps.organizer.services.os.link",
+                     side_effect=OSError(errno.EPERM, "Operation not permitted"))
+
+    def test_move_without_hard_links_renames_the_temp_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src.cbz")
+            dst = os.path.join(d, "sub", "dst.cbz")
+            os.makedirs(os.path.dirname(dst))
+            with open(src, "w") as f:
+                f.write("source")
+            with self._no_hard_links():
+                _safe_move(src, dst, d)
+            self.assertFalse(os.path.exists(src))
+            self.assertEqual(os.listdir(os.path.dirname(dst)), ["dst.cbz"])
+            with open(dst) as f:
+                self.assertEqual(f.read(), "source")
+
+    def test_move_without_hard_links_never_overwrites(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src.cbz")
+            dst = os.path.join(d, "dst.cbz")
+            with open(src, "w") as f:
+                f.write("source")
+            with open(dst, "w") as f:
+                f.write("victim")
+            # Hide dst from the first check only, as if another move created it
+            # while the temp copy was being made
+            from unittest.mock import patch
+            real_exists = os.path.exists
+            hidden = []
+
+            def exists(path):
+                if path == dst and not hidden:
+                    hidden.append(path)
+                    return False
+                return real_exists(path)
+
+            with self._no_hard_links(), patch("apps.organizer.services.os.path.exists", side_effect=exists):
+                with self.assertRaises(FileOverwriteError):
+                    _safe_move(src, dst, d)
+            self.assertTrue(os.path.exists(src))
+            with open(dst) as f:
+                self.assertEqual(f.read(), "victim")
+            self.assertEqual(sorted(os.listdir(d)), ["dst.cbz", "src.cbz"])
+
 
 class MissingFileTests(TestCase):
     """Path Audit must not offer moves for files that are gone (Gitea #4)."""
