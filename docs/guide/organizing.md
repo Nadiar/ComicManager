@@ -497,7 +497,7 @@ DC Comics/Black Label/Harleen (V2019)/Harleen #001 (2019).cbz
 DC Comics/Batman (V2016)/Batman #001 (2016).cbz
 ```
 
-The imprint comes from the `<Imprint>` element in ComicInfo.xml (read by `import_library`), from the Imprint box on the comic's edit page, or from a tagging rule that sets the `Imprint` field, for example a rule that matches the series and sets the imprint for a whole run. ComicVine does not provide imprints, so scraping does not fill it in.
+The imprint comes from the `<Imprint>` element in ComicInfo.xml (read by `import_library`), from the Imprint box on the comic's edit page, or from a tagging rule that sets the `Imprint` field, for example a rule that matches the series and sets the imprint for a whole run. ComicVine does not provide imprints, so scraping does not fill it in. For comics imported before 1.1.1, run `backfill_imprint` (see [Getting Started](/guide/getting-started)) to read the imprint from their files.
 
 ---
 

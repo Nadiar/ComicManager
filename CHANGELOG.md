@@ -2,7 +2,11 @@
 
 ## [1.1.1]
 
-A hotfix release. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field.
+A hotfix release. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint yet: run `backfill_imprint` before writing them (see below).
+
+### Added
+
+- **`backfill_imprint` command (#9)**: Comics imported with an earlier version have no imprint in ComicManager, because `import_library` dropped the `<Imprint>` element, and **Write to CBZ** would replace their `ComicInfo.xml` without it. The command reads the imprint from each comic's `ComicInfo.xml` and fills it in where the Imprint field is empty. It only reads the files. Use `--dry-run` to list the changes first.
 
 ### Fixed
 

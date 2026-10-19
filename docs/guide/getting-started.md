@@ -156,6 +156,20 @@ docker compose exec web python manage.py convert_misnamed_archives
 
 Each file is extracted and repacked into a hidden temporary file next to it, and only replaces the original once it is complete and contains pages. If extraction fails (for example, a damaged archive), the original is left unchanged and the error is reported. Afterwards, run `import_library` (with `--comicdb` if the files have no `ComicInfo.xml`) to add the converted files.
 
+**`backfill_imprint`**: fills in the Imprint of comics imported before 1.1.1. Those versions dropped the `<Imprint>` element on import, and **Write to CBZ** then replaces the file's `ComicInfo.xml` without it. Run this command before writing those comics. It reads `<Imprint>` from each comic's `ComicInfo.xml` and sets it on comics that have no imprint yet. The files are only read, and a comic that already has an imprint is never changed.
+
+```bash
+docker compose exec web python manage.py backfill_imprint --dry-run
+docker compose exec web python manage.py backfill_imprint
+```
+
+| Flag | What it does |
+|------|-------------|
+| _(none)_ | Set the imprint on every comic without one whose `ComicInfo.xml` has an `<Imprint>` |
+| `--dry-run` | Only list the imprints that would be set |
+
+Imported comics that get an imprint are marked **Needs Re-organize**, as after editing the publisher. If an organizer profile uses `{<imprint>}`, check the new paths on the Path Audit page before running **Re-organize**.
+
 ---
 
 ## Updating

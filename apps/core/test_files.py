@@ -212,6 +212,41 @@ class ImprintTests(TempDirMixin, TestCase):
         self.assertEqual(kept.imprint, "Black Label")
         self.assertEqual(kept.custom_values, {})
 
+    def test_backfill_fills_only_empty_imprints_and_leaves_files_alone(self):
+        from io import StringIO
+        from django.core.management import call_command
+        xml = "<ComicInfo><Publisher>DC Comics</Publisher><Imprint>Vertigo</Imprint></ComicInfo>"
+        filled = Comic.objects.create(file_path=make_cbz(self.path("a.cbz"), comicinfo=xml),
+                                      series="Sandman", state=Comic.STATE_WRITTEN)
+        kept = Comic.objects.create(file_path=make_cbz(self.path("b.cbz"), comicinfo=xml),
+                                    series="Harleen", imprint="Black Label")
+        without = Comic.objects.create(
+            file_path=make_cbz(self.path("c.cbz"), comicinfo="<ComicInfo><Publisher>DC Comics</Publisher></ComicInfo>"),
+            series="Batman")
+        missing = Comic.objects.create(file_path=self.path("gone.cbz"), series="Gone")
+        with open(filled.file_path, "rb") as f:
+            before = f.read()
+
+        out = StringIO()
+        call_command("backfill_imprint", dry_run=True, stdout=out)
+        filled.refresh_from_db()
+        self.assertFalse(filled.imprint)
+        self.assertIn("Would set Vertigo", out.getvalue())
+
+        out = StringIO()
+        call_command("backfill_imprint", stdout=out)
+        for c in (filled, kept, without, missing):
+            c.refresh_from_db()
+        self.assertEqual(filled.imprint, "Vertigo")
+        self.assertTrue(filled.needs_reorganize)
+        self.assertEqual(kept.imprint, "Black Label")
+        self.assertFalse(without.imprint)
+        self.assertFalse(missing.imprint)
+        self.assertIn("Set the imprint on 1.", out.getvalue())
+        self.assertIn("Skipped 1 whose file is missing.", out.getvalue())
+        with open(filled.file_path, "rb") as f:
+            self.assertEqual(f.read(), before)
+
 
 class CopyOnWriteWriteTests(TempDirMixin, TestCase):
     """The btrfs/XFS path: patch a reflink clone and swap it in atomically.
