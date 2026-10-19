@@ -306,8 +306,10 @@ class MoveErrorLogTests(TestCase):
     """A failed move leaves its reason in the container log and the batch log (Gitea #10)."""
 
     def setUp(self):
+        from django.test import override_settings
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.enterContext(override_settings(LIBRARY_DIR=os.path.join(self.tmp, "library")))
         OrganizerProfile.objects.update_or_create(
             name="Default",
             defaults={"priority": 9999, "is_enabled": True, "base_folder": os.path.join(self.tmp, "library"),
@@ -363,3 +365,208 @@ class MoveErrorLogTests(TestCase):
             result = workflow.organize(comic)
         self.assertFalse(result.success)
         self.assertEqual(self._audit_errors(), [f"File not found: {gone}"])
+
+
+LOP = """<?xml version="1.0" encoding="utf-8"?>
+<LibraryOrganizer>
+  <Profile Name="01 - Marvel">
+    <Mode>Move</Mode>
+    <FolderTemplate>{&lt;publisher&gt;}/{&lt;series&gt;}</FolderTemplate>
+    <FileTemplate>{&lt;series&gt;} #{&lt;number3&gt;}</FileTemplate>
+    <BaseFolder>B:\\Comics\\ComicRack</BaseFolder>
+  </Profile>
+  <Profile Name="02 - Manga">
+    <Mode>Move</Mode>
+    <FolderTemplate>{&lt;series&gt;}</FolderTemplate>
+    <FileTemplate>{&lt;series&gt;} #{&lt;number3&gt;}</FileTemplate>
+    <BaseFolder>B:\\Comics\\ComicRack\\Manga\\Kids</BaseFolder>
+  </Profile>
+  <Profile Name="03 - Already here">
+    <Mode>Move</Mode>
+    <FolderTemplate>{&lt;series&gt;}</FolderTemplate>
+    <FileTemplate>{&lt;series&gt;}</FileTemplate>
+    <BaseFolder>/comics/library/Other</BaseFolder>
+  </Profile>
+  <Profile Name="04 - Template">
+    <Mode>Simulate</Mode>
+    <FolderTemplate>{&lt;series&gt;}</FolderTemplate>
+    <FileTemplate>{&lt;series&gt;}</FileTemplate>
+    <BaseFolder>D:\\Somewhere</BaseFolder>
+  </Profile>
+</LibraryOrganizer>
+"""
+
+COMICRACK = {"B:\\Comics\\ComicRack": {"prefix": "B:\\Comics\\ComicRack", "target": "/comics/library", "slashes": True},
+             "B:\\Comics\\ComicRack\\Manga\\Kids": {"prefix": "B:\\Comics\\ComicRack", "target": "/comics/library",
+                                                    "slashes": True}}
+
+
+class MapBaseFolderTests(SimpleTestCase):
+    """Base folders from ComicRack are mapped onto the library folder (P7.23)."""
+
+    def test_whole_path_becomes_the_target(self):
+        from apps.organizer.parser import map_base_folder
+        self.assertEqual(map_base_folder("B:\\Comics\\ComicRack", "B:\\Comics\\ComicRack", "/comics/library"),
+                         "/comics/library")
+
+    def test_rest_of_the_path_is_kept_with_slashes(self):
+        from apps.organizer.parser import map_base_folder
+        self.assertEqual(map_base_folder("B:\\Comics\\ComicRack\\Manga\\Kids", "B:\\Comics\\ComicRack",
+                                         "/comics/library/"), "/comics/library/Manga/Kids")
+
+    def test_backslashes_kept_when_asked(self):
+        from apps.organizer.parser import map_base_folder
+        self.assertEqual(map_base_folder("B:\\Comics\\Manga\\Kids", "B:\\Comics", "/comics/library", slashes=False),
+                         "/comics/library/Manga\\Kids")
+
+    def test_other_os_paths(self):
+        from apps.organizer.parser import map_base_folder
+        self.assertEqual(map_base_folder("/Users/me/Comics/DC", "/Users/me/Comics", "/comics/library"),
+                         "/comics/library/DC")
+
+    def test_prefix_must_be_the_start(self):
+        from apps.organizer.parser import map_base_folder
+        with self.assertRaises(ValueError):
+            map_base_folder("B:\\Comics", "D:\\Comics", "/comics/library")
+
+    def test_inside_library(self):
+        from apps.organizer.services import is_inside_library
+        self.assertTrue(is_inside_library("/comics/library"))
+        self.assertTrue(is_inside_library("/comics/library/Manga"))
+        self.assertFalse(is_inside_library("/comics/library/../untagged"))
+        self.assertFalse(is_inside_library("/comics/library2"))
+        self.assertFalse(is_inside_library("B:\\Comics\\ComicRack"))
+        self.assertFalse(is_inside_library(""))
+
+
+class LopImportBaseFolderTests(TestCase):
+    """A .lop import never keeps a base folder outside the library folder (P7.23)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.lop = os.path.join(self.tmp, "profiles.lop")
+        with open(self.lop, "w", encoding="utf-8") as f:
+            f.write(LOP)
+        OrganizerProfile.objects.create(name="Mine", folder_template="{<series>}", file_template="{<series>}")
+        self.before = sorted(OrganizerProfile.objects.values_list("name", flat=True))
+
+    def test_windows_base_folder_without_replacement_imports_nothing(self):
+        from apps.organizer.parser import BaseFolderError, import_profiles
+        with self.assertRaises(BaseFolderError) as ctx:
+            import_profiles(self.lop, clear_existing=True)
+        self.assertIn("B:\\Comics\\ComicRack", str(ctx.exception))
+        self.assertNotIn("D:\\Somewhere", str(ctx.exception))
+        self.assertEqual(sorted(OrganizerProfile.objects.values_list("name", flat=True)), self.before)
+
+    def test_replacement_maps_every_base_folder(self):
+        from apps.organizer.parser import import_profiles
+        result = import_profiles(self.lop, clear_existing=True, base_folder_map=COMICRACK)
+        bases = dict(OrganizerProfile.objects.values_list("name", "base_folder"))
+        self.assertEqual(bases, {"01 - Marvel": "/comics/library",
+                                 "02 - Manga": "/comics/library/Manga/Kids",
+                                 "03 - Already here": "/comics/library/Other"})
+        self.assertEqual([c["profile"] for c in result["base_folders_changed"]], ["01 - Marvel", "02 - Manga"])
+
+    def test_replacement_outside_the_library_imports_nothing(self):
+        from apps.organizer.parser import BaseFolderError, import_profiles
+        bad = dict(COMICRACK)
+        bad["B:\\Comics\\ComicRack"] = {"prefix": "B:\\Comics\\ComicRack", "target": "/tmp", "slashes": True}
+        with self.assertRaises(BaseFolderError):
+            import_profiles(self.lop, clear_existing=True, base_folder_map=bad)
+        self.assertEqual(sorted(OrganizerProfile.objects.values_list("name", flat=True)), self.before)
+
+    def test_import_page(self):
+        import json
+        with open(self.lop, "rb") as f:
+            resp = self.client.post("/organizer/import/", {"lop_file": f, "clear_existing": "on"}, follow=True)
+        self.assertEqual(resp.redirect_chain[-1][0], "/organizer/import/")
+        self.assertContains(resp, "Nothing was imported")
+        self.assertTrue(OrganizerProfile.objects.filter(name="Mine").exists())
+
+        with open(self.lop, "rb") as f:
+            resp = self.client.post("/organizer/import/", {"lop_file": f, "clear_existing": "on",
+                                                           "base_folder_map": json.dumps(COMICRACK)}, follow=True)
+        self.assertContains(resp, "Base folder B:\\Comics\\ComicRack is now /comics/library (1 profile)")
+        self.assertEqual(OrganizerProfile.objects.count(), 3)
+
+
+class BaseFolderGuardTests(TestCase):
+    """Moves are refused when a profile's base folder is outside the library folder (P7.24)."""
+
+    def setUp(self):
+        from django.test import override_settings
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.library = os.path.join(self.tmp, "library")
+        self.enterContext(override_settings(LIBRARY_DIR=self.library,
+                                            AUDIT_LOG_PATH=os.path.join(self.tmp, "logs", "batch_actions.jsonl")))
+        self.profile, _ = OrganizerProfile.objects.update_or_create(
+            name="Default",
+            defaults={"priority": 9999, "is_enabled": True, "base_folder": "B:\\Comics\\ComicRack",
+                      "folder_template": "{<publisher>}/{<series>}",
+                      "file_template": "{<series>}{ #<number3>}", "exclude_rules": {}},
+        )
+        self.src = make_cbz(os.path.join(self.tmp, "untagged", "x.cbz"))
+
+    def _comic(self, state=Comic.STATE_ORGANIZED, path=None):
+        return Comic.objects.create(file_path=path or self.src, series="Sample Hero", number="1",
+                                    publisher="Pub", state=state)
+
+    def _assert_refused(self, result_error):
+        self.assertIn("outside the library folder", result_error)
+        self.assertTrue(os.path.exists(self.src))
+        self.assertFalse(os.path.exists("B:\\Comics\\ComicRack"))
+
+    def test_windows_base_folder_refused(self):
+        from apps.core import workflow
+        result = workflow.organize(self._comic())
+        self.assertFalse(result.success)
+        self._assert_refused(result.error)
+        with open(os.path.join(self.tmp, "logs", "batch_actions.jsonl")) as f:
+            self.assertIn("organize_error", f.read())
+
+    def test_folder_outside_the_library_refused(self):
+        from apps.organizer.services import organize_comic
+        self.profile.base_folder = os.path.join(self.tmp, "elsewhere")
+        self.profile.save()
+        result = organize_comic(self._comic())
+        self.assertFalse(result["success"])
+        self._assert_refused(result["error"])
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "elsewhere")))
+
+    def test_reorganize_refused(self):
+        from apps.organizer.services import reorganize_comic
+        result = reorganize_comic(self._comic(state=Comic.STATE_DONE))
+        self.assertFalse(result["success"])
+        self._assert_refused(result["error"])
+
+    def test_move_buttons_answer_400(self):
+        resp = self.client.post(f"/comics/{self._comic().pk}/force-organize/")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("outside the library folder", resp.json()["message"])
+        done = self._comic(state=Comic.STATE_DONE, path=make_cbz(os.path.join(self.tmp, "untagged", "y.cbz")))
+        resp = self.client.post(f"/organizer/path-audit/reorganize/{done.pk}/")
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("outside the library folder", resp.json()["error"])
+        self.assertTrue(os.path.exists(self.src))
+
+    def test_folder_inside_the_library_moves(self):
+        from apps.organizer.services import organize_comic
+        self.profile.base_folder = os.path.join(self.library, "Comics")
+        self.profile.save()
+        comic = self._comic()
+        result = organize_comic(comic)
+        self.assertTrue(result["success"], result)
+        self.assertEqual(comic.file_path, os.path.join(self.library, "Comics", "Pub", "Sample Hero",
+                                                       "Sample Hero #001.cbz"))
+        self.assertTrue(os.path.exists(comic.file_path))
+
+    def test_profile_pages_warn(self):
+        page = self.client.get("/organizer/profiles/")
+        self.assertEqual(list(page.context["outside_library"]), [self.profile])
+        self.assertContains(page, "outside the library folder")
+        resp = self.client.post(f"/organizer/profiles/{self.profile.pk}/edit/",
+                                {"name": "Default", "folder_template": "{<series>}", "file_template": "{<series>}",
+                                 "base_folder": "D:\\Comics", "is_enabled": "on"}, follow=True)
+        self.assertContains(resp, "Moves with this profile are refused")

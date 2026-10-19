@@ -34,6 +34,18 @@
   </div>
 </div>
 
+{% if outside_library %}
+<div style="padding:12px 16px 0;">
+  <div class="cm-alert err">
+    <span style="font-size:16px; line-height:1;">⚠</span>
+    <span>
+      {{ outside_library|length }} profile{{ outside_library|length|pluralize }} {{ outside_library|length|pluralize:"has,have" }} a base folder outside the library folder <code>{{ library_dir }}</code>, so moves with {{ outside_library|length|pluralize:"it,them" }} are refused. Edit the base folder:
+      {% for profile in outside_library %}<a href="{% url 'organizer:profile_edit' profile.pk %}" style="text-decoration:underline;">{{ profile.name }}</a> (<code>{{ profile.base_folder }}</code>){% if not forloop.last %}, {% endif %}{% endfor %}
+    </span>
+  </div>
+</div>
+{% endif %}
+
 {% if profiles %}
 <!-- Profiles Table -->
 <div style="padding:16px;">

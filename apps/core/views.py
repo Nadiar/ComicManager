@@ -2914,7 +2914,8 @@ def force_organize(request, pk):
     if not result.success:
         if result.detail and result.detail.get("conflict"):
             status = 409
-        elif "physical" in result.message or "without file path" in result.message or "File not found" in result.message:
+        elif ("physical" in result.message or "without file path" in result.message
+              or "File not found" in result.message or "outside the library folder" in result.message):
             status = 400
         else:
             status = 500

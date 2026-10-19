@@ -18,8 +18,9 @@
         Upload a ComicRack Library Organizer profile file (.lop) to import profiles.
       </p>
 
-      <form method="post" enctype="multipart/form-data" class="space-y-4 mt-4">
+      <form method="post" enctype="multipart/form-data" class="space-y-4 mt-4" id="lop-import-form" data-library-dir="{{ library_dir }}">
         {% csrf_token %}
+        <input type="hidden" name="base_folder_map" value="{}">
 
         <div>
           <label class="cm-label">Select .lop file</label>
@@ -78,4 +79,211 @@
   </div>
 
 </div>
+
+<dialog id="base-folder-modal" class="modal modal-bottom sm:modal-middle">
+  <div class="modal-box max-w-2xl" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); padding:20px;">
+    <h3 style="font-size:16px; font-weight:700; margin:0 0 8px;">Base folders from another computer</h3>
+    <p style="font-size:12px; color:var(--cm-fg-2); margin:0 0 14px;">
+      ComicRack saved the base folders below on the computer it ran on. Inside the container your library is at
+      <code>{{ library_dir }}</code>, so each one needs a new base folder. Click the last part of the path that should
+      be replaced, and check the new base folder before importing.
+    </p>
+    <div id="base-folder-list"></div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--cm-border);">
+      <form method="dialog"><button class="cm-btn sm ghost">Cancel</button></form>
+      <button type="button" id="base-folder-confirm" class="cm-btn sm primary">Import</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  var form = document.getElementById('lop-import-form');
+  var modal = document.getElementById('base-folder-modal');
+  var list = document.getElementById('base-folder-list');
+  var confirmBtn = document.getElementById('base-folder-confirm');
+  var mapInput = form.querySelector('input[name="base_folder_map"]');
+  var libraryDir = form.dataset.libraryDir;
+  var entries = [];
+
+  // Same rule as map_base_folder in apps/organizer/parser.py, which the server applies
+  function mapBaseFolder(path, prefix, target, slashes) {
+    var rest = path.slice(prefix.length).replace(/^[\/\\]+|[\/\\]+$/g, '');
+    if (slashes) rest = rest.replace(/\\/g, '/');
+    target = target.replace(/\/+$/, '');
+    return rest ? target + '/' + rest : (target || '/');
+  }
+
+  function normalize(path) {
+    var out = [];
+    path.split('/').forEach(function(part) {
+      if (!part || part === '.') return;
+      if (part === '..') out.pop(); else out.push(part);
+    });
+    return '/' + out.join('/');
+  }
+
+  function isInsideLibrary(path) {
+    if (path.charAt(0) !== '/') return false;
+    var p = normalize(path), lib = normalize(libraryDir);
+    return p === lib || p.indexOf(lib === '/' ? '/' : lib + '/') === 0;
+  }
+
+  function childText(el, tag) {
+    for (var i = 0; i < el.children.length; i++) {
+      if (el.children[i].tagName === tag) return el.children[i].textContent;
+    }
+    return '';
+  }
+
+  // Base folders outside the library folder, from profiles the import keeps
+  // (it skips Simulate profiles, like parse_profile)
+  function findBaseFolders(xmlText) {
+    var doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length) return null;
+    var found = {}, order = [];
+    Array.prototype.forEach.call(doc.documentElement.children, function(profile) {
+      if (profile.tagName !== 'Profile') return;
+      if ((childText(profile, 'Mode') || 'Move') === 'Simulate') return;
+      var base = childText(profile, 'BaseFolder');
+      if (!base || isInsideLibrary(base)) return;
+      if (!found[base]) { found[base] = []; order.push(base); }
+      found[base].push(profile.getAttribute('Name') || 'Unnamed Profile');
+    });
+    return order.map(function(base) { return {base: base, profiles: found[base]}; });
+  }
+
+  function pathParts(path) {
+    var parts = [], re = /[^\/\\]+/g, m;
+    while ((m = re.exec(path))) parts.push({text: m[0], start: m.index, end: m.index + m[0].length});
+    return parts;
+  }
+
+  function prefixOf(entry) {
+    return entry.cut >= 0 ? entry.base.slice(0, entry.parts[entry.cut].end) : '';
+  }
+
+  function el(tag, attrs, text) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function(k) { node.setAttribute(k, attrs[k]); });
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function label(text) {
+    return el('div', {style: 'font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--cm-fg-3); margin:10px 0 4px;'}, text);
+  }
+
+  function update(entry) {
+    entry.chips.forEach(function(chip, i) {
+      var replaced = i <= entry.cut;
+      chip.className = 'cm-chip' + (replaced ? ' err' : '');
+      chip.style.textDecoration = replaced ? 'line-through' : '';
+    });
+    entry.result = mapBaseFolder(entry.base, prefixOf(entry), entry.target, entry.slashes);
+    entry.ok = isInsideLibrary(entry.result);
+    entry.resultEl.textContent = entry.result;
+    entry.statusEl.className = 'cm-chip ' + (entry.ok ? 'ok' : 'err');
+    entry.statusEl.textContent = entry.ok ? 'Inside the library folder'
+      : 'Outside ' + libraryDir + ': moves would be refused';
+    confirmBtn.disabled = !entries.every(function(e) { return e.ok; });
+  }
+
+  function renderEntry(entry) {
+    var box = el('div', {style: 'background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; padding:10px 12px; margin-bottom:10px;'});
+    var n = entry.profiles.length;
+    box.appendChild(el('div', {style: 'font-size:12px; color:var(--cm-fg-2);', title: entry.profiles.join('\n')},
+      'Used by ' + n + ' profile' + (n === 1 ? '' : 's') + ': ' + entry.profiles.slice(0, 3).join(', ') + (n > 3 ? ', ...' : '')));
+
+    box.appendChild(label('Click the last part to replace'));
+    var path = el('div', {style: 'display:flex; flex-wrap:wrap; align-items:center; gap:2px; font-family:monospace; font-size:12px;'});
+    var pos = 0;
+    entry.chips = entry.parts.map(function(part, i) {
+      if (part.start > pos) path.appendChild(el('span', {style: 'color:var(--cm-fg-3);'}, entry.base.slice(pos, part.start)));
+      var chip = el('button', {type: 'button', style: 'cursor:pointer; font-family:monospace;'}, part.text);
+      chip.addEventListener('click', function() { entry.cut = i; update(entry); });
+      path.appendChild(chip);
+      pos = part.end;
+      return chip;
+    });
+    if (pos < entry.base.length) path.appendChild(el('span', {style: 'color:var(--cm-fg-3);'}, entry.base.slice(pos)));
+    box.appendChild(path);
+
+    box.appendChild(label('Replace with'));
+    var target = el('input', {type: 'text', class: 'cm-input', style: 'width:100%; font-family:monospace; font-size:12px;'});
+    target.value = entry.target;
+    target.addEventListener('input', function() { entry.target = target.value; update(entry); });
+    box.appendChild(target);
+
+    if (entry.base.indexOf('\\') !== -1) {
+      var row = el('label', {class: 'cm-checkbox-row', style: 'margin-top:8px;'});
+      var check = el('input', {type: 'checkbox'});
+      check.checked = entry.slashes;
+      check.addEventListener('change', function() { entry.slashes = check.checked; update(entry); });
+      row.appendChild(check);
+      row.appendChild(el('span', {}, 'Change \\ to / in the rest of the path'));
+      box.appendChild(row);
+    }
+
+    box.appendChild(label('New base folder'));
+    var result = el('div', {style: 'display:flex; flex-wrap:wrap; align-items:center; gap:8px;'});
+    entry.resultEl = el('code', {style: 'font-size:12px; color:var(--cm-fg-1); word-break:break-all;'});
+    entry.statusEl = el('span', {style: 'font-size:10.5px;'});
+    result.appendChild(entry.resultEl);
+    result.appendChild(entry.statusEl);
+    box.appendChild(result);
+    return box;
+  }
+
+  function openModal(found) {
+    entries = found.map(function(f) {
+      return {base: f.base, profiles: f.profiles, parts: pathParts(f.base), target: libraryDir, slashes: true};
+    });
+    // Replace what all base folders have in common, so B:\Comics and
+    // B:\Comics\Manga become the library folder and a folder inside it
+    var common = 0;
+    if (entries.length > 1) {
+      while (entries.every(function(e) {
+        return e.parts[common] && e.parts[common].text === entries[0].parts[common].text;
+      })) common++;
+    }
+    list.textContent = '';
+    entries.forEach(function(entry) {
+      entry.cut = common > 0 ? common - 1 : entry.parts.length - 1;
+      list.appendChild(renderEntry(entry));
+      update(entry);
+    });
+    modal.showModal();
+  }
+
+  form.addEventListener('submit', function(e) {
+    var file = form.querySelector('input[name="lop_file"]').files[0];
+    if (!file || !file.text) return;
+    e.preventDefault();
+    file.text().then(function(text) {
+      var found = findBaseFolders(text);
+      if (!found || !found.length) {
+        // Nothing to replace, or a file the server will report on
+        mapInput.value = '{}';
+        form.submit();
+        return;
+      }
+      openModal(found);
+    }, function() { form.submit(); });
+  });
+
+  confirmBtn.addEventListener('click', function() {
+    var map = {};
+    entries.forEach(function(entry) {
+      map[entry.base] = {prefix: prefixOf(entry), target: entry.target, slashes: entry.slashes};
+    });
+    mapInput.value = JSON.stringify(map);
+    modal.close();
+    form.submit();
+  });
+})();
+</script>
 {% endblock %}

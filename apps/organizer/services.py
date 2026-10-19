@@ -8,6 +8,7 @@ import os
 import shutil
 from pathlib import Path
 
+from django.conf import settings
 from django.db import transaction
 
 from apps.core.archives import rename_no_clobber
@@ -22,6 +23,29 @@ logger = logging.getLogger(__name__)
 
 # Base library path (inside container)
 LIBRARY_BASE = "/comics/library"
+
+
+def is_inside_library(path: str) -> bool:
+    """True when path is an absolute path inside the library folder (LIBRARY_DIR).
+
+    Only the library folder is a mounted volume. A base folder anywhere else, such
+    as a Windows path kept from a ComicRack .lop file, would put moved comics into
+    the container itself, where they are lost when it is recreated.
+    """
+    if not path or not os.path.isabs(path):
+        return False
+    return Path(path).resolve().is_relative_to(Path(settings.LIBRARY_DIR).resolve())
+
+
+def base_folder_error(profile_name: str, base: str) -> str | None:
+    """The reason moves with this profile's base folder are refused, or None."""
+    if is_inside_library(base or LIBRARY_BASE):
+        return None
+    return (
+        f'Profile "{profile_name}" has the base folder "{base}", which is outside the '
+        f"library folder {settings.LIBRARY_DIR}. Edit the profile and set its base folder "
+        f"to {settings.LIBRARY_DIR} or a folder inside it."
+    )
 
 
 class FileOverwriteError(Exception):
@@ -181,6 +205,19 @@ def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> 
     profile_name = profile.name
     base = profile.base_folder or LIBRARY_BASE
 
+    base_error = base_folder_error(profile_name, base)
+    if base_error:
+        return {
+            "success": False,
+            "message": base_error,
+            "error": base_error,
+            "profile": profile_name,
+            "old_path": comic.file_path,
+            "new_path": None,
+            "moved": False,
+            "dry_run": dry_run,
+        }
+
     # Build full destination path
     old_path = comic.file_path
     file_ext = os.path.splitext(old_path)[1]  # .cbz, .cbr, etc.
@@ -280,6 +317,10 @@ def reorganize_comic(comic: Comic) -> dict:
     preview = preview_organization(comic)
     old_path = comic.file_path
     new_path = preview["new_path"]
+
+    base_error = base_folder_error(preview["selected_profile"], preview["base"])
+    if base_error:
+        return {"success": False, "moved": False, "error": base_error}
 
     if os.path.abspath(old_path) == os.path.abspath(new_path):
         # Already correct — just clear the flag

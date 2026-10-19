@@ -2,7 +2,7 @@
 
 ## [1.1.1]
 
-A hotfix release. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint yet: run `backfill_imprint` before writing them (see below).
+A hotfix release. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint yet: run `backfill_imprint` before writing them (see below). Moves are now refused for organizer profiles whose base folder is outside `/comics/library`, such as a Windows path kept from a ComicRack `.lop` import; the profile list shows which profiles to edit.
 
 ### Added
 
@@ -21,6 +21,8 @@ A hotfix release. Back up the database before upgrading. The upgrade runs one mi
 - **Move errors were not logged (#10)**: When moving a comic failed, the reason only showed in the error message on the page. `docker compose logs` showed `Internal Server Error` with no reason, and the Audit Log only recorded file conflicts. A failed Move or Re-organize, including a missing source file, now adds an `organize_error` entry with the reason to the Audit Log. Errors from the file system are also written in full to the container log (`web` for the comic page, `worker` for batch actions).
 
 - **Write errors were not logged (#7)**: When writing ComicInfo.xml failed, the error only said `Failed to write ComicInfo.xml`. The reason, for example a read-only file, a missing file or a damaged archive, is now part of the error and of the `write_error` entry in the Audit Log, and the full error is written to the container log. A read-only file is reported as `File is read-only` before anything is changed, and no longer leaves a hidden `.cm-index` file next to it. **Save + Write XML** on the edit page now also says when the write failed, instead of only "Comic saved to database".
+
+- **ComicRack base folders could put comics inside the container**: A `.lop` import kept ComicRack's base folder, usually a Windows path such as `B:\Comics\ComicRack`. Moves with those profiles then failed with a permission error, or, when the containers run as root, deleted the original and left the only copy inside the container, where it is lost when the container is recreated. When a `.lop` file has base folders outside `/comics/library`, the import now opens a window where you choose which part of each path to replace and see the new base folder before importing. Move Files and Re-organize refuse to move a comic whose profile's base folder is outside `/comics/library`, without touching the file, and the profile list and the profile edit page say which profiles need a new base folder.
 
 ## [1.1.0]
 

@@ -4,6 +4,7 @@ Library Organizer Views - Profile management and organization operations.
 
 import json
 import os
+from django.conf import settings
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.http import require_POST, require_GET
@@ -13,9 +14,10 @@ from apps.core.models import Comic
 from apps.core.task_queue import enqueue
 
 from .models import OrganizerProfile
-from .parser import export_lop_profiles, import_profiles
+from .parser import BaseFolderError, export_lop_profiles, import_profiles
 from .engine import FIELD_MAP, NUMERIC_FIELDS
 from .services import (
+    base_folder_error,
     organize_comic,
     organize_all_comics,
     preview_organization,
@@ -63,11 +65,21 @@ def profile_list(request):
     """List all organizer profiles."""
     profiles = OrganizerProfile.objects.all().order_by('priority')
     stats = get_organization_stats()
+    outside_library = [p for p in profiles if base_folder_error(p.name, p.base_folder)]
 
     return render(request, 'organizer/profile_list.html', {
         'profiles': profiles,
         'stats': stats,
+        'outside_library': outside_library,
+        'library_dir': settings.LIBRARY_DIR,
     })
+
+
+def _warn_base_folder(request, profile):
+    """Warn right away when a saved profile's base folder will make moves fail."""
+    error = base_folder_error(profile.name, profile.base_folder)
+    if error:
+        messages.warning(request, f"{error} Moves with this profile are refused until then.")
 
 
 def profile_detail(request, pk):
@@ -94,6 +106,7 @@ def profile_create(request):
             months=OrganizerProfile.get_default_months(),
         )
         messages.success(request, f'Profile "{profile.name}" created.')
+        _warn_base_folder(request, profile)
         return redirect('organizer:profile_detail', pk=profile.pk)
 
     return render(request, 'organizer/profile_form.html', {
@@ -122,6 +135,7 @@ def profile_edit(request, pk):
         profile.save()
 
         messages.success(request, f'Profile "{profile.name}" updated.')
+        _warn_base_folder(request, profile)
         return redirect('organizer:profile_list')
 
     return render(request, 'organizer/profile_form.html', {
@@ -229,18 +243,38 @@ def import_view(request):
                 tmp.write(chunk)
             tmp_path = tmp.name
 
+        # Replacements for base folders from another computer, chosen in the
+        # import window before the upload (see import.html)
+        try:
+            base_folder_map = json.loads(request.POST.get('base_folder_map') or '{}')
+        except json.JSONDecodeError:
+            base_folder_map = {}
+        if not isinstance(base_folder_map, dict):
+            base_folder_map = {}
+
         try:
             clear_existing = request.POST.get('clear_existing') == 'on'
-            result = import_profiles(tmp_path, clear_existing=clear_existing)
+            result = import_profiles(tmp_path, clear_existing=clear_existing,
+                                     base_folder_map=base_folder_map)
 
             if result['success']:
-                messages.success(
-                    request,
+                message = (
                     f"Imported {result['imported_count']} profiles. "
                     f"Deleted {result['deleted_count']} existing profiles."
                 )
+                counts = {}
+                for change in result['base_folders_changed']:
+                    key = (change['old'], change['new'])
+                    counts[key] = counts.get(key, 0) + 1
+                for (old, new), count in counts.items():
+                    message += f" Base folder {old} is now {new} ({count} profile{'s' if count != 1 else ''})."
+                messages.success(request, message)
             else:
                 messages.error(request, f"Import failed: {result.get('error', 'Unknown error')}")
+
+        except BaseFolderError as e:
+            messages.error(request, str(e))
+            return redirect('organizer:import')
 
         except Exception as e:
             messages.error(request, f"Import failed: {str(e)}")
@@ -256,6 +290,7 @@ def import_view(request):
 
     return render(request, 'organizer/import.html', {
         'existing_count': OrganizerProfile.objects.count(),
+        'library_dir': settings.LIBRARY_DIR,
     })
 
 
@@ -548,7 +583,7 @@ def reorganize_single(request, pk):
     if not result.success:
         if result.detail and result.detail.get("conflict"):
             status = 409
-        elif result.skipped:
+        elif result.skipped or "outside the library folder" in (result.error or ""):
             status = 400
         else:
             status = 500

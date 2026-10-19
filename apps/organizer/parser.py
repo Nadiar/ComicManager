@@ -8,9 +8,15 @@ from defusedxml.ElementTree import parse as _safe_parse
 from html import escape, unescape
 from typing import Any
 
+from django.conf import settings
 from django.db import transaction
 
 from .models import OrganizerProfile
+from .services import is_inside_library
+
+
+class BaseFolderError(ValueError):
+    """An imported profile's base folder is outside the library folder and was not replaced."""
 
 
 def parse_lop_file(file_path: str) -> list[dict]:
@@ -190,19 +196,80 @@ def get_bool(elem: ET.Element, tag: str, default: bool = False) -> bool:
     return text.lower() == 'true'
 
 
+def map_base_folder(path: str, prefix: str, target: str, slashes: bool = True) -> str:
+    """Replace the leading part `prefix` of a base folder with `target`.
+
+    The rest of the path is kept, with backslashes turned into slashes when
+    `slashes` is set: B:\\Comics\\Manga with prefix B:\\Comics and target
+    /comics/library becomes /comics/library/Manga. The import page computes the
+    same preview in JavaScript (templates/organizer/import.html), so keep both alike.
+    """
+    if not path.startswith(prefix):
+        raise ValueError(f'"{prefix}" is not the start of "{path}"')
+    rest = path[len(prefix):].strip("/\\")
+    if slashes:
+        rest = rest.replace("\\", "/")
+    target = target.rstrip("/")
+    return f"{target}/{rest}" if rest else (target or "/")
+
+
+def apply_base_folder_map(profiles_data: list[dict], base_folder_map: dict) -> list[dict]:
+    """Replace base folders outside the library folder, as chosen on the import page.
+
+    ComicRack saves a base folder from the computer it ran on, usually a Windows
+    path, in every profile. base_folder_map maps such a base folder to
+    {"prefix": ..., "target": ..., "slashes": ...} for map_base_folder. Base folders
+    already inside the library folder are kept. Raises BaseFolderError when any
+    base folder would still be outside it, before anything is imported.
+
+    Returns one {"profile", "old", "new"} dict per changed profile.
+    """
+    changed = []
+    outside = []
+    for data in profiles_data:
+        base = data["base_folder"]
+        if is_inside_library(base):
+            continue
+        rule = base_folder_map.get(base)
+        new = None
+        if isinstance(rule, dict):
+            try:
+                new = map_base_folder(base, str(rule.get("prefix", "")), str(rule.get("target", "")),
+                                      bool(rule.get("slashes", True)))
+            except ValueError:
+                new = None
+        if new is None or not is_inside_library(new):
+            if base not in outside:
+                outside.append(base)
+            continue
+        data["base_folder"] = new
+        changed.append({"profile": data["name"], "old": base, "new": new})
+
+    if outside:
+        raise BaseFolderError(
+            f"Nothing was imported. These base folders are outside the library folder "
+            f"{settings.LIBRARY_DIR}: {', '.join(outside)}. Choose what replaces them "
+            f"in the import window."
+        )
+    return changed
+
+
 @transaction.atomic
-def import_profiles(file_path: str, clear_existing: bool = True) -> dict:
+def import_profiles(file_path: str, clear_existing: bool = True, base_folder_map: dict | None = None) -> dict:
     """
     Import profiles from a .lop file into the database.
 
     Args:
         file_path: Path to the .lop XML file
         clear_existing: If True, delete existing profiles before import
+        base_folder_map: Replacements for base folders outside the library folder
+            (see apply_base_folder_map)
 
     Returns:
         Dict with import results
     """
     profiles_data = parse_lop_file(file_path)
+    base_folders_changed = apply_base_folder_map(profiles_data, base_folder_map or {})
 
     if clear_existing:
         deleted_count = OrganizerProfile.objects.count()
@@ -220,6 +287,7 @@ def import_profiles(file_path: str, clear_existing: bool = True) -> dict:
         "deleted_count": deleted_count,
         "imported_count": len(created_profiles),
         "profiles": [p.name for p in created_profiles],
+        "base_folders_changed": base_folders_changed,
     }
 
 
