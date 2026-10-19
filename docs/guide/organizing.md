@@ -71,7 +71,7 @@ Before any file is moved, ComicManager performs a "dry run" to ensure:
 - The target folder structure can be created.
 - There are no file conflicts.
 
-**Error Logging**: Any file move failures (e.g. file in use, permission denied, missing source file) are recorded as `organize_error` events in the **Audit Log** for easy review.
+**Error Logging**: Any file move failures (e.g. file in use, permission denied, missing source file) are recorded as `organize_error` events in the **Audit Log** with the reason, for easy review. Errors from the file system are also written in full to the container log (`docker compose logs web` for a move started from the comic's page, `docker compose logs worker` for Move Files and Re-organize).
 
 **Progress Tracking**: Real-time progress bars and toast notifications keep you informed about the status of your batch organization.
 

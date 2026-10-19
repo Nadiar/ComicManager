@@ -601,12 +601,13 @@ def organize(comic, *, dry_run=False, force=False) -> ActionResult:
         )
 
     if not result["success"]:
-        # A file-overwrite conflict is a real failure (not a state/duplicate skip),
-        # so it is audited like other organize errors.
-        if result.get("conflict"):
-            log_batch_entry("organize_error", comic, state_before, comic.state, {"error": [None, result.get("error") or result["message"]]})
-        # Service-level skip (state gate, duplicate gate). No audit entry, matching
-        # the no-skip-log contract.
+        # A file-overwrite conflict, a missing file or a failed move is a real
+        # failure (not a state/duplicate skip; the service sets "error" for
+        # those), so it is audited like other organize errors.
+        if result.get("error"):
+            log_batch_entry("organize_error", comic, state_before, comic.state, {"error": [None, result["error"]]})
+        # Service-level skip (state gate, duplicate gate). No audit entry,
+        # matching the no-skip-log contract.
         return ActionResult(
             action="organize", success=False,
             message=result["message"],
@@ -685,8 +686,7 @@ def reorganize(comic, *, force=False) -> ActionResult:
         )
 
     if not result["success"]:
-        if result.get("conflict"):
-            log_batch_entry(AUDIT_ACTION_ORGANIZE_ERROR, comic, state_before, comic.state, {"error": [None, result.get("error", "Reorganize failed")]})
+        log_batch_entry(AUDIT_ACTION_ORGANIZE_ERROR, comic, state_before, comic.state, {"error": [None, result.get("error", "Reorganize failed")]})
         return ActionResult(
             action="reorganize", success=False,
             message=result.get("error", "Reorganize failed"),

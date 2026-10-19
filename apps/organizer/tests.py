@@ -300,3 +300,66 @@ class ImprintTests(TestCase):
         self.assertEqual(comic.imprint, "Vertigo")
         self.assertNotIn("Imprint", comic.custom_values)
         self.assertIn("Imprint", FIELD_MAP)
+
+
+class MoveErrorLogTests(TestCase):
+    """A failed move leaves its reason in the container log and the batch log (Gitea #10)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        OrganizerProfile.objects.update_or_create(
+            name="Default",
+            defaults={"priority": 9999, "is_enabled": True, "base_folder": os.path.join(self.tmp, "library"),
+                      "folder_template": "{<publisher>}/{<series>}",
+                      "file_template": "{<series>}{ #<number3>}", "exclude_rules": {}},
+        )
+        self.src = make_cbz(os.path.join(self.tmp, "untagged", "x.cbz"))
+        self.audit_path = os.path.join(self.tmp, "logs", "batch_actions.jsonl")
+
+    def _audit_errors(self):
+        import json
+        with open(self.audit_path) as f:
+            entries = [json.loads(line) for line in f]
+        return [e["changes"]["error"][1] for e in entries if e["action"] == "organize_error"]
+
+    def _run(self, action, comic, error):
+        from unittest.mock import patch
+        from django.test import override_settings
+        from apps.core import workflow
+        with override_settings(AUDIT_LOG_PATH=self.audit_path), \
+                patch("apps.organizer.services._safe_move", side_effect=error), \
+                self.assertLogs("apps.organizer.services", "ERROR") as logs:
+            result = getattr(workflow, action)(comic, force=True)
+        self.assertFalse(result.success)
+        self.assertIsNotNone(logs.records[0].exc_info)
+        self.assertIn(self.src, logs.output[0])
+        return result
+
+    def test_failed_move_is_logged_with_the_reason(self):
+        comic = Comic.objects.create(file_path=self.src, series="Sample Hero", number="1",
+                                     publisher="Pub", state=Comic.STATE_ORGANIZED)
+        result = self._run("organize", comic, PermissionError(13, "Permission denied", self.src))
+        self.assertIn("Permission denied", result.error)
+        self.assertEqual(len(self._audit_errors()), 1)
+        self.assertIn("Permission denied", self._audit_errors()[0])
+        self.assertTrue(os.path.exists(self.src))
+
+    def test_failed_reorganize_is_logged_with_the_reason(self):
+        comic = Comic.objects.create(file_path=self.src, series="Sample Hero", number="1",
+                                     publisher="Pub", state=Comic.STATE_DONE)
+        self._run("reorganize", comic, OSError(5, "Input/output error"))
+        self.assertEqual(len(self._audit_errors()), 1)
+        self.assertIn("Input/output error", self._audit_errors()[0])
+        self.assertTrue(os.path.exists(self.src))
+
+    def test_missing_file_is_logged(self):
+        from django.test import override_settings
+        from apps.core import workflow
+        gone = os.path.join(self.tmp, "untagged", "gone.cbz")
+        comic = Comic.objects.create(file_path=gone, series="Sample Hero", number="1",
+                                     publisher="Pub", state=Comic.STATE_ORGANIZED)
+        with override_settings(AUDIT_LOG_PATH=self.audit_path):
+            result = workflow.organize(comic)
+        self.assertFalse(result.success)
+        self.assertEqual(self._audit_errors(), [f"File not found: {gone}"])

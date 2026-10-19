@@ -16,6 +16,8 @@ A hotfix release. Back up the database before upgrading. The upgrade runs one mi
 
 - **Move Files failed on drives without hard links (#10)**: Moves use a hard link so they never overwrite an existing file. On filesystems without hard links, such as SMB shares, exFAT or Windows drives under Docker Desktop, every move failed with `[Errno 1] Operation not permitted` on a `.cm-move-*.tmp` file. The copied file is now renamed into place instead, still only after checking that nothing exists under that name. The original file was never touched by the failed moves.
 
+- **Move errors were not logged (#10)**: When moving a comic failed, the reason only showed in the error message on the page. `docker compose logs` showed `Internal Server Error` with no reason, and the Audit Log only recorded file conflicts. A failed Move or Re-organize, including a missing source file, now adds an `organize_error` entry with the reason to the Audit Log. Errors from the file system are also written in full to the container log (`web` for the comic page, `worker` for batch actions).
+
 ## [1.1.0]
 
 A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.
