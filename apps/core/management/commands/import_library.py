@@ -11,6 +11,7 @@ Teams, Locations, and CustomValuesStore data not present in ComicInfo.xml.
 import os
 import zipfile
 import defusedxml.ElementTree as ET
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
@@ -21,11 +22,65 @@ from apps.core.archives import misnamed_format
 from apps.core.models import Comic
 
 
-COMICDB_STRIP_PREFIX = "B:\\Comics\\ComicRack\\"
-
-
 class MisnamedArchiveError(ValueError):
     """A .cbz that is really a RAR or 7-Zip archive."""
+
+
+def comicdb_root(folder: str) -> str:
+    """A ComicRack folder in the form match_comicdb_paths compares: forward slashes and a trailing slash."""
+    return folder.replace("\\", "/").rstrip("/") + "/"
+
+
+def match_comicdb_paths(book_paths, rel_paths: set, roots=None) -> tuple[dict, list]:
+    """
+    Match ComicDb.xml Book paths to the scanned library files.
+
+    ComicRack stores full paths such as B:\\Comics\\ComicRack\\Marvel\\X.cbz.
+    Without roots, each Book path is matched by the longest end of it that is
+    a library file (relative path), and the folder before that end is its
+    root. With roots (ComicRack folders), a Book only matches when the path
+    under one of them is a library file. When two Books match the same file,
+    the given root that comes first wins, or else the root that matches the
+    most files.
+
+    Returns ({book path: relative path}, [(root as written in ComicDb.xml, files), ...]),
+    roots in the order they win.
+    """
+    wanted = [comicdb_root(r) for r in roots or []]
+    found = {}  # relative path -> [(root, book path)]
+    counts = Counter()
+    shown = {}  # root -> root as written in ComicDb.xml
+    for book_path in book_paths:
+        path = book_path.replace("\\", "/")
+        root = None
+        if wanted:
+            for r in wanted:
+                if path[:len(r)].lower() == r.lower() and path[len(r):] in rel_paths:
+                    root = r
+                    break
+        else:
+            i = path.find("/")
+            while i != -1:
+                if path[i + 1:] in rel_paths:
+                    root = path[:i + 1]
+                    break
+                i = path.find("/", i + 1)
+        if root is None:
+            continue
+        counts[root] += 1
+        shown.setdefault(root, book_path[:len(root)])
+        found.setdefault(path[len(root):], []).append((root, book_path))
+
+    if wanted:
+        order = [r for r in wanted if r in counts]
+    else:
+        order = sorted(counts, key=lambda r: (-counts[r], r))
+    rank = {r: i for i, r in enumerate(order)}
+    matched = {}
+    for rel_path, books in found.items():
+        root, book_path = min(books, key=lambda b: rank[b[0]])
+        matched[book_path] = rel_path
+    return matched, [(shown[r], counts[r]) for r in order]
 
 
 class Command(BaseCommand):
@@ -50,11 +105,23 @@ class Command(BaseCommand):
             help="Path to ComicRack's ComicDb.xml for enriching imports with Tags, Teams, Locations, and "
                  "CustomValuesStore, and for importing files without ComicInfo.xml from their ComicDb.xml entry",
         )
+        parser.add_argument(
+            "--comicdb-root",
+            action="append",
+            default=None,
+            help="ComicRack's library folder as written in ComicDb.xml, for example B:\\Comics\\ComicRack. "
+                 "Found automatically when left out. Repeat it for more folders; the first one wins when "
+                 "a file is under more than one",
+        )
 
     def handle(self, *args, **options):
         library_path = options["path"] or getattr(settings, "LIBRARY_DIR", "/comics/library")
         dry_run = options["dry_run"]
         comicdb_path = options["comicdb"]
+
+        if options["comicdb_root"] and not comicdb_path:
+            self.stderr.write(self.style.ERROR("--comicdb-root only works together with --comicdb"))
+            return
 
         if not os.path.exists(library_path):
             self.stderr.write(self.style.ERROR(f"Library path does not exist: {library_path}"))
@@ -67,27 +134,55 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(self.style.WARNING("DRY RUN - no changes will be made"))
 
+        cbz_files = [
+            p for p in Path(library_path).rglob("*")
+            if p.suffix.lower() == ".cbz" and not p.name.startswith(".") and p.is_file()
+        ]
+        self.stdout.write(f"Found {len(cbz_files)} .cbz files")
+
         # Parse ComicDb.xml if provided
         comicdb_lookup = {}
+        comicdb_files = {}
         if comicdb_path:
             if not os.path.exists(comicdb_path):
                 self.stderr.write(self.style.ERROR(f"ComicDb.xml not found: {comicdb_path}"))
                 return
             self.stdout.write(f"Parsing ComicDb.xml: {comicdb_path}")
-            comicdb_lookup = self.parse_comicdb(comicdb_path)
-            self.stdout.write(f"Loaded {len(comicdb_lookup)} entries from ComicDb.xml")
+            book_data, book_paths = self.parse_comicdb(comicdb_path)
+            self.stdout.write(f"Loaded {len(book_paths)} entries from ComicDb.xml")
+            rel_paths = {str(p)[len(library_path):].lstrip("/") for p in cbz_files}
+            comicdb_files, roots = match_comicdb_paths(book_paths, rel_paths, options["comicdb_root"])
+            if cbz_files and not comicdb_files:
+                # Stop here: a second run skips the comics already imported, so
+                # they could not be enriched later
+                under = ""
+                if options["comicdb_root"]:
+                    under = " under " + ", ".join(options["comicdb_root"])
+                self.stderr.write(self.style.ERROR(
+                    f"No ComicDb.xml entry{under} matches a .cbz file in {library_path}, so nothing was "
+                    f"imported. The library folder must hold the same folders and file names as ComicRack's "
+                    f"library folder."
+                ))
+                if book_paths:
+                    self.stderr.write(f"First entry in ComicDb.xml: {book_paths[0]}")
+                return
+            self.stdout.write(f"ComicDb.xml entries matching files in {library_path}: {len(comicdb_files)}")
+            for root, count in roots[:5]:
+                self.stdout.write(f"  {root}  ({count} file{'' if count == 1 else 's'})")
+            if len(roots) > 5:
+                self.stdout.write(f"  and {len(roots) - 5} more folders")
+            if len(roots) > 1:
+                self.stdout.write(
+                    "A file found under more than one of these ComicRack folders uses the entry from the "
+                    "first one. Use --comicdb-root to choose the folders yourself."
+                )
+            comicdb_lookup = {comicdb_files[p]: data for p, data in book_data.items() if p in comicdb_files}
 
         # Next to the audit log in /app/logs, which is mounted to data/logs on the
         # host (the image's /app is not writable by the container user)
         log_dir = Path(settings.AUDIT_LOG_PATH).parent
         log_dir.mkdir(parents=True, exist_ok=True)
         log_path = log_dir / "import_errors.log"
-
-        cbz_files = [
-            p for p in Path(library_path).rglob("*")
-            if p.suffix.lower() == ".cbz" and not p.name.startswith(".") and p.is_file()
-        ]
-        self.stdout.write(f"Found {len(cbz_files)} .cbz files")
 
         imported = 0
         skipped = 0
@@ -154,7 +249,7 @@ class Command(BaseCommand):
 
             try:
                 comic_data = self.extract_comic_info(cbz_path)
-                if comic_data is None and comicdb_lookup:
+                if comic_data is None and comicdb_files:
                     no_info.append(cbz_path)
                     continue
                 if comic_data is None:
@@ -177,7 +272,8 @@ class Command(BaseCommand):
         if no_info:
             self.stdout.write(f"Reading ComicDb.xml entries for {len(no_info)} file(s) without ComicInfo.xml")
             wanted = {str(p)[len(library_path):].lstrip("/"): p for p in no_info}
-            books = self.parse_comicdb_books(comicdb_path, set(wanted))
+            book_paths = {p: rel for p, rel in comicdb_files.items() if rel in wanted}
+            books = self.parse_comicdb_books(comicdb_path, book_paths)
             for rel_path, cbz_path in wanted.items():
                 comic_data = books.get(rel_path)
                 if not comic_data or not comic_data.get("series"):
@@ -201,10 +297,10 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.SUCCESS(f"Imported: {imported}"))
         self.stdout.write(f"Skipped (already exists): {skipped}")
-        if comicdb_lookup and dry_run:
+        if comicdb_files and dry_run:
             self.stdout.write(f"Would be enriched from ComicDb.xml: {enriched}")
             self.stdout.write(f"Would be imported from ComicDb.xml (no ComicInfo.xml in the file): {from_comicdb}")
-        elif comicdb_lookup:
+        elif comicdb_files:
             self.stdout.write(f"Enriched from ComicDb.xml: {enriched}")
             self.stdout.write(f"Imported from ComicDb.xml (no ComicInfo.xml in the file): {from_comicdb}")
         if errors:
@@ -216,24 +312,22 @@ class Command(BaseCommand):
                 f"`python manage.py convert_misnamed_archives`, then run import_library again."
             ))
 
-    def parse_comicdb(self, comicdb_path: str) -> dict:
+    def parse_comicdb(self, comicdb_path: str) -> tuple[dict, list]:
         """
-        Parse ComicRack's ComicDb.xml into a lookup dict keyed by relative path.
+        Parse ComicRack's ComicDb.xml into a lookup dict keyed by the Book's
+        path as written in ComicDb.xml, plus the list of all Book paths.
 
         Uses iterparse for memory efficiency with large files (~44K entries).
         """
         lookup = {}
+        book_paths = []
         for event, elem in ET.iterparse(comicdb_path, events=("end",)):
             if elem.tag != "Book":
                 continue
 
             file_attr = elem.get("File", "")
-            # Normalize Windows path to relative path matching library structure
-            if file_attr.startswith(COMICDB_STRIP_PREFIX):
-                rel_path = file_attr[len(COMICDB_STRIP_PREFIX):]
-            else:
-                rel_path = file_attr
-            rel_path = rel_path.replace("\\", "/")
+            if file_attr:
+                book_paths.append(file_attr)
 
             book_data = {}
 
@@ -275,18 +369,19 @@ class Command(BaseCommand):
                 if custom:
                     book_data["custom_values"] = custom
 
-            if book_data:
-                lookup[rel_path] = book_data
+            if book_data and file_attr:
+                lookup[file_attr] = book_data
 
             elem.clear()
 
-        return lookup
+        return lookup, book_paths
 
-    def parse_comicdb_books(self, comicdb_path: str, rel_paths: set) -> dict:
+    def parse_comicdb_books(self, comicdb_path: str, book_paths: dict) -> dict:
         """
-        Read the full metadata of the given files from ComicDb.xml, keyed by
-        relative path. ComicRack's Book elements use the same field names as
-        ComicInfo.xml, so they are parsed with the same parser.
+        Read the full metadata of the given Books ({path in ComicDb.xml:
+        relative path}) from ComicDb.xml, keyed by relative path. ComicRack's
+        Book elements use the same field names as ComicInfo.xml, so they are
+        parsed with the same parser.
         """
         from xml.etree.ElementTree import tostring
 
@@ -294,13 +389,8 @@ class Command(BaseCommand):
         for event, elem in ET.iterparse(comicdb_path, events=("end",)):
             if elem.tag != "Book":
                 continue
-            file_attr = elem.get("File", "")
-            if file_attr.startswith(COMICDB_STRIP_PREFIX):
-                rel_path = file_attr[len(COMICDB_STRIP_PREFIX):]
-            else:
-                rel_path = file_attr
-            rel_path = rel_path.replace("\\", "/")
-            if rel_path in rel_paths:
+            rel_path = book_paths.get(elem.get("File", ""))
+            if rel_path is not None:
                 books[rel_path] = self.parse_comic_info_xml(tostring(elem))
             elem.clear()
         return books

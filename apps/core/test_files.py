@@ -826,6 +826,103 @@ class ImportLibraryTests(TempDirMixin, TestCase):
         self.assertTrue(Comic.objects.filter(file_path__endswith="Loud 003.CBZ").exists())
         self.assertIn("Imported from ComicDb.xml (no ComicInfo.xml in the file): 1", out.getvalue())
 
+    def _comicdb(self, *books):
+        comicdb = self.path("ComicDb.xml")
+        with open(comicdb, "w") as f:
+            f.write('<?xml version="1.0"?><ComicDatabase><Books>' + "".join(
+                f'<Book File="{path}">{body}</Book>' for path, body in books
+            ) + "</Books></ComicDatabase>")
+        return comicdb
+
+    def _import(self, lib, **options):
+        from io import StringIO
+        from django.core.management import call_command
+        from django.test import override_settings
+        out, err = StringIO(), StringIO()
+        with override_settings(AUDIT_LOG_PATH=self.path("logs", "batch_actions.jsonl")):
+            call_command("import_library", path=lib, stdout=out, stderr=err, **options)
+        return out.getvalue(), err.getvalue()
+
+    def test_comicdb_from_any_comicrack_folder(self):
+        lib = self.path("lib")
+        make_cbz(os.path.join(lib, "Pub", "Series", "Tagged 001.cbz"),
+                 comicinfo="<ComicInfo><Series>Tagged</Series><Number>1</Number></ComicInfo>")
+        make_cbz(os.path.join(lib, "Pub", "Series", "No Info 002.cbz"))
+        comicdb = self._comicdb(
+            ("D:\\Media\\Comics\\Pub\\Series\\Tagged 001.cbz", "<Series>Tagged</Series><Tags>Heist</Tags>"),
+            ("D:\\Media\\Comics\\Pub\\Series\\No Info 002.cbz", "<Series>From ComicDb</Series><Number>2</Number>"),
+        )
+        out, err = self._import(lib, comicdb=comicdb)
+        self.assertEqual(err, "")
+        self.assertEqual(Comic.objects.get(series="Tagged").tags, "Heist")
+        self.assertTrue(Comic.objects.filter(series="From ComicDb", number="2").exists())
+        self.assertIn("D:\\Media\\Comics\\  (2 files)", out)
+
+    def test_comicdb_with_path_to_a_library_subfolder(self):
+        lib = self.path("lib")
+        make_cbz(os.path.join(lib, "Pub", "Series", "Tagged 001.cbz"),
+                 comicinfo="<ComicInfo><Series>Tagged</Series><Number>1</Number></ComicInfo>")
+        comicdb = self._comicdb(
+            ("B:\\Comics\\ComicRack\\Pub\\Series\\Tagged 001.cbz", "<Tags>Heist</Tags>"),
+        )
+        out, err = self._import(os.path.join(lib, "Pub"), comicdb=comicdb)
+        self.assertEqual(Comic.objects.get(series="Tagged").tags, "Heist")
+        self.assertIn("B:\\Comics\\ComicRack\\Pub\\  (1 file)", out)
+
+    def test_comicdb_matching_no_file_imports_nothing(self):
+        lib = self.path("lib")
+        make_cbz(os.path.join(lib, "Pub", "Tagged 001.cbz"),
+                 comicinfo="<ComicInfo><Series>Tagged</Series><Number>1</Number></ComicInfo>")
+        comicdb = self._comicdb(("D:\\Comics\\Other\\Elsewhere 001.cbz", "<Tags>Heist</Tags>"))
+        out, err = self._import(lib, comicdb=comicdb)
+        self.assertEqual(Comic.objects.count(), 0)
+        self.assertIn("No ComicDb.xml entry matches a .cbz file", err)
+        self.assertIn("First entry in ComicDb.xml: D:\\Comics\\Other\\Elsewhere 001.cbz", err)
+
+    def test_comicdb_root_option(self):
+        lib = self.path("lib")
+        make_cbz(os.path.join(lib, "Pub", "Tagged 001.cbz"),
+                 comicinfo="<ComicInfo><Series>Tagged</Series><Number>1</Number></ComicInfo>")
+        comicdb = self._comicdb(
+            ("B:\\Comics\\ComicRack\\Pub\\Tagged 001.cbz", "<Tags>Library</Tags>"),
+            ("B:\\Comics\\Backup\\Pub\\Tagged 001.cbz", "<Tags>Backup</Tags>"),
+        )
+        out, err = self._import(lib, comicdb=comicdb, comicdb_root=["E:\\Comics"])
+        self.assertIn("No ComicDb.xml entry under E:\\Comics matches", err)
+        self.assertEqual(Comic.objects.count(), 0)
+        self._import(lib, comicdb=comicdb, comicdb_root=["b:\\comics\\backup\\"])
+        self.assertEqual(Comic.objects.get(series="Tagged").tags, "Backup")
+        out, err = self._import(lib, comicdb_root=["B:\\Comics\\Backup"])
+        self.assertIn("--comicdb-root only works together with --comicdb", err)
+
+    def test_match_comicdb_paths(self):
+        from apps.core.management.commands.import_library import match_comicdb_paths
+        rel_paths = {"Marvel/X/X 001.cbz", "Marvel/X/X 002.cbz", "X 003.cbz", "DC/Y/Y 001.cbz"}
+        books = [
+            "B:\\Comics\\ComicRack\\Marvel\\X\\X 001.cbz",
+            "B:\\Comics\\ComicRack\\Marvel\\X\\X 002.cbz",
+            "B:\\Comics\\Backup\\Marvel\\X\\X 001.cbz",
+            "E:\\DC\\Y\\Y 001.cbz",
+            "B:\\Comics\\ComicRack\\Marvel\\X\\X 003.cbz",
+            "B:\\Comics\\ComicRack\\Marvel\\Gone 001.cbz",
+        ]
+        matched, roots = match_comicdb_paths(books, rel_paths)
+        self.assertEqual(matched, {
+            books[0]: "Marvel/X/X 001.cbz",
+            books[1]: "Marvel/X/X 002.cbz",
+            books[3]: "DC/Y/Y 001.cbz",
+            books[4]: "X 003.cbz",
+        })
+        self.assertEqual(roots, [
+            ("B:\\Comics\\ComicRack\\", 2),
+            ("B:\\Comics\\Backup\\", 1),
+            ("B:\\Comics\\ComicRack\\Marvel\\X\\", 1),
+            ("E:\\", 1),
+        ])
+        matched, roots = match_comicdb_paths(books, rel_paths, ["B:/Comics/Backup", "B:\\Comics\\ComicRack\\"])
+        self.assertEqual(matched, {books[2]: "Marvel/X/X 001.cbz", books[1]: "Marvel/X/X 002.cbz"})
+        self.assertEqual(roots, [("B:\\Comics\\Backup\\", 1), ("B:\\Comics\\ComicRack\\", 2)])
+
     def test_dry_run_counts_what_it_would_import(self):
         from io import StringIO
         from django.core.management import call_command

@@ -136,8 +136,18 @@ docker compose exec web python manage.py import_library [flags]
 | `--dry-run` | Preview what would be imported without writing anything |
 | `--path /comics/library` | Override the library path (default: `/comics/library`) |
 | `--comicdb /path/to/ComicDb.xml` | Enrich imports with ComicRack's database (see below) |
+| `--comicdb-root 'B:\Comics\ComicRack'` | ComicRack's library folder as written in `ComicDb.xml`, if you don't want it found automatically (see below) |
 
-The `--comicdb` flag accepts ComicRack's `ComicDb.xml` and enriches each imported comic with data that `ComicInfo.xml` does not carry: Tags, Teams, Locations, `MainCharacterOrTeam`, `SeriesGroup`, and `CustomValuesStore` entries. This is the only way to preserve that data on import. Entries are matched by relative file path, so it's safe to test against a small library subset (a couple of comics) with your full `ComicDb.xml`. Only the comics actually present in the scanned folder are enriched; everything else in the file is simply ignored.
+The `--comicdb` flag accepts ComicRack's `ComicDb.xml` and enriches each imported comic with data that `ComicInfo.xml` does not carry: Tags, Teams, Locations, `MainCharacterOrTeam`, `SeriesGroup`, and `CustomValuesStore` entries. This is the only way to preserve that data on import. The file has to be inside the container, so copy it in first:
+
+```bash
+docker compose cp ComicDb.xml web:/tmp/ComicDb.xml
+docker compose exec web python manage.py import_library --comicdb /tmp/ComicDb.xml --dry-run
+```
+
+`ComicDb.xml` stores each comic's full path as ComicRack saw it, for example `B:\Comics\ComicRack\Marvel\...`. The import finds ComicRack's library folder by itself: an entry matches a comic when the end of its path is the comic's path inside the library folder. So the library folder must hold the same folders and file names as ComicRack's library folder; comics moved or renamed after `ComicDb.xml` was saved are imported without its data. The output lists the ComicRack folders it found and how many files each matched. If no entry matches any file, nothing is imported, because a second run skips the comics that are already imported and could not add the data later.
+
+If the same file is listed under more than one ComicRack folder, for example a backup copy, the folder with the most matches wins. To choose the folders yourself, pass `--comicdb-root` with the folder as `ComicDb.xml` writes it; repeat it for more folders, and the first one wins. It's safe to test against a small library subset (a couple of comics, or `--path` set to one publisher folder) with your full `ComicDb.xml`. Only the comics actually present in the scanned folder are enriched; everything else in the file is simply ignored.
 
 With `--comicdb`, files that have no `ComicInfo.xml` at all are imported from their `ComicDb.xml` entry (series, number, volume, publisher, credits, and so on) instead of being skipped. ComicRack keeps that metadata in its database, so files it never wrote tags into can still be imported. Run **Write All** afterwards to embed the metadata in the files.
 
