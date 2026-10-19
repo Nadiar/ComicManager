@@ -8,7 +8,7 @@ from apps.core.utils import natural_number_annotation
 # Whitelist of allowed Comic model fields for filtering
 ALLOWED_FIELDS = {
     "series", "title", "number", "volume", "year", "month",
-    "publisher", "format", "medium", "state", "genre",
+    "publisher", "imprint", "format", "medium", "state", "genre",
     "series_group", "main_character_or_team", "characters",
     "writer", "penciller", "inker", "colorist", "letterer",
     "cover_artist", "editor", "page_count", "count",

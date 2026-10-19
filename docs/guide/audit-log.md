@@ -56,4 +56,4 @@ Each log entry shows a **before/after diff** of the fields that changed. For exa
 - A write entry shows which ComicInfo.xml fields were embedded.
 - A `convert_zip` entry shows the old `.zip` path and the new `.cbz` path.
 
-For `organize_error` and `write_error` entries (shown with a red badge), the diff contains the error message returned by the file system or XML writer. Use this to diagnose why a file could not be moved or written. Common causes include permission errors, disk-full conditions, or path length limits on the host filesystem.
+For `organize_error` and `write_error` entries (shown with a red badge), the diff contains the error message returned by the file system or XML writer. Use this to diagnose why a file could not be moved or written. Common causes include permission errors, read-only files, disk-full conditions, or path length limits on the host filesystem. The full error, including the traceback, is also written to the container log: `docker compose logs web` for actions started from a comic's page, `docker compose logs worker` for batch actions.

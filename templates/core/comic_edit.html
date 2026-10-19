@@ -60,6 +60,10 @@
           <input type="text" id="id_publisher" name="publisher" value="{{ comic.publisher|default:'' }}" class="cm-input" />
         </div>
         <div class="edit-field">
+          <label class="edit-label" for="id_imprint">Imprint</label>
+          <input type="text" id="id_imprint" name="imprint" value="{{ comic.imprint|default:'' }}" class="cm-input" />
+        </div>
+        <div class="edit-field">
           <label class="edit-label" for="id_year">Year</label>
           <input type="number" id="id_year" name="year" value="{{ comic.year|default:'' }}" class="cm-input" />
         </div>

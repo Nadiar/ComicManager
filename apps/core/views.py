@@ -763,9 +763,23 @@ def scrape_preview(request, pk):
     Query params:
         force=1: Skip state check (for re-scraping comics in any state)
     """
-    from apps.scraper.cv_sources import is_cv_db_available
-
     comic = get_object_or_404(Comic, pk=pk)
+    try:
+        return _scrape_preview(request, comic)
+    except Exception as e:
+        # The scrape modal reads JSON: Django's HTML error page showed up there
+        # as "Unexpected token '<' ... is not valid JSON" (#8). The comic is
+        # sent along so the modal can still offer the Search API section.
+        logger.exception("Scrape preview failed for comic %s", comic.pk)
+        return JsonResponse({
+            "success": False,
+            "error": f"Looking up local matches failed: {e}",
+            "comic": {"id": str(comic.pk), "series": comic.series, "number": comic.number, "year": comic.year},
+        }, status=500)
+
+
+def _scrape_preview(request, comic):
+    from apps.scraper.cv_sources import is_cv_db_available
 
     force = request.GET.get("force") == "1"
     if not force and comic.state != Comic.STATE_IMPORTED:
@@ -2398,12 +2412,19 @@ def comic_edit(request, pk):
 
         # Write ComicInfo.xml only when explicitly requested
         xml_updated = False
+        xml_error = None
         if request.POST.get("write_xml") == "1":
             if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
-                xml_updated = write_comicinfo_xml(comic.file_path, comic)
+                try:
+                    xml_updated = write_comicinfo_xml(comic.file_path, comic)
+                except Exception as e:
+                    logger.exception("Writing ComicInfo.xml to %s failed", comic.file_path)
+                    xml_error = str(e)
 
         if xml_updated:
             messages.success(request, "Comic updated successfully (database and ComicInfo.xml).")
+        elif xml_error:
+            messages.error(request, f"Comic saved to database, but writing ComicInfo.xml failed: {xml_error}")
         else:
             messages.success(request, "Comic saved to database.")
 
@@ -3451,7 +3472,7 @@ def export_comic_json(request, pk):
     fields = [
         "proposed_series", "proposed_number", "proposed_volume", "proposed_year",
         "series", "title", "number", "count", "volume", "year", "month", "day",
-        "publisher", "format", "summary", "notes", "genre", "web",
+        "publisher", "imprint", "format", "summary", "notes", "genre", "web",
         "page_count", "characters", "teams", "locations", "tags",
         "scan_information", "series_group", "main_character_or_team",
         "writer", "penciller", "inker", "colorist", "letterer", "cover_artist", "editor",

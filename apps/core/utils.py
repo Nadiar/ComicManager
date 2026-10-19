@@ -5,6 +5,7 @@ Provides read, write, and comparison functionality for ComicInfo.xml
 files embedded in CBZ archives.
 """
 
+import errno
 import fcntl
 import os
 import re
@@ -73,6 +74,7 @@ FIELD_MAP = {
     "Month": "month",
     "Day": "day",
     "Publisher": "publisher",
+    "Imprint": "imprint",
     "Summary": "summary",
     "Notes": "notes",
     "Genre": "genre",
@@ -105,7 +107,7 @@ INT_FIELDS = {"count", "volume", "year", "month", "day", "page_count"}
 # Fields that are editable in the UI
 EDITABLE_FIELDS = [
     "series", "number", "title", "count", "volume", "year", "month", "day",
-    "publisher", "summary", "notes", "genre", "web", "format", "characters",
+    "publisher", "imprint", "summary", "notes", "genre", "web", "format", "characters",
     "teams", "locations", "story_arc", "tags", "scan_information", "series_group", "main_character_or_team",
     "writer", "penciller", "inker", "colorist", "letterer", "cover_artist", "editor",
     "storage_location",
@@ -122,6 +124,7 @@ FIELD_LABELS = {
     "month": "Month",
     "day": "Day",
     "publisher": "Publisher",
+    "imprint": "Imprint",
     "summary": "Summary",
     "notes": "Notes",
     "genre": "Genre",
@@ -157,6 +160,7 @@ COLUMNS_REGISTRY = {
     "month": {"label": "Month", "sort": "month", "attr": "month"},
     "day": {"label": "Day", "sort": "day", "attr": "day"},
     "publisher": {"label": "Publisher", "sort": "publisher", "attr": "publisher"},
+    "imprint": {"label": "Imprint", "sort": "imprint", "attr": "imprint"},
     "summary": {"label": "Summary", "sort": "summary", "attr": "summary"},
     "notes": {"label": "Notes", "sort": "notes", "attr": "notes"},
     "genre": {"label": "Genre", "sort": "genre", "attr": "genre"},
@@ -354,7 +358,7 @@ CV_FIELD_MAP = {
 
 # DB/XML fields that have no CV equivalent
 DB_ONLY_FIELDS = [
-    "volume", "month", "day", "notes", "genre", "format", "tags",
+    "volume", "month", "day", "imprint", "notes", "genre", "format", "tags",
     "scan_information", "series_group", "main_character_or_team", "page_count",
 ]
 
@@ -694,6 +698,18 @@ def restore_index_backup(zip_path: str) -> bool:
     return True
 
 
+def _check_writable(path: str) -> None:
+    """
+    Raise a PermissionError that says the file is read-only when it cannot be
+    opened for writing. Opening it for update does not change it.
+    """
+    try:
+        with open(path, "r+b"):
+            pass
+    except PermissionError as e:
+        raise PermissionError(e.errno, "File is read-only", path) from e
+
+
 def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
     """
     Write/update ComicInfo.xml inside a CBZ file.
@@ -709,55 +725,56 @@ def write_comicinfo_xml(cbz_path: str, comic: Comic) -> bool:
       interrupted write can be undone exactly (restore_index_backup); the
       backup is removed once the patched archive is synced to disk.
 
-    Returns True on success, False on failure.
+    Returns True on success. Raises on failure (missing or read-only file,
+    damaged archive) so callers can report the reason.
     """
     if not cbz_path or not os.path.exists(cbz_path):
-        return False
+        raise FileNotFoundError(errno.ENOENT, "File not found", cbz_path or "")
 
+    # A backup left by an interrupted earlier in-place write: put the
+    # archive back before reading it
+    restore_index_backup(cbz_path)
+
+    # Generate new XML content (pass cbz_path for Pages element)
+    xml_bytes = generate_comicinfo_xml(comic, cbz_path=cbz_path).encode("utf-8")
+
+    # Probe for a cheap reflink clone in the same directory (so a later
+    # os.replace stays on one filesystem). If it works, patch the clone and
+    # swap atomically; the original is untouched until then.
+    fd, tmp_path = tempfile.mkstemp(prefix=".cm-", suffix=".tmp", dir=os.path.dirname(cbz_path))
+    os.close(fd)
     try:
-        # A backup left by an interrupted earlier in-place write: put the
-        # archive back before reading it
-        restore_index_backup(cbz_path)
-
-        # Generate new XML content (pass cbz_path for Pages element)
-        xml_bytes = generate_comicinfo_xml(comic, cbz_path=cbz_path).encode("utf-8")
-
-        # Probe for a cheap reflink clone in the same directory (so a later
-        # os.replace stays on one filesystem). If it works, patch the clone and
-        # swap atomically; the original is untouched until then.
-        fd, tmp_path = tempfile.mkstemp(prefix=".cm-", suffix=".tmp", dir=os.path.dirname(cbz_path))
-        os.close(fd)
-        try:
-            if _try_reflink(cbz_path, tmp_path):
-                _patch_comicinfo_entry(tmp_path, xml_bytes)
-                # Sync the patched clone before the swap and the folder after
-                # it, so a power loss leaves the old or the new archive, never
-                # a renamed file whose data was not written yet
-                _fsync_file(tmp_path)
-                os.replace(tmp_path, cbz_path)
-                _fsync_file(os.path.dirname(cbz_path) or ".")
-                return True
-        except Exception:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            raise
-        # No reflink available: drop the empty probe file and patch in place
-        # rather than paying for a full O(size) byte copy.
+        if _try_reflink(cbz_path, tmp_path):
+            _patch_comicinfo_entry(tmp_path, xml_bytes)
+            # Sync the patched clone before the swap and the folder after
+            # it, so a power loss leaves the old or the new archive, never
+            # a renamed file whose data was not written yet
+            _fsync_file(tmp_path)
+            os.replace(tmp_path, cbz_path)
+            _fsync_file(os.path.dirname(cbz_path) or ".")
+            return True
+    except Exception:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+        raise
+    # No reflink available: drop the empty probe file and patch in place
+    # rather than paying for a full O(size) byte copy.
+    if os.path.exists(tmp_path):
+        os.remove(tmp_path)
 
-        backup = _save_index_backup(cbz_path)
-        try:
-            _patch_comicinfo_entry(cbz_path, xml_bytes)
-            _fsync_file(cbz_path)
-        except Exception:
-            restore_index_backup(cbz_path)
-            raise
-        os.remove(backup)
-        return True
-
-    except (zipfile.BadZipFile, OSError, PermissionError):
-        return False
+    # Patching in place needs write access to the file itself. Check it before
+    # the index backup is saved, so a read-only file fails with a clear reason
+    # and leaves no backup behind.
+    _check_writable(cbz_path)
+    backup = _save_index_backup(cbz_path)
+    try:
+        _patch_comicinfo_entry(cbz_path, xml_bytes)
+        _fsync_file(cbz_path)
+    except Exception:
+        restore_index_backup(cbz_path)
+        raise
+    os.remove(backup)
+    return True
 
 
 def update_comic_from_form(comic: Comic, form_data: dict[str, Any]) -> None:

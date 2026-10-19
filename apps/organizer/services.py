@@ -3,17 +3,21 @@ Library Organizer Service - Organizes comics into library folder structure.
 """
 
 import errno
+import logging
 import os
 import shutil
 from pathlib import Path
 
 from django.db import transaction
 
+from apps.core.archives import rename_no_clobber
 from apps.core.models import Comic
 
 from .engine import find_matching_profile, preview_profile_matches
 from .models import OrganizerProfile
 from .template_engine import generate_paths
+
+logger = logging.getLogger(__name__)
 
 
 # Base library path (inside container)
@@ -55,7 +59,9 @@ def _safe_move(old_path: str, new_path: str, allowed_root: str) -> None:
     # cannot race with another writer. Different mounts (untagged and library
     # are separate volumes) cannot be linked: copy to a hidden temp file next
     # to the destination first, so a crash never leaves a half-copied comic
-    # under the real name.
+    # under the real name. Filesystems without hard links (SMB shares, exFAT,
+    # Windows drives under Docker Desktop) also land here, so the temp file is
+    # renamed into place when it cannot be linked either.
     try:
         os.link(old_path, new_path)
     except FileExistsError:
@@ -72,7 +78,7 @@ def _safe_move(old_path: str, new_path: str, allowed_root: str) -> None:
             finally:
                 os.close(fd)
             try:
-                os.link(tmp_path, new_path)
+                rename_no_clobber(tmp_path, new_path)
             except FileExistsError:
                 raise overwrite_error
         finally:
@@ -160,6 +166,7 @@ def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> 
         return {
             "success": False,
             "message": f"File not found: {comic.file_path}",
+            "error": f"File not found: {comic.file_path}",
             "profile": None,
             "old_path": comic.file_path,
             "new_path": None,
@@ -226,6 +233,8 @@ def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> 
                 "dry_run": dry_run,
             }
         except Exception as e:
+            # Callers only get str(e); the traceback goes to the container log
+            logger.exception("Moving %s to %s failed", old_path, new_path)
             error = str(e)
             return {
                 "success": False,
@@ -325,13 +334,16 @@ def reorganize_comic(comic: Comic) -> dict:
     except FileOverwriteError as e:
         return {"success": False, "moved": False, "error": str(e), "conflict": True}
     except PermissionError:
+        logger.exception("Moving %s to %s failed", old_path, new_path)
         raise
     except OSError as e:
+        logger.exception("Moving %s to %s failed", old_path, new_path)
         import errno as _errno
         if e.errno == _errno.ENOSPC:
             raise
         return {"success": False, "moved": False, "error": str(e)}
     except Exception as e:
+        logger.exception("Moving %s to %s failed", old_path, new_path)
         return {"success": False, "moved": False, "error": str(e)}
 
 

@@ -178,6 +178,144 @@ class ComicInfoWriteTests(TempDirMixin, TestCase):
         self.assertEqual(len(names), 1)
         self.assertEqual(page_colors(p), [0, 1, 2])
 
+    def _read_only(self, p):
+        """Refuse to open p for writing, as for a read-only file when not root
+        (tests run as root, which can write to mode 444 files)."""
+        import builtins
+        import io
+        from contextlib import ExitStack
+        from unittest.mock import patch
+        from apps.core import utils
+
+        real_open = builtins.open
+
+        def fake_open(file, mode="r", *args, **kwargs):
+            if file == p and ("+" in mode or "w" in mode or "a" in mode):
+                raise PermissionError(13, "Permission denied", file)
+            return real_open(file, mode, *args, **kwargs)
+
+        stack = ExitStack()
+        stack.enter_context(patch.object(utils, "_try_reflink", return_value=False))
+        stack.enter_context(patch("builtins.open", fake_open))
+        stack.enter_context(patch.object(io, "open", fake_open))
+        return stack
+
+    def test_read_only_file_fails_with_the_reason_and_leaves_nothing_behind(self):
+        p = make_cbz(self.path("a.cbz"), mode=0o444)
+        with open(p, "rb") as f:
+            before = f.read()
+        comic = Comic.objects.create(file_path=p, series="Sample Hero", number="1", publisher="Pub")
+        with self._read_only(p), self.assertRaisesRegex(PermissionError, "File is read-only"):
+            write_comicinfo_xml(p, comic)
+        with open(p, "rb") as f:
+            self.assertEqual(f.read(), before)
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+
+    def test_missing_file_raises(self):
+        comic = Comic.objects.create(series="Sample Hero", number="1", publisher="Pub")
+        with self.assertRaises(FileNotFoundError):
+            write_comicinfo_xml(self.path("gone.cbz"), comic)
+
+    def test_write_action_logs_the_reason(self):
+        from django.test import override_settings
+        from apps.core import workflow
+        p = make_cbz(self.path("a.cbz"))
+        comic = Comic.objects.create(file_path=p, series="Sample Hero", number="1", publisher="Pub",
+                                     state=Comic.STATE_WRITTEN)
+        audit = self.path("logs", "batch_actions.jsonl")
+        with override_settings(AUDIT_LOG_PATH=audit), self._read_only(p), \
+                self.assertLogs("apps.core.workflow", "ERROR") as logs:
+            result = workflow.write(comic)
+        self.assertFalse(result.success)
+        self.assertIn("File is read-only", result.error)
+        self.assertIsNotNone(logs.records[0].exc_info)
+        with open(audit) as f:
+            entries = [json.loads(line) for line in f]
+        self.assertEqual([e["action"] for e in entries], ["write_error"])
+        self.assertIn("File is read-only", entries[0]["changes"]["error"][1])
+        self.assertEqual(sorted(os.listdir(self.tmp)), ["a.cbz", "logs"])
+
+    def test_edit_page_shows_why_the_write_failed(self):
+        p = make_cbz(self.path("a.cbz"))
+        comic = Comic.objects.create(file_path=p, series="Sample Hero", number="1", publisher="Pub")
+        form = {"series": "Sample Hero", "number": "2", "publisher": "Pub", "write_xml": "1"}
+        with self._read_only(p), self.assertLogs("apps.core.views", "ERROR"):
+            resp = self.client.post(f"/comics/{comic.pk}/edit/", form, follow=True)
+        messages = [str(m) for m in resp.context["messages"]]
+        self.assertTrue(any("writing ComicInfo.xml failed" in m and "File is read-only" in m for m in messages),
+                        messages)
+        comic.refresh_from_db()
+        self.assertEqual(comic.number, "2")
+
+
+class ImprintTests(TempDirMixin, TestCase):
+
+    def test_imprint_is_written_after_publisher_and_read_back(self):
+        p = make_cbz(self.path("a.cbz"))
+        comic = Comic.objects.create(file_path=p, series="Sandman", number="1",
+                                     publisher="DC Comics", imprint="Vertigo")
+        self.assertTrue(write_comicinfo_xml(p, comic))
+        self.assertEqual(read_comicinfo_xml(p).get("imprint"), "Vertigo")
+        with zipfile.ZipFile(p) as zf:
+            xml = zf.read("ComicInfo.xml").decode()
+        self.assertLess(xml.index("<Publisher>"), xml.index("<Imprint>"))
+        self.assertNotIn('name="Imprint"', xml)
+
+    def test_library_import_reads_imprint(self):
+        from apps.core.management.commands.import_library import Command
+        data = Command().parse_comic_info_xml(
+            b"<ComicInfo><Publisher>DC Comics</Publisher><Imprint>Vertigo</Imprint></ComicInfo>")
+        self.assertEqual(data.get("imprint"), "Vertigo")
+
+    def test_migration_moves_custom_imprint_into_the_field(self):
+        import importlib
+        from django.apps import apps
+        migration = importlib.import_module("apps.core.migrations.0022_comic_imprint")
+        moved = Comic.objects.create(series="A", custom_values={"Imprint": "Vertigo", "Other": "x"})
+        kept = Comic.objects.create(series="B", imprint="Black Label", custom_values={"Imprint": "Old"})
+        migration.move_custom_imprint(apps, None)
+        moved.refresh_from_db()
+        kept.refresh_from_db()
+        self.assertEqual(moved.imprint, "Vertigo")
+        self.assertEqual(moved.custom_values, {"Other": "x"})
+        self.assertEqual(kept.imprint, "Black Label")
+        self.assertEqual(kept.custom_values, {})
+
+    def test_backfill_fills_only_empty_imprints_and_leaves_files_alone(self):
+        from io import StringIO
+        from django.core.management import call_command
+        xml = "<ComicInfo><Publisher>DC Comics</Publisher><Imprint>Vertigo</Imprint></ComicInfo>"
+        filled = Comic.objects.create(file_path=make_cbz(self.path("a.cbz"), comicinfo=xml),
+                                      series="Sandman", state=Comic.STATE_WRITTEN)
+        kept = Comic.objects.create(file_path=make_cbz(self.path("b.cbz"), comicinfo=xml),
+                                    series="Harleen", imprint="Black Label")
+        without = Comic.objects.create(
+            file_path=make_cbz(self.path("c.cbz"), comicinfo="<ComicInfo><Publisher>DC Comics</Publisher></ComicInfo>"),
+            series="Batman")
+        missing = Comic.objects.create(file_path=self.path("gone.cbz"), series="Gone")
+        with open(filled.file_path, "rb") as f:
+            before = f.read()
+
+        out = StringIO()
+        call_command("backfill_imprint", dry_run=True, stdout=out)
+        filled.refresh_from_db()
+        self.assertFalse(filled.imprint)
+        self.assertIn("Would set Vertigo", out.getvalue())
+
+        out = StringIO()
+        call_command("backfill_imprint", stdout=out)
+        for c in (filled, kept, without, missing):
+            c.refresh_from_db()
+        self.assertEqual(filled.imprint, "Vertigo")
+        self.assertTrue(filled.needs_reorganize)
+        self.assertEqual(kept.imprint, "Black Label")
+        self.assertFalse(without.imprint)
+        self.assertFalse(missing.imprint)
+        self.assertIn("Set the imprint on 1.", out.getvalue())
+        self.assertIn("Skipped 1 whose file is missing.", out.getvalue())
+        with open(filled.file_path, "rb") as f:
+            self.assertEqual(f.read(), before)
+
 
 class CopyOnWriteWriteTests(TempDirMixin, TestCase):
     """The btrfs/XFS path: patch a reflink clone and swap it in atomically.
@@ -240,7 +378,8 @@ class CopyOnWriteWriteTests(TempDirMixin, TestCase):
             before = f.read()
         comic = Comic.objects.create(file_path=p, series="Cow", number="1", publisher="Pub")
         with patch.object(utils, "_patch_comicinfo_entry", side_effect=OSError("disk full")):
-            self.assertFalse(write_comicinfo_xml(p, comic))
+            with self.assertRaises(OSError):
+                write_comicinfo_xml(p, comic)
         with open(p, "rb") as f:
             self.assertEqual(f.read(), before)
         self.assertEqual(os.listdir(self.tmp), ["a.cbz"])

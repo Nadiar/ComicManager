@@ -310,6 +310,8 @@ def reorganize_all_flagged_task(self):
         except (PermissionError, OSError) as e:
             err_msg = str(e)
             errors.append(f"{comic.series} #{comic.number}: {err_msg}")
+            from apps.core.audit import log_batch_entry
+            log_batch_entry("organize_error", comic, comic.state, comic.state, {"error": [None, err_msg]})
             self.update_state(
                 state="PROGRESS",
                 meta={"current": i + 1, "total": total, "moved": moved, "errors": errors},
@@ -331,6 +333,8 @@ def reorganize_all_flagged_task(self):
             errors.append(
                 f"{comic.series} #{comic.number}: {result.get('error', 'Unknown')}"
             )
+            from apps.core.audit import log_batch_entry
+            log_batch_entry("organize_error", comic, comic.state, comic.state, {"error": [None, result.get("error", "Unknown")]})
 
         self.update_state(
             state="PROGRESS",

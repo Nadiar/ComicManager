@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.1.1]
+
+A hotfix release. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint yet: run `backfill_imprint` before writing them (see below).
+
+### Added
+
+- **`backfill_imprint` command (#9)**: Comics imported with an earlier version have no imprint in ComicManager, because `import_library` dropped the `<Imprint>` element, and **Write to CBZ** would replace their `ComicInfo.xml` without it. The command reads the imprint from each comic's `ComicInfo.xml` and fills it in where the Imprint field is empty. It only reads the files. Use `--dry-run` to list the changes first.
+
+### Fixed
+
+- **Scraping failed with some local comicvine.db files (#8)**: A comicvine.db that stores cover hashes as plain SQLite integers keeps some of them as negative numbers. Loading those failed, so the scrape window showed `Unexpected token '<' ... is not valid JSON` and cover matching did not work. These hashes are now read correctly, and a hash table that can't be read turns off cover matching instead of stopping the scrape. Any other error while looking up local matches is now shown in the scrape window with its reason, and the Search API section stays open so the comic can still be matched by hand. The full error goes to the container log.
+
+- **Imprint was not supported**: Comics had no Imprint field, so the `<Imprint>` element in ComicInfo.xml was dropped by `import_library` and never written, and ComicRack templates like `{<publisher>}/{<imprint>}/{<series>}` could not be used. Imprint is now a standard field. It is read from and written to ComicInfo.xml, can be edited on the comic's edit page, and works as the `{<imprint>}` organizer variable, as a profile condition, as a tagging rule field, as a Smart List filter, and in CBL import and export (`ComicBookImprintMatcher`). Changing a comic's imprint marks it for reorganizing, like a publisher change. ComicVine does not provide imprints, so scraping does not fill it in.
+
+- **Move Files failed on drives without hard links (#10)**: Moves use a hard link so they never overwrite an existing file. On filesystems without hard links, such as SMB shares, exFAT or Windows drives under Docker Desktop, every move failed with `[Errno 1] Operation not permitted` on a `.cm-move-*.tmp` file. The copied file is now renamed into place instead, still only after checking that nothing exists under that name. The original file was never touched by the failed moves.
+
+- **Move errors were not logged (#10)**: When moving a comic failed, the reason only showed in the error message on the page. `docker compose logs` showed `Internal Server Error` with no reason, and the Audit Log only recorded file conflicts. A failed Move or Re-organize, including a missing source file, now adds an `organize_error` entry with the reason to the Audit Log. Errors from the file system are also written in full to the container log (`web` for the comic page, `worker` for batch actions).
+
+- **Write errors were not logged (#7)**: When writing ComicInfo.xml failed, the error only said `Failed to write ComicInfo.xml`. The reason, for example a read-only file, a missing file or a damaged archive, is now part of the error and of the `write_error` entry in the Audit Log, and the full error is written to the container log. A read-only file is reported as `File is read-only` before anything is changed, and no longer leaves a hidden `.cm-index` file next to it. **Save + Write XML** on the edit page now also says when the write failed, instead of only "Comic saved to database".
+
 ## [1.1.0]
 
 A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.

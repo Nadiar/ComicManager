@@ -345,6 +345,7 @@ class Command(BaseCommand):
             "Month": "month",
             "Day": "day",
             "Publisher": "publisher",
+            "Imprint": "imprint",
             "Summary": "summary",
             "Notes": "notes",
             "Genre": "genre",

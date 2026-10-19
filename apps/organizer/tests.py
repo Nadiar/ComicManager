@@ -120,6 +120,55 @@ class SafeMoveTests(SimpleTestCase):
                 self.assertEqual(f.read(), "source")
             self.assertIn(".cm-move-", calls[1])
 
+    def _no_hard_links(self):
+        """Patch os.link to fail like a filesystem without hard links (Gitea #10)."""
+        import errno
+        from unittest.mock import patch
+        return patch("apps.organizer.services.os.link",
+                     side_effect=OSError(errno.EPERM, "Operation not permitted"))
+
+    def test_move_without_hard_links_renames_the_temp_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src.cbz")
+            dst = os.path.join(d, "sub", "dst.cbz")
+            os.makedirs(os.path.dirname(dst))
+            with open(src, "w") as f:
+                f.write("source")
+            with self._no_hard_links():
+                _safe_move(src, dst, d)
+            self.assertFalse(os.path.exists(src))
+            self.assertEqual(os.listdir(os.path.dirname(dst)), ["dst.cbz"])
+            with open(dst) as f:
+                self.assertEqual(f.read(), "source")
+
+    def test_move_without_hard_links_never_overwrites(self):
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src.cbz")
+            dst = os.path.join(d, "dst.cbz")
+            with open(src, "w") as f:
+                f.write("source")
+            with open(dst, "w") as f:
+                f.write("victim")
+            # Hide dst from the first check only, as if another move created it
+            # while the temp copy was being made
+            from unittest.mock import patch
+            real_exists = os.path.exists
+            hidden = []
+
+            def exists(path):
+                if path == dst and not hidden:
+                    hidden.append(path)
+                    return False
+                return real_exists(path)
+
+            with self._no_hard_links(), patch("apps.organizer.services.os.path.exists", side_effect=exists):
+                with self.assertRaises(FileOverwriteError):
+                    _safe_move(src, dst, d)
+            self.assertTrue(os.path.exists(src))
+            with open(dst) as f:
+                self.assertEqual(f.read(), "victim")
+            self.assertEqual(sorted(os.listdir(d)), ["dst.cbz", "src.cbz"])
+
 
 class MissingFileTests(TestCase):
     """Path Audit must not offer moves for files that are gone (Gitea #4)."""
@@ -213,3 +262,104 @@ class DefaultProfileTests(TestCase):
                                      number="1", publisher="Pub")
         self.assertEqual(preview_organization(comic)["new_path"],
                          "/comics/library/Pub/Sample Hero/Sample Hero #1.cbz")
+
+
+class ImprintTests(TestCase):
+    """Imprint works as a template variable, a profile condition and a rule field."""
+
+    def setUp(self):
+        self.profile = OrganizerProfile(
+            name="Imprint", base_folder="/comics/library",
+            folder_template="{<publisher>}/{<imprint>}/{<series>}{ (V<volume>)}",
+            file_template="{<series>}{ #<number3>}", exclude_rules={},
+        )
+
+    def test_imprint_becomes_a_folder(self):
+        from apps.organizer.template_engine import generate_paths
+        comic = Comic(series="Sandman", number="1", volume=1989, publisher="DC Comics", imprint="Vertigo")
+        folder, _ = generate_paths(comic, self.profile)
+        self.assertEqual(folder.replace("\\", "/"), "DC Comics/Vertigo/Sandman (V1989)")
+
+    def test_empty_imprint_leaves_out_the_folder(self):
+        from apps.organizer.template_engine import generate_paths
+        comic = Comic(series="Batman", number="1", volume=2016, publisher="DC Comics")
+        folder, _ = generate_paths(comic, self.profile)
+        self.assertEqual(folder.replace("\\", "/"), "DC Comics/Batman (V2016)")
+
+    def test_profile_condition_on_imprint(self):
+        from apps.organizer.engine import matches_profile
+        self.profile.exclude_rules = {"operator": "All", "mode": "Only", "rules": [
+            {"type": "rule", "field": "Imprint", "operator": "is", "value": "Vertigo"}]}
+        self.assertTrue(matches_profile(Comic(imprint="Vertigo"), self.profile))
+        self.assertFalse(matches_profile(Comic(imprint="Black Label"), self.profile))
+
+    def test_rule_sets_imprint_field(self):
+        from apps.tagging.engine import FIELD_MAP, action_set_value
+        comic = Comic(series="Sandman")
+        action_set_value(comic, "Imprint", "Vertigo")
+        self.assertEqual(comic.imprint, "Vertigo")
+        self.assertNotIn("Imprint", comic.custom_values)
+        self.assertIn("Imprint", FIELD_MAP)
+
+
+class MoveErrorLogTests(TestCase):
+    """A failed move leaves its reason in the container log and the batch log (Gitea #10)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        OrganizerProfile.objects.update_or_create(
+            name="Default",
+            defaults={"priority": 9999, "is_enabled": True, "base_folder": os.path.join(self.tmp, "library"),
+                      "folder_template": "{<publisher>}/{<series>}",
+                      "file_template": "{<series>}{ #<number3>}", "exclude_rules": {}},
+        )
+        self.src = make_cbz(os.path.join(self.tmp, "untagged", "x.cbz"))
+        self.audit_path = os.path.join(self.tmp, "logs", "batch_actions.jsonl")
+
+    def _audit_errors(self):
+        import json
+        with open(self.audit_path) as f:
+            entries = [json.loads(line) for line in f]
+        return [e["changes"]["error"][1] for e in entries if e["action"] == "organize_error"]
+
+    def _run(self, action, comic, error):
+        from unittest.mock import patch
+        from django.test import override_settings
+        from apps.core import workflow
+        with override_settings(AUDIT_LOG_PATH=self.audit_path), \
+                patch("apps.organizer.services._safe_move", side_effect=error), \
+                self.assertLogs("apps.organizer.services", "ERROR") as logs:
+            result = getattr(workflow, action)(comic, force=True)
+        self.assertFalse(result.success)
+        self.assertIsNotNone(logs.records[0].exc_info)
+        self.assertIn(self.src, logs.output[0])
+        return result
+
+    def test_failed_move_is_logged_with_the_reason(self):
+        comic = Comic.objects.create(file_path=self.src, series="Sample Hero", number="1",
+                                     publisher="Pub", state=Comic.STATE_ORGANIZED)
+        result = self._run("organize", comic, PermissionError(13, "Permission denied", self.src))
+        self.assertIn("Permission denied", result.error)
+        self.assertEqual(len(self._audit_errors()), 1)
+        self.assertIn("Permission denied", self._audit_errors()[0])
+        self.assertTrue(os.path.exists(self.src))
+
+    def test_failed_reorganize_is_logged_with_the_reason(self):
+        comic = Comic.objects.create(file_path=self.src, series="Sample Hero", number="1",
+                                     publisher="Pub", state=Comic.STATE_DONE)
+        self._run("reorganize", comic, OSError(5, "Input/output error"))
+        self.assertEqual(len(self._audit_errors()), 1)
+        self.assertIn("Input/output error", self._audit_errors()[0])
+        self.assertTrue(os.path.exists(self.src))
+
+    def test_missing_file_is_logged(self):
+        from django.test import override_settings
+        from apps.core import workflow
+        gone = os.path.join(self.tmp, "untagged", "gone.cbz")
+        comic = Comic.objects.create(file_path=gone, series="Sample Hero", number="1",
+                                     publisher="Pub", state=Comic.STATE_ORGANIZED)
+        with override_settings(AUDIT_LOG_PATH=self.audit_path):
+            result = workflow.organize(comic)
+        self.assertFalse(result.success)
+        self.assertEqual(self._audit_errors(), [f"File not found: {gone}"])

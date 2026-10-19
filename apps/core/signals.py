@@ -3,7 +3,7 @@ from django.dispatch import receiver
 
 
 # Fields that affect the library organizer's computed path
-_PATH_RELEVANT_FIELDS = frozenset({"publisher", "series", "format", "main_character_or_team", "volume"})
+_PATH_RELEVANT_FIELDS = frozenset({"publisher", "imprint", "series", "format", "main_character_or_team", "volume"})
 
 
 @receiver(pre_save)

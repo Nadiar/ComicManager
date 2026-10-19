@@ -71,7 +71,7 @@ Before any file is moved, ComicManager performs a "dry run" to ensure:
 - The target folder structure can be created.
 - There are no file conflicts.
 
-**Error Logging**: Any file move failures (e.g. file in use, permission denied, missing source file) are recorded as `organize_error` events in the **Audit Log** for easy review.
+**Error Logging**: Any file move failures (e.g. file in use, permission denied, missing source file) are recorded as `organize_error` events in the **Audit Log** with the reason, for easy review. Errors from the file system are also written in full to the container log (`docker compose logs web` for a move started from the comic's page, `docker compose logs worker` for Move Files and Re-organize).
 
 **Progress Tracking**: Real-time progress bars and toast notifications keep you informed about the status of your batch organization.
 
@@ -118,6 +118,7 @@ Each organizer profile can have one or more matching conditions that control whi
 |-------|------|---------|
 | `Format` | Text | `TPB`, `Main Series` |
 | `Publisher` | Text | `DC Comics` |
+| `Imprint` | Text | `Vertigo` |
 | `Series` | Text | `Batman` |
 | `SeriesGroup` | Text | `Batman Family` |
 | `MainCharacterOrTeam` | Text | `Batman` |
@@ -164,6 +165,7 @@ All variables use angle brackets around the field name: `{<field>}`.
 | `{<month>}` | Publication month (auto-converted to name, see Modifiers below) | `March` |
 | `{<day>}` | Publication day | `15` |
 | `{<publisher>}` | Publisher name | `DC Comics` |
+| `{<imprint>}` | Imprint name (empty for comics without one) | `Vertigo` |
 | `{<format>}` | Format type | `Main Series` |
 | `{<genre>}` | Genre | `Superhero` |
 | `{<seriesgroup>}` | Series group (set by DataManager) | `Batman Family` |
@@ -189,6 +191,8 @@ Access any custom value field with `{<Custom(key)>}`:
 {<Custom(comicvine_volume)>}  -> the ComicVine volume ID
 {<Custom(StoryArc)>}          -> story arc name
 ```
+
+Imprint is a standard field, not a custom value. Use `{<imprint>}`, not `{<Custom(Imprint)>}`. Since 1.1.1, an `Imprint` custom value is moved into the Imprint field when you upgrade, so a profile that still uses `{<Custom(Imprint)>}` gets an empty value and leaves out the imprint folder.
 
 ---
 
@@ -477,6 +481,23 @@ Star Wars/Darth Vader/Main Series/Darth Vader (2020)/Darth Vader #001 [March, 20
 Star Wars/X-Wing Rogue Squadron/Main Series/X-Wing Rogue Squadron (1995)/X-Wing Rogue Squadron #001 [July, 1995].cbz
 Star Wars/General/TPB/Star Wars Legends Epic Collection (2015)/Star Wars Legends Epic Collection #001 [March, 2015].cbz
 ```
+
+---
+
+### 11. Publisher + imprint
+
+The ComicRack-style structure with an imprint folder between the publisher and the series. When a comic has no imprint, the empty folder is left out, so those comics go straight into the publisher folder.
+
+**Folder:** `{<publisher>}/{<imprint>}/{<series>}{ (V<volume>)}/`
+**File:** `{<series>} {#<number3>}{ (<year>)}`
+
+```
+DC Comics/Vertigo/Sandman (V1989)/Sandman #001 (1989).cbz
+DC Comics/Black Label/Harleen (V2019)/Harleen #001 (2019).cbz
+DC Comics/Batman (V2016)/Batman #001 (2016).cbz
+```
+
+The imprint comes from the `<Imprint>` element in ComicInfo.xml (read by `import_library`), from the Imprint box on the comic's edit page, or from a tagging rule that sets the `Imprint` field, for example a rule that matches the series and sets the imprint for a whole run. ComicVine does not provide imprints, so scraping does not fill it in. For comics imported before 1.1.1, run `backfill_imprint` (see [Getting Started](/guide/getting-started)) to read the imprint from their files.
 
 ---
 

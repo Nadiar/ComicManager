@@ -30,6 +30,7 @@ TEMPLATE_FIELD_MAP = {
     "month": "month",
     "day": "day",
     "publisher": "publisher",
+    "imprint": "imprint",
     "format": "format",
     "genre": "genre",
     "writer": "writer",
