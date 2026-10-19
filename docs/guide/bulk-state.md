@@ -10,7 +10,9 @@ If you are migrating an entire existing library (already organized and tagged by
 docker compose exec web python manage.py import_library --path /comics/library
 ```
 
-Optionally pass `--comicdb /path/to/ComicDb.xml` to enrich imports with Tags, Teams, Locations, and CustomValuesStore data that isn't present in `ComicInfo.xml`. Files that have no `ComicInfo.xml` at all are then imported from their ComicDb.xml entry. Use `--dry-run` first to preview what would be imported.
+Optionally pass `--comicdb /path/to/ComicDb.xml` to enrich imports with Tags, Teams, Locations, and CustomValuesStore data that isn't present in `ComicInfo.xml`. Files that have no `ComicInfo.xml` at all are then imported from their ComicDb.xml entry. Copy the file into the container first (`docker compose cp ComicDb.xml web:/tmp/ComicDb.xml`). ComicRack's library folder, such as `B:\Comics\ComicRack`, is found automatically from the paths in the file, and `--comicdb-root` sets it by hand. If no entry matches a file, nothing is imported. See [CLI import commands](/guide/getting-started#cli-import-commands) for the details. Use `--dry-run` first to preview what would be imported.
+
+If you used ComicRack's Library Organizer, import your `.lop` file on the **Organizer** page too. The import opens a window that replaces ComicRack's Windows base folders with `/comics/library`; see [Importing a ComicRack Library Organizer Profile](/guide/organizing#importing-a-comicrack-library-organizer-profile).
 
 This command reads each CBZ's embedded `ComicInfo.xml` and creates a `Comic` record already in the **Write to CBZ** state (it assumes the file is already fully tagged, since it came from an existing library). It does not touch the pipeline states before that (New, Scrape, Tagging, etc.) and it does not advance anything to **Done** on its own.
 

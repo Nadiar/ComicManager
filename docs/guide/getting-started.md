@@ -124,7 +124,7 @@ When a file in the untagged folder disappears, the scan only deletes the databas
 
 ---
 
-**`import_library`**: scans an existing tagged CBZ library and imports every file into the database at the **Write to CBZ** state by reading its embedded `ComicInfo.xml`. This is the primary migration path for users coming from ComicRack or another manager. Note this is not the same as **Done**: Done is a separate, later state that a comic only reaches if it goes through the Write action again (for example via Run Pipeline).
+**`import_library`**: scans an existing tagged CBZ library and imports every file into the database at the **Write to CBZ** state by reading its embedded `ComicInfo.xml`. This is the primary migration path for users coming from ComicRack or another manager. If you used ComicRack's Library Organizer, also import your `.lop` file on the **Organizer** page, where the import replaces ComicRack's Windows base folders (see [Importing a ComicRack Library Organizer Profile](/guide/organizing#importing-a-comicrack-library-organizer-profile)). Note this is not the same as **Done**: Done is a separate, later state that a comic only reaches if it goes through the Write action again (for example via Run Pipeline).
 
 ```bash
 docker compose exec web python manage.py import_library [flags]
@@ -246,3 +246,18 @@ To persist it across reboots, add `vm.overcommit_memory = 1` to `/etc/sysctl.con
 ### Write to CBZ fails with "File is read-only"
 
 The comic's file cannot be written by the user the containers run as (`UID` and `GID` in `.env`). This happens with files that were extracted or copied with read-only permissions, for example mode `444` or `555`. Make the files writable for that user (for example `chmod u+w` on the files, or `chown` them to that user) and run the write again. The file is not changed when this error is shown, and the error is listed as `write_error` in the Audit Log.
+
+### Move Files says the base folder is outside the library folder
+
+The error reads like this:
+
+```
+Profile "Marvel" has the base folder "B:\Comics\ComicRack", which is outside the library folder
+/comics/library. Edit the profile and set its base folder to /comics/library or a folder inside it.
+```
+
+The profile was most likely imported from a ComicRack `.lop` file with an earlier version, which kept ComicRack's Windows path. Comics are only moved into `/comics/library`, so the move is refused and the file is not touched. Open **Organizer**, where the profile list shows the profiles in question, and set their **Base Folder** to `/comics/library` or a folder inside it. To organize onto another drive, mount it inside the library folder in `docker-compose.yml`, for example at `/comics/library/Manga`. See [Base Folders from ComicRack](/guide/organizing#base-folders-from-comicrack).
+
+### import_library says no ComicDb.xml entry matches
+
+With `--comicdb`, the import stops before importing anything when no entry in `ComicDb.xml` matches a `.cbz` file in the library folder. It shows the first path in `ComicDb.xml` to compare with. Entries match by the end of their path, so the library folder must hold the same folders and file names as ComicRack's library folder. A `ComicDb.xml` saved before the files were moved or renamed does not match them. If you passed `--comicdb-root`, check that it is the folder as `ComicDb.xml` writes it, for example `B:\Comics\ComicRack`. See the `--comicdb` description under [CLI import commands](#cli-import-commands).
