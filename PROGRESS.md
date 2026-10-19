@@ -404,7 +404,7 @@
 - [ ] [DOC.6] `docs/guide/tagging.md` says Export includes all rulesets; it leaves out disabled ones.
 - [ ] [DOC.7] `docs/guide/tagging.md` marks Imprint "Not verified" for DataManager compatibility. Check whether ComicRack's Data Manager has an Imprint field.
 - [ ] [DOC.8] `docs/guide/philosophy.md` says ComicManager runs "on any OS" (line 3), but Windows is not supported, and "No other sources will be added" (line 24), which changes if FI.16 goes ahead.
-- [ ] [DOC.9] CHANGELOG.md does not list the publisher allow and block lists (P2.18), which were added after v1.1.0 was tagged. Add them to the next release.
+- [x] [DOC.9] CHANGELOG.md does not list the publisher allow and block lists (P2.18), which were added after v1.1.0 was tagged. Added to the v1.1.1 section.
 - [ ] [DOC.10] The docs container has no restart policy, so it stays down after a reboot. Add `restart: unless-stopped` to `docs/docker-compose.yml`.
 
 ## Future Improvements
