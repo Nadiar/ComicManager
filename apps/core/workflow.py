@@ -22,8 +22,11 @@ The `force` kwarg bypasses the STATE gate only. Validation gates (file existence
 of `force`. This matches what the legacy force_* views do today.
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -778,6 +781,7 @@ def write(comic, *, force=False) -> ActionResult:
         try:
             ok = write_comicinfo_xml(comic.file_path, comic)
         except Exception as e:
+            logger.exception("Writing ComicInfo.xml to %s failed", comic.file_path)
             log_batch_entry("write_error", comic, state_before, comic.state, {"error": [None, str(e)]})
             return ActionResult(
                 action="write", success=False,

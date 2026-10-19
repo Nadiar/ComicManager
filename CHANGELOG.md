@@ -18,6 +18,8 @@ A hotfix release. Back up the database before upgrading. The upgrade runs one mi
 
 - **Move errors were not logged (#10)**: When moving a comic failed, the reason only showed in the error message on the page. `docker compose logs` showed `Internal Server Error` with no reason, and the Audit Log only recorded file conflicts. A failed Move or Re-organize, including a missing source file, now adds an `organize_error` entry with the reason to the Audit Log. Errors from the file system are also written in full to the container log (`web` for the comic page, `worker` for batch actions).
 
+- **Write errors were not logged (#7)**: When writing ComicInfo.xml failed, the error only said `Failed to write ComicInfo.xml`. The reason, for example a read-only file, a missing file or a damaged archive, is now part of the error and of the `write_error` entry in the Audit Log, and the full error is written to the container log. A read-only file is reported as `File is read-only` before anything is changed, and no longer leaves a hidden `.cm-index` file next to it. **Save + Write XML** on the edit page now also says when the write failed, instead of only "Comic saved to database".
+
 ## [1.1.0]
 
 A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.

@@ -232,3 +232,7 @@ sudo sysctl vm.overcommit_memory=1
 ```
 
 To persist it across reboots, add `vm.overcommit_memory = 1` to `/etc/sysctl.conf`.
+
+### Write to CBZ fails with "File is read-only"
+
+The comic's file cannot be written by the user the containers run as (`UID` and `GID` in `.env`). This happens with files that were extracted or copied with read-only permissions, for example mode `444` or `555`. Make the files writable for that user (for example `chmod u+w` on the files, or `chown` them to that user) and run the write again. The file is not changed when this error is shown, and the error is listed as `write_error` in the Audit Log.

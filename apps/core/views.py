@@ -2398,12 +2398,19 @@ def comic_edit(request, pk):
 
         # Write ComicInfo.xml only when explicitly requested
         xml_updated = False
+        xml_error = None
         if request.POST.get("write_xml") == "1":
             if comic.is_digital and comic.file_path and comic.file_path.lower().endswith('.cbz'):
-                xml_updated = write_comicinfo_xml(comic.file_path, comic)
+                try:
+                    xml_updated = write_comicinfo_xml(comic.file_path, comic)
+                except Exception as e:
+                    logger.exception("Writing ComicInfo.xml to %s failed", comic.file_path)
+                    xml_error = str(e)
 
         if xml_updated:
             messages.success(request, "Comic updated successfully (database and ComicInfo.xml).")
+        elif xml_error:
+            messages.error(request, f"Comic saved to database, but writing ComicInfo.xml failed: {xml_error}")
         else:
             messages.success(request, "Comic saved to database.")
 
