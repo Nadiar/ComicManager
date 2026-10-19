@@ -763,9 +763,23 @@ def scrape_preview(request, pk):
     Query params:
         force=1: Skip state check (for re-scraping comics in any state)
     """
-    from apps.scraper.cv_sources import is_cv_db_available
-
     comic = get_object_or_404(Comic, pk=pk)
+    try:
+        return _scrape_preview(request, comic)
+    except Exception as e:
+        # The scrape modal reads JSON: Django's HTML error page showed up there
+        # as "Unexpected token '<' ... is not valid JSON" (#8). The comic is
+        # sent along so the modal can still offer the Search API section.
+        logger.exception("Scrape preview failed for comic %s", comic.pk)
+        return JsonResponse({
+            "success": False,
+            "error": f"Looking up local matches failed: {e}",
+            "comic": {"id": str(comic.pk), "series": comic.series, "number": comic.number, "year": comic.year},
+        }, status=500)
+
+
+def _scrape_preview(request, comic):
+    from apps.scraper.cv_sources import is_cv_db_available
 
     force = request.GET.get("force") == "1"
     if not force and comic.state != Comic.STATE_IMPORTED:

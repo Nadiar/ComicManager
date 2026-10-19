@@ -239,3 +239,24 @@ class HashCacheTests(TestCase):
             scraper = ComicVineScraper(self._make_db(d, "not a hash", "not a hash"))
             with self.assertLogs("apps.scraper.comicvine", level="ERROR"):
                 self.assertEqual(scraper.match_by_hash_fast(self.HASH, self.HASH), [])
+
+
+class ScrapePreviewErrorTests(TestCase):
+    """A failing local lookup reaches the scrape modal as JSON, not an HTML error page (#8)."""
+
+    def test_error_is_json_with_the_reason_and_the_comic(self):
+        import sqlite3
+        from unittest.mock import patch
+        comic = Comic.objects.create(series="Black Cat", number="14", year=2026)
+        with patch("apps.scraper.cv_sources.is_cv_db_available", return_value=True), \
+                patch("apps.core.views.ComicVineScraper") as scraper, \
+                self.assertLogs("apps.core.views", "ERROR") as logs:
+            scraper.return_value.match_by_metadata.side_effect = sqlite3.OperationalError("no such table: cv_issue")
+            resp = self.client.get(f"/comics/{comic.pk}/scrape/preview/?force=1")
+        self.assertEqual(resp.status_code, 500)
+        data = resp.json()
+        self.assertFalse(data["success"])
+        self.assertIn("no such table: cv_issue", data["error"])
+        self.assertEqual(data["comic"]["series"], "Black Cat")
+        self.assertEqual(data["comic"]["number"], "14")
+        self.assertIsNotNone(logs.records[0].exc_info)

@@ -36,22 +36,13 @@ function openScrapeModal(pk, opts) {
         const e = document.getElementById('scrape-error');
         e.style.display = '';
         document.getElementById('scrape-error-text').textContent = data.error || 'Error loading matches';
+        // A failed local lookup still sends the comic: keep the search
+        // sections so it can be matched by hand
+        if (data.comic) _scrapeShowSearch(data.comic);
         return;
       }
 
-      const label = `${data.comic.series || ''} #${data.comic.number || ''}`.trim();
-      document.getElementById('scrape-modal-title').textContent = label;
-      document.getElementById('scrape-local-info').textContent = label;
-
-      const searchStr = `${data.comic.series || ''} ${data.comic.number || ''}`.trim();
-      document.getElementById('scrape-api-input').value = searchStr;
-      const inducksInput = document.getElementById('scrape-inducks-input');
-      if (inducksInput) inducksInput.value = searchStr;
-
-      const apiSection = document.getElementById('scrape-api-section');
-      apiSection.style.display = 'flex';
-      const inducksSection = document.getElementById('scrape-inducks-section');
-      if (inducksSection) inducksSection.style.display = 'flex';
+      _scrapeShowSearch(data.comic);
 
       if (data.matches.length === 0) {
         document.getElementById('scrape-local-matches').innerHTML =
@@ -67,6 +58,22 @@ function openScrapeModal(pk, opts) {
       document.getElementById('scrape-error').style.display = '';
       document.getElementById('scrape-error-text').textContent = 'Error: ' + err.message;
     });
+}
+
+function _scrapeShowSearch(comic) {
+  const label = `${comic.series || ''} #${comic.number || ''}`.trim();
+  document.getElementById('scrape-modal-title').textContent = label;
+  document.getElementById('scrape-local-info').textContent = label;
+
+  const searchStr = `${comic.series || ''} ${comic.number || ''}`.trim();
+  document.getElementById('scrape-api-input').value = searchStr;
+  const inducksInput = document.getElementById('scrape-inducks-input');
+  if (inducksInput) inducksInput.value = searchStr;
+
+  const apiSection = document.getElementById('scrape-api-section');
+  apiSection.style.display = 'flex';
+  const inducksSection = document.getElementById('scrape-inducks-section');
+  if (inducksSection) inducksSection.style.display = 'flex';
 }
 
 function _scrapeReset() {

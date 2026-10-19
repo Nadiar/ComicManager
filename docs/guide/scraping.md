@@ -295,7 +295,7 @@ docker compose exec web python manage.py scrape --max-distance 10     # override
 You can scrape a single comic from the comic's detail page, or directly from the comic list at `/comics/?state=scrape` using the per-row Scrape button.
 
 1. Click **Scrape** in the actions panel or on the row.
-2. The scrape modal opens and runs the matching layers automatically. The result shows the series name, issue number, publisher, ComicVine IDs, and match confidence score.
+2. The scrape modal opens and runs the matching layers automatically. The result shows the series name, issue number, publisher, ComicVine IDs, and match confidence score. If looking up local matches fails (for example with a damaged `comicvine.db`), the modal shows the reason and still offers the manual search.
 3. If the automatic match is wrong, you can search manually inside the modal using a different series name or issue number. Results are shown in batches of 3. Click **Show 3 more** to load additional results. Publisher and year for each result are fetched lazily in small batches to conserve API budget.
 4. For I.N.D.U.C.K.S., switch to the INDUCKS tab in the modal and search by publication title, story title, or story code.
 5. Click **Accept** to apply the match or **Reject** to discard it and leave the comic unchanged.
