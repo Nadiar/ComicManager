@@ -348,6 +348,7 @@ def _get_cbz_page_count(cbz_path: Path) -> tuple[int | None, bool]:
     Returns (count, is_corrupted):
     - (count, False) on success (count may be None if no images found)
     - (None, True) if the archive is corrupted or truncated
+    - (None, False) if the file can't be read (e.g. missing); that isn't corruption
     """
     try:
         from .cbz_utils import list_pages
@@ -356,6 +357,8 @@ def _get_cbz_page_count(cbz_path: Path) -> tuple[int | None, bool]:
             return (count if count > 0 else None, False)
     except (zipfile.BadZipFile, EOFError):
         return (None, True)
+    except OSError:
+        return (None, False)
 
 
 def refresh_file_info(comic: "Comic") -> dict:

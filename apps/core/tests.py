@@ -174,3 +174,32 @@ class ReconcileTests(TestCase):
         qt.refresh_from_db()
         self.assertEqual(n, 1)
         self.assertEqual(qt.state, QueuedTask.STATE_FAILED)
+
+
+class ComicDetailMissingFileTests(TestCase):
+    """The comic page must render when the comic's file is gone (unmounted disk, moved file)."""
+
+    MISSING = "/nonexistent/library/Sample Hero 001.cbz"
+
+    def _missing_comic(self):
+        from apps.core.models import Comic
+        return Comic.objects.create(series="Sample Hero", number="1", file_path=self.MISSING,
+                                    file_format="cbz")
+
+    def test_page_count_helper_returns_none_for_a_missing_file(self):
+        from pathlib import Path
+        from apps.core.services import _get_cbz_page_count
+        self.assertEqual(_get_cbz_page_count(Path(self.MISSING)), (None, False))
+
+    def test_detail_page_renders_when_file_is_missing(self):
+        comic = self._missing_comic()
+        resp = self.client.get(reverse("core:detail", args=[comic.pk]))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Sample Hero")
+
+    def test_missing_file_is_not_flagged_as_corrupted(self):
+        comic = self._missing_comic()
+        self.client.get(reverse("core:detail", args=[comic.pk]))
+        comic.refresh_from_db()
+        self.assertNotIn("corrupted_archive", comic.flags)
+        self.assertIsNone(comic.page_count)
