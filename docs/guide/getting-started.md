@@ -32,6 +32,7 @@ Open `.env` and set the required variables:
 | `DB_PASSWORD` | PostgreSQL password. |
 | `PORT` | Host port for the web interface. Default: `8381`. |
 | `ALLOWED_HOSTS` | Optional. Hostnames or IPs the UI may be accessed on. Add your server's address if you open ComicManager from another machine. Default: `localhost,127.0.0.1`. |
+| `CSRF_TRUSTED_ORIGINS` | Optional. Origins, including `https://`, allowed to submit forms when ComicManager is served over HTTPS behind a reverse proxy, e.g. `https://comicmanager.example.com`. Comma-separated. Default: none. |
 | `UNTAGGED_DIR` | Host path for incoming comics. Default: `./untagged`. |
 | `LIBRARY_DIR` | Host path for your organised library. Default: `./Comics`. |
 | `CACHE_URL` | Optional. Redis URL for the cache that holds the ComicVine API budget. Default: the Celery Redis server, database `1`. |
@@ -40,6 +41,10 @@ Open `.env` and set the required variables:
 If you open ComicManager from a phone or another computer and get an `Invalid HTTP_HOST header` error, add that machine's address to `ALLOWED_HOSTS` (comma-separated) and restart the `web` container.
 
 If your machine gets its address over DHCP, the IP can change and start rejecting requests again. Give the host a reserved or static IP, or list every address you use.
+:::
+
+::: tip Behind an HTTPS reverse proxy
+If pages load but saving settings or running actions fails with `CSRF verification failed`, add the public address, including `https://`, to `CSRF_TRUSTED_ORIGINS` (e.g. `CSRF_TRUSTED_ORIGINS=https://comicmanager.example.com`) and restart the `web` container. Its host name also belongs in `ALLOWED_HOSTS`.
 :::
 
 ---

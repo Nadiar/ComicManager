@@ -174,3 +174,23 @@ class ReconcileTests(TestCase):
         qt.refresh_from_db()
         self.assertEqual(n, 1)
         self.assertEqual(qt.state, QueuedTask.STATE_FAILED)
+
+
+class CsrfTrustedOriginsTests(TestCase):
+    """CSRF_TRUSTED_ORIGINS comes from a comma-separated environment variable."""
+
+    def _origins(self, value):
+        import importlib
+        import os
+        import comicmanager.settings as project_settings
+        with patch.dict(os.environ, {"CSRF_TRUSTED_ORIGINS": value}):
+            origins = importlib.reload(project_settings).CSRF_TRUSTED_ORIGINS
+        importlib.reload(project_settings)
+        return origins
+
+    def test_parses_and_trims_origins(self):
+        self.assertEqual(self._origins(" https://a.example , https://b.example ,"),
+                         ["https://a.example", "https://b.example"])
+
+    def test_blank_means_none(self):
+        self.assertEqual(self._origins(""), [])
