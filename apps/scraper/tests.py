@@ -188,3 +188,83 @@ class SharedPacingTests(TestCase):
         from apps.scraper import cv_sources
         with patch.object(cv_sources, "_redis", side_effect=ConnectionError("down")):
             self.assertFalse(cv_sources.wait_for_api_slot())
+
+
+def _set_setting(key, value, type_="bool"):
+    Setting.objects.update_or_create(key=key, defaults={"value": value, "type": type_})
+
+
+def _make_inducks_match(**overrides):
+    from apps.scraper.inducks import InducksMatch
+    fields = dict(
+        issuecode="xx/SA 1", publicationcode="xx/SA", series="Sample Anthology",
+        issue_number="1", title=None, cover_date=None, publisher=None, start_year=None,
+    )
+    fields.update(overrides)
+    return InducksMatch(**fields)
+
+
+class KeepPublisherNameTests(TestCase):
+    """scrape_keep_publisher: keep the comic's own publisher name on scrape."""
+
+    def test_default_replaces_publisher_with_comicvine_name(self):
+        comic = Comic.objects.create(series="S", number="1", state="counted", publisher="Sample")
+        apply_cv_match(comic, _make_match(publisher="Sample Comics"))
+        self.assertEqual(comic.publisher, "Sample Comics")
+
+    def test_setting_on_keeps_existing_publisher(self):
+        _set_setting("scrape_keep_publisher", "true")
+        comic = Comic.objects.create(series="S", number="1", state="counted", publisher="Sample")
+        apply_cv_match(comic, _make_match(publisher="Sample Comics"))
+        self.assertEqual(comic.publisher, "Sample")
+
+    def test_setting_on_still_fills_an_empty_publisher(self):
+        _set_setting("scrape_keep_publisher", "true")
+        comic = Comic.objects.create(series="S", number="1", state="counted")
+        apply_cv_match(comic, _make_match(publisher="Sample Comics"))
+        self.assertEqual(comic.publisher, "Sample Comics")
+
+    def test_inducks_match_respects_the_setting(self):
+        from apps.scraper.services import apply_inducks_match
+        _set_setting("scrape_keep_publisher", "true")
+        comic = Comic.objects.create(series="S", number="1", state="counted", publisher="Sample")
+        apply_inducks_match(comic, _make_inducks_match(publisher="Sample Publishing"))
+        self.assertEqual(comic.publisher, "Sample")
+
+    def test_setting_is_seeded_off(self):
+        from apps.core.models import get_setting
+        self.assertIs(get_setting("scrape_keep_publisher"), False)
+
+
+class UnknownPublisherFlagSettingTests(TestCase):
+    """flag_unknown_publisher: the unknown_publisher flag is optional (on by default)."""
+
+    def _scrape(self, known):
+        from unittest.mock import patch
+        comic = Comic.objects.create(series="S", number="1", state="counted")
+        with patch("apps.tagging.engine.is_publisher_known", return_value=known):
+            apply_cv_match(comic, _make_match(publisher="Small Sample Press"))
+        return comic
+
+    def test_default_flags_unknown_publisher(self):
+        self.assertIn("unknown_publisher", self._scrape(known=False).flags)
+
+    def test_known_publisher_is_not_flagged(self):
+        self.assertNotIn("unknown_publisher", self._scrape(known=True).flags)
+
+    def test_setting_off_never_flags(self):
+        _set_setting("flag_unknown_publisher", "false")
+        self.assertNotIn("unknown_publisher", self._scrape(known=False).flags)
+
+    def test_setting_off_clears_an_existing_flag(self):
+        from unittest.mock import patch
+        _set_setting("flag_unknown_publisher", "false")
+        comic = Comic.objects.create(series="S", number="1", state="counted")
+        comic.add_flag("unknown_publisher")
+        with patch("apps.tagging.engine.is_publisher_known", return_value=False):
+            apply_cv_match(comic, _make_match(publisher="Small Sample Press"))
+        self.assertNotIn("unknown_publisher", comic.flags)
+
+    def test_setting_is_seeded_on(self):
+        from apps.core.models import get_setting
+        self.assertIs(get_setting("flag_unknown_publisher"), True)

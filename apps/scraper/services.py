@@ -394,6 +394,28 @@ def _verify_cover_hash(comic, match, threshold=15):
         return True
 
 
+def _apply_publisher_name(comic, publisher):
+    """Set the scraped publisher, keeping the comic's own name when the setting says so."""
+    from apps.core.models import get_setting
+    if comic.publisher and get_setting("scrape_keep_publisher", False):
+        return
+    comic.publisher = publisher
+
+
+def _update_unknown_publisher_flag(comic):
+    """Flag publishers no tagging ruleset covers, unless that warning is turned off."""
+    from apps.core.models import get_setting
+    if not get_setting("flag_unknown_publisher", True):
+        comic.remove_flag("unknown_publisher")
+        return
+    if comic.publisher:
+        from apps.tagging.engine import is_publisher_known
+        if is_publisher_known(comic.publisher):
+            comic.remove_flag("unknown_publisher")
+        else:
+            comic.add_flag("unknown_publisher")
+
+
 def apply_cv_match(comic, match, scraper=None, insert_covers=True):
     """
     Apply ComicVine match data to a comic and advance its workflow state.
@@ -418,7 +440,7 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
     comic.series = match.series
     comic.number = match.issue_number
     comic.title = match.title
-    comic.publisher = match.publisher
+    _apply_publisher_name(comic, match.publisher)
     comic.count = match.issue_count
     if match.issue_count:
         comic.remove_flag("missing_count")
@@ -512,13 +534,7 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
     comic.remove_flag("metadata_mismatch")
     comic.remove_flag("scrape_skipped")
 
-    # Flag comics from publishers not covered by any tagging ruleset
-    if comic.publisher:
-        from apps.tagging.engine import is_publisher_known
-        if is_publisher_known(comic.publisher):
-            comic.remove_flag("unknown_publisher")
-        else:
-            comic.add_flag("unknown_publisher")
+    _update_unknown_publisher_flag(comic)
 
     # For physical comics store all cover URLs so the detail page can show them
     if comic.is_physical:
@@ -555,7 +571,7 @@ def apply_inducks_match(comic, match):
         comic.series = match.series
         comic.number = match.issue_number
         if match.publisher:
-            comic.publisher = match.publisher
+            _apply_publisher_name(comic, match.publisher)
     else:
         # Story-only: treat as a one-shot — use story title as series name
         if match.title:
@@ -628,13 +644,7 @@ def apply_inducks_match(comic, match):
     comic.remove_flag("metadata_mismatch")
     comic.remove_flag("scrape_skipped")
 
-    # Flag comics from publishers not covered by any tagging ruleset
-    if comic.publisher:
-        from apps.tagging.engine import is_publisher_known
-        if is_publisher_known(comic.publisher):
-            comic.remove_flag("unknown_publisher")
-        else:
-            comic.add_flag("unknown_publisher")
+    _update_unknown_publisher_flag(comic)
 
     # Inducks comics skip the count stage and go directly to tagging
     comic.state = Comic.STATE_TAGGED

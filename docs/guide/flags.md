@@ -138,7 +138,7 @@ Every time a scrape runs, batch or manual, it first clears `scrape_no_match`, `s
 
 `scrape_skipped` is a manual override. Use it for comics where you know ComicVine has no entry (magazines, custom comics, regional publications) and you don't want them clogging up the no-match queue. A successful scrape clears it.
 
-`unknown_publisher` appears after a successful scrape when the publisher returned by ComicVine isn't covered by any enabled ruleset. The comic tags and formats normally, but the tagging rules won't apply to it. The fix is to add a Publisher rule to the relevant ruleset. The flag will clear on the next scrape or tagging pass for that comic.
+`unknown_publisher` appears after a successful scrape when the publisher returned by ComicVine isn't covered by any enabled ruleset. The comic tags and formats normally, but the tagging rules won't apply to it. The fix is to add a Publisher rule to the relevant ruleset. The flag will clear on the next scrape or tagging pass for that comic. If you don't keep a ruleset for every publisher, turn off **Flag publishers not in a ruleset** (`flag_unknown_publisher`) in Settings → Scraping; the flag is then no longer added, and a re-scrape clears it.
 
 `missing_count` appears when ComicVine has no issue count recorded for the volume. It doesn't block the pipeline but it does affect format detection, which needs a count to distinguish One-Shot from Limited Series from Main Series.
 
