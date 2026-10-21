@@ -259,91 +259,199 @@ def find_best_match(comic, scraper, max_distance=None):
         match = try_hash_match(comic, scraper, max_distance=max_distance)
         if not match:
             match = try_metadata_match(comic, scraper)
-        if not match and get_setting("scrape_api_fallback", False):
-            match = try_api_metadata_match(comic, scraper)
+        if not match:
+            if get_setting("scrape_api_fallback", False):
+                match = try_api_metadata_match(comic, scraper)
+            else:
+                comic.flags["scrape_error_detail"] = (
+                    "no match in the local comicvine.db, and API fallback is off (Settings > Scraping)"
+                )
         return match
 
     return try_api_metadata_match(comic, scraper)
 
 
+# Volumes whose issues are looked up per comic, best ranked first. Each one
+# costs an /issues call, so a comic that is not in the first volume costs more.
+API_VOLUMES_TRIED = 3
+
+# Volume search results ranked per comic. Still one /search call; ComicVine
+# lists many regional reprints, so a new volume is often not in the first 10.
+API_VOLUME_RESULTS = 30
+
+
+def _as_int(value):
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def rank_api_volumes(comic, volumes):
+    """
+    Order API volume results by how likely they hold the comic's issue.
+
+    Volumes scoring 0 (series name too different, publisher excluded) are
+    dropped. A volume that started more than a year after the comic's year
+    cannot hold it and goes last. A volume with fewer issues than the comic's
+    number goes after the ones with enough; it is kept, because volumes with
+    legacy numbering (Amazing Spider-Man #800 in the 2015 volume) hold numbers
+    far above their count. Within each group the highest score comes first,
+    then the start year closest to the comic's year, so a relaunch with the
+    same name does not win over the run the issue belongs to, and then
+    ComicVine's own order.
+    """
+    cv_year = _as_int(comic.year or comic.proposed_year)
+    digits = re.match(r"\d+", normalize_issue_number(comic.number or comic.proposed_number))
+    number = int(digits.group()) if digits else None
+
+    ranked = []
+    for index, volume in enumerate(volumes):
+        score = metadata_alignment_score(comic, volume)
+        if score <= 0:
+            continue
+        start = _as_int(volume.start_year)
+        count = _as_int(volume.issue_count)
+        known = cv_year is not None and start is not None
+        starts_after = known and start > cv_year + 1
+        too_few = number is not None and count is not None and count < number
+        distance = abs(cv_year - start) if known else 0
+        ranked.append(((starts_after, too_few, -score, distance, index), volume))
+    ranked.sort(key=lambda r: r[0])
+    return [volume for _, volume in ranked]
+
+
 def try_api_metadata_match(comic, scraper):
     """
-    Match a comic using the ComicVine API with minimal calls.
+    Match a comic using the ComicVine API with few calls.
 
-    Strategy (inspired by comic-vine-scraper):
-    1. /search?resources=volume  — returns publisher/start_year/count inline,
-       no separate /volume calls needed.
-    2. /issues?filter=volume:{id},issue_number:{num}  — pinpoints the exact
-       issue within the matched volume without fetching all issues.
-    3. /issue/4000-{id}  — full details and credits for the winning issue.
+    1. /search?resources=volume finds up to API_VOLUME_RESULTS volumes by
+       series name, with publisher, start year and issue count inline, so no
+       /volume calls are needed.
+    2. /issues?filter=volume:{id},issue_number:{num} looks the issue up in up
+       to API_VOLUMES_TRIED volumes, best ranked first (rank_api_volumes).
+    3. When none of them gave a match, /search?resources=issue with
+       "series number", like the manual search. A result needs the same
+       number and a close series name (score 3 or more).
+    4. /issue/4000-{id} fetches full details and credits for the match.
 
-    Total: 3 calls, 0 /volume calls (vs the old approach of 1+N+1).
+    Every issue found has its cover checked against the comic's cover hash
+    (_verify_cover_hash) before step 4. A comic found in the first volume
+    costs 3 calls; at most it costs 1 + API_VOLUMES_TRIED + 2. When nothing
+    matches, the reason is stored in flags["scrape_error_detail"].
     """
     import logging
+    from apps.core.models import get_setting
     from apps.scraper.cv_sources import check_api_budget
 
     logger = logging.getLogger(__name__)
     cv_series = comic.series or comic.proposed_series
     cv_number = comic.number or comic.proposed_number
 
-    if not cv_series:
+    def give_up(reason):
+        comic.flags["scrape_error_detail"] = f"ComicVine API: {reason}"[:300]
+        logger.info("API match gave up for comic %s: %s", comic.pk, reason)
         return None
+
+    if not cv_series:
+        return give_up("the comic has no series name to search for")
+
+    out_of_budget = "the budget of 200 calls per hour is used up, try again later"
+
+    if not get_setting("cv_api_key", "").strip():
+        return give_up("no API key is set in Settings")
 
     if not check_api_budget(required=3):
-        logger.warning("CV API budget exhausted — skipping comic %s", comic.pk)
-        return None
+        return give_up(out_of_budget)
 
     # Step 1: search volumes by series name
-    volumes = scraper.search_volumes_api(cv_series, limit=10)
+    volumes = scraper.search_volumes_api(cv_series, limit=API_VOLUME_RESULTS)
     if not volumes:
-        return None
+        return give_up(f'no volume found for "{cv_series}"')
 
-    # Step 2: score volumes by series + year, pick the best match
-    scored = [(v, metadata_alignment_score(comic, v)) for v in volumes]
-    scored = [(v, s) for v, s in scored if s > 0]
-    if not scored:
-        return None
-    scored.sort(key=lambda x: -x[1])
-    best_volume = scored[0][0]
+    candidates = rank_api_volumes(comic, volumes)
+    if not candidates:
+        return give_up(
+            f'none of the {len(volumes)} volumes found for "{cv_series}" has a similar name '
+            f"and an allowed publisher"
+        )
+    if not cv_number:
+        # No issue number to filter on: only a one-shot can be looked up, as #1
+        if candidates[0].issue_count != 1:
+            return give_up("the comic has no issue number and the best volume is not a one-shot")
+        candidates = candidates[:1]
+    number = cv_number or "1"
 
-    if not check_api_budget(required=2):
-        logger.warning("CV API budget too low for issue lookup — skipping comic %s", comic.pk)
-        return None
+    not_found = []  # volumes without the issue
+    rejected = []  # issues whose cover does not match
+    unfetched = []  # issues whose details could not be fetched
+    checked = set()
 
-    # Step 3: find the specific issue within the matched volume
-    if cv_number:
-        issue = scraper.get_issue_by_volume_and_number(best_volume.volume_id, cv_number)
-        if not issue:
+    def fetch(issue, label, match_type):
+        """Check the issue's cover, then fetch its details. None when either fails."""
+        checked.add(issue.issue_id)
+        comic.flags.pop("scrape_error_detail", None)
+        if not _verify_cover_hash(comic, issue):
+            reason = comic.flags.pop("scrape_error_detail", None) or "cover hash mismatch"
+            rejected.append(f"{label} ({reason})")
+            logger.info("API match rejected by cover hash for comic %s (issue %s)", comic.pk, issue.issue_id)
             return None
-        issue_id = issue.issue_id
-    else:
-        # No issue number — can't filter, skip the /issues call
-        # Fall back to the first issue in the best-matching volume if it's a one-shot
-        if best_volume.issue_count == 1:
-            issue = scraper.get_issue_by_volume_and_number(best_volume.volume_id, "1")
-            if not issue:
-                return None
-            issue_id = issue.issue_id
-        else:
+        detailed = scraper.get_issue_from_api(issue.issue_id)
+        if not detailed:
+            unfetched.append(issue.issue_id)
             return None
-
-    if not check_api_budget(required=1):
-        return None
-
-    # Step 4: fetch full issue details with credits
-    detailed = scraper.get_issue_from_api(issue_id)
-    if detailed:
-        if not _verify_cover_hash(comic, detailed):
-            logger.info(
-                "API match rejected by cover hash for comic %s (issue %s)",
-                comic.pk,
-                issue_id,
-            )
-            return None
-        detailed.match_type = "api+volume+detail"
+        detailed.match_type = match_type
         return detailed
 
-    return None
+    # Step 2: find the issue in the best ranked volumes
+    for volume in candidates[:API_VOLUMES_TRIED]:
+        if not check_api_budget(required=2):
+            return give_up(out_of_budget)
+        label = f"{volume.series} ({volume.start_year})" if volume.start_year else volume.series
+        issue = scraper.get_issue_by_volume_and_number(volume.volume_id, number)
+        if not issue:
+            not_found.append(label)
+            continue
+        detailed = fetch(issue, f"{label} #{issue.issue_number}", "api+volume+detail")
+        if detailed:
+            return detailed
+        if unfetched:
+            return give_up(f"could not fetch the details of issue 4000-{unfetched[0]}")
+
+    # Step 3: search issues like the manual search does
+    found = []
+    if cv_number:
+        if not check_api_budget(required=2):
+            return give_up(out_of_budget)
+        publishers = {v.volume_id: v.publisher for v in volumes}
+        for match in scraper.search_api(f"{cv_series} {cv_number}", limit=10):
+            if match.issue_id in checked:
+                continue
+            if not match.publisher:
+                match.publisher = publishers.get(match.volume_id)
+            score = metadata_alignment_score(comic, match)
+            if score >= 3:
+                found.append((match, score))
+        found.sort(key=lambda f: -f[1])
+        for match, _ in found[:API_VOLUMES_TRIED]:
+            label = f"{match.series} #{match.issue_number}"
+            detailed = fetch(match, label, "api+search+detail")
+            if detailed:
+                return detailed
+            if unfetched:
+                return give_up(f"could not fetch the details of issue 4000-{unfetched[0]}")
+
+    reasons = []
+    if not_found:
+        reasons.append(f"#{number} is not in " + ", ".join(not_found))
+    if rejected:
+        reasons.append("the cover does not match " + "; ".join(rejected))
+    if cv_number and not found:
+        reasons.append(
+            f'the issue search for "{cv_series} {cv_number}" found no other issue with that number '
+            f"and a close series name"
+        )
+    return give_up("; ".join(reasons))
 
 
 def _verify_cover_hash(comic, match, threshold=15):

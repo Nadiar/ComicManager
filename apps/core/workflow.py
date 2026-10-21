@@ -360,7 +360,7 @@ def scrape(
         log_batch_entry("scrape_all", comic, state_before, comic.state, no_match_changes)
         return ActionResult(
             action="scrape", success=False,
-            message="No match found in ComicVine database",
+            message=f"No match found: {detail_msg}" if detail_msg else "No match found in ComicVine database",
             state_before=state_before, state_after=comic.state,
             detail={"matched": False},
         )
