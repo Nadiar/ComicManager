@@ -13,9 +13,9 @@ Configure how ComicManager interacts with external metadata sources.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `cv_api_key` | _(empty)_ | Your ComicVine API key. Required if you are not using a local `comicvine.db`. Get one at comicvine.gamespot.com/api/ |
-| `scrape_api_fallback` | `false` | When `comicvine.db` is present but returns no match, also try the ComicVine API. Uses your API budget (3 calls per comic). |
+| `scrape_api_fallback` | `false` | When `comicvine.db` is present but returns no match, also try the ComicVine API. Uses your API budget: 3 calls for a comic found in the first volume, at most 6. See [How Matching Works](/guide/scraping#how-matching-works). |
 | `scrape_0day_hours` | `24` | Window (in hours) used by the **Last Xh** button on the dashboard New Comics card. Clicking that button runs the full pipeline only on comics imported within this window. Useful for processing today's new arrivals without touching the backlog. |
-| `scrape_hash_threshold` | `8` | Maximum Hamming distance for a pHash cover match to be accepted. Lower = stricter. Range: 0 (exact) to ~20 (loose). |
+| `scrape_hash_threshold` | `8` | Maximum Hamming distance for the cover hash match against `comicvine.db`: a cover is a candidate when its pHash or its aHash distance is within it. Lower = stricter. Range: 0 (exact) to ~20 (loose). |
 | `scrape_publisher_allow` | _(empty)_ | Comma-separated publisher names. When set, auto-match only accepts matches whose publisher contains one of these (e.g. `DC, Marvel, Image`). Leave blank to allow all. See [Publisher filtering](/guide/scraping#publisher-filtering). |
 | `scrape_publisher_block` | _(empty)_ | Comma-separated publisher names auto-match must never pick (e.g. `Panini, Editorial Televisa`). Applied after the allow list. See [Publisher filtering](/guide/scraping#publisher-filtering). |
 | `scrape_insert_covers` | `true` | Insert variant covers immediately when scraping a single comic manually. If disabled, cover URLs are saved and inserted at Write time instead. |

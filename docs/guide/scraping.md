@@ -26,7 +26,7 @@ Place `comicvine.db` (a SQLite export of the ComicVine index) at `data/comicvine
 
 - Cover image hashing runs entirely locally, with no API calls needed for matching
 - Metadata lookups are *almost* instant SQLite queries
-- The API is only used as a last resort fallback
+- The API is only used as a last resort, and only when **API fallback** is turned on in **Settings → Scraping**
 
 ::: info Where to get comicvine.db
 A proof-of-concept offline ComicVine database was posted here: [An offline ComicVine tagger (r/comicrackusers)](https://old.reddit.com/r/comicrackusers/comments/1q7rex8/here_it_is_an_offline_comicvine_tagger_for/)
@@ -46,7 +46,7 @@ The one feature that requires an additional file is **Series Audit** (tracking w
 If neither `comicvine.db` nor `latest.mcl` is present, Series Audit is disabled with an explanatory message.
 
 ::: tip API rate limits
-ComicVine enforces a 200 calls/hour limit. ComicManager tracks usage in Redis and will skip comics when the budget is exhausted. API calls are spaced at least 1.1 seconds apart across the whole app (web and worker share the spacing through Redis).
+ComicVine enforces a 200 calls/hour limit. ComicManager tracks usage in Redis. When the budget runs out, a batch scrape stops and reports how many comics it got through, and a single scrape gets no match with the budget as the reason. API calls are spaced at least 1.1 seconds apart across the whole app (web and worker share the spacing through Redis).
 :::
 
 To use API mode, set your **ComicVine API Key** in Settings.
@@ -91,92 +91,111 @@ Physical comics and comics without a readable CBZ cover will have no hashes stor
 
 ## How Matching Works
 
-ComicManager uses a layered, fallback matching strategy. Each layer is tried in order until a confident match is found.
+ComicManager matches a comic against ComicVine in up to three layers and stops at the first one that finds a match. This is the automatic match used by batch scraping, **Run Pipeline**, a comic's automatic scrape and `manage.py scrape`. Picking an issue by hand in the scrape window skips it. The dry run preview runs only Layers 1 and 2, with the values parsed from the filename and without the API.
 
 ```
-                    ┌──────────────┐
-                    │   CBZ file   │
-                    └──────┬───────┘
-                           │
-              ┌────────────┴─────────────┐
-              │                          │
-       comicvine.db present        no comicvine.db
-              │                          │
-              ▼                          │
-   ┌──────────────────────┐              │
-   │ Layer 1              │              │
-   ├──────────────────────┤              │
-   │ Cover Hash Match     │              │
-   │ pHash + aHash vs.    │              │
-   │ all DB covers        │              │
-   └──────────┬───────────┘              │
-              │                          │
-        ┌─────┴──────┐                   │
-     score > 0    no match               │
-        │            │                   │
-        ▼            ▼                   │
-    ┌───────┐  ┌───────────────────┐     │
-    │ MATCH │  │ Layer 2           │     │
-    └───────┘  ├───────────────────┤     │
-               │ Metadata Match    │     │
-               │ Fuzzy series name │     │
-               │ + number vs. DB   │     │
-               └────────┬──────────┘     │
-                        │                │
-                  ┌─────┴──────┐         │
-               score > 0    no match     │
-                  │            │         └───────────────────┐
-                  ▼            ▼                             │
-              ┌───────┐  ┌────────────────────────────┐      |
-              │ MATCH │  │ scrape_api_fallback        │      |
-              └───────┘  │ enabled? (DB-only option)  │      |
-                         └──────┬─────────────────────┘      |
-                                │                            |
-                    ┌───────────┴────────────┐               |
-                   yes                       no              |
-                    │                        │               |
-                    │               ┌────────────────────┐   |
-                    │               │  scrape_no_match   │   |
-                    │               │  flag set          │   |
-                    │               └────────────────────┘   |
-                    │                                        |
-                    └─────────────────┐       ┌──────────────┘
-                                      │       |
-                                      ▼       ▼
-                          ┌─────────────────────────────┐
-                          │ Layer 3                     │
-                          ├─────────────────────────────┤
-                          │ CV API Volume Search        │
-                          │ 1. /search?resources=       │
-                          │    volume (series name)     │
-                          │ 2. /issues?filter=          │
-                          │    volume:{id},             │
-                          │    issue_number:{num}       │
-                          │ 3. /issue/4000-{id}         │
-                          │    (full details + credits) │
-                          │ 4. Cover hash verification  │
-                          │    Download CV cover and    │
-                          │    compare vs local hash.   │
-                          │    Reject if dist > 15.     │
-                          └───────────┬─────────────────┘
-                                      │
-                         ┌────────────┴─────────────┐
-                    hash agrees or               hash disagrees
-                    no local hash                 (dist > 15)
-                         │                           │
-                         ▼                           ▼
-                     ┌───────┐         ┌─────────────────────┐
-                     │ MATCH │         │  scrape_no_match    │
-                     └───────┘         │  reason stored in   │
-                                       │  scrape_error_detail│
-                                       └─────────────────────┘
+                 ┌─────────────────────────────────┐
+                 │ Automatic match                 │
+                 │ the comic's series, number and  │
+                 │ year (parsed from the filename  │
+                 │ when the fields are empty)      │
+                 └────────────────┬────────────────┘
+                                  │
+            ┌─────────────────────┴──────────────────────┐
+   comicvine.db readable                         no comicvine.db
+            │                                            │
+            ▼                                            │
+┌───────────────────────────────┐                        │
+│ Layer 1: Cover Hash Match     │                        │
+├───────────────────────────────┤                        │
+│ Hash the file's cover (pHash  │                        │
+│ and aHash). Take up to 10 DB  │                        │
+│ covers whose pHash OR aHash   │                        │
+│ distance is within the        │                        │
+│ threshold (8), closest first, │                        │
+│ and score each one            │                        │
+└───────────────┬───────────────┘                        │
+        ┌───────┴──────────┐                             │
+  best score > 0     no file, no cover                   │
+        │            close enough, or                    │
+        ▼            every score is 0                    │
+    ┌───────┐              │                             │
+    │ MATCH │              ▼                             │
+    └───────┘  ┌───────────────────────────────┐         │
+               │ Layer 2: Metadata Match       │         │
+               ├───────────────────────────────┤         │
+               │ a. volume name = series (any  │         │
+               │    case), same number, start  │         │
+               │    year = the comic's year    │         │
+               │    (when it has one)          │         │
+               │ b. only if a. finds nothing:  │         │
+               │    name contains the series,  │         │
+               │    same number, any year      │         │
+               │ Excluded publishers dropped,  │         │
+               │ most issues first; first wins │         │
+               └───────────────┬───────────────┘         │
+                       ┌───────┴────────┐                │
+                   a result           none               │
+                       │                │                │
+                       ▼                ▼                │
+                   ┌───────┐  ┌───────────────────┐      │
+                   │ MATCH │  │ API fallback on?  │      │
+                   └───────┘  │ Settings>Scraping │      │
+                              └─────────┬─────────┘      │
+                               ┌────────┴────────┐       │
+                              no                yes      │
+                               │                 │       │
+                               ▼                 ▼       ▼
+                    ┌─────────────────┐  ┌───────────────────────────┐
+                    │ NO MATCH        │  │ Layer 3: ComicVine API    │
+                    │ reason: API     │  ├───────────────────────────┤
+                    │ fallback is off │  │ Needs an API key and 3    │
+                    └─────────────────┘  │ calls left this hour      │
+                                         │ 1. /search volumes by     │
+                                         │    series name (30), rank │
+                                         │    them (see Layer 3)     │
+                                         │ 2. /issues: the number in │
+                                         │    the best 3 volumes,    │
+                                         │    one at a time          │
+                                         │ 3. only if 2. gave no     │
+                                         │    match and there is a   │
+                                         │    number: /search issues │
+                                         │    "series number", up to │
+                                         │    3 results with the     │
+                                         │    same number, score 3+  │
+                                         └─────────────┬─────────────┘
+                                                       │ each issue found,
+                                                       │ in that order
+                                                       ▼
+                                         ┌───────────────────────────┐
+                                         │ Cover check: ComicVine's  │
+                                         │ cover vs the comic's      │
+                                         │ pHash and aHash           │
+                                         └─────────────┬─────────────┘
+                                    ┌──────────────────┴─────────────┐
+                         both distances <= 15,            a distance > 15
+                         or nothing to compare                       │
+                                    │                                │
+                                    ▼                                ▼
+                      ┌───────────────────────────┐  ┌────────────────────────┐
+                      │ 4. /issue/4000-{id}:      │  │ try the next issue;    │
+                      │    details and credits    │  │ none left: NO MATCH,   │
+                      └─────────────┬─────────────┘  │ the reason names the   │
+                                    ▼                │ volumes and covers     │
+                                ┌───────┐            │ that were tried        │
+                                │ MATCH │            └────────────────────────┘
+                                └───────┘
 ```
 
-"Hash agrees or no local hash" covers two cases that both accept the match: either the downloaded ComicVine cover's hash is within distance 15 of the comic's stored hash, or the comic has no stored hash to compare against in the first place (physical comics, unhashed archives), so verification is skipped and the match is accepted as-is.
+When nothing matches, the comic gets the `scrape_no_match` flag and stays in Scrape. The reason is saved in `flags.scrape_error_detail` and shown in the scrape result message (`No match found: ...`), in the error list of a batch scrape, and as `reason` in the comic's Audit Log entry. For example:
+
+- `no match in the local comicvine.db, and API fallback is off (Settings > Scraping)`
+- `ComicVine API: #45 is not in Star Wars (1977); the cover does not match Star Wars (2015) #45 (cover hash mismatch (phash dist 30, ahash dist 24)); the issue search for "Star Wars 45" found no other issue with that number and a close series name`
+- `ComicVine API: the budget of 200 calls per hour is used up, try again later`
 
 ### Layer 1: Cover Image Hash Match (DB mode only)
 
-The stored cover hashes (computed at accept time, see above) are compared against all covers in `comicvine.db` using Hamming distance.
+The comic's cover is read from the file and hashed (pHash and aHash), and the hashes are saved on the comic. They are compared with every cover in `comicvine.db` that has both hashes, using Hamming distance. A cover is a candidate when its pHash distance or its aHash distance is within the **Hash match threshold** (`scrape_hash_threshold`, default 8). Up to 10 candidates are kept, closest first by the sum of both distances. Comics without a file, such as physical comics, skip this layer. If the hash table in `comicvine.db` can't be read, the error goes to the container log and this layer finds nothing.
 
 Why this is the most reliable method: hashes are based on the actual pixels of the cover, so they match even if the filename is completely wrong or the metadata is absent. It also means we avoid needing an LLM or OCR to extract information from the cover image. The downside is that if a cover variant looks significantly different from the one in the database, no hash match will be found. In practice this has not been a major issue.
 
@@ -196,7 +215,7 @@ The match is scored:
 | 3 | Matches | Partial match | Within ±2 | Accepted |
 | 4 | Matches | Exact match | Within ±2 | Accepted (best) |
 
-Only candidates with score > 0 are accepted. The highest-scoring candidate wins; ties are broken by lowest combined hash distance.
+An issue number that is missing on either side is not compared, and a comic with neither a series nor a number scores 1. Only candidates with score > 0 are accepted. The highest-scoring candidate wins; ties are broken by lowest combined hash distance.
 
 **Examples**, given a comic parsed as `Batman #1, 2011`:
 
@@ -212,22 +231,29 @@ A candidate also scores 0 if its publisher is excluded by the allow or block lis
 
 ### Layer 2: Metadata Match (DB mode only)
 
-If no hash match passes validation, ComicManager queries the local DB using the comic's `proposed_series` and `proposed_number`. It first attempts an exact case-insensitive series name match, then falls back to a substring query if nothing is found. Series name variations like "Batman: Year One" vs "Batman Year One" are handled by the same string normalisation used in Layer 1.
+If no hash candidate scores above 0, ComicManager looks the comic up in `comicvine.db` by name. This needs a series. The series, number and year are the comic's own, or the ones parsed from the filename when those fields are empty.
+
+1. Volumes whose name equals the series, ignoring case, with an issue of the same number (as written or without leading zeros). When the comic has a year, the volume's **start year** must equal it.
+2. Only if the first query finds nothing: volumes whose name contains the series, ignoring case, with an issue of the same number, in any year.
+
+Each query returns at most 10 issues, from the volume with the most issues first. Matches from excluded publishers are removed (see [Publisher Filtering](#publisher-filtering)), and the first one left wins. This layer gives no score and does no cover check, and the names are compared as written, so `Batman: Year One` does not find `Batman Year One`.
+
+The year is compared with the volume's start year, while a comic's year is usually its cover year. For an issue from a later year than its volume's first, the first query finds nothing, and the second one takes the longest volume with that name and number, which can be the wrong one. For example, `Batman #100` from 2020 can match `Batman #100` from the 1940 run. This is a known limitation.
 
 ### Layer 3: API Search (API mode or DB fallback)
 
-In API-only mode (or when the local DB has no match and the **API fallback** setting is enabled), ComicManager uses a volume-based search strategy:
+In API-only mode, or when Layers 1 and 2 found nothing and **API fallback** (`scrape_api_fallback`) is on, ComicManager asks the ComicVine API. This needs an API key in Settings and a series.
 
-1. `/search?resources=volume` searches for volumes by series name. Publisher, start year, and issue count are returned inline, so no separate `/volume` calls are needed.
-2. `/issues?filter=volume:{id},issue_number:{num}` finds the specific issue within the best-scoring volume.
-3. `/issue/4000-{id}` fetches full details and credits for the matched issue.
-4. **Cover hash verification.** The cover URL returned by the API is downloaded and hashed. The result is compared against the comic's stored pHash and aHash using Hamming distance. If both distances are within 15 (a more lenient threshold than Layer 1 uses, to account for crop and edition differences), the match is accepted. If either distance exceeds 15, the match is rejected and `scrape_no_match` is set with a reason stored in `flags.scrape_error_detail` (e.g. `cover hash mismatch (phash dist 42, ahash dist 38)`).
+1. `/search?resources=volume` searches volumes by series name. It returns up to 30 volumes with publisher, start year and issue count, so no `/volume` calls are needed. Volumes that score 0 (name too different, publisher excluded) are dropped, and the rest are ranked:
+    - A volume that started more than a year after the comic's year goes last.
+    - A volume with fewer issues than the comic's number goes after the volumes with enough. It is kept, because volumes with legacy numbering, like Amazing Spider-Man #800 in the 2015 volume, hold numbers above their issue count. ComicVine also lists many regional reprints with only a few issues, which this moves out of the way.
+    - Within those groups: the highest score first, then the start year closest to the comic's year, then ComicVine's own order.
+2. `/issues?filter=volume:{id},issue_number:{num}` looks the number up in the best-ranked volume, then in the next one, up to 3 volumes. A comic without a number is only looked up when the best volume is a one-shot, as #1.
+3. If none of the volumes gave a match and the comic has a number: `/search?resources=issue` with "series number", the same search as the scrape window's **Search API** tab. Issues already checked are skipped. The rest need the same number and a score of 3 or more (an exact series name, or a partial one with a year within 2), and up to 3 of them are checked, best score first. These results carry no publisher, so it is taken from the volume search when the issue's volume was among those results, and the publisher lists apply to it.
+4. **Cover check.** Every issue found in step 2 or 3 is checked before anything else is fetched. ComicVine's cover is downloaded and hashed, and compared with the comic's pHash and aHash. Both distances must be within 15, a more lenient threshold than Layer 1 uses, to allow for crop and edition differences; otherwise the next issue is tried. The check is skipped, and the issue accepted, when the comic has no cover hashes and none can be made from its file (physical comics, unreadable archives), when ComicVine has no cover image, or when the download fails.
+5. `/issue/4000-{id}` fetches the full details and credits of the first issue that passes. The match type is `api+volume+detail` when it came from step 2 and `api+search+detail` when it came from step 3. If the details can't be fetched, the comic gets no match.
 
-Cover verification is skipped automatically when the comic has no stored hashes (physical comics, unhashed archives) or when the API returns no cover URL. In those cases the metadata match is accepted as-is.
-
-This costs exactly **3 API calls total**: one call each to `/search`, `/issues`, and `/issue` (steps 1 through 3 above), and **0 calls to `/volume`**. The cover image download in step 4 is a plain image fetch, not an API call, and does not count against the hourly budget.
-
-Before attempting a search, the remaining API budget is checked. If fewer than 3 calls are available, the comic is skipped rather than errored and can be retried in the next budget window.
+**API calls:** a comic found in the first volume costs 3 calls: `/search`, `/issues` and `/issue`. Each further volume costs one more, and the issue search one more, so a comic costs at most 6. The cover download is a plain image fetch, not an API call, and does not count against the hourly budget of 200 calls. The volume search only starts with at least 3 calls left in the hour, and every further lookup needs 2 left; otherwise the comic gets no match with the budget as the reason. A batch scrape in API-only mode stops as soon as fewer than 3 calls are left and reports how many comics it got through.
 
 ## Publisher Filtering
 
