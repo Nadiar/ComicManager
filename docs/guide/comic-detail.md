@@ -30,8 +30,9 @@ Variant or alternate covers (when present) are displayed in a horizontal strip b
 
 Next to the cover, the metadata column shows:
 
-- **Breadcrumb**: publisher › series, linking to filtered list views
+- **Breadcrumb**: publisher › series. The publisher opens the comic list filtered to that publisher; the series opens the list searching that series in its volume (e.g. `Saga V2012`)
 - **Title block**: series name, issue number, and full title
+- **Previous / Next issue**: step through the same series and volume in issue order (1, 1.5, 2, 10). Issues you don't have are skipped, other copies of the same number are ignored, and the button is greyed out at the first or last issue
 - **Chips**: format badge, state badge, medium badge, and any notable flags
 - **Info grid**: volume, year, count (of issues in the series), and import date
 - **Series completion bar**: a progress bar showing how many issues in the series are present in the library (can be disabled in Settings)

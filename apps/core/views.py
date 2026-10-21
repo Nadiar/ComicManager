@@ -512,8 +512,20 @@ def comic_detail(request, pk):
 
     teams_list = [t.strip() for t in comic.teams.split(",") if t.strip()] if comic.teams else []
 
+    from urllib.parse import urlencode
+    from .services import adjacent_issues
+    prev_issue, next_issue = adjacent_issues(comic)
+    # Series breadcrumb: the list search understands "V<volume>"
+    series_params = {"q": f"{comic.series} V{comic.volume}" if comic.volume else comic.series}
+    if comic.publisher:
+        series_params["publisher"] = comic.publisher
+
     return render(request, "core/comic_detail.html", {
         "comic": comic,
+        "prev_issue": prev_issue,
+        "next_issue": next_issue,
+        "publisher_url": f"/comics/?{urlencode({'publisher': comic.publisher})}" if comic.publisher else "",
+        "series_url": f"/comics/?{urlencode(series_params)}" if comic.series else "",
         "xml_data": xml_data,
         "raw_xml_string": raw_xml_string,
         "comparison": comparison,

@@ -619,3 +619,23 @@ def detect_and_set_format(comic, _one_shot_max=None, _limited_max=None) -> dict:
         "detected_format": detected,
         "format_changed": old_format != comic.format,
     }
+
+
+
+def adjacent_issues(comic):
+    """(previous, next) comic in the same series and volume, in the comic list's order.
+
+    Issues not in the library are skipped; other copies of the same number are ignored.
+    """
+    if not comic.series:
+        return None, None
+    from .utils import natural_sort_key
+
+    def order(c):
+        return natural_sort_key(c)[1:]  # without the series, which may differ in case
+
+    current = order(comic)
+    siblings = Comic.objects.filter(series__iexact=comic.series, volume=comic.volume).exclude(pk=comic.pk)
+    earlier = [c for c in siblings if order(c) < current]
+    later = [c for c in siblings if order(c) > current]
+    return max(earlier, key=order, default=None), min(later, key=order, default=None)

@@ -174,3 +174,118 @@ class ReconcileTests(TestCase):
         qt.refresh_from_db()
         self.assertEqual(n, 1)
         self.assertEqual(qt.state, QueuedTask.STATE_FAILED)
+
+
+class AdjacentIssuesTests(TestCase):
+    """Previous/next issue for the comic page: same series + volume, nearest owned issue."""
+
+    def _comic(self, number, series="Sample Hero", volume=1, **extra):
+        from apps.core.models import Comic
+        return Comic.objects.create(series=series, number=number, volume=volume, **extra)
+
+    def _adjacent(self, comic):
+        from apps.core.services import adjacent_issues
+        return adjacent_issues(comic)
+
+    def test_orders_numerically_including_decimals(self):
+        one, one_half, two, ten = (self._comic(n) for n in ("1", "1.5", "2", "10"))
+        self.assertEqual(self._adjacent(one_half), (one, two))
+        self.assertEqual(self._adjacent(two), (one_half, ten))
+
+    def test_skips_missing_issues_to_the_nearest_owned(self):
+        three, seven = self._comic("3"), self._comic("7")
+        self.assertEqual(self._adjacent(three), (None, seven))
+        self.assertEqual(self._adjacent(seven), (three, None))
+
+    def test_ignores_other_series_and_volumes(self):
+        current = self._comic("5")
+        self._comic("4", series="Another Hero")
+        self._comic("6", volume=2)
+        self.assertEqual(self._adjacent(current), (None, None))
+
+    def test_series_match_is_case_insensitive(self):
+        current = self._comic("2")
+        prev = self._comic("1", series="SAMPLE HERO")
+        self.assertEqual(self._adjacent(current)[0], prev)
+
+    def test_other_copies_of_the_same_number_are_not_neighbours(self):
+        current = self._comic("5")
+        self._comic("5", file_path="/copy/sample-hero-5.cbz")
+        nxt = self._comic("6")
+        self.assertEqual(self._adjacent(current), (None, nxt))
+
+    def test_non_numeric_numbers_sort_last(self):
+        one, annual = self._comic("1"), self._comic("Annual")
+        self.assertEqual(self._adjacent(one), (None, annual))
+        self.assertEqual(self._adjacent(annual), (one, None))
+
+    def test_comic_without_series_has_no_neighbours(self):
+        from apps.core.models import Comic
+        lone = Comic.objects.create(number="1")
+        self.assertEqual(self._adjacent(lone), (None, None))
+
+
+class ComicDetailNavigationTests(TestCase):
+    """Comic page context: previous/next issue and breadcrumb links."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.create_user("nav", password="pw")
+        self.client.force_login(user)
+
+    def _comic(self, number, **extra):
+        from apps.core.models import Comic
+        fields = {"series": "Sample & Co", "volume": 1, "publisher": "Sample Press", **extra}
+        return Comic.objects.create(number=number, **fields)
+
+    def _context(self, comic):
+        resp = self.client.get(reverse("core:detail", args=[comic.pk]))
+        self.assertEqual(resp.status_code, 200)
+        return resp
+
+    def test_context_has_previous_and_next_issue(self):
+        first, current, last = self._comic("1"), self._comic("2"), self._comic("3")
+        resp = self._context(current)
+        self.assertEqual(resp.context["prev_issue"], first)
+        self.assertEqual(resp.context["next_issue"], last)
+
+    def test_breadcrumb_urls_are_encoded_list_filters(self):
+        resp = self._context(self._comic("1"))
+        self.assertEqual(resp.context["publisher_url"], "/comics/?publisher=Sample+Press")
+        self.assertEqual(
+            resp.context["series_url"],
+            "/comics/?q=Sample+%26+Co+V1&publisher=Sample+Press",
+        )
+
+    def test_series_url_without_volume_or_publisher(self):
+        resp = self._context(self._comic("1", volume=None, publisher=None))
+        self.assertEqual(resp.context["publisher_url"], "")
+        self.assertEqual(resp.context["series_url"], "/comics/?q=Sample+%26+Co")
+
+    def test_no_series_means_no_series_url(self):
+        resp = self._context(self._comic("1", series=None))
+        self.assertEqual(resp.context["series_url"], "")
+
+    def test_page_links_previous_and_next_issue(self):
+        first, current, last = self._comic("1"), self._comic("2"), self._comic("3")
+        html = self._context(current).content.decode()
+        self.assertIn(f'href="{reverse("core:detail", args=[first.pk])}"', html)
+        self.assertIn(f'href="{reverse("core:detail", args=[last.pk])}"', html)
+        self.assertIn("Previous issue (#1)", html)
+        self.assertIn("Next issue (#3)", html)
+
+    def test_first_issue_has_previous_disabled(self):
+        first, second = self._comic("1"), self._comic("2")
+        html = self._context(first).content.decode()
+        self.assertIn('aria-disabled="true" style="opacity:.4;">&lsaquo; Previous issue</span>', html)
+        self.assertIn(f'href="{reverse("core:detail", args=[second.pk])}"', html)
+
+    def test_no_buttons_without_other_issues(self):
+        html = self._context(self._comic("1")).content.decode()
+        self.assertNotIn("Previous issue", html)
+        self.assertNotIn("Next issue", html)
+
+    def test_breadcrumbs_are_ghost_button_links(self):
+        html = self._context(self._comic("1")).content.decode()
+        self.assertIn('href="/comics/?publisher=Sample+Press" class="cm-btn sm ghost"', html)
+        self.assertIn('href="/comics/?q=Sample+%26+Co+V1&amp;publisher=Sample+Press" class="cm-btn sm ghost"', html)

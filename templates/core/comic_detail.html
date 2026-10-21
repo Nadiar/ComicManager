@@ -72,8 +72,8 @@
             <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="15,18 9,12 15,6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Comics
           </a>
-          {% if comic.publisher %}<span>/</span><span>{{ comic.publisher }}</span>{% endif %}
-          <span>/</span><span style="color:var(--cm-fg-1);">{{ comic.series|default:"Unknown Series" }}</span>
+          {% if comic.publisher %}<span>/</span><a href="{{ publisher_url }}" class="cm-btn sm ghost" style="padding:0 6px; text-decoration:none;" title="Show all {{ comic.publisher }} comics">{{ comic.publisher }}</a>{% endif %}
+          <span>/</span>{% if series_url %}<a href="{{ series_url }}" class="cm-btn sm ghost" style="padding:0 6px; text-decoration:none; color:var(--cm-fg-1);" title="Show this volume">{{ comic.series }}</a>{% else %}<span style="color:var(--cm-fg-1);">Unknown Series</span>{% endif %}
         </div>
 
         <!-- Title -->
@@ -83,6 +83,15 @@
             <span class="mono tnum" style="font-size:18px; color:var(--cm-fg-2); font-weight:600;">#{{ comic.number|default:"?" }}</span>
           </div>
           {% if comic.title %}<div style="font-size:14px; color:var(--cm-fg-1); margin-top:2px;">"{{ comic.title }}"</div>{% endif %}
+          {% if prev_issue or next_issue %}
+          <!-- Previous / next issue in this series and volume -->
+          <div style="display:flex; gap:6px; margin-top:8px;">
+            {% if prev_issue %}<a href="{% url 'core:detail' prev_issue.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">&lsaquo; Previous issue (#{{ prev_issue.number }})</a>
+            {% else %}<span class="cm-btn sm ghost" aria-disabled="true" style="opacity:.4;">&lsaquo; Previous issue</span>{% endif %}
+            {% if next_issue %}<a href="{% url 'core:detail' next_issue.pk %}" class="cm-btn sm ghost" style="text-decoration:none;">Next issue (#{{ next_issue.number }}) &rsaquo;</a>
+            {% else %}<span class="cm-btn sm ghost" aria-disabled="true" style="opacity:.4;">Next issue &rsaquo;</span>{% endif %}
+          </div>
+          {% endif %}
         </div>
 
         <!-- Chips -->
