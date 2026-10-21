@@ -338,7 +338,7 @@ The fields written to the comic depend on the scrape source.
 | `publisher` | Publisher name |
 | `count` | Total issue count in the volume |
 | `volume` | Series start year |
-| `year`, `month`, `day` | Parsed from cover date |
+| `year`, `month`, `day` | Parsed from the cover date, or the store date per the `scrape_date_source` setting |
 | `summary` | Issue description (HTML stripped) |
 | `writer`, `penciller`, `inker`, `colorist`, `letterer`, `cover_artist`, `editor` | Person credits by role |
 | `characters`, `teams`, `locations` | From issue credits |
@@ -349,6 +349,7 @@ The fields written to the comic depend on the scrape source.
 | `custom_values.comicvine_issue_count` | Total issue count (also stored in `count`) |
 | `custom_values.scrape_source` | Match type (`phash+meta`, `metadata`, `api+detail`, etc.) |
 | `custom_values.scrape_score` | Hamming distance (hash) or alignment score (metadata) |
+| `custom_values.StoreDate` | Store date, when `scrape_save_store_date` is on |
 
 The comic advances to **Tagging**.
 

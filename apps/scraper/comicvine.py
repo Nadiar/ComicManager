@@ -136,6 +136,7 @@ class CVMatch:
     editor: Optional[str] = None
 
     # Additional metadata
+    store_date: Optional[str] = None  # On-sale date (API only; see cv_sources.fetch_store_date)
     web: Optional[str] = None  # ComicVine site_detail_url
     teams: Optional[str] = None  # Comma-separated team names
     locations: Optional[str] = None  # Comma-separated location names
@@ -994,7 +995,7 @@ class ComicVineScraper:
         """Fetch full issue details from the ComicVine API, including credits."""
         data = self._api_request(f"issue/4000-{issue_id}", {
             "field_list": ",".join([
-                "id", "volume", "name", "issue_number", "cover_date",
+                "id", "volume", "name", "issue_number", "cover_date", "store_date",
                 "description", "image", "person_credits", "character_credits",
                 "team_credits", "location_credits", "story_arc_credits",
                 "site_detail_url", "associated_images",
@@ -1060,6 +1061,7 @@ class ComicVineScraper:
             issue_number=r.get("issue_number", ""),
             title=r.get("name"),
             cover_date=r.get("cover_date"),
+            store_date=r.get("store_date"),
             publisher=publisher,
             start_year=start_year,
             issue_count=issue_count,

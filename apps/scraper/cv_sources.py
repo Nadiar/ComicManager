@@ -88,6 +88,27 @@ def fetch_cv_volume_counts(volume_ids) -> dict:
     return counts
 
 
+def fetch_store_date(issue_id) -> str | None:
+    """Return the issue's store (on-sale) date from the local ComicVine DB.
+
+    Returns None when the issue has no store date, or the DB is missing or
+    has no store_date column.
+    """
+    db_path = _get_cv_db_path()
+    if not os.path.exists(db_path):
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?immutable=1", uri=True)
+        try:
+            row = conn.execute("SELECT store_date FROM cv_issue WHERE id = ?", (int(issue_id),)).fetchone()
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.warning("fetch_store_date: CV DB query failed: %s", e)
+        return None
+    return row[0] if row and row[0] else None
+
+
 def is_cv_db_available() -> bool:
     """Return True if comicvine.db exists and SQLite can open it."""
     db_path = _get_cv_db_path()

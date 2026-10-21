@@ -223,6 +223,16 @@ class Setting(models.Model):
         (TYPE_INT,    "Integer"),
     ]
 
+    # Text settings shown as a dropdown, by key
+    OPTIONS = {
+        "scrape_date_source": [
+            ("cover",    "Cover date"),
+            ("store",    "Store date"),
+            ("earliest", "Earliest of the two"),
+            ("latest",   "Latest of the two"),
+        ],
+    }
+
     GROUP_SCRAPING   = "Scraping"
     GROUP_LIBRARY    = "Library"
     GROUP_IMPORT     = "Import"
@@ -240,6 +250,10 @@ class Setting(models.Model):
 
     def __str__(self):
         return f"{self.group} / {self.label}"
+
+    @property
+    def options(self):
+        return self.OPTIONS.get(self.key, [])
 
     @property
     def typed_value(self):

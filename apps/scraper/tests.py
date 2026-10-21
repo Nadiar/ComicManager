@@ -188,3 +188,135 @@ class SharedPacingTests(TestCase):
         from apps.scraper import cv_sources
         with patch.object(cv_sources, "_redis", side_effect=ConnectionError("down")):
             self.assertFalse(cv_sources.wait_for_api_slot())
+
+
+class ReleaseDateSourceTests(TestCase):
+    """scrape_date_source picks which ComicVine date sets year, month and day."""
+
+    COVER = "2025-01-31"
+    STORE = "2024-11-20"
+
+    def _scrape(self, source, cover_date=COVER, store_date=STORE, save_store_date=False, comic=None):
+        Setting.objects.update_or_create(
+            key="scrape_date_source", defaults={"value": source, "type": "text"}
+        )
+        Setting.objects.update_or_create(
+            key="scrape_save_store_date",
+            defaults={"value": "true" if save_store_date else "false", "type": "bool"},
+        )
+        comic = comic or Comic.objects.create(series="Sample Hero", number="1", state="counted")
+        apply_cv_match(comic, _make_match(cover_date=cover_date, store_date=store_date))
+        return comic
+
+    def _date(self, comic):
+        return (comic.year, comic.month, comic.day)
+
+    def test_cover_date(self):
+        self.assertEqual(self._date(self._scrape("cover")), (2025, 1, 31))
+
+    def test_store_date(self):
+        self.assertEqual(self._date(self._scrape("store")), (2024, 11, 20))
+
+    def test_earliest(self):
+        self.assertEqual(self._date(self._scrape("earliest")), (2024, 11, 20))
+        comic = self._scrape("earliest", cover_date="2024-11-01")
+        self.assertEqual(self._date(comic), (2024, 11, 1))
+
+    def test_latest(self):
+        self.assertEqual(self._date(self._scrape("latest")), (2025, 1, 31))
+
+    def test_missing_date_falls_back_to_the_other(self):
+        self.assertEqual(self._date(self._scrape("store", store_date=None)), (2025, 1, 31))
+        self.assertEqual(self._date(self._scrape("cover", cover_date=None)), (2024, 11, 20))
+        self.assertEqual(self._date(self._scrape("earliest", store_date=None)), (2025, 1, 31))
+        self.assertEqual(self._date(self._scrape("latest", cover_date=None)), (2024, 11, 20))
+
+    def test_unset_setting_uses_cover_date(self):
+        Setting.objects.filter(key="scrape_date_source").delete()
+        comic = Comic.objects.create(series="Sample Hero", number="1", state="counted")
+        apply_cv_match(comic, _make_match(cover_date=self.COVER, store_date=self.STORE))
+        self.assertEqual(self._date(comic), (2025, 1, 31))
+
+    def test_local_match_reads_store_date_from_db(self):
+        from unittest.mock import patch
+        with patch("apps.scraper.cv_sources.fetch_store_date", return_value=self.STORE) as fetch:
+            comic = self._scrape("store", store_date=None)
+        fetch.assert_called_once_with(1)
+        self.assertEqual(self._date(comic), (2024, 11, 20))
+
+    def test_cover_source_skips_db_lookup(self):
+        from unittest.mock import patch
+        with patch("apps.scraper.cv_sources.fetch_store_date") as fetch:
+            self._scrape("cover", store_date=None)
+        fetch.assert_not_called()
+
+    def test_save_store_date_to_custom_values(self):
+        comic = self._scrape("cover", save_store_date=True)
+        self.assertEqual(comic.custom_values["StoreDate"], self.STORE)
+
+        comic = self._scrape("cover", store_date=None, save_store_date=True, comic=comic)
+        self.assertNotIn("StoreDate", comic.custom_values)
+
+    def test_store_date_not_saved_when_off(self):
+        comic = self._scrape("cover")
+        self.assertNotIn("StoreDate", comic.custom_values)
+
+
+class FetchStoreDateTests(TestCase):
+    """fetch_store_date reads cv_issue.store_date from comicvine.db."""
+
+    def _fetch(self, d, issue_id, columns="id INTEGER PRIMARY KEY, store_date TEXT", rows=()):
+        import os
+        import sqlite3
+        from unittest.mock import patch
+        from apps.scraper import cv_sources
+
+        path = os.path.join(d, "comicvine.db")
+        conn = sqlite3.connect(path)
+        conn.execute(f"CREATE TABLE cv_issue ({columns})")
+        conn.executemany("INSERT INTO cv_issue VALUES (?, ?)", rows)
+        conn.commit()
+        conn.close()
+        with patch.object(cv_sources, "_get_cv_db_path", return_value=path):
+            return cv_sources.fetch_store_date(issue_id)
+
+    def test_returns_store_date(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(self._fetch(d, 7, rows=[(7, "2024-11-20")]), "2024-11-20")
+
+    def test_missing_issue_or_null(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(self._fetch(d, 8, rows=[(7, "2024-11-20"), (9, None)]))
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(self._fetch(d, 9, rows=[(9, None)]))
+
+    def test_db_without_store_date_column(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(self._fetch(d, 7, columns="id INTEGER PRIMARY KEY, name TEXT", rows=[(7, "x")]))
+
+    def test_no_db(self):
+        from unittest.mock import patch
+        from apps.scraper import cv_sources
+        with patch.object(cv_sources, "_get_cv_db_path", return_value="/nonexistent/comicvine.db"):
+            self.assertIsNone(cv_sources.fetch_store_date(7))
+
+
+class IssueFromApiStoreDateTests(TestCase):
+    def test_api_match_carries_store_date(self):
+        from unittest.mock import patch
+        from apps.scraper.comicvine import ComicVineScraper
+
+        scraper = ComicVineScraper(db_path="/nonexistent/comicvine.db")
+        data = {"results": {
+            "id": 5, "volume": {"id": 3, "name": "Sample Hero"}, "issue_number": "1",
+            "cover_date": "2025-01-31", "store_date": "2024-11-20",
+        }}
+        with patch.object(scraper, "_api_request", return_value=data) as req, \
+             patch.object(scraper, "_get_volume_info", return_value={}):
+            match = scraper.get_issue_from_api(5)
+
+        self.assertIn("store_date", req.call_args[0][1]["field_list"].split(","))
+        self.assertEqual(match.store_date, "2024-11-20")

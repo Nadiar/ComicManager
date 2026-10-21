@@ -394,6 +394,39 @@ def _verify_cover_hash(comic, match, threshold=15):
         return True
 
 
+def _release_date(comic, match):
+    """
+    Pick the date for year/month/day per scrape_date_source: the cover date,
+    the store (on-sale) date, or the earliest or latest of the two. A missing
+    date falls back to the other one. With scrape_save_store_date on, the
+    store date is also kept in custom_values["StoreDate"].
+    """
+    from apps.core.models import get_setting
+    from apps.scraper.cv_sources import fetch_store_date
+
+    source = get_setting("scrape_date_source", "cover")
+    save_store_date = get_setting("scrape_save_store_date", False)
+
+    # Local DB matches don't carry the store date; look it up only when needed
+    if match.store_date is None and (source != "cover" or save_store_date or not match.cover_date):
+        match.store_date = fetch_store_date(match.issue_id)
+
+    if save_store_date:
+        if match.store_date:
+            comic.custom_values["StoreDate"] = match.store_date
+        else:
+            comic.custom_values.pop("StoreDate", None)
+
+    cover, store = (d if d and d[:4].isdigit() else None for d in (match.cover_date, match.store_date))
+    if source == "earliest" and cover and store:
+        return min(cover, store)
+    if source == "latest" and cover and store:
+        return max(cover, store)
+    if source == "store":
+        return store or cover
+    return cover or store
+
+
 def apply_cv_match(comic, match, scraper=None, insert_covers=True):
     """
     Apply ComicVine match data to a comic and advance its workflow state.
@@ -431,9 +464,10 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
         except ValueError:
             pass
 
-    if match.cover_date:
+    date = _release_date(comic, match)
+    if date:
         try:
-            parts = match.cover_date.split("-")
+            parts = date.split("-")
             comic.year = int(parts[0])
             if len(parts) > 1:
                 comic.month = int(parts[1])

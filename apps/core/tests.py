@@ -174,3 +174,19 @@ class ReconcileTests(TestCase):
         qt.refresh_from_db()
         self.assertEqual(n, 1)
         self.assertEqual(qt.state, QueuedTask.STATE_FAILED)
+
+
+class ChoiceSettingTests(TestCase):
+    """Settings with fixed options render as a dropdown."""
+
+    def test_settings_page_shows_dropdown(self):
+        from apps.core.models import Setting
+        Setting.objects.update_or_create(
+            key="scrape_date_source",
+            defaults={"value": "store", "type": "text", "label": "Release date", "group": "Scraping"},
+        )
+        html = self.client.get(reverse("settings:index")).content.decode()
+
+        self.assertIn('<select name="scrape_date_source"', html)
+        self.assertIn('<option value="store" selected>', html)
+        self.assertIn('<option value="earliest">', html)

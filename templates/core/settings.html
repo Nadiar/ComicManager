@@ -232,6 +232,12 @@
                 value="true">
               <span style="font-size:12px; color:var(--cm-fg-3);">Enabled</span>
             </div>
+          {% elif setting.options %}
+            <select name="{{ setting.key }}" class="cm-input" style="font-size:13px;">
+              {% for value, label in setting.options %}
+              <option value="{{ value }}"{% if value == setting.value %} selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
           {% elif setting.type == "secret" %}
             <input type="password" name="{{ setting.key }}"
               value="{{ setting.value }}"
