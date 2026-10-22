@@ -546,6 +546,33 @@ class UntaggedScanTests(TempDirMixin, TestCase):
         self.assertEqual(result["imported"], 1)
         self.assertTrue(Comic.objects.filter(file_path__endswith="LOUD 001.CBZ").exists())
 
+    def test_filename_patterns(self):
+        from apps.core.services import parse_filename
+        cases = {
+            "Detective Comics 1094 (2025) (Digital) (PyrateGoneKiwi)": ("Detective Comics", "1094", None, 2025),
+            "Batman #050 (2018)": ("Batman", "50", None, 2018),
+            "Amazing Spider-Man v2 #001 (1999)": ("Amazing Spider-Man", "1", 2, 1999),
+            "X-Men (2021) 001": ("X-Men", "1", None, 2021),
+            "Saga #040 [November, 2016]": ("Saga", "40", None, 2016),
+            "Star Wars - Boba Fett - Death, Lies, & Treachery #001 [January, 1998]":
+                ("Star Wars - Boba Fett - Death, Lies, & Treachery", "1", None, 1998),
+            "Chew 042 [2014]": ("Chew", "42", None, 2014),
+            "Saga (2012) #040 [November, 2016]": ("Saga", "40", None, 2012),
+            "Batman 050 (2018) [Digital]": ("Batman", "50", None, 2018),
+        }
+        for name, expected in cases.items():
+            parsed = parse_filename(name)
+            self.assertEqual(
+                (parsed["series"], parsed["number"], parsed["volume"], parsed["year"]), expected, name)
+
+    def test_scan_command_reads_bracket_dates(self):
+        from io import StringIO
+        from django.core.management import call_command
+        make_cbz(self.path("Image", "Saga #040 [November, 2016].cbz"))
+        call_command("scan_untagged", path=self.tmp, no_cleanup=True, stdout=StringIO(), stderr=StringIO())
+        comic = Comic.objects.get(file_path__endswith="Saga #040 [November, 2016].cbz")
+        self.assertEqual((comic.proposed_series, comic.proposed_number, comic.proposed_year), ("Saga", "40", 2016))
+
 
 class ConvertTests(TempDirMixin, TestCase):
 

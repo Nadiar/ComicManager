@@ -6,7 +6,6 @@ metadata from filenames, and creates Comic records with state='new'.
 """
 
 import os
-import re
 import zipfile
 from pathlib import Path
 
@@ -16,6 +15,7 @@ from django.conf import settings
 from apps.core.models import Comic, get_setting
 from apps.core.archives import misnamed_format
 from apps.core.cbz_utils import list_pages
+from apps.core.services import parse_filename
 
 
 class Command(BaseCommand):
@@ -79,7 +79,7 @@ class Command(BaseCommand):
 
             try:
                 # Parse filename for proposed metadata
-                parsed = self.parse_filename(file_path.stem)
+                parsed = parse_filename(file_path.stem)
 
                 # Get file info
                 file_stat = file_path.stat()
@@ -146,74 +146,6 @@ class Command(BaseCommand):
         self.stdout.write(f"Skipped (already exists): {skipped}")
         if errors:
             self.stdout.write(self.style.WARNING(f"Errors: {errors}"))
-
-    def parse_filename(self, filename: str) -> dict:
-        """
-        Parse comic filename to extract series, number, volume, and year.
-
-        Handles common patterns like:
-        - "Detective Comics 1094 (2025) (Digital) (PyrateGoneKiwi)"
-        - "Batman #050 (2018)"
-        - "Amazing Spider-Man v2 #001 (1999)"
-        - "X-Men (2021) 001"
-        - "Batman Beyond - Neo-Gothic 006 (2024) (Digital) (Walkabout-Empire)"
-        - "Catwoman 061 (2024) (Digital) (Goobadaddy-Empire)"
-        """
-        result = {
-            "series": None,
-            "number": None,
-            "volume": None,
-            "year": None,
-        }
-
-        clean_name = filename
-
-        # First extract year from parentheses - (2025), (2021), etc.
-        year_match = re.search(r'\((\d{4})\)', clean_name)
-        if year_match:
-            result["year"] = int(year_match.group(1))
-
-        # Remove ALL parenthesized content (year, Digital, scanner names, etc.)
-        clean_name = re.sub(r'\s*\([^)]*\)', '', clean_name).strip()
-
-        # Extract volume - v2, Vol. 3, Volume 4
-        vol_match = re.search(r'\b[vV](?:ol(?:ume)?\.?\s*)?(\d+)\b', clean_name)
-        if vol_match:
-            result["volume"] = int(vol_match.group(1))
-            clean_name = re.sub(r'\b[vV](?:ol(?:ume)?\.?\s*)?\d+\b', '', clean_name).strip()
-
-        # Extract issue number - multiple patterns
-        # Try hash format first: #001, #1, #12.1
-        num_match = re.search(r'#(\d+(?:\.\d+)?)', clean_name)
-        if num_match:
-            result["number"] = num_match.group(1).lstrip("0") or "0"
-            clean_name = clean_name.replace(num_match.group(0), "").strip()
-        else:
-            # Try trailing number (most common): "Catwoman 061", "Batman Beyond - Neo-Gothic 006"
-            # Match 2-4 digit numbers at end of string (after stripping parentheses)
-            num_match = re.search(r'\s+(\d{2,4})\s*$', clean_name)
-            if num_match:
-                result["number"] = num_match.group(1).lstrip("0") or "0"
-                clean_name = clean_name[:num_match.start()].strip()
-            else:
-                # Try single digit or decimal: "Issue 5", "Batman 1.5"
-                num_match = re.search(r'\s+(\d+(?:\.\d+)?)\s*$', clean_name)
-                if num_match:
-                    result["number"] = num_match.group(1).lstrip("0") or "0"
-                    clean_name = clean_name[:num_match.start()].strip()
-
-        # What's left is the series name
-        series = clean_name.strip()
-        # Clean up extra spaces
-        series = re.sub(r'\s+', ' ', series)
-        # Remove trailing dashes or hyphens (but preserve internal ones like "Spider-Man")
-        series = re.sub(r'\s*-\s*$', '', series)
-        series = re.sub(r'\s+-$', '', series)
-
-        if series:
-            result["series"] = series
-
-        return result
 
     def get_cbz_page_count(self, cbz_path: Path) -> tuple[int | None, bool]:
         """

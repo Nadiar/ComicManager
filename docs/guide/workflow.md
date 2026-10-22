@@ -25,7 +25,7 @@ When a file is first scanned, regex parsing extracts a proposed series, number, 
 
 ### How proposed values are found
 
-Filenames are parsed with a fixed sequence of regex steps, each one consuming the part of the string it matched before the next step runs (`apps/core/management/commands/scan_untagged.py::parse_filename`):
+Filenames are parsed with a fixed sequence of regex steps, each one consuming the part of the string it matched before the next step runs (`apps/core/services.py::parse_filename`, used by both the **Scan for Comics** button and `scan_untagged`):
 
 ```
   Filename
@@ -33,10 +33,13 @@ Filenames are parsed with a fixed sequence of regex steps, each one consuming th
      v
   1. Extract year
      r'\((\d{4})\)'                          e.g. "(2024)" -> year=2024
+     if none: r'\[(?:[A-Za-z]+,?\s+)?(\d{4})\]'
+                                             ComicRack's date: "[May, 2018]",
+                                             "[May 2018]" or "[2018]" -> year=2018
      |
      v
-  2. Strip all (...) groups
-     r'\s*\([^)]*\)'                         removes year, "Digital", scanner tags, etc.
+  2. Strip all (...) and [...] groups
+     r'\s*\([^)]*\)', r'\s*\[[^\]]*\]'      removes year, date, "Digital", scanner tags, etc.
      |
      v
   3. Extract volume
@@ -58,7 +61,7 @@ Filenames are parsed with a fixed sequence of regex steps, each one consuming th
 | Step | Regex | Result |
 |------|-------|--------|
 | 1. Year | `\((\d{4})\)` | `(2024)` found, year = 2024 |
-| 2. Strip parens | `\s*\([^)]*\)` | `Batman Beyond - Neo-Gothic 006` |
+| 2. Strip groups | `\s*\([^)]*\)`, `\s*\[[^\]]*\]` | `Batman Beyond - Neo-Gothic 006` |
 | 3. Volume | `\b[vV](?:ol(?:ume)?\.?\s*)?(\d+)\b` | no match, volume = None |
 | 4. Number | `\s+(\d{2,4})\s*$` (no `#`, so this pattern fires) | trailing `006` matches, number = "6" |
 | 5. Series | remainder, trimmed | `Batman Beyond - Neo-Gothic` |
@@ -68,7 +71,7 @@ Filenames are parsed with a fixed sequence of regex steps, each one consuming th
 | Step | Regex | Result |
 |------|-------|--------|
 | 1. Year | `\((\d{4})\)` | `(1999)` found, year = 1999 |
-| 2. Strip parens | `\s*\([^)]*\)` | `Amazing Spider-Man v2 #001` |
+| 2. Strip groups | `\s*\([^)]*\)`, `\s*\[[^\]]*\]` | `Amazing Spider-Man v2 #001` |
 | 3. Volume | `\b[vV](?:ol(?:ume)?\.?\s*)?(\d+)\b` | `v2` matches, volume = 2 |
 | 4. Number | `#(\d+(?:\.\d+)?)` | `#001` matches, number = "1" |
 | 5. Series | remainder, trimmed | `Amazing Spider-Man` |
@@ -78,10 +81,22 @@ Filenames are parsed with a fixed sequence of regex steps, each one consuming th
 | Step | Regex | Result |
 |------|-------|--------|
 | 1. Year | `\((\d{4})\)` | `(2021)` found, year = 2021 |
-| 2. Strip parens | `\s*\([^)]*\)` | `X-Men 001` |
+| 2. Strip groups | `\s*\([^)]*\)`, `\s*\[[^\]]*\]` | `X-Men 001` |
 | 3. Volume | `\b[vV](?:ol(?:ume)?\.?\s*)?(\d+)\b` | no match, volume = None |
 | 4. Number | `\s+(\d{2,4})\s*$` (no `#`, so this pattern fires) | trailing `001` matches, number = "1" |
 | 5. Series | remainder, trimmed | `X-Men` |
+
+**Example:** `Saga #040 [November, 2016]` (ComicRack's Library Organizer naming)
+
+| Step | Regex | Result |
+|------|-------|--------|
+| 1. Year | `\((\d{4})\)`, then `\[(?:[A-Za-z]+,?\s+)?(\d{4})\]` | no `(...)` year; `[November, 2016]` found, year = 2016 |
+| 2. Strip groups | `\s*\([^)]*\)`, `\s*\[[^\]]*\]` | `Saga #040` |
+| 3. Volume | `\b[vV](?:ol(?:ume)?\.?\s*)?(\d+)\b` | no match, volume = None |
+| 4. Number | `#(\d+(?:\.\d+)?)` | `#040` matches, number = "40" |
+| 5. Series | remainder, trimmed | `Saga` |
+
+When a filename has both, the year in parentheses wins: `Saga (2012) #040 [November, 2016]` gives year = 2012.
 
 ### Phase 2: Scrape
 

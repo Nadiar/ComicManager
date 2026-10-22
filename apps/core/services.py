@@ -75,7 +75,7 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
 
         try:
             # Parse filename for proposed metadata
-            parsed = _parse_filename(file_path.stem)
+            parsed = parse_filename(file_path.stem)
 
             # Get file info
             file_stat = file_path.stat()
@@ -193,7 +193,7 @@ def check_missing_files(untagged_path: str, dry_run: bool = False) -> dict:
     return result
 
 
-def _parse_filename(filename: str) -> dict:
+def parse_filename(filename: str) -> dict:
     """
     Parse comic filename to extract series, number, volume, and year.
 
@@ -202,6 +202,8 @@ def _parse_filename(filename: str) -> dict:
     - "Batman #050 (2018)"
     - "Amazing Spider-Man v2 #001 (1999)"
     - "X-Men (2021) 001"
+    - "Batman Beyond - Neo-Gothic 006 (2024) (Digital) (Walkabout-Empire)"
+    - "Saga #040 [November, 2016]" (ComicRack's date in brackets)
     """
     result = {
         "series": None,
@@ -216,9 +218,15 @@ def _parse_filename(filename: str) -> dict:
     year_match = re.search(r'\((\d{4})\)', clean_name)
     if year_match:
         result["year"] = int(year_match.group(1))
+    else:
+        # ComicRack's date in brackets - [November, 2016], [November 2016], [2016]
+        year_match = re.search(r'\[(?:[A-Za-z]+,?\s+)?(\d{4})\]', clean_name)
+        if year_match:
+            result["year"] = int(year_match.group(1))
 
-    # Remove ALL parenthesized content (year, Digital, scanner names, etc.)
+    # Remove ALL parenthesized and bracketed content (year, date, Digital, scanner names, etc.)
     clean_name = re.sub(r'\s*\([^)]*\)', '', clean_name).strip()
+    clean_name = re.sub(r'\s*\[[^\]]*\]', '', clean_name).strip()
 
     # Extract volume - v2, Vol. 3, Volume 4
     vol_match = re.search(r'\b[vV](?:ol(?:ume)?\.?\s*)?(\d+)\b', clean_name)
