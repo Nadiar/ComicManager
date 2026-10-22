@@ -34,6 +34,8 @@ A hotfix release. Back up the database before upgrading. The upgrade runs one mi
 
 - **The cover check rejected right issues**: The API match required both cover hash distances to be within 15, so a right issue with one hash just over the limit (pHash 16, aHash 5) got no match. The two distances must now add up to 28 or less. On about 1,500 comics from a real library this accepted 95% of the right issues instead of 92%, and one more wrong issue, a reprint with the same cover. The local metadata match uses the same rule.
 
+- **The cover match could pick a reprint with the same cover**: When two cover matches scored the same, the closer cover hash won, so a reprint or a collected edition with the issue's cover could beat the right issue: `Star Wars #45` from 2018 became the Planeta DeAgostini edition from 2019. On equal scores the closest year now wins, then the closest month, then the closest cover. The month is the comic's Month field, or the month of a ComicRack date such as `[October, 2015]` in the filename. The dry run preview, the scrape window's list and `manage.py scrape --method hash` use the same order. On 1,500 comics from a real library, the cover match picked 2 wrong issues instead of 11. `manage.py scrape --method metadata` still had the old local metadata match and now uses the same one as scraping.
+
 ## [1.1.0]
 
 A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.

@@ -13,11 +13,12 @@ from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
 from apps.scraper.services import (
     metadata_alignment_score,
-    filter_by_publisher,
+    hash_match_rank,
     normalize_issue_number,
     series_matches,
     apply_cv_match,
     find_best_match,
+    try_metadata_match,
 )
 
 
@@ -173,8 +174,8 @@ class Command(BaseCommand):
                 )
 
         if validated:
-            # Sort by: alignment score (desc), then hash score (asc)
-            validated.sort(key=lambda x: (-x[1], x[0].match_score))
+            # Sort by: alignment score (desc), closest year, then hash score (asc)
+            validated.sort(key=lambda x: hash_match_rank(comic, *x))
             best = validated[0][0]
             # Update match_type to indicate validation
             best.match_type = f"{best.match_type}+meta"
@@ -185,31 +186,17 @@ class Command(BaseCommand):
         return None
 
     def _try_metadata_match(self, comic: Comic, scraper: ComicVineScraper):
-        """Try to match comic by series name and issue number."""
+        """Try to match comic by series name and issue number (Layer 2)."""
         self.stdout.write("    Trying metadata match (fallback)...")
 
         cv_series = comic.series or comic.proposed_series
         cv_number = comic.number or comic.proposed_number
-        cv_year = comic.year or comic.proposed_year
 
         if not cv_series or not cv_number:
             self.stdout.write("    Missing series or number, skipping metadata match")
             return None
 
-        matches = filter_by_publisher(scraper.match_by_metadata(
-            series=cv_series,
-            issue_number=cv_number,
-            year=cv_year,
-        ))
-
-        if matches:
-            best = matches[0]
-            if len(matches) > 1:
-                self.stdout.write(f"    Found {len(matches)} metadata matches")
-                for m in matches[:3]:
-                    self.stdout.write(
-                        f"      - {m.series} #{m.issue_number} ({m.start_year}) - {m.publisher}"
-                    )
-            return best
-
-        return None
+        match = try_metadata_match(comic, scraper)
+        if not match and comic.flags.get("scrape_error_detail"):
+            self.stdout.write(f"    {comic.flags['scrape_error_detail']}")
+        return match

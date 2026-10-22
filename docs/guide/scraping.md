@@ -113,7 +113,9 @@ ComicManager matches a comic against ComicVine in up to three layers and stops a
 │ covers whose pHash OR aHash   │                        │
 │ distance is within the        │                        │
 │ threshold (8), closest first, │                        │
-│ and score each one            │                        │
+│ and score each one. The best  │                        │
+│ score wins, then the closest  │                        │
+│ date, then the closest cover  │                        │
 └───────────────┬───────────────┘                        │
         ┌───────┴──────────┐                             │
   best score > 0     no file, no cover                   │
@@ -217,7 +219,7 @@ The match is scored:
 | 3 | Matches | Partial match | Within ±2 | Accepted |
 | 4 | Matches | Exact match | Within ±2 | Accepted (best) |
 
-An issue number that is missing on either side is not compared, and a comic with neither a series nor a number scores 1. Only candidates with score > 0 are accepted. The highest-scoring candidate wins; ties are broken by lowest combined hash distance.
+An issue number that is missing on either side is not compared, and a comic with neither a series nor a number scores 1. Only candidates with score > 0 are accepted. The highest-scoring candidate wins. On equal scores, the candidate whose year is closest to the comic's wins (its cover year or its volume's start year, whichever is closer), then the one whose cover month is closest to the comic's, and then the one with the lowest combined hash distance. The comic's month is its Month field, or the month of a ComicRack date such as `[October, 2015]` in its filename. Reprints often have the same cover as the issue, sometimes with a closer hash: the Planeta DeAgostini edition of `Star Wars #45` from 2019 has Marvel's 2018 cover, and their `Star Wars #8` from November 2015 has Marvel's October 2015 cover. The year picks Marvel's #45, and the month Marvel's #8. Without a year, the hash distance decides.
 
 **Examples**, given a comic parsed as `Batman #1, 2011`:
 
@@ -323,7 +325,7 @@ docker compose exec web python manage.py scrape --max-distance 10     # override
 You can scrape a single comic from the comic's detail page, or directly from the comic list at `/comics/?state=scrape` using the per-row Scrape button.
 
 1. Click **Scrape** in the actions panel or on the row.
-2. The scrape modal opens and runs the matching layers automatically. The result shows the series name, issue number, publisher, ComicVine IDs, and match confidence score. If looking up local matches fails (for example with a damaged `comicvine.db`), the modal shows the reason and still offers the manual search.
+2. The scrape modal opens and runs the matching layers automatically. Candidates are listed in the order Layer 1 picks them: score, then closest year and month, then closest cover. The result shows the series name, issue number, publisher, ComicVine IDs, and match confidence score. If looking up local matches fails (for example with a damaged `comicvine.db`), the modal shows the reason and still offers the manual search.
 3. If the automatic match is wrong, you can search manually inside the modal using a different series name or issue number. Results are shown in batches of 3. Click **Show 3 more** to load additional results. Publisher and year for each result are fetched lazily in small batches to conserve API budget.
 4. For I.N.D.U.C.K.S., switch to the INDUCKS tab in the modal and search by publication title, story title, or story code.
 5. Click **Accept** to apply the match or **Reject** to discard it and leave the comic unchanged.
@@ -344,7 +346,7 @@ The INDUCKS tab has a separate story code field next to the general search box. 
 Before running a full batch scrape, use the **Dry Run** tool at `/scraper/` to preview results without writing any changes to the database.
 
 Click **Dry Run (N comics)**. The output streams line by line showing:
-- Whether a hash match was found and which candidates passed or failed cross-validation
+- Whether a hash match was found and which candidates passed or failed cross-validation, with each passing candidate's score, cover date and hash distance
 - Whether a metadata fallback was used
 - The final match (series, issue number, publisher, CV issue ID) or `NO MATCH FOUND`
 - A summary of total matched vs. failed

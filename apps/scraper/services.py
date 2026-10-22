@@ -164,6 +164,50 @@ def metadata_alignment_score(comic, match):
     return score
 
 
+def comic_date(comic):
+    """
+    The comic's (year, month): its Year (or proposed year) and Month. Without
+    a Month (untagged and accepted comics have none), the month of a
+    ComicRack date in its filename ("[October, 2015]") with the same year.
+    The month is None when unknown.
+    """
+    year = comic.year or comic.proposed_year
+    month = comic.month if comic.year else None
+    if year and not month and comic.file_path:
+        import os
+        from apps.core.services import parse_filename
+
+        parsed = parse_filename(os.path.splitext(os.path.basename(comic.file_path))[0])
+        if parsed["year"] == year:
+            month = parsed["month"]
+    return year, month
+
+
+def month_gap(match, year, month) -> int:
+    """Months between the comic's date and the match's cover date; 0 when either is unknown."""
+    cover = match.cover_date or ""
+    try:
+        return abs(int(cover[:4]) * 12 + int(cover[5:7]) - (int(year) * 12 + int(month)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def hash_match_rank(comic, match, score):
+    """
+    Sort key for cover hash candidates with their metadata_alignment_score:
+    the best score first, then the closest year (year_gap), then the closest
+    month, then the closest cover. Reprints and collected editions often have
+    the issue's cover, sometimes with a closer hash (Planeta DeAgostini's
+    Star Wars #45 from 2019 beat Marvel's from 2018, its #8 from November 2015
+    beat Marvel's from October 2015), so the date counts before the hash
+    distance.
+    """
+    from apps.scraper.comicvine import year_gap
+
+    year, month = comic_date(comic)
+    return (-score, year_gap(match, year) if year else 0, month_gap(match, year, month), match.match_score)
+
+
 def try_hash_match(comic, scraper, max_distance=10):
     """
     Try to match a comic by cover image hash with metadata cross-validation.
@@ -204,7 +248,7 @@ def try_hash_match(comic, scraper, max_distance=10):
             validated.append((match, score))
 
     if validated:
-        validated.sort(key=lambda x: (-x[1], x[0].match_score))
+        validated.sort(key=lambda x: hash_match_rank(comic, *x))
         best = validated[0][0]
         best.match_type = f"{best.match_type}+meta"
         return best

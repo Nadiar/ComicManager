@@ -606,3 +606,96 @@ class CoverRuleTests(TestCase):
         self.assertTrue(services.covers_agree(14, 14))
         self.assertFalse(services.covers_agree(16, 13))
         self.assertFalse(services.covers_agree(24, 47))
+
+
+class HashMatchOrderTests(TestCase):
+    """Layer 1: on equal scores the closest year wins before the closest cover (P2.27)."""
+
+    def _match(self, issue_id, cover_date, distance, series="Star Wars", publisher="Marvel", number="45"):
+        return _make_match(issue_id=issue_id, series=series, issue_number=number, start_year="2015",
+                           cover_date=cover_date, publisher=publisher, match_score=distance,
+                           match_type=f"hash(p:{distance},a:0)")
+
+    def _pick(self, comic, matches):
+        from unittest import mock
+        from apps.scraper.hasher import CoverHashes
+        scraper = mock.Mock()
+        scraper.match_by_hash_fast.return_value = matches
+        hashes = CoverHashes(phash=0, ahash=0, phash_hex="0" * 16, ahash_hex="0" * 16)
+        with mock.patch.object(services, "extract_cover_hashes", return_value=hashes):
+            return services.try_hash_match(comic, scraper, max_distance=8)
+
+    def _comic(self, year=None, series="Star Wars"):
+        return Comic.objects.create(proposed_series=series, proposed_number="45", proposed_year=year,
+                                    file_path="/comics/Star Wars #045.cbz")
+
+    def test_closest_year_beats_a_closer_cover(self):
+        reprint = self._match(732860, "2019-02-01", 3, publisher="Planeta DeAgostini")
+        marvel = self._match(663585, "2018-05-31", 17)
+        best = self._pick(self._comic(2018), [reprint, marvel])
+        self.assertEqual(best.issue_id, 663585)
+        self.assertEqual(best.match_type, "hash(p:17,a:0)+meta")
+
+    def test_score_still_comes_first(self):
+        tpb = self._match(1, "2018-05-31", 2, series="Star Wars: Skywalker Strikes")
+        issue = self._match(2, "2020-01-01", 20)
+        self.assertEqual(self._pick(self._comic(2018), [tpb, issue]).issue_id, 2)
+
+    def test_without_a_year_the_closest_cover_wins(self):
+        reprint = self._match(732860, "2019-02-01", 3, publisher="Planeta DeAgostini")
+        marvel = self._match(663585, "2018-05-31", 17)
+        self.assertEqual(self._pick(self._comic(), [reprint, marvel]).issue_id, 732860)
+
+    def test_closest_month_on_the_same_year(self):
+        reprint = self._match(633460, "2015-11-30", 6, publisher="Planeta DeAgostini", number="8")
+        marvel = self._match(497960, "2015-10-31", 18, number="8")
+        tagged = Comic.objects.create(series="Star Wars", number="8", year=2015, month=10,
+                                      file_path="/comics/Star Wars #008.cbz")
+        self.assertEqual(self._pick(tagged, [reprint, marvel]).issue_id, 497960)
+        # Untagged: the month of a ComicRack date in the filename
+        untagged = Comic.objects.create(proposed_series="Star Wars", proposed_number="8", proposed_year=2015,
+                                        file_path="/comics/Star Wars #008 [October, 2015].cbz")
+        self.assertEqual(self._pick(untagged, [reprint, marvel]).issue_id, 497960)
+        # Accepted: Year copied from the proposed year, no Month
+        accepted = Comic.objects.create(series="Star Wars", number="8", year=2015,
+                                        file_path="/comics/accepted/Star Wars #008 [October, 2015].cbz")
+        self.assertEqual(services.comic_date(accepted), (2015, 10))
+        self.assertEqual(self._pick(accepted, [reprint, marvel]).issue_id, 497960)
+        # A month is only taken from a date with the comic's year
+        edited = Comic.objects.create(proposed_series="Star Wars", proposed_number="8", proposed_year=2016,
+                                      file_path="/comics/edited/Star Wars #008 [October, 2015].cbz")
+        self.assertEqual(services.comic_date(edited), (2016, None))
+        self.assertEqual(self._pick(edited, [reprint, marvel]).issue_id, 633460)
+
+    def test_scrape_window_lists_the_closest_year_first(self):
+        from unittest import mock
+        from apps.scraper.hasher import CoverHashes
+        comic = Comic.objects.create(series="Star Wars", number="45", year=2018, state=Comic.STATE_IMPORTED,
+                                     file_path="/comics/Star Wars #045.cbz")
+        reprint = self._match(732860, "2019-02-01", 3, publisher="Planeta DeAgostini")
+        marvel = self._match(663585, "2018-05-31", 17)
+        hashes = CoverHashes(phash=0, ahash=0, phash_hex="0" * 16, ahash_hex="0" * 16)
+        with mock.patch("apps.scraper.cv_sources.is_cv_db_available", return_value=True), \
+                mock.patch("apps.core.views.extract_cover_hashes", return_value=hashes), \
+                mock.patch("apps.core.views.ComicVineScraper") as scraper:
+            scraper.return_value.match_by_hash_fast.return_value = [reprint, marvel]
+            scraper.return_value.match_by_metadata.return_value = []
+            scraper.return_value.enrich_matches_with_covers.side_effect = lambda ms: ms
+            data = self.client.get(f"/comics/{comic.pk}/scrape/preview/").json()
+        self.assertEqual([m["issue_id"] for m in data["matches"]], [663585, 732860])
+
+    def test_scrape_command_metadata_method_uses_layer_2(self):
+        import io
+        from unittest import mock
+        from django.core.management import call_command
+        comic = Comic.objects.create(series="Batman", number="700", year=2020, state=Comic.STATE_IMPORTED,
+                                     medium=Comic.MEDIUM_DIGITAL)
+        old = _make_match(issue_id=1700, series="Batman", issue_number="700", start_year="1940",
+                          cover_date="2010-08-01", publisher="DC Comics")
+        out = io.StringIO()
+        with mock.patch("apps.scraper.management.commands.scrape.ComicVineScraper") as scraper:
+            scraper.return_value.match_by_metadata.return_value = [old]
+            scraper.return_value.cover_hashes.return_value = []
+            call_command("scrape", "--method", "metadata", "--dry-run", "--comic-id", str(comic.pk), stdout=out)
+        self.assertIn("NO MATCH FOUND", out.getvalue())
+        self.assertIn("the closest #700 is in Batman (1940) from 2010, the comic is from 2020", out.getvalue())

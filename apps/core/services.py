@@ -193,9 +193,14 @@ def check_missing_files(untagged_path: str, dry_run: bool = False) -> dict:
     return result
 
 
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august",
+           "september", "october", "november", "december")
+
+
 def parse_filename(filename: str) -> dict:
     """
-    Parse comic filename to extract series, number, volume, and year.
+    Parse comic filename to extract series, number, volume, and year, and the
+    month when the year comes from a ComicRack date.
 
     Handles common patterns like:
     - "Detective Comics 1094 (2025) (Digital) (PyrateGoneKiwi)"
@@ -210,6 +215,7 @@ def parse_filename(filename: str) -> dict:
         "number": None,
         "volume": None,
         "year": None,
+        "month": None,
     }
 
     clean_name = filename
@@ -220,9 +226,12 @@ def parse_filename(filename: str) -> dict:
         result["year"] = int(year_match.group(1))
     else:
         # ComicRack's date in brackets - [November, 2016], [November 2016], [2016]
-        year_match = re.search(r'\[(?:[A-Za-z]+,?\s+)?(\d{4})\]', clean_name)
+        year_match = re.search(r'\[(?:([A-Za-z]+),?\s+)?(\d{4})\]', clean_name)
         if year_match:
-            result["year"] = int(year_match.group(1))
+            result["year"] = int(year_match.group(2))
+            month = (year_match.group(1) or "").lower()
+            if month in _MONTHS:
+                result["month"] = _MONTHS.index(month) + 1
 
     # Remove ALL parenthesized and bracketed content (year, date, Digital, scanner names, etc.)
     clean_name = re.sub(r'\s*\([^)]*\)', '', clean_name).strip()

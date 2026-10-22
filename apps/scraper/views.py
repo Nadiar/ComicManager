@@ -13,6 +13,7 @@ from apps.core.utils import natural_number_annotation
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
 from apps.scraper.services import metadata_alignment_score as _metadata_alignment_score
+from apps.scraper.services import hash_match_rank as _hash_match_rank
 from apps.scraper.services import try_metadata_match as _try_metadata_match
 
 
@@ -149,7 +150,8 @@ def _try_hash_match_with_log(comic, scraper, max_distance):
             validated.append((match, score))
             log.write(
                 f'<li class="text-success">+ {match.series} #{match.issue_number} '
-                f'({match.start_year}) [align:{score}, hash:{match.match_score}]</li>\n'
+                f'({match.start_year}) [align:{score}, cover:{(match.cover_date or "")[:7] or "?"}, '
+                f'hash:{match.match_score}]</li>\n'
             )
         else:
             log.write(
@@ -161,7 +163,7 @@ def _try_hash_match_with_log(comic, scraper, max_distance):
     log.write('</div>\n')
 
     if validated:
-        validated.sort(key=lambda x: (-x[1], x[0].match_score))
+        validated.sort(key=lambda x: _hash_match_rank(comic, *x))
         best = validated[0][0]
         best.match_type = f"{best.match_type}+meta"
         return best, log.getvalue()

@@ -564,6 +564,12 @@ class UntaggedScanTests(TempDirMixin, TestCase):
             parsed = parse_filename(name)
             self.assertEqual(
                 (parsed["series"], parsed["number"], parsed["volume"], parsed["year"]), expected, name)
+        # The month only comes from a ComicRack date that gives the year
+        self.assertEqual(parse_filename("Saga #040 [November, 2016]")["month"], 11)
+        self.assertEqual(parse_filename("Saga #040 [November 2016]")["month"], 11)
+        self.assertIsNone(parse_filename("Chew 042 [2014]")["month"])
+        self.assertIsNone(parse_filename("Saga (2012) #040 [November, 2016]")["month"])
+        self.assertIsNone(parse_filename("Batman 050 (2018) [Digital]")["month"])
 
     def test_scan_command_reads_bracket_dates(self):
         from io import StringIO

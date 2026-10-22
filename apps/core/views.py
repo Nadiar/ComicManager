@@ -25,6 +25,7 @@ from apps.scraper.services import (
     find_best_match as _find_best_match,
     apply_cv_match as _apply_match,
     metadata_alignment_score as _metadata_alignment_score,
+    hash_match_rank as _hash_match_rank,
     filter_by_publisher as _filter_by_publisher,
     series_matches as _series_matches,
     normalize_issue_number as _normalize_issue_number,
@@ -831,9 +832,13 @@ def _scrape_preview(request, comic):
         # Enrich all matches with all cover URLs
         raw_matches = scraper.enrich_matches_with_covers(raw_matches)
 
+    # Same order as the automatic match: alignment score, closest year, then
+    # closest cover
+    scored = [(match, _metadata_alignment_score(comic, match)) for match in raw_matches]
+    scored.sort(key=lambda x: _hash_match_rank(comic, *x))
+
     # Convert to dict format for JSON response
-    for match in raw_matches:
-        score = _metadata_alignment_score(comic, match)
+    for match, score in scored:
         all_matches.append({
             "issue_id": match.issue_id,
             "volume_id": match.volume_id,
@@ -850,8 +855,6 @@ def _scrape_preview(request, comic):
             "recommended": False,
         })
 
-    # Sort by alignment score (desc) then match score (asc)
-    all_matches.sort(key=lambda m: (-m["alignment_score"], m["match_score"]))
     _mark_recommended(all_matches)
 
     return JsonResponse({
