@@ -91,7 +91,7 @@ Physical comics and comics without a readable CBZ cover will have no hashes stor
 
 ## How Matching Works
 
-ComicManager matches a comic against ComicVine in up to three layers and stops at the first one that finds a match. This is the automatic match used by batch scraping, **Run Pipeline**, a comic's automatic scrape and `manage.py scrape`. Picking an issue by hand in the scrape window skips it. The dry run preview runs only Layers 1 and 2, with the values parsed from the filename and without the API.
+ComicManager matches a comic against ComicVine in up to three layers and stops at the first one that finds a match. This is the automatic match used by batch scraping, **Run Pipeline**, a comic's automatic scrape and `manage.py scrape`. Picking an issue by hand in the scrape window skips it. The dry run preview runs only Layers 1 and 2, without the API.
 
 ```
                  ┌─────────────────────────────────┐
@@ -124,15 +124,16 @@ ComicManager matches a comic against ComicVine in up to three layers and stops a
     └───────┘  ┌───────────────────────────────┐         │
                │ Layer 2: Metadata Match       │         │
                ├───────────────────────────────┤         │
-               │ a. volume name = series (any  │         │
-               │    case), same number, start  │         │
-               │    year = the comic's year    │         │
-               │    (when it has one)          │         │
-               │ b. only if a. finds nothing:  │         │
-               │    name contains the series,  │         │
-               │    same number, any year      │         │
-               │ Excluded publishers dropped,  │         │
-               │ most issues first; first wins │         │
+               │ Issues with the number in     │         │
+               │ volumes named like the series │         │
+               │ (any case; if none: names     │         │
+               │ that contain it), closest     │         │
+               │ year first, excluded          │         │
+               │ publishers dropped. Take the  │         │
+               │ first with a close cover (sum │         │
+               │ <= 28), else the first if its │         │
+               │ year is within 2 (no year:    │         │
+               │ only one volume has #N)       │         │
                └───────────────┬───────────────┘         │
                        ┌───────┴────────┐                │
                    a result           none               │
@@ -173,7 +174,7 @@ ComicManager matches a comic against ComicVine in up to three layers and stops a
                                          │ pHash and aHash           │
                                          └─────────────┬─────────────┘
                                     ┌──────────────────┴─────────────┐
-                         both distances <= 15,            a distance > 15
+                       pHash + aHash distance <= 28,           sum above 28
                          or nothing to compare                       │
                                     │                                │
                                     ▼                                ▼
@@ -189,7 +190,8 @@ ComicManager matches a comic against ComicVine in up to three layers and stops a
 
 When nothing matches, the comic gets the `scrape_no_match` flag and stays in Scrape. The reason is saved in `flags.scrape_error_detail` and shown in the scrape result message (`No match found: ...`), in the error list of a batch scrape, and as `reason` in the comic's Audit Log entry. For example:
 
-- `no match in the local comicvine.db, and API fallback is off (Settings > Scraping)`
+- `local comicvine.db: the closest #700 is in Batman (1940) from 2010, the comic is from 2020, and none of their covers is close to the comic's; API fallback is off (Settings > Scraping)`
+- `local comicvine.db: no volume named "World War Hulk - Front Line" has #2; API fallback is off (Settings > Scraping)`
 - `ComicVine API: #45 is not in Star Wars (1977); the cover does not match Star Wars (2015) #45 (cover hash mismatch (phash dist 30, ahash dist 24)); the issue search for "Star Wars 45" found no other issue with that number and a close series name`
 - `ComicVine API: the budget of 200 calls per hour is used up, try again later`
 
@@ -233,12 +235,12 @@ A candidate also scores 0 if its publisher is excluded by the allow or block lis
 
 If no hash candidate scores above 0, ComicManager looks the comic up in `comicvine.db` by name. This needs a series. The series, number and year are the comic's own, or the ones parsed from the filename when those fields are empty.
 
-1. Volumes whose name equals the series, ignoring case, with an issue of the same number (as written or without leading zeros). When the comic has a year, the volume's **start year** must equal it.
-2. Only if the first query finds nothing: volumes whose name contains the series, ignoring case, with an issue of the same number, in any year.
+1. It finds the issues with the comic's number (as written or without leading zeros) in volumes whose name equals the series, ignoring case. Only if there are none, it uses volumes whose name contains the series. Names are compared as written, so `Batman: Year One` does not find `Batman Year One`.
+2. The issues are sorted by year, closest to the comic's year first. An issue's year is its cover year or its volume's start year, whichever is closer, because a filename like `X-Men (2021) 001` gives the volume's year. Ties go to the volume with the most issues, and comics without a year keep that order. Matches from excluded publishers are removed (see [Publisher Filtering](#publisher-filtering)).
+3. The first issue whose cover is close to the comic's wins: the pHash and aHash distances to its cover in `comicvine.db` add up to 28 or less, the same rule as the API cover check. A close cover wins even over a closer year.
+4. If no cover is close, the first issue is taken when its year is within 2 of the comic's. Layer 1 has already compared covers, so the right issue often has another cover here, such as a variant or a different scan, and the year decides. A comic without a year only gets a match when a single volume has that number.
 
-Each query returns at most 10 issues, from the volume with the most issues first. Matches from excluded publishers are removed (see [Publisher Filtering](#publisher-filtering)), and the first one left wins. This layer gives no score and does no cover check, and the names are compared as written, so `Batman: Year One` does not find `Batman Year One`.
-
-The year is compared with the volume's start year, while a comic's year is usually its cover year. For an issue from a later year than its volume's first, the first query finds nothing, and the second one takes the longest volume with that name and number, which can be the wrong one. For example, `Batman #100` from 2020 can match `Batman #100` from the 1940 run. This is a known limitation.
+Otherwise the comic gets no match from this layer, with the reason, for example `the closest #700 is in Batman (1940) from 2010, the comic is from 2020, and none of their covers is close to the comic's`. This keeps `Batman #100` from 2020 from matching the 1940 run, which has the most issues.
 
 ### Layer 3: API Search (API mode or DB fallback)
 
@@ -250,7 +252,7 @@ In API-only mode, or when Layers 1 and 2 found nothing and **API fallback** (`sc
     - Within those groups: the highest score first, then the start year closest to the comic's year, then ComicVine's own order.
 2. `/issues?filter=volume:{id},issue_number:{num}` looks the number up in the best-ranked volume, then in the next one, up to 3 volumes. A comic without a number is only looked up when the best volume is a one-shot, as #1.
 3. If none of the volumes gave a match and the comic has a number: `/search?resources=issue` with "series number", the same search as the scrape window's **Search API** tab. Issues already checked are skipped. The rest need the same number and a score of 3 or more (an exact series name, or a partial one with a year within 2), and up to 3 of them are checked, best score first. These results carry no publisher, so it is taken from the volume search when the issue's volume was among those results, and the publisher lists apply to it.
-4. **Cover check.** Every issue found in step 2 or 3 is checked before anything else is fetched. ComicVine's cover is downloaded and hashed, and compared with the comic's pHash and aHash. Both distances must be within 15, a more lenient threshold than Layer 1 uses, to allow for crop and edition differences; otherwise the next issue is tried. The check is skipped, and the issue accepted, when the comic has no cover hashes and none can be made from its file (physical comics, unreadable archives), when ComicVine has no cover image, or when the download fails.
+4. **Cover check.** Every issue found in step 2 or 3 is checked before anything else is fetched. ComicVine's cover is downloaded and hashed, and compared with the comic's pHash and aHash. The two distances must add up to 28 or less; otherwise the next issue is tried. This is more lenient than Layer 1, to allow for crop and edition differences. Measured on about 1,500 comics from a real library, it accepts 95% of the right issues. The few wrong issues it accepts are almost all reprints with the same cover. Requiring each distance to be within 15, as before, accepted 92%, and missed right issues where one hash was close and the other just over, such as pHash 16 and aHash 5. The check is skipped, and the issue accepted, when the comic has no cover hashes and none can be made from its file (physical comics, unreadable archives), when ComicVine has no cover image, or when the download fails.
 5. `/issue/4000-{id}` fetches the full details and credits of the first issue that passes. The match type is `api+volume+detail` when it came from step 2 and `api+search+detail` when it came from step 3. If the details can't be fetched, the comic gets no match.
 
 **API calls:** a comic found in the first volume costs 3 calls: `/search`, `/issues` and `/issue`. Each further volume costs one more, and the issue search one more, so a comic costs at most 6. The cover download is a plain image fetch, not an API call, and does not count against the hourly budget of 200 calls. The volume search only starts with at least 3 calls left in the hour, and every further lookup needs 2 left; otherwise the comic gets no match with the budget as the reason. A batch scrape in API-only mode stops as soon as fewer than 3 calls are left and reports how many comics it got through.

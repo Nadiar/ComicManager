@@ -30,6 +30,10 @@ A hotfix release. Back up the database before upgrading. The upgrade runs one mi
 
 - **Filenames with ComicRack's date were read wrong**: A file named the way ComicRack's Library Organizer names files, such as `Saga #040 [November, 2016].cbz`, got the series `Saga [November, 2016]` and no year, so scraping searched for the wrong name. The date in brackets is now read as the year and removed from the series, like a year in parentheses. The **Scan for Comics** button and `scan_untagged` now share one filename parser.
 
+- **The local metadata match could pick the wrong volume**: When the cover match found nothing, the lookup by series and number in comicvine.db only took a volume whose start year equalled the comic's year, and otherwise the longest volume with that name, without looking at the cover. `Batman #100` from 2020 could become the issue from 1956. It now sorts the issues by the closest year (cover year or volume start year), takes the first one whose cover in comicvine.db is close to the comic's, and otherwise the closest one only when its year is within 2. A comic without a year only gets a match when a single volume has that number. When nothing fits, the reason is shown, as for the API. The dry run preview uses the same lookup.
+
+- **The cover check rejected right issues**: The API match required both cover hash distances to be within 15, so a right issue with one hash just over the limit (pHash 16, aHash 5) got no match. The two distances must now add up to 28 or less. On about 1,500 comics from a real library this accepted 95% of the right issues instead of 92%, and one more wrong issue, a reprint with the same cover. The local metadata match uses the same rule.
+
 ## [1.1.0]
 
 A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.

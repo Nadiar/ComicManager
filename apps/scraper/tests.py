@@ -311,7 +311,7 @@ class ApiMatchTests(TestCase):
         # Covers in self.bad_covers do not match the comic's cover
         self.bad_covers = set()
 
-        def verify(comic, match, threshold=15):
+        def verify(comic, match):
             if match.issue_id in self.bad_covers:
                 comic.flags["scrape_error_detail"] = "cover hash mismatch (phash dist 30, ahash dist 28)"
                 return False
@@ -480,3 +480,129 @@ class ApiMatchTests(TestCase):
         self.assertEqual(log.call_args[0][4]["reason"][1], 'ComicVine API: no volume found for "Batman"')
         comic.refresh_from_db()
         self.assertTrue(comic.has_flag("scrape_no_match"))
+
+
+class LocalMetadataMatchTests(TestCase):
+    """Layer 2: closest year first, a matching cover wins, a far year needs a matching cover."""
+
+    FAR = 0xFFFFFFFF00000000  # 32 bits away from a comic hashed as 0
+
+    def setUp(self):
+        import os
+        import sqlite3
+        import tempfile
+        from apps.scraper.comicvine import ComicVineScraper
+
+        d = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, d)
+        path = os.path.join(d, "comicvine.db")
+        conn = sqlite3.connect(path)
+        conn.executescript("""
+            CREATE TABLE cv_publisher (id INTEGER PRIMARY KEY, name TEXT);
+            CREATE TABLE cv_volume (id INTEGER PRIMARY KEY, name TEXT, start_year TEXT,
+                                    count_of_issues INTEGER, publisher_id INTEGER);
+            CREATE TABLE cv_issue (id INTEGER PRIMARY KEY, volume_id INTEGER, name TEXT,
+                                   issue_number TEXT, cover_date TEXT, description TEXT,
+                                   image_url TEXT);
+            CREATE TABLE comic_covers (id INTEGER PRIMARY KEY, cvid INTEGER, cv_url TEXT,
+                                       ct_phash INTEGER, ct_ahash INTEGER);
+            INSERT INTO cv_publisher VALUES (1, 'DC Comics');
+            INSERT INTO cv_volume VALUES (1, 'Batman', '1940', 713, 1);
+            INSERT INTO cv_volume VALUES (2, 'Batman', '2016', 160, 1);
+            INSERT INTO cv_volume VALUES (3, 'Batman', '2011', 52, 1);
+            INSERT INTO cv_volume VALUES (4, 'Batman and Robin', '2009', 26, 1);
+            INSERT INTO cv_issue VALUES (1100, 1, NULL, '100', '1956-06-01', NULL, NULL);
+            INSERT INTO cv_issue VALUES (2100, 2, NULL, '100', '2020-09-01', NULL, NULL);
+            INSERT INTO cv_issue VALUES (1005, 1, NULL, '5', '1941-03-01', NULL, NULL);
+            INSERT INTO cv_issue VALUES (2005, 2, NULL, '5', '2016-11-01', NULL, NULL);
+            INSERT INTO cv_issue VALUES (3005, 3, NULL, '5', '2012-03-01', NULL, NULL);
+            INSERT INTO cv_issue VALUES (1700, 1, NULL, '700', '2010-08-01', NULL, NULL);
+            INSERT INTO cv_issue VALUES (4021, 4, NULL, '21', '2011-05-01', NULL, NULL);
+        """)
+        for n, cvid in enumerate((1100, 2100, 1005, 2005, 3005, 1700, 4021), start=1):
+            conn.execute("INSERT INTO comic_covers VALUES (?, ?, '', ?, ?)",
+                         (n, cvid, self.FAR - (1 << 64), self.FAR - (1 << 64)))
+        conn.commit()
+        conn.close()
+        self.db = path
+        self.scraper = ComicVineScraper(path)
+
+    def _cover(self, cvid, phash, ahash):
+        import sqlite3
+        conn = sqlite3.connect(self.db)
+        conn.execute("UPDATE comic_covers SET ct_phash=?, ct_ahash=? WHERE cvid=?", (phash, ahash, cvid))
+        conn.commit()
+        conn.close()
+        import os, time
+        os.utime(self.db, (time.time() + 5, time.time() + 5))  # the hash cache reloads on a new mtime
+
+    def _comic(self, number, year=None, hashed=True, series="Batman"):
+        return Comic.objects.create(series=series, number=number, year=year, state=Comic.STATE_IMPORTED,
+                                    phash="0" * 16 if hashed else "", ahash="0" * 16 if hashed else "")
+
+    def test_closest_year_first(self):
+        ids = lambda year: [m.issue_id for m in self.scraper.match_by_metadata("batman", "100", year)]
+        self.assertEqual(ids(2020), [2100, 1100])
+        self.assertEqual(ids(2016), [2100, 1100])  # a filename year can be the volume's start year
+        self.assertEqual(ids(None), [1100, 2100])  # no year: the volume with the most issues
+
+    def test_close_year_is_taken_when_no_cover_matches(self):
+        match = services.try_metadata_match(self._comic("100", 2020), self.scraper)
+        self.assertEqual(match.issue_id, 2100)
+
+    def test_matching_cover_wins_over_the_year(self):
+        self._cover(3005, 3, 2)
+        match = services.try_metadata_match(self._comic("5", 2016), self.scraper)
+        self.assertEqual(match.issue_id, 3005)
+
+    def test_far_year_without_a_matching_cover_is_refused(self):
+        comic = self._comic("700", 2020)
+        self.assertIsNone(services.try_metadata_match(comic, self.scraper))
+        self.assertEqual(
+            comic.flags["scrape_error_detail"],
+            "local comicvine.db: the closest #700 is in Batman (1940) from 2010, the comic is from 2020, "
+            "and none of their covers is close to the comic's",
+        )
+
+    def test_far_year_with_a_matching_cover_is_taken(self):
+        self._cover(1700, 0, 0)
+        self.assertEqual(services.try_metadata_match(self._comic("700", 2020), self.scraper).issue_id, 1700)
+
+    def test_no_year_needs_a_single_volume(self):
+        comic = self._comic("5", hashed=False)
+        self.assertIsNone(services.try_metadata_match(comic, self.scraper))
+        self.assertEqual(
+            comic.flags["scrape_error_detail"],
+            "local comicvine.db: 3 volumes have #5 and the comic has no year, and the comic has no cover to compare",
+        )
+        robin = self._comic("21", hashed=False, series="Batman and Robin")
+        self.assertEqual(services.try_metadata_match(robin, self.scraper).issue_id, 4021)
+
+    def test_no_volume_with_the_number(self):
+        comic = self._comic("9999", 2020)
+        self.assertIsNone(services.try_metadata_match(comic, self.scraper))
+        self.assertEqual(comic.flags["scrape_error_detail"], 'local comicvine.db: no volume named "Batman" has #9999')
+
+    def test_fallback_off_message_keeps_the_layer_2_reason(self):
+        from unittest import mock
+        comic = self._comic("700", 2020)
+        with mock.patch("apps.scraper.cv_sources.is_cv_db_available", return_value=True), \
+                mock.patch.object(services, "try_hash_match", return_value=None):
+            self.assertIsNone(services.find_best_match(comic, self.scraper, max_distance=8))
+        detail = comic.flags["scrape_error_detail"]
+        self.assertTrue(detail.startswith("local comicvine.db: the closest #700"), detail)
+        self.assertTrue(detail.endswith("; API fallback is off (Settings > Scraping)"), detail)
+
+    def test_cover_hashes_come_from_the_cache(self):
+        self._cover(2100, 5, 7)
+        self.assertEqual(self.scraper.cover_hashes(2100), [(5, 7)])
+        self.assertEqual(self.scraper.cover_hashes(424242), [])
+
+
+class CoverRuleTests(TestCase):
+
+    def test_sum_of_both_distances(self):
+        self.assertTrue(services.covers_agree(16, 5))   # Guardians of the Galaxy #14 via the API
+        self.assertTrue(services.covers_agree(14, 14))
+        self.assertFalse(services.covers_agree(16, 13))
+        self.assertFalse(services.covers_agree(24, 47))

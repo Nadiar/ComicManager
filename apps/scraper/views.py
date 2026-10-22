@@ -6,13 +6,14 @@ import io
 from django.shortcuts import render
 from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.http import require_http_methods
+from django.utils.html import escape
 
 from apps.core.models import Comic
 from apps.core.utils import natural_number_annotation
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
 from apps.scraper.services import metadata_alignment_score as _metadata_alignment_score
-from apps.scraper.services import filter_by_publisher as _filter_by_publisher
+from apps.scraper.services import try_metadata_match as _try_metadata_match
 
 
 def index(request):
@@ -170,35 +171,22 @@ def _try_hash_match_with_log(comic, scraper, max_distance):
 
 
 def _try_metadata_match_with_log(comic, scraper):
-    """Try metadata match and return (match, html_log)."""
+    """Try metadata match (the same Layer 2 as scraping) and return (match, html_log)."""
     log = io.StringIO()
     log.write('<div class="mt-2 text-xs">\n')
     log.write('<div>Trying metadata match (fallback)...</div>\n')
 
-    if not comic.proposed_series or not comic.proposed_number:
-        log.write('<div class="text-warning">Missing series or number</div>\n')
-        log.write('</div>\n')
-        return None, log.getvalue()
-
-    matches = _filter_by_publisher(scraper.match_by_metadata(
-        series=comic.proposed_series,
-        issue_number=comic.proposed_number,
-        year=comic.proposed_year,
-    ))
-
-    if matches:
-        log.write(f'<div>Found {len(matches)} metadata matches:</div>\n')
-        log.write('<ul class="ml-4">\n')
-        for m in matches[:5]:
-            log.write(
-                f'<li>{m.series} #{m.issue_number} ({m.start_year}) - {m.publisher}</li>\n'
-            )
-        log.write('</ul>\n')
-        log.write('</div>\n')
-        return matches[0], log.getvalue()
-
-    log.write('<div class="text-base-content/60">No metadata matches found</div>\n')
+    match = _try_metadata_match(comic, scraper)
+    if match:
+        log.write(
+            f'<div>Found: {escape(match.series)} #{escape(match.issue_number)} '
+            f'({escape(str(match.start_year))}) - {escape(str(match.publisher))}</div>\n'
+        )
+    else:
+        reason = comic.flags.pop("scrape_error_detail", None)
+        if reason:
+            log.write(f'<div class="text-base-content/60">{escape(reason)}</div>\n')
     log.write('</div>\n')
-    return None, log.getvalue()
+    return match, log.getvalue()
 
 

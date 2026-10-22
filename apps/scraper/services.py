@@ -212,15 +212,68 @@ def try_hash_match(comic, scraper, max_distance=10):
     return None
 
 
+# Cover check for matches found by name (Layers 2 and 3): the comic's cover
+# and the match's agree when their pHash and aHash distances add up to at
+# most this. Measured in October 2026 on 1,485 random comics from a real
+# library, against the right ComicVine issue and against 2,003 issues with
+# the same number in other volumes of the same name: requiring both
+# distances within 15 accepted 92.1% of the right issues and 30 wrong ones,
+# a sum within 28 accepted 95.4% and 31 (often one hash is far off while the
+# other is close, such as pHash 16 and aHash 5). Most wrong issues that pass
+# are reprints with the same cover.
+COVER_MATCH_MAX_SUM = 28
+
+# Layer 2 takes a match its cover can't confirm only when its year is this
+# close to the comic's (year_gap: cover year or volume start year).
+METADATA_MAX_YEAR_GAP = 2
+
+
+def covers_agree(pdist, adist):
+    """Whether two covers are the same by their pHash and aHash distances."""
+    return pdist + adist <= COVER_MATCH_MAX_SUM
+
+
+def _comic_hashes(comic):
+    """The comic's (pHash, aHash) as integers, or None."""
+    try:
+        return int(comic.phash, 16), int(comic.ahash, 16)
+    except (TypeError, ValueError):
+        return None
+
+
+def local_cover_distance(scraper, hashes, issue_id):
+    """
+    The closest (pHash, aHash) distance between the comic's cover hashes and
+    the issue's covers in comicvine.db, or None when it has none.
+    """
+    best = None
+    for phash, ahash in scraper.cover_hashes(issue_id):
+        distance = (bin(hashes[0] ^ phash).count("1"), bin(hashes[1] ^ ahash).count("1"))
+        if best is None or sum(distance) < sum(best):
+            best = distance
+    return best
+
+
 def try_metadata_match(comic, scraper):
     """
-    Try to match a comic by series name and issue number.
+    Try to match a comic by series name and issue number in comicvine.db.
 
     Uses series/proposed_series and number/proposed_number with precedence
-    given to the verified (non-proposed) fields.
+    given to the verified (non-proposed) fields. match_by_metadata gives the
+    issues with that number in volumes with the series' name, closest year
+    first, and excluded publishers are dropped. The first one whose cover
+    agrees with the comic's (covers_agree, against the covers in
+    comicvine.db) wins. Layer 1 has already compared covers, so the right
+    issue often has another cover here (a variant, a different scan). Then
+    the first one is taken when its year is within METADATA_MAX_YEAR_GAP of
+    the comic's or, for a comic without a year, when only one volume has
+    that number.
 
-    Returns the best CVMatch or None.
+    Returns the best CVMatch or None; on None the reason is in
+    flags["scrape_error_detail"].
     """
+    from apps.scraper.comicvine import year_gap
+
     cv_series = comic.series or comic.proposed_series
     cv_number = comic.number or comic.proposed_number
     cv_year = comic.year or comic.proposed_year
@@ -233,8 +286,39 @@ def try_metadata_match(comic, scraper):
         issue_number=cv_number or "",
         year=cv_year,
     ))
+    if not matches:
+        comic.flags["scrape_error_detail"] = (
+            f'local comicvine.db: no volume named "{cv_series}" has #{cv_number or ""}'
+        )
+        return None
 
-    return matches[0] if matches else None
+    hashes = _comic_hashes(comic)
+    if hashes:
+        for match in matches:
+            distance = local_cover_distance(scraper, hashes, match.issue_id)
+            if distance and covers_agree(*distance):
+                return match
+
+    best = matches[0]
+    if cv_year:
+        if year_gap(best, cv_year) <= METADATA_MAX_YEAR_GAP:
+            return best
+        found = (best.cover_date or "")[:4] or best.start_year
+        reason = (
+            f"the closest #{best.issue_number} is in {best.series} ({best.start_year}) from {found}, "
+            f"the comic is from {cv_year}"
+        )
+    else:
+        volumes = {m.volume_id for m in matches}
+        if len(volumes) == 1:
+            return best
+        reason = f"{len(volumes)} volumes have #{best.issue_number} and the comic has no year"
+    if hashes:
+        reason += ", and none of their covers is close to the comic's"
+    else:
+        reason += ", and the comic has no cover to compare"
+    comic.flags["scrape_error_detail"] = f"local comicvine.db: {reason}"[:300]
+    return None
 
 
 def find_best_match(comic, scraper, max_distance=None):
@@ -263,9 +347,10 @@ def find_best_match(comic, scraper, max_distance=None):
             if get_setting("scrape_api_fallback", False):
                 match = try_api_metadata_match(comic, scraper)
             else:
+                detail = comic.flags.get("scrape_error_detail") or "no match in the local comicvine.db"
                 comic.flags["scrape_error_detail"] = (
-                    "no match in the local comicvine.db, and API fallback is off (Settings > Scraping)"
-                )
+                    f"{detail}; API fallback is off (Settings > Scraping)"
+                )[:300]
         return match
 
     return try_api_metadata_match(comic, scraper)
@@ -454,13 +539,13 @@ def try_api_metadata_match(comic, scraper):
     return give_up("; ".join(reasons))
 
 
-def _verify_cover_hash(comic, match, threshold=15):
+def _verify_cover_hash(comic, match):
     """
     Download the CV cover for `match` and compare it against the comic's stored phash/ahash.
     Returns True if hashes agree (or if verification cannot be performed).
     Returns False if the cover hash clearly disagrees, indicating a likely wrong match.
-    Uses a more lenient threshold (15) than local DB matching (10) since API covers
-    may differ slightly from local scans (different crop or edition).
+    Uses covers_agree, which is more lenient than the Layer 1 threshold since
+    API covers may differ slightly from local scans (different crop or edition).
     """
     import io
     import imagehash
@@ -492,7 +577,7 @@ def _verify_cover_hash(comic, match, threshold=15):
         local_ahash = imagehash.hex_to_hash(comic.ahash)
         pdist = api_phash - local_phash
         adist = api_ahash - local_ahash
-        if pdist <= threshold and adist <= threshold:
+        if covers_agree(pdist, adist):
             return True
         comic.flags["scrape_error_detail"] = (
             f"cover hash mismatch (phash dist {pdist}, ahash dist {adist})"

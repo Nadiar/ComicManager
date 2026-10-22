@@ -112,6 +112,22 @@ def _load_hash_cache(db_path: str) -> dict:
         return cache
 
 
+def year_gap(match, year) -> int:
+    """
+    Years between the comic's year and the match: its cover year or its
+    volume's start year, whichever is closer. A comic's year is usually the
+    cover year, but filenames like "X-Men (2021) 001" give the volume's.
+    Unknown years sort last.
+    """
+    gaps = []
+    for value in ((match.cover_date or "")[:4], match.start_year):
+        try:
+            gaps.append(abs(int(value) - int(year)))
+        except (TypeError, ValueError):
+            pass
+    return min(gaps) if gaps else 9999
+
+
 class ComicVineRateLimitError(Exception):
     """Raised when ComicVine API returns HTTP 420/429 (rate limited)."""
     pass
@@ -398,7 +414,11 @@ class ComicVineScraper:
         """
         Find matching comics by series name and issue number.
 
-        Uses fuzzy matching on series name via FTS if available.
+        Volumes named exactly like the series (any case) come first; volumes
+        whose name contains it are only searched when there are none. With a
+        year, the issues are sorted closest year first (year_gap), then by the
+        volume with the most issues, so a relaunch does not lose to the
+        longest run with that name.
         """
         conn = self._get_connection()
         cursor = conn.cursor()
@@ -425,15 +445,10 @@ class ComicVineScraper:
             LEFT JOIN cv_publisher p ON v.publisher_id = p.id
             WHERE LOWER(v.name) = LOWER(?)
               AND (i.issue_number = ? OR i.issue_number = ?)
+            ORDER BY v.count_of_issues DESC
+            LIMIT 100
         """
         params = [series, issue_number, issue_num_normalized]
-
-        # Add year filter if provided
-        if year:
-            query += " AND v.start_year = ?"
-            params.append(str(year))
-
-        query += " ORDER BY v.count_of_issues DESC LIMIT 10"
 
         cursor.execute(query, params)
         matches = []
@@ -477,7 +492,7 @@ class ComicVineScraper:
                 WHERE LOWER(v.name) LIKE LOWER(?)
                   AND (i.issue_number = ? OR i.issue_number = ?)
                 ORDER BY v.count_of_issues DESC
-                LIMIT 10
+                LIMIT 100
             """, (f"%{series}%", issue_number, issue_num_normalized))
 
             for row in cursor.fetchall():
@@ -499,7 +514,17 @@ class ComicVineScraper:
                 ))
 
         conn.close()
+        if year:
+            matches.sort(key=lambda m: year_gap(m, year))
         return matches
+
+    def cover_hashes(self, issue_id: int) -> list[tuple[int, int]]:
+        """(pHash, aHash) of every cover of an issue in comic_covers, from the hash cache."""
+        import numpy as np
+
+        cache = _load_hash_cache(self.db_path)
+        rows = np.nonzero(cache["cvids"] == issue_id)[0]
+        return [(int(cache["phashes"][i]), int(cache["ahashes"][i])) for i in rows]
 
     def get_issue_details(self, issue_id: int) -> Optional[CVMatch]:
         """Get full details for a specific issue by ID, including credits."""
