@@ -283,6 +283,7 @@
 - [x] [UI.35] The Audit Log page's action filter only searched the newest 2000 lines and called 2000 the total. It searches the whole log and shows the real total now, and a comic's Pipeline history loads about 9 times faster on a large log. Fixed in v1.1.0.
 - [ ] [UI.36] Free-text search on `/comics/` does not include Imprint.
 - [ ] [UI.37] Mass edit: change metadata fields on many selected comics at once. Today there is only the per-comic edit page, and tagging rules can only set fixed values (Month and Day are not rule fields, and no action copies one field into another). Planned together with P2.24. (Requested on Reddit)
+- [ ] [UI.38] At 1280 px wide, the Refresh Credits and Compare All Sources buttons are wider than their column in the comic page's Actions panel and stick out of it.
 
 ## Major Issues / Bugs
 
@@ -361,6 +362,8 @@
 - [ ] [BUG.69] `convert_cbr_task` (single file) never checks the cancel flag. (Gitea #6)
 - [ ] [BUG.70] Task Health (`apps/core/settings_views.py`) only checks TaskResult rows, so a QueuedTask stuck in queued or running without a TaskResult shows as healthy. (Gitea #6)
 - [ ] [BUG.71] BUG.59's secondary finding is still open: the worker consumes `serial,import,scrape,organize,write`, and no default queue is set, so tasks on the default `celery` queue (such as beat's `celery.backend_cleanup`) are never run and pile up in Redis.
+- [x] [BUG.72] The comic page crashed (server error) when no page count was stored and the file was missing or could not be read, because `_get_cbz_page_count` only catches `BadZipFile` and `EOFError`. Refresh File Info and Download also crashed on a file the container cannot read. The comic page now shows without a page count and does not flag the file as corrupted, and Refresh File Info and Download say `Could not read the file: Permission denied`. The untagged scan still reports an unreadable file as an import error instead of importing it. Found by checking every comic page, action and task with missing and unreadable files. Fixed in v1.1.1. (Gitea #12)
+- [x] [BUG.73] Refresh Credits and Search Alt Covers crashed on every comic when there was no local comicvine.db (API-only setups): `ComicVineScraper` opened the missing file, and the page showed `Network error: Unexpected token`. Search Alt Covers never reached its API fallback. Both now check `is_cv_db_available()` and use the API without the local database, Refresh Credits also when the issue is not in it, like Scrape by ID. A ComicVine rate limit is reported instead of crashing. Fixed in v1.1.1.
 
 
 ## I.N.D.U.C.K.S. Integration

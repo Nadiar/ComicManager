@@ -408,7 +408,11 @@ def refresh_file_info(comic: "Comic") -> dict:
 
     # Page count and cover hashes (CBZ only)
     if path.suffix.lower() == ".cbz":
-        new_count, is_corrupted = _get_cbz_page_count(path)
+        try:
+            new_count, is_corrupted = _get_cbz_page_count(path)
+        except OSError as exc:
+            return {"updated": {}, "error": f"Could not read the file: {exc.strerror or exc}",
+                    "hash_status": "skipped"}
         if is_corrupted:
             comic.add_flag("corrupted_archive")
             save_fields.append("flags")

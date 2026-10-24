@@ -262,6 +262,55 @@ class ScrapePreviewErrorTests(TestCase):
         self.assertIsNotNone(logs.records[0].exc_info)
 
 
+class NoLocalDbTests(TestCase):
+    """Refresh Credits and Search Alt Covers use the API when there is no comicvine.db."""
+
+    def setUp(self):
+        from django.test import override_settings
+        missing = "/nonexistent/comicvine.db"
+        Setting.objects.update_or_create(key="cv_db_path", defaults={"value": missing, "type": "path"})
+        self.enterContext(override_settings(CV_DB_PATH=missing))
+        self.comic = Comic.objects.create(series="Black Cat", number="14", file_path="/comics/Black Cat 014.cbz",
+                                          custom_values={"comicvine_issue": "1234"})
+
+    def test_refresh_credits_uses_the_api(self):
+        from unittest.mock import patch
+        from apps.scraper.comicvine import ComicVineScraper
+        match = _make_match(issue_id=1234, series="Black Cat", issue_number="14", writer="Jed MacKay")
+        with patch.object(ComicVineScraper, "get_issue_from_api", return_value=match) as api:
+            resp = self.client.post(f"/comics/{self.comic.pk}/refresh-credits/")
+        api.assert_called_once_with(1234)
+        self.assertEqual(resp.json()["changes"], ["writer"])
+        self.comic.refresh_from_db()
+        self.assertEqual(self.comic.writer, "Jed MacKay")
+
+    def test_refresh_credits_without_db_or_api_key(self):
+        Setting.objects.filter(key="cv_api_key").update(value="")
+        resp = self.client.post(f"/comics/{self.comic.pk}/refresh-credits/")
+        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.json()["error"], "No local ComicVine database and no ComicVine API key set")
+
+    def test_search_alt_covers_uses_the_api(self):
+        from unittest.mock import MagicMock, patch
+        from apps.scraper.comicvine import ComicVineScraper
+        covers = ["https://example.com/a.jpg", "https://example.com/b.jpg"]
+        match = _make_match(issue_id=1234, cover_urls=covers)
+        with patch.object(ComicVineScraper, "get_issue_from_api", return_value=match), \
+                patch("apps.core.views.enqueue", return_value=MagicMock(id="task-1")) as enqueue:
+            resp = self.client.post(f"/comics/{self.comic.pk}/search-alt-covers/")
+        self.assertEqual(resp.json()["total"], 2)
+        self.assertEqual(enqueue.call_args.kwargs["args"], [str(self.comic.pk), covers])
+
+    def test_rate_limit_is_reported(self):
+        from unittest.mock import patch
+        from apps.scraper.comicvine import ComicVineRateLimitError, ComicVineScraper
+        with patch.object(ComicVineScraper, "get_issue_from_api", side_effect=ComicVineRateLimitError("Wait")):
+            for action in ("refresh-credits", "search-alt-covers"):
+                resp = self.client.post(f"/comics/{self.comic.pk}/{action}/")
+                self.assertEqual(resp.status_code, 429, action)
+                self.assertTrue(resp.json()["rate_limited"], action)
+
+
 class FakeComicVine:
     """Stands in for ComicVineScraper's API methods and counts the calls."""
 

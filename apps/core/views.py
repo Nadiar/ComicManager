@@ -437,7 +437,11 @@ def comic_detail(request, pk):
     if comic.is_digital and comic.file_path and not comic.page_count:
         if comic.file_path.lower().endswith('.cbz'):
             from .services import _get_cbz_page_count
-            count, is_corrupted = _get_cbz_page_count(Path(comic.file_path))
+            try:
+                count, is_corrupted = _get_cbz_page_count(Path(comic.file_path))
+            except OSError:
+                # Missing or unreadable file: show the page without a page count
+                count, is_corrupted = None, False
             if count:
                 comic.page_count = count
                 comic.save(update_fields=["page_count"])
@@ -2931,8 +2935,11 @@ def force_organize(request, pk):
 @require_POST
 def refresh_credits(request, pk):
     """
-    Refresh credits from ComicVine database without re-scraping other metadata.
+    Refresh credits from ComicVine without re-scraping other metadata.
+    Uses the local comicvine.db, or the API when the issue isn't there.
     """
+    from apps.scraper.cv_sources import is_cv_db_available
+
     comic = get_object_or_404(Comic, pk=pk)
 
     cv_issue_id = comic.custom_values.get("comicvine_issue")
@@ -2943,13 +2950,20 @@ def refresh_credits(request, pk):
         }, status=400)
 
     scraper = ComicVineScraper()
-    match = scraper.get_issue_details(int(cv_issue_id))
+    db_available = is_cv_db_available()
+    try:
+        match = scraper.get_issue_details(int(cv_issue_id)) if db_available else None
+        if not match:
+            match = scraper.get_issue_from_api(int(cv_issue_id))
+    except ComicVineRateLimitError as e:
+        return JsonResponse({"success": False, "error": str(e), "rate_limited": True}, status=429)
 
     if not match:
-        return JsonResponse({
-            "success": False,
-            "error": f"Issue {cv_issue_id} not found in ComicVine database"
-        }, status=404)
+        if not db_available and not get_setting("cv_api_key", "").strip():
+            error = "No local ComicVine database and no ComicVine API key set"
+        else:
+            error = f"Issue {cv_issue_id} not found in the local ComicVine database or the API"
+        return JsonResponse({"success": False, "error": error}, status=404)
 
     # Update only credits and web URL
     changes = []
@@ -3198,12 +3212,17 @@ def search_alt_covers(request, pk):
     if not cv_issue_id:
         return JsonResponse({"success": False, "error": "No ComicVine issue ID associated with this comic"})
 
+    from apps.scraper.cv_sources import is_cv_db_available
+
     scraper = ComicVineScraper()
 
-    variant_urls = scraper.get_all_covers(int(cv_issue_id))
+    variant_urls = scraper.get_all_covers(int(cv_issue_id)) if is_cv_db_available() else []
 
     if not variant_urls:
-        match = scraper.get_issue_from_api(int(cv_issue_id))
+        try:
+            match = scraper.get_issue_from_api(int(cv_issue_id))
+        except ComicVineRateLimitError as e:
+            return JsonResponse({"success": False, "error": str(e), "rate_limited": True}, status=429)
         if match and match.cover_urls:
             variant_urls = match.cover_urls
 
@@ -3522,7 +3541,12 @@ def comic_download(request, pk):
     if not mime_type:
         mime_type = "application/octet-stream"
 
-    response = FileResponse(open(file_path, "rb"), content_type=mime_type)
+    try:
+        handle = open(file_path, "rb")
+    except OSError as exc:
+        return HttpResponse(f"Could not read the file: {exc.strerror or exc}", status=500)
+
+    response = FileResponse(handle, content_type=mime_type)
     response["Content-Disposition"] = f'attachment; filename="{file_path.name}"'
     return response
 

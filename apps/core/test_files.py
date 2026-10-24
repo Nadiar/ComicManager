@@ -1008,3 +1008,68 @@ class AuditLogTests(TempDirMixin, TestCase):
 
             page = self.client.get("/settings/log/?action=convert_cbr")
             self.assertContains(page, "10 entries total")
+
+
+class MissingFileTests(TempDirMixin, TestCase):
+    """A comic whose file is gone or can't be read gets a message, not a server error (#12)."""
+
+    def _comic(self, file_path):
+        return Comic.objects.create(series="Sample Hero", number="1", file_path=file_path, file_format="cbz")
+
+    def _unreadable(self, p):
+        """Make opening p fail with permission denied, also when the tests run as root."""
+        import builtins
+        import io
+        from contextlib import ExitStack
+        from unittest.mock import patch
+
+        real_open = builtins.open
+
+        def fake_open(file, *args, **kwargs):
+            if isinstance(file, (str, os.PathLike)) and os.fspath(file) == p:
+                raise PermissionError(13, "Permission denied", p)
+            return real_open(file, *args, **kwargs)
+
+        stack = ExitStack()
+        stack.enter_context(patch("builtins.open", fake_open))
+        stack.enter_context(patch.object(io, "open", fake_open))
+        return stack
+
+    def test_comic_page_renders_when_the_file_is_missing(self):
+        comic = self._comic(self.path("gone", "Sample Hero 001.cbz"))
+        resp = self.client.get(f"/comics/{comic.pk}/")
+        self.assertContains(resp, "Sample Hero")
+        comic.refresh_from_db()
+        self.assertNotIn("corrupted_archive", comic.flags)
+        self.assertIsNone(comic.page_count)
+
+    def test_comic_page_renders_when_the_file_is_unreadable(self):
+        p = make_cbz(self.path("Sample Hero 001.cbz"))
+        comic = self._comic(p)
+        with self._unreadable(p):
+            resp = self.client.get(f"/comics/{comic.pk}/")
+        self.assertContains(resp, "Sample Hero")
+        comic.refresh_from_db()
+        self.assertNotIn("corrupted_archive", comic.flags)
+
+    def test_refresh_file_info_reports_an_unreadable_file(self):
+        p = make_cbz(self.path("Sample Hero 001.cbz"))
+        comic = self._comic(p)
+        with self._unreadable(p):
+            resp = self.client.post(f"/comics/{comic.pk}/refresh-file-info/")
+        data = resp.json()
+        self.assertFalse(data["success"])
+        self.assertEqual(data["error"], "Could not read the file: Permission denied")
+
+    def test_download_reports_an_unreadable_file(self):
+        p = make_cbz(self.path("Sample Hero 001.cbz"))
+        comic = self._comic(p)
+        with self._unreadable(p):
+            resp = self.client.get(f"/comics/{comic.pk}/download/")
+        self.assertEqual(resp.status_code, 500)
+        self.assertEqual(resp.content.decode(), "Could not read the file: Permission denied")
+
+        resp = self.client.get(f"/comics/{comic.pk}/download/")
+        self.assertEqual(resp.status_code, 200)
+        with open(p, "rb") as f:
+            self.assertEqual(b"".join(resp.streaming_content), f.read())
