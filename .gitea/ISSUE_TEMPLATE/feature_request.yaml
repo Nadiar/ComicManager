@@ -1,0 +1,37 @@
+name: Feature request
+about: Suggest a new feature or a change to how something works
+labels:
+  - Kind/Feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Please check [Philosophy & Scope](https://comicmanager.baerentsen.space/guide/philosophy) first to see what ComicManager is and is not, and suggest one feature per request.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      description: Describe the feature as you picture it. Mockups or screenshots are welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: Anything you tried or considered, and how you work around it now.
+
+  - type: textarea
+    id: other-tools
+    attributes:
+      label: How do other tools handle it?
+      description: For example how ComicRack, its scripts or another comic manager does it.

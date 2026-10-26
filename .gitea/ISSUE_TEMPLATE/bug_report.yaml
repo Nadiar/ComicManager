@@ -1,0 +1,75 @@
+name: Bug report
+about: Something in ComicManager does not work as it should
+labels:
+  - Kind/Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. Please check the [Troubleshooting](https://comicmanager.baerentsen.space/guide/getting-started#troubleshooting) section of the docs and the existing issues first, and report one problem per issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? Include the exact error message if there is one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The image tag you run (latest, dev or a version like 1.1.1) and about when you pulled it. `docker compose images` shows the tag.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: metadata-source
+    attributes:
+      label: ComicVine setup
+      options:
+        - Local comicvine.db and an API key
+        - Local comicvine.db only
+        - API key only
+        - Neither
+    validations:
+      required: true
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: The host OS, where your comics are stored (local disk, NFS or SMB share, ...), and anything you changed in docker-compose.yml or .env.
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Output of `docker compose logs --tail 200 web worker` from around the time of the problem. Remove anything you don't want to share, such as paths.
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If the problem is on a page, a screenshot helps. You can paste or drag images in here.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and this is not reported yet.
+          required: true
