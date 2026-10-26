@@ -2,5 +2,6 @@ services:
   docs:
     build: .
     container_name: ComicManager_Docs
+    restart: unless-stopped
     ports:
       - "5174:80"
