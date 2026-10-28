@@ -20,6 +20,7 @@ from django.conf import settings
 
 from apps.core.archives import misnamed_format
 from apps.core.models import Comic
+from apps.core.utils import FIELD_MAP
 
 
 class MisnamedArchiveError(ValueError):
@@ -424,47 +425,13 @@ class Command(BaseCommand):
         """Parse ComicInfo.xml content into a dictionary matching Comic model fields."""
         root = ET.fromstring(xml_content)
 
-        # Direct field mappings (XML tag -> model field)
-        field_map = {
-            "Title": "title",
-            "Series": "series",
-            "Number": "number",
-            "Count": "count",
-            "Volume": "volume",
-            "Year": "year",
-            "Month": "month",
-            "Day": "day",
-            "Publisher": "publisher",
-            "Imprint": "imprint",
-            "Summary": "summary",
-            "Notes": "notes",
-            "Genre": "genre",
-            "Web": "web",
-            "PageCount": "page_count",
-            "Format": "format",
-            "Characters": "characters",
-            "Teams": "teams",
-            "Locations": "locations",
-            "Tags": "tags",
-            "ScanInformation": "scan_information",
-            "SeriesGroup": "series_group",
-            "MainCharacterOrTeam": "main_character_or_team",
-            # Credits
-            "Writer": "writer",
-            "Penciller": "penciller",
-            "Inker": "inker",
-            "Colorist": "colorist",
-            "Letterer": "letterer",
-            "CoverArtist": "cover_artist",
-            "Editor": "editor",
-        }
-
         # Integer fields that need conversion
         int_fields = {"count", "volume", "year", "month", "day", "page_count"}
 
         data = {}
 
-        for xml_tag, model_field in field_map.items():
+        # Same XML tag -> model field map as reading and writing ComicInfo.xml
+        for xml_tag, model_field in FIELD_MAP.items():
             element = root.find(xml_tag)
             if element is not None and element.text:
                 value = element.text.strip()

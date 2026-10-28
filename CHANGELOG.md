@@ -40,6 +40,8 @@ A hotfix release. Back up the database before upgrading. The upgrade runs one mi
 
 - **Refresh Credits and Search Alt Covers failed without a local comicvine.db**: With only an API key set, both buttons failed on every comic with `Network error: Unexpected token`. They now use the ComicVine API when there is no local database, and Refresh Credits also uses it when the issue is not in the local database. Hitting the API rate limit now shows a message instead of an error.
 
+- **`import_library` left out story arcs**: The import read every ComicInfo.xml field except `<StoryArc>`, both from the files and from ComicRack's `ComicDb.xml`, so imported comics had no story arc, and **Write to CBZ** then replaced the file's `ComicInfo.xml` without it. The import now reads the same fields that are written.
+
 ## [1.1.0]
 
 A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.

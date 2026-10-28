@@ -876,6 +876,18 @@ class ImportLibraryTests(TempDirMixin, TestCase):
             call_command("import_library", path=lib, stdout=out, stderr=err, **options)
         return out.getvalue(), err.getvalue()
 
+    def test_import_reads_story_arc_from_comicinfo_and_comicdb(self):
+        lib = self.path("lib")
+        make_cbz(os.path.join(lib, "Pub", "Batman 001.cbz"),
+                 comicinfo="<ComicInfo><Series>Batman</Series><Number>1</Number>"
+                           "<StoryArc>Court of Owls</StoryArc></ComicInfo>")
+        make_cbz(os.path.join(lib, "Pub", "Batman 002.cbz"))
+        comicdb = self._comicdb(("B:\\Comics\\ComicRack\\Pub\\Batman 002.cbz",
+                                 "<Series>Batman</Series><Number>2</Number><StoryArc>Night of Owls</StoryArc>"))
+        self._import(lib, comicdb=comicdb)
+        self.assertEqual(dict(Comic.objects.values_list("number", "story_arc")),
+                         {"1": "Court of Owls", "2": "Night of Owls"})
+
     def test_comicdb_from_any_comicrack_folder(self):
         lib = self.path("lib")
         make_cbz(os.path.join(lib, "Pub", "Series", "Tagged 001.cbz"),

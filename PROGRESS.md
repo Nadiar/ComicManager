@@ -104,7 +104,7 @@
 - [x] [P4.13] `backfill_imprint` command fills in the Imprint of comics imported before v1.1.1 from their ComicInfo.xml (`--dry-run` lists the changes). It only reads the files and never changes a comic that already has an imprint. Added in v1.1.1 (Gitea #9).
 - [x] [P4.14] `import_library --comicdb` only matches ComicDb.xml entries whose path starts with `B:\Comics\ComicRack\` (`COMICDB_STRIP_PREFIX` in `apps/core/management/commands/import_library.py`). Anyone else gets no enrichment and no imports from ComicDb.xml, while the docs describe it as general. Fix: match each Book's path by its end against the scanned files (longest match first, report ties), or add a `--comicdb-root` option. Fixed in v1.1.1: `match_comicdb_paths` matches each Book path by the longest end that is a scanned file, so ComicRack's folder is found for any library and with `--path` set to a subfolder. The output lists the folders found with their file counts; when a file is under more than one, the folder with the most matches wins. `--comicdb-root` (repeatable, first wins) sets the folders by hand, and when nothing matches the command stops before importing anything.
 - [ ] [P4.15] `import_library` splits ComicDb.xml's `CustomValuesStore` on every comma and does not decode ComicRack's escaping, so values that contain a comma or `=` come in encoded (`a&#44;b`).
-- [ ] [P4.16] `import_library` has its own ComicInfo field map (`parse_comic_info_xml`) instead of using `FIELD_MAP` in `apps/core/utils.py`, and it leaves out `StoryArc`, so story arcs in existing files are not imported.
+- [x] [P4.16] `import_library` had its own ComicInfo field map (`parse_comic_info_xml`) instead of using `FIELD_MAP` in `apps/core/utils.py`, and it left out `StoryArc`, so story arcs in existing files and in ComicDb.xml were not imported, and Write to CBZ then replaced the files' ComicInfo.xml without them. Fixed in v1.1.1: the import uses `FIELD_MAP`.
 - [ ] [P4.17] `RegExVarReplace` and `RegExVarAppend` turn every `(?<` into `(?P<` (`apps/tagging/engine.py`), which also breaks lookbehinds `(?<=` and `(?<!`. A ruleset with a lookbehind raises `re.error` and does nothing. Only convert named groups `(?<name>`.
 - [ ] [P4.18] RegEx rules write the capture into the action's field. ComicRack's Data Manager seems to write it into the custom value named by the group (old organizer profiles use `{<Custom(SW)>}`). Check in ComicRack and match it.
 - [ ] [P4.19] Rulesets created in the UI get the highest priority, so they run after the Clean-Up rulesets (a main character set by a new ruleset comes too late for "Alternate Universes" and "Cleanup: Processed"). Let the user place a new ruleset, or document it.
@@ -412,7 +412,7 @@
 - [ ] [DOC.7] `docs/guide/tagging.md` marks Imprint "Not verified" for DataManager compatibility. Check whether ComicRack's Data Manager has an Imprint field.
 - [ ] [DOC.8] `docs/guide/philosophy.md` says ComicManager runs "on any OS" (line 3), but Windows is not supported, and "No other sources will be added" (line 24), which changes if FI.16 goes ahead.
 - [x] [DOC.9] CHANGELOG.md does not list the publisher allow and block lists (P2.18), which were added after v1.1.0 was tagged. Added to the v1.1.1 section.
-- [ ] [DOC.10] The docs container has no restart policy, so it stays down after a reboot. Add `restart: unless-stopped` to `docs/docker-compose.yml`.
+- [x] [DOC.10] The docs container had no restart policy, so it stayed down after a reboot. `docs/docker-compose.yml` has `restart: unless-stopped` now.
 
 ## Future Improvements
 
