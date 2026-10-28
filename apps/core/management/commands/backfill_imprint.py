@@ -1,5 +1,5 @@
 """
-Fill in the Imprint of comics imported before 1.1.1 from the <Imprint> element
+Fill in the Imprint of comics imported before 1.1.2 from the <Imprint> element
 in their ComicInfo.xml. Older versions dropped it on import, and a write would
 replace the ComicInfo.xml without it. Only comics without an imprint are
 changed, and the files are only read.

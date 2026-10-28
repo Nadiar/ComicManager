@@ -199,7 +199,7 @@ Access any custom value field with `{<Custom(key)>}`:
 {<Custom(StoryArc)>}          -> story arc name
 ```
 
-Imprint is a standard field, not a custom value. Use `{<imprint>}`, not `{<Custom(Imprint)>}`. Since 1.1.1, an `Imprint` custom value is moved into the Imprint field when you upgrade, so a profile that still uses `{<Custom(Imprint)>}` gets an empty value and leaves out the imprint folder.
+Imprint is a standard field, not a custom value. Use `{<imprint>}`, not `{<Custom(Imprint)>}`. Since 1.1.2, an `Imprint` custom value is moved into the Imprint field when you upgrade, so a profile that still uses `{<Custom(Imprint)>}` gets an empty value and leaves out the imprint folder.
 
 ---
 
@@ -504,7 +504,7 @@ DC Comics/Black Label/Harleen (V2019)/Harleen #001 (2019).cbz
 DC Comics/Batman (V2016)/Batman #001 (2016).cbz
 ```
 
-The imprint comes from the `<Imprint>` element in ComicInfo.xml (read by `import_library`), from the Imprint box on the comic's edit page, or from a tagging rule that sets the `Imprint` field, for example a rule that matches the series and sets the imprint for a whole run. ComicVine does not provide imprints, so scraping does not fill it in. For comics imported before 1.1.1, run `backfill_imprint` (see [Getting Started](/guide/getting-started)) to read the imprint from their files.
+The imprint comes from the `<Imprint>` element in ComicInfo.xml (read by `import_library`), from the Imprint box on the comic's edit page, or from a tagging rule that sets the `Imprint` field, for example a rule that matches the series and sets the imprint for a whole run. ComicVine does not provide imprints, so scraping does not fill it in. For comics imported before 1.1.2, run `backfill_imprint` (see [Getting Started](/guide/getting-started)) to read the imprint from their files.
 
 ---
 
