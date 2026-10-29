@@ -413,6 +413,7 @@
 - [ ] [DOC.8] `docs/guide/philosophy.md` says ComicManager runs "on any OS" (line 3), but Windows is not supported, and "No other sources will be added" (line 24), which changes if FI.16 goes ahead.
 - [x] [DOC.9] CHANGELOG.md does not list the publisher allow and block lists (P2.18), which were added after v1.1.0 was tagged. Added to the v1.1.2 section.
 - [x] [DOC.10] The docs container had no restart policy, so it stayed down after a reboot. `docs/docker-compose.yml` has `restart: unless-stopped` now.
+- [x] [DOC.11] The docs image failed a vulnerability scan (1 critical, 2 high) even when built on the newest `nginx:alpine`: that image lagged behind Alpine's fixes for curl, libcurl and brotli-libs. None of them were reachable (nginx links neither, only the `curl` tool and freetype use them). `docs/Dockerfile` runs `apk upgrade --no-cache` in the nginx stage, so a rebuild gets Alpine's fixed packages. The scan is now 0 critical, 0 high.
 
 ## Future Improvements
 
