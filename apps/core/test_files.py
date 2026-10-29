@@ -281,14 +281,17 @@ class ImprintTests(TempDirMixin, TestCase):
         self.assertEqual(kept.imprint, "Black Label")
         self.assertEqual(kept.custom_values, {})
 
-    def test_backfill_fills_only_empty_imprints_and_leaves_files_alone(self):
+    def test_backfill_fills_only_empty_fields_and_leaves_files_alone(self):
         from io import StringIO
         from django.core.management import call_command
-        xml = "<ComicInfo><Publisher>DC Comics</Publisher><Imprint>Vertigo</Imprint></ComicInfo>"
+        xml = ("<ComicInfo><Publisher>DC Comics</Publisher><Imprint>Vertigo</Imprint>"
+               "<StoryArc>Preludes and Nocturnes</StoryArc></ComicInfo>")
         filled = Comic.objects.create(file_path=make_cbz(self.path("a.cbz"), comicinfo=xml),
                                       series="Sandman", state=Comic.STATE_WRITTEN)
         kept = Comic.objects.create(file_path=make_cbz(self.path("b.cbz"), comicinfo=xml),
-                                    series="Harleen", imprint="Black Label")
+                                    series="Harleen", imprint="Black Label", story_arc="Harleen")
+        arc_only = Comic.objects.create(file_path=make_cbz(self.path("d.cbz"), comicinfo=xml),
+                                        series="Lucifer", imprint="Vertigo", state=Comic.STATE_WRITTEN)
         without = Comic.objects.create(
             file_path=make_cbz(self.path("c.cbz"), comicinfo="<ComicInfo><Publisher>DC Comics</Publisher></ComicInfo>"),
             series="Batman")
@@ -297,25 +300,26 @@ class ImprintTests(TempDirMixin, TestCase):
             before = f.read()
 
         out = StringIO()
-        call_command("backfill_imprint", dry_run=True, stdout=out)
+        call_command("backfill_from_files", dry_run=True, stdout=out)
         filled.refresh_from_db()
         self.assertFalse(filled.imprint)
-        self.assertIn("Would set Vertigo", out.getvalue())
+        self.assertIn("Would set imprint Vertigo, story arc Preludes and Nocturnes", out.getvalue())
 
         out = StringIO()
-        call_command("backfill_imprint", stdout=out)
-        for c in (filled, kept, without, missing):
+        call_command("backfill_from_files", stdout=out)
+        for c in (filled, kept, arc_only, without, missing):
             c.refresh_from_db()
-        self.assertEqual(filled.imprint, "Vertigo")
+        self.assertEqual((filled.imprint, filled.story_arc), ("Vertigo", "Preludes and Nocturnes"))
         self.assertTrue(filled.needs_reorganize)
-        self.assertEqual(kept.imprint, "Black Label")
+        self.assertEqual((kept.imprint, kept.story_arc), ("Black Label", "Harleen"))
+        self.assertEqual(arc_only.story_arc, "Preludes and Nocturnes")
+        self.assertFalse(arc_only.needs_reorganize)
         self.assertFalse(without.imprint)
         self.assertFalse(missing.imprint)
-        self.assertIn("Set the imprint on 1.", out.getvalue())
+        self.assertIn("Set the imprint on 1 and the story arc on 2.", out.getvalue())
         self.assertIn("Skipped 1 whose file is missing.", out.getvalue())
         with open(filled.file_path, "rb") as f:
             self.assertEqual(f.read(), before)
-
 
 class CopyOnWriteWriteTests(TempDirMixin, TestCase):
     """The btrfs/XFS path: patch a reflink clone and swap it in atomically.

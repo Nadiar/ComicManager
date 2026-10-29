@@ -2,11 +2,11 @@
 
 ## [1.1.1]
 
-A hotfix release. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint yet: run `backfill_imprint` before writing them (see below). Moves are now refused for organizer profiles whose base folder is outside `/comics/library`, such as a Windows path kept from a ComicRack `.lop` import; the profile list shows which profiles to edit.
+A hotfix release. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint or story arc yet: run `backfill_from_files` before writing them (see below). Moves are now refused for organizer profiles whose base folder is outside `/comics/library`, such as a Windows path kept from a ComicRack `.lop` import; the profile list shows which profiles to edit.
 
 ### Added
 
-- **`backfill_imprint` command (#9)**: Comics imported with an earlier version have no imprint in ComicManager, because `import_library` dropped the `<Imprint>` element, and **Write to CBZ** would replace their `ComicInfo.xml` without it. The command reads the imprint from each comic's `ComicInfo.xml` and fills it in where the Imprint field is empty. It only reads the files. Use `--dry-run` to list the changes first.
+- **`backfill_from_files` command (#9)**: Comics imported with an earlier version have no imprint and no story arc in ComicManager, because `import_library` dropped the `<Imprint>` and `<StoryArc>` elements, and **Write to CBZ** would replace their `ComicInfo.xml` without them. The command reads both from each comic's `ComicInfo.xml` and fills them in where the field is empty. It only reads the files. Use `--dry-run` to list the changes first.
 
 - **Publisher allow and block lists for auto-match**: Two settings under **Settings > Scraping** limit which publishers auto-match may pick, so a match does not land on a regional reprint such as an Italian or Brazilian edition. **Publisher allow list** only accepts matches whose publisher contains one of the listed names, and **Publisher block list** never accepts the listed ones; it is applied after the allow list. Names are compared without case as part of the publisher name, so `Panini` covers `Panini Comics` and `Panini Verlag`. Matches with no publisher recorded always pass, and manual search still shows every publisher. See Publisher Filtering in the Scraping guide. The 1.1.0 images pulled after 2026-10-11 already have these settings; the 1.1.0 changelog left them out.
 
@@ -40,7 +40,7 @@ A hotfix release. Back up the database before upgrading. The upgrade runs one mi
 
 - **Refresh Credits and Search Alt Covers failed without a local comicvine.db**: With only an API key set, both buttons failed on every comic with `Network error: Unexpected token`. They now use the ComicVine API when there is no local database, and Refresh Credits also uses it when the issue is not in the local database. Hitting the API rate limit now shows a message instead of an error.
 
-- **`import_library` left out story arcs**: The import read every ComicInfo.xml field except `<StoryArc>`, both from the files and from ComicRack's `ComicDb.xml`, so imported comics had no story arc, and **Write to CBZ** then replaced the file's `ComicInfo.xml` without it. The import now reads the same fields that are written.
+- **`import_library` left out story arcs**: The import read every ComicInfo.xml field except `<StoryArc>`, both from the files and from ComicRack's `ComicDb.xml`, so imported comics had no story arc, and **Write to CBZ** then replaced the file's `ComicInfo.xml` without it. The import now reads the same fields that are written. For comics imported earlier, run `backfill_from_files` before writing them.
 
 ## [1.1.0]
 
