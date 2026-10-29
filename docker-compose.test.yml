@@ -24,7 +24,9 @@ services:
     image: redis:7-alpine
 
   tests:
-    build: .
+    build:
+      context: .
+      pull: true
     image: comicmanager:test
     entrypoint: []
     command: python manage.py test --noinput

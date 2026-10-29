@@ -4,6 +4,7 @@ untagged/
 Comics/
 cover_cache/
 logs/
+staticfiles/
 
 # Development tooling
 .?*

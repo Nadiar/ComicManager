@@ -42,6 +42,8 @@ Bug fixes and a few new features. This release replaces 1.1.1, which was only pu
 
 - **`import_library` left out story arcs**: The import read every ComicInfo.xml field except `<StoryArc>`, both from the files and from ComicRack's `ComicDb.xml`, so imported comics had no story arc, and **Write to CBZ** then replaced the file's `ComicInfo.xml` without it. The import now reads the same fields that are written.
 
+- **The Docker image had known vulnerabilities**: The 1.1.0 image was built on a Python base image with outdated system packages and used Pillow 12.3, both with known security issues that have fixes. The image is now built on a freshly pulled Python 3.12 base on Debian 13 (trixie) with Pillow 13.0, and pip is removed after the packages are installed. Cover hashes are the same with Pillow 13, so existing matches and duplicate checks are not affected.
+
 ## [1.1.0]
 
 A reliability release. Back up the database before upgrading. The upgrade runs one migration, which corrects the built-in Default organizer profile. If your library has RAR files named `.cbz`, see `convert_misnamed_archives` in the Getting Started guide.

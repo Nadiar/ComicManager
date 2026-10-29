@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim-trixie
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# pip is only needed for the build; removing it also removes the old packages it bundles
+RUN pip install --no-cache-dir -r requirements.txt && pip uninstall -y -q pip
 
 COPY package.json package-lock.json ./
 RUN npm ci
