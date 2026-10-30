@@ -12,6 +12,8 @@
 
 - **The daily clean-up of task results never ran**: Celery's daily clean-up task went to a queue the worker does not read, so finished task results piled up in the database and the unread messages in Redis. It now goes to the worker's queue and deletes task results older than a day. The messages already waiting in Redis can be removed with `docker compose exec worker celery -A comicmanager purge -f -Q celery`.
 
+- **Twisted had known vulnerabilities**: The image used Twisted 26.4.0, which Daphne (it serves the live updates) pulls in, and a vulnerability scan found 3 high and 2 medium issues in it. The image now uses Twisted 26.10.0, which fixes them.
+
 ## [1.1.2]
 
 Bug fixes and a few new features. This release replaces 1.1.1, which was only published as an early test image (`:1.1.1`); everything in it is included here. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint or story arc yet: run `backfill_from_files` before writing them (see below). Moves are now refused for organizer profiles whose base folder is outside `/comics/library`, such as a Windows path kept from a ComicRack `.lop` import; the profile list shows which profiles to edit.
