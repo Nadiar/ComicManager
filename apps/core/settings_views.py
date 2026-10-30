@@ -158,6 +158,13 @@ def _find_corrupt_task_results(limit=2000):
     return corrupt
 
 
+def _unfinished_queue():
+    """QueuedTask rows still queued or running, oldest first. A task waiting for
+    a worker has no TaskResult row yet, so the stuck task check can't see it."""
+    from .models import QueuedTask
+    return list(QueuedTask.objects.filter(state__in=QueuedTask.ACTIVE_STATES).order_by("created_at"))
+
+
 def task_health_check(request):
     from django_celery_results.models import TaskResult
     stuck = list(
@@ -165,6 +172,7 @@ def task_health_check(request):
         .order_by("-date_done")
     )
     return render(request, "core/_settings_tasks_section.html", {
+        "queued_tasks": _unfinished_queue(),
         "stuck_tasks": stuck,
         "corrupt_tasks": _find_corrupt_task_results(),
         "checked": True,
@@ -177,12 +185,19 @@ def task_health_check(request):
 def task_health_clear(request):
     from django_celery_results.models import TaskResult
     from .task_base import request_cancel
+    from .views import _cancel_queued
+    queued = _unfinished_queue()
+    for qt in queued:
+        _cancel_queued(qt)
     stuck = TaskResult.objects.exclude(status__in=["SUCCESS", "FAILURE", "REVOKED"])
-    count = stuck.count()
-    for t in stuck:
-        request_cancel(t.task_id)
+    stuck_ids = set(stuck.values_list("task_id", flat=True))
+    for task_id in stuck_ids:
+        request_cancel(task_id)
     stuck.update(status="FAILURE")
+    # A running task has a row in both lists; count it once
+    count = len(stuck_ids | {qt.celery_task_id for qt in queued})
     return render(request, "core/_settings_tasks_section.html", {
+        "queued_tasks": [],
         "stuck_tasks": [],
         "corrupt_tasks": _find_corrupt_task_results(),
         "checked": True,
@@ -201,6 +216,7 @@ def task_health_clear_corrupt(request):
     if task_ids:
         TaskResult.objects.filter(task_id__in=task_ids).delete()
     return render(request, "core/_settings_tasks_section.html", {
+        "queued_tasks": _unfinished_queue(),
         "stuck_tasks": list(
             TaskResult.objects.exclude(status__in=["SUCCESS", "FAILURE", "REVOKED"])
             .order_by("-date_done")

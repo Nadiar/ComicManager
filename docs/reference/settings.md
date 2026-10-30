@@ -111,15 +111,21 @@ If these files are missing, scraping will fall back to live ComicVine API calls 
 
 ## Task Health
 
-The **Task Health** section (also on the Settings page) lets you detect and recover from two kinds of background-task problems: stuck tasks and corrupt results.
+The **Task Health** section (also on the Settings page) shows the task queue and lets you detect and recover from two kinds of background-task problems: stuck tasks and corrupt results.
 
-**Check tasks** scans the database for both and lists what it finds. Each entry shows the task name, status, and how long ago it was last seen.
+**Check tasks** lists what it finds for each. Each entry shows the task name, status, and how long ago it was added or last seen.
+
+### Queue
+
+The queue lists every task that is waiting to start or running, oldest first. A task that stays **queued** while nothing else runs is stuck: the worker never picked it up, so it has no progress record and does not show under Stuck tasks. This happens when the worker is stuck on something else, or when its queue in Redis was cleared.
+
+**Force stop all** cancels the tasks in the queue, the same as **Cancel** in the queue panel, along with the stuck tasks below. A cancelled task stays cancelled, also when Redis hands it to the worker again after a restart.
 
 ### Stuck tasks
 
 A task becomes stuck when a worker is killed mid-execution or a container is restarted while a task is running. The task leaves a `PROGRESS` record in the database with no live worker behind it. The progress toast in the UI keeps showing because it polls that stale record.
 
-The check lists any task not in a terminal state (`SUCCESS`, `FAILURE`, or `REVOKED`). **Force stop all** marks those tasks as `FAILURE` in the database and sends a cooperative cancel signal to each task ID. Once cleared, the progress toast dismisses on the next poll.
+The check lists any task not in a terminal state (`SUCCESS`, `FAILURE`, or `REVOKED`). **Force stop all** marks those tasks as `FAILURE` in the database and sends a cooperative cancel signal to each task ID. Once cleared, the progress toast dismisses on the next poll. When the worker starts, tasks still shown as running in the queue from before the restart are marked failed by themselves.
 
 ### Corrupt results
 

@@ -1,6 +1,6 @@
 <div id="task-health-section" style="background:var(--cm-bg-1); border:1px solid var(--cm-border); border-radius:8px; padding:18px 20px;">
   <div style="font-size:14px; font-weight:600; color:var(--cm-fg-1); margin-bottom:4px;">Task Health</div>
-  <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">Finds tasks stuck in a running state, and tasks whose stored result is corrupt and breaks progress polling.</p>
+  <p style="font-size:12px; color:var(--cm-fg-3); margin:0 0 14px;">Shows the task queue, and finds tasks stuck in a running state and tasks whose stored result is corrupt and breaks progress polling.</p>
 
   {% if not checked %}
     <button class="cm-btn sm ghost"
@@ -17,6 +17,24 @@
     </div>
     {% endif %}
 
+    {# Queue: tasks waiting for the worker or running. A waiting task has no result yet, so the stuck check can't see it #}
+    <div style="font-size:12px; font-weight:600; color:var(--cm-fg-2); margin-bottom:6px;">Queue</div>
+    {% if queued_tasks %}
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+      {% for q in queued_tasks %}
+      <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; background:var(--cm-bg-2); border:1px solid var(--cm-border); border-radius:6px; font-size:12px;">
+        <span class="cm-chip {% if q.state == 'running' %}info{% else %}warn{% endif %}">{{ q.state }}</span>
+        <code style="color:var(--cm-fg-1); flex:1;">{{ q.label|default:q.action }}</code>
+        <span style="color:var(--cm-fg-3);">{% if q.started_at %}started {{ q.started_at|timesince }} ago{% else %}added {{ q.created_at|timesince }} ago{% endif %}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+      <span class="cm-chip ok">Queue is empty</span>
+    </div>
+    {% endif %}
+
     {# Stuck tasks: running but no longer executing #}
     <div style="font-size:12px; font-weight:600; color:var(--cm-fg-2); margin-bottom:6px;">Stuck tasks</div>
     {% if stuck_tasks %}
@@ -29,19 +47,22 @@
       </div>
       {% endfor %}
     </div>
+    {% else %}
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+      <span class="cm-chip ok">No stuck tasks</span>
+    </div>
+    {% endif %}
+
+    {% if queued_tasks or stuck_tasks %}
     <div style="margin-bottom:18px;">
       <button class="cm-btn sm err"
               hx-post="{% url 'settings:task_health_clear' %}"
               hx-target="#task-health-section"
               hx-swap="outerHTML"
-              hx-confirm="Force-stop {{ stuck_tasks|length }} stuck task{{ stuck_tasks|length|pluralize }}? This marks them as failed and clears the progress toast."
+              hx-confirm="Force-stop every task above? Tasks in the queue are cancelled, and stuck tasks are marked as failed, which clears the progress toast."
               hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
         Force stop all
       </button>
-    </div>
-    {% else %}
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:18px;">
-      <span class="cm-chip ok">No stuck tasks</span>
     </div>
     {% endif %}
 

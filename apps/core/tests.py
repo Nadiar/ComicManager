@@ -282,3 +282,35 @@ class ReconcileTests(TestCase):
         qt.refresh_from_db()
         self.assertEqual(n, 1)
         self.assertEqual(qt.state, QueuedTask.STATE_FAILED)
+
+
+class TaskHealthQueueTests(TestCase):
+    """Task Health lists tasks still in the queue, which have no result row yet (#6)."""
+
+    def setUp(self):
+        self.waiting = QueuedTask.objects.create(action="convert_all_cbr", label="Converting files",
+                                                 celery_task_id="cid-1", state=QueuedTask.STATE_QUEUED)
+        QueuedTask.objects.create(action="tag_all", label="Finished tagging",
+                                  celery_task_id="cid-2", state=QueuedTask.STATE_DONE)
+
+    def test_check_lists_unfinished_queue_entries(self):
+        html = self.client.get(reverse("settings:task_health_check")).content.decode()
+        self.assertIn("Converting files", html)
+        self.assertNotIn("Finished tagging", html)
+        self.assertIn("Force stop all", html)
+
+    def test_check_with_an_empty_queue(self):
+        self.waiting.delete()
+        html = self.client.get(reverse("settings:task_health_check")).content.decode()
+        self.assertIn("Queue is empty", html)
+        self.assertNotIn("Force stop all", html)
+
+    def test_force_stop_cancels_queue_entries(self):
+        with patch("apps.core.views._revoke_celery") as rev, \
+             patch("apps.core.tasks.request_cancel"), \
+             patch("apps.core.task_queue.broadcast_queue"):
+            html = self.client.post(reverse("settings:task_health_clear")).content.decode()
+        self.waiting.refresh_from_db()
+        self.assertEqual(self.waiting.state, QueuedTask.STATE_CANCELLED)
+        rev.assert_called_once_with("cid-1")
+        self.assertIn("Cleared 1 task", html)
