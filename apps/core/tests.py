@@ -314,3 +314,13 @@ class TaskHealthQueueTests(TestCase):
         self.assertEqual(self.waiting.state, QueuedTask.STATE_CANCELLED)
         rev.assert_called_once_with("cid-1")
         self.assertIn("Cleared 1 task", html)
+
+
+class DefaultQueueTests(TestCase):
+    """Tasks sent without a queue go to one the worker consumes (BUG.71)."""
+
+    def test_tasks_without_a_queue_go_to_serial(self):
+        from comicmanager.celery import app
+        self.assertEqual(app.conf.task_default_queue, "serial")
+        route = app.amqp.router.route({}, "celery.backend_cleanup")
+        self.assertEqual(route["queue"].name, "serial")

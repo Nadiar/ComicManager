@@ -111,6 +111,9 @@ CELERY_TASK_QUEUES = {
     "organize": {},
     "write": {},
 }
+# Tasks sent without a queue, like beat's daily celery.backend_cleanup, would
+# otherwise go to "celery", which the worker does not consume
+CELERY_TASK_DEFAULT_QUEUE = "serial"
 CELERY_RESULT_EXTENDED = True
 
 # Shared cache in Redis, so the web and worker processes see the same values
