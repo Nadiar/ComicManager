@@ -34,6 +34,11 @@ def clear_cancel(task_id):
     _cancel_client().delete(f"cancel:{task_id}")
 
 
+def _queued_task_cancelled(task_id):
+    from apps.core.models import QueuedTask
+    return QueuedTask.objects.filter(celery_task_id=task_id, state=QueuedTask.STATE_CANCELLED).exists()
+
+
 def _broadcast(task_id, payload):
     layer = get_channel_layer()
     if layer is None:
@@ -53,6 +58,14 @@ class ProgressTask(Task):
     via WebSocket, plus SUCCESS/FAILURE on completion.
     """
     abstract = True
+
+    def __call__(self, *args, **kwargs):
+        # A task cancelled while still queued can be delivered again after a
+        # restart: Redis keeps the message, and revokes only live in the
+        # worker's memory. Skip it instead of running it.
+        if self.request.id and _queued_task_cancelled(self.request.id):
+            return {"cancelled": True, "skipped": True}
+        return super().__call__(*args, **kwargs)
 
     # Minimum seconds between PROGRESS updates per task. Fast batch loops
     # (e.g. path audit over 40k comics) otherwise emit ~60 updates/sec,

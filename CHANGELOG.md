@@ -6,6 +6,8 @@
 
 - **Cancel did nothing for tasks that had not started (#6)**: The progress toast's **Cancel** only asked a running task to stop, so a task still waiting in the queue kept waiting and ran later. It now cancels the task like the queue panel does. Converting a single file also stops now when it is cancelled before it starts.
 
+- **Cancelled tasks came back after a restart (#6)**: Redis keeps tasks that are waiting to start, but the worker forgets which ones were cancelled when it restarts, so a cancelled task started anyway after the next restart. A cancelled task is now skipped when it is handed out again. When the worker starts, tasks still shown as running from before the restart are marked failed, and the hidden temporary files of a conversion that was cut off are removed.
+
 ## [1.1.2]
 
 Bug fixes and a few new features. This release replaces 1.1.1, which was only published as an early test image (`:1.1.1`); everything in it is included here. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint or story arc yet: run `backfill_from_files` before writing them (see below). Moves are now refused for organizer profiles whose base folder is outside `/comics/library`, such as a Windows path kept from a ComicRack `.lop` import; the profile list shows which profiles to edit.

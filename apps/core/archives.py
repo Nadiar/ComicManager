@@ -75,6 +75,34 @@ def _fsync(path) -> None:
         os.close(fd)
 
 
+_WORK_PREFIX = "cm-convert-"
+
+
+def _convert_tmp(dest):
+    """The hidden file a conversion writes the new archive to, next to dest."""
+    return dest.with_name(f".cm-convert-{dest.stem}.tmp")
+
+
+def remove_convert_leftovers(file_paths) -> int:
+    """
+    Remove what conversions killed halfway left behind: the hidden temp file
+    next to each of these comics, and the extraction folders in the temp
+    directory. Only call it when no conversion is running. Returns the number
+    of temp files removed next to comics.
+    """
+    removed = 0
+    for path in file_paths:
+        tmp = _convert_tmp(Path(path).with_suffix(".cbz"))
+        try:
+            tmp.unlink()
+            removed += 1
+        except FileNotFoundError:
+            pass
+    for work in Path(tempfile.gettempdir()).glob(f"{_WORK_PREFIX}*"):
+        shutil.rmtree(work, ignore_errors=True)
+    return removed
+
+
 def convert_archive_to_cbz(src, dest) -> int:
     """
     Repack the RAR/7-Zip archive at src as a ZIP at dest; return the page count.
@@ -90,8 +118,8 @@ def convert_archive_to_cbz(src, dest) -> int:
 
     src, dest = Path(src), Path(dest)
     kind = sniff_archive(src)
-    tmp = dest.with_name(f".cm-convert-{dest.stem}.tmp")
-    work = tempfile.mkdtemp()
+    tmp = _convert_tmp(dest)
+    work = tempfile.mkdtemp(prefix=_WORK_PREFIX)
     try:
         out = os.path.join(work, "out")
         os.mkdir(out)

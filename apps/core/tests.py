@@ -165,6 +165,73 @@ class CancelQueuedTests(TestCase):
         self.assertTrue(result["cancelled"])
 
 
+class CancelledAfterRestartTests(TestCase):
+    """A task cancelled while queued stays cancelled when Redis delivers it again after a restart (#6)."""
+
+    def _flagged(self, path):
+        from apps.core.models import Comic
+        return Comic.objects.create(proposed_series="Sample", proposed_number="1", file_path=path,
+                                    flags={"needs_conversion": True})
+
+    def _run(self, celery_task_id):
+        from apps.core.tasks import convert_all_cbr_task
+        with patch("apps.core.tasks._convert_comic_to_cbz",
+                   return_value={"success": True, "skipped": False, "error": None, "fatal": False}) as convert, \
+             patch("apps.core.task_queue.broadcast_queue"):
+            result = convert_all_cbr_task.apply(task_id=celery_task_id).result
+        return result, convert
+
+    def test_cancelled_task_is_skipped_and_stays_cancelled(self):
+        self._flagged("/x/a.cbr")
+        qt = QueuedTask.objects.create(action="convert_all_cbr", label="A",
+                                       celery_task_id="cid-c", state=QueuedTask.STATE_CANCELLED)
+        result, convert = self._run("cid-c")
+        convert.assert_not_called()
+        self.assertEqual(result, {"cancelled": True, "skipped": True})
+        qt.refresh_from_db()
+        self.assertEqual(qt.state, QueuedTask.STATE_CANCELLED)
+
+    def test_queued_task_still_runs(self):
+        self._flagged("/x/a.cbr")
+        qt = QueuedTask.objects.create(action="convert_all_cbr", label="A",
+                                       celery_task_id="cid-q", state=QueuedTask.STATE_QUEUED)
+        result, convert = self._run("cid-q")
+        convert.assert_called_once()
+        self.assertEqual(result["converted"], 1)
+        qt.refresh_from_db()
+        self.assertEqual(qt.state, QueuedTask.STATE_DONE)
+
+    def test_worker_start_fails_rows_left_running_and_removes_half_converted_files(self):
+        import os
+        import shutil
+        import tempfile
+        from apps.core.task_queue import _on_worker_ready
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        temp_dir = os.path.join(tmp, "temp")
+        os.makedirs(os.path.join(temp_dir, "cm-convert-abc", "out"))
+        os.makedirs(os.path.join(temp_dir, "unrelated"))
+        self._flagged(os.path.join(tmp, "Sample 001.cbr"))
+        leftover = os.path.join(tmp, ".cm-convert-Sample 001.tmp")
+        other = os.path.join(tmp, ".cm-convert-Other 002.tmp")
+        for path in (leftover, other):
+            open(path, "w").close()
+        running = QueuedTask.objects.create(action="convert_all_cbr", label="A",
+                                            celery_task_id="cid-r", state=QueuedTask.STATE_RUNNING)
+        queued = QueuedTask.objects.create(action="tag_all", label="B",
+                                           celery_task_id="cid-w", state=QueuedTask.STATE_QUEUED)
+        with patch("apps.core.task_queue.broadcast_queue"), \
+             patch("tempfile.gettempdir", return_value=temp_dir):
+            _on_worker_ready()
+        running.refresh_from_db()
+        queued.refresh_from_db()
+        self.assertEqual(running.state, QueuedTask.STATE_FAILED)
+        self.assertEqual(queued.state, QueuedTask.STATE_QUEUED)
+        self.assertFalse(os.path.exists(leftover))
+        self.assertTrue(os.path.exists(other))
+        self.assertEqual(os.listdir(temp_dir), ["unrelated"])
+
+
 class DispatchEnqueueTests(TestCase):
     def test_tag_all_enqueues(self):
         qt = MagicMock()

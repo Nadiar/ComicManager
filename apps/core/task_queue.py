@@ -5,7 +5,7 @@ the QueuedTask ledger and the cross-device UI feed."""
 from __future__ import annotations
 
 from django.utils import timezone
-from celery.signals import task_prerun, task_postrun, task_failure
+from celery.signals import task_prerun, task_postrun, task_failure, worker_ready
 
 
 _REGISTRY = None
@@ -93,7 +93,13 @@ def _update_by_celery_id(celery_task_id, **fields):
 
 
 def _on_prerun(task_id=None, **kw):
+    from apps.core.models import QueuedTask
+
     if not task_id:
+        return
+    # A cancelled task delivered again after a restart stays cancelled;
+    # ProgressTask skips it
+    if QueuedTask.objects.filter(celery_task_id=task_id, state=QueuedTask.STATE_CANCELLED).exists():
         return
     _update_by_celery_id(task_id, state="running", started_at=timezone.now())
 
@@ -120,9 +126,33 @@ def _on_failure(task_id=None, exception=None, **kw):
     )
 
 
+def _on_worker_ready(**kw):
+    """
+    The worker just started, so nothing is running yet: rows left running were
+    cut off by the restart, and so were any conversions. ComicManager runs a
+    single worker, so there is no other worker whose tasks could be running.
+    """
+    from apps.core.archives import remove_convert_leftovers
+    from apps.core.models import Comic
+
+    try:
+        reconcile_orphans(active_ids=set())
+    except Exception:
+        pass
+    try:
+        remove_convert_leftovers(
+            Comic.objects.filter(flags__needs_conversion=True)
+            .exclude(file_path__isnull=True).exclude(file_path="")
+            .values_list("file_path", flat=True)
+        )
+    except Exception:
+        pass
+
+
 task_prerun.connect(_on_prerun, weak=False)
 task_postrun.connect(_on_postrun, weak=False)
 task_failure.connect(_on_failure, weak=False)
+worker_ready.connect(_on_worker_ready, weak=False)
 
 
 def _serialize(qt):
@@ -176,17 +206,18 @@ def _active_celery_ids():
     return ids
 
 
-def reconcile_orphans():
+def reconcile_orphans(active_ids=None):
     """Mark `running` rows whose Celery task is no longer active as failed.
 
     Handles the case where a worker was killed mid-task and left a row stuck in
-    `running`. Returns the number of rows reconciled."""
+    `running`. `active_ids` are the Celery ids still running; by default the
+    workers are asked. Returns the number of rows reconciled."""
     from apps.core.models import QueuedTask
 
     running = list(QueuedTask.objects.filter(state=QueuedTask.STATE_RUNNING))
     if not running:
         return 0
-    active = _active_celery_ids()
+    active = _active_celery_ids() if active_ids is None else active_ids
     n = 0
     for qt in running:
         if qt.celery_task_id not in active:
