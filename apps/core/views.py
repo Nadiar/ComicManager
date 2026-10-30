@@ -2810,11 +2810,17 @@ def dismiss_task(request, task_id):
 @require_POST
 def cancel_task(request, task_id):
     """
-    Request cooperative cancellation of a running Celery task.
-    Sets a Redis flag that tasks check before processing each item.
+    Cancel the task the progress toast follows. A task still in the queue is
+    cancelled like from the queue panel, since it would never see the flag a
+    running task checks before each item.
     """
     from .tasks import request_cancel
-    request_cancel(task_id)
+
+    qt = QueuedTask.objects.filter(celery_task_id=task_id).first()
+    if qt is not None:
+        _cancel_queued(qt)
+    else:
+        request_cancel(task_id)
     return JsonResponse({"success": True})
 
 
@@ -2826,15 +2832,12 @@ def _revoke_celery(celery_task_id):
     celery_app.control.revoke(celery_task_id, terminate=False)
 
 
-@require_POST
-def cancel_queued_task(request, pk):
-    """Cancel a queued or running QueuedTask: revoke it, and cooperatively
-    stop it if already running."""
+def _cancel_queued(qt):
+    """Revoke a QueuedTask, stop it cooperatively if already running, and mark it cancelled."""
     from django.utils import timezone
     from .tasks import request_cancel
     from .task_queue import broadcast_queue
 
-    qt = get_object_or_404(QueuedTask, pk=pk)
     if qt.state == QueuedTask.STATE_RUNNING:
         request_cancel(qt.celery_task_id)
     _revoke_celery(qt.celery_task_id)
@@ -2843,6 +2846,13 @@ def cancel_queued_task(request, pk):
         qt.finished_at = timezone.now()
         qt.save(update_fields=["state", "finished_at"])
         broadcast_queue()
+
+
+@require_POST
+def cancel_queued_task(request, pk):
+    """Cancel a queued or running QueuedTask: revoke it, and cooperatively
+    stop it if already running."""
+    _cancel_queued(get_object_or_404(QueuedTask, pk=pk))
     return JsonResponse({"success": True})
 
 

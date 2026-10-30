@@ -209,6 +209,10 @@ def convert_cbr_task(self, comic_id):
         return {"converted": 0, "processed": 0, "total": 1,
                 "errors": ["Comic not found"], "cancelled": False}
 
+    if self.is_cancelled():
+        self.clear_cancel()
+        return {"converted": 0, "processed": 0, "total": 1, "errors": [], "cancelled": True}
+
     result = _convert_comic_to_cbz(comic)
     errors = []
     converted = 1 if result["success"] else 0

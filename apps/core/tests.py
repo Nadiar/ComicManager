@@ -123,6 +123,47 @@ class CancelQueuedTests(TestCase):
         self.assertEqual(qt.state, QueuedTask.STATE_CANCELLED)
         rev.assert_called_once_with("cid-9")
 
+    def _toast_cancel(self, celery_task_id):
+        with patch("apps.core.views._revoke_celery") as rev, \
+             patch("apps.core.tasks.request_cancel") as flag, \
+             patch("apps.core.task_queue.broadcast_queue"):
+            resp = self.client.post(reverse("core:cancel_task", args=[celery_task_id]))
+        self.assertEqual(resp.status_code, 200)
+        return rev, flag
+
+    def test_toast_cancel_cancels_a_task_that_has_not_started(self):
+        qt = QueuedTask.objects.create(action="convert_all_cbr", label="A",
+                                       celery_task_id="cid-1", state=QueuedTask.STATE_QUEUED)
+        rev, flag = self._toast_cancel("cid-1")
+        qt.refresh_from_db()
+        self.assertEqual(qt.state, QueuedTask.STATE_CANCELLED)
+        rev.assert_called_once_with("cid-1")
+        flag.assert_not_called()
+
+    def test_toast_cancel_stops_a_running_task_cooperatively(self):
+        qt = QueuedTask.objects.create(action="convert_all_cbr", label="A",
+                                       celery_task_id="cid-2", state=QueuedTask.STATE_RUNNING)
+        rev, flag = self._toast_cancel("cid-2")
+        qt.refresh_from_db()
+        self.assertEqual(qt.state, QueuedTask.STATE_CANCELLED)
+        flag.assert_called_once_with("cid-2")
+
+    def test_toast_cancel_without_a_queue_entry_only_sets_the_flag(self):
+        rev, flag = self._toast_cancel("cid-3")
+        flag.assert_called_once_with("cid-3")
+        rev.assert_not_called()
+
+    def test_single_convert_stops_when_cancelled(self):
+        from apps.core.models import Comic
+        from apps.core.tasks import convert_cbr_task
+        comic = Comic.objects.create(proposed_series="Sample", proposed_number="1", file_path="/x/a.cbr")
+        with patch("apps.core.task_base.is_cancelled", return_value=True), \
+             patch("apps.core.task_base.clear_cancel"), \
+             patch("apps.core.tasks._convert_comic_to_cbz") as convert:
+            result = convert_cbr_task.apply(args=[str(comic.pk)]).result
+        convert.assert_not_called()
+        self.assertTrue(result["cancelled"])
+
 
 class DispatchEnqueueTests(TestCase):
     def test_tag_all_enqueues(self):
