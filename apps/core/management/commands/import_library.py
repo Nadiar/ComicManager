@@ -9,6 +9,7 @@ Teams, Locations, and CustomValuesStore data not present in ComicInfo.xml.
 """
 
 import os
+import re
 import zipfile
 import defusedxml.ElementTree as ET
 from collections import Counter
@@ -25,6 +26,23 @@ from apps.core.utils import FIELD_MAP
 
 class MisnamedArchiveError(ValueError):
     """A .cbz that is really a RAR or 7-Zip archive."""
+
+
+_CHAR_REF = re.compile(r"&#(?:(\d+)|[xX]([0-9a-fA-F]+));")
+
+
+def decode_custom_value(text: str) -> str:
+    """
+    Decode the character references ComicRack writes in a CustomValuesStore: a
+    comma or equals sign inside a name or value is stored as &#44; or &#61;,
+    because the store separates its pairs with them.
+    """
+    def char(m):
+        try:
+            return chr(int(m.group(1)) if m.group(1) else int(m.group(2), 16))
+        except (ValueError, OverflowError):
+            return m.group(0)
+    return _CHAR_REF.sub(char, text)
 
 
 def comicdb_root(folder: str) -> str:
@@ -357,14 +375,15 @@ class Command(BaseCommand):
             if sg_el is not None and sg_el.text:
                 book_data["series_group"] = sg_el.text.strip()
 
-            # CustomValuesStore: ",key=value,key=value,..."
+            # CustomValuesStore: ",key=value,key=value,...", with commas and
+            # equals signs inside names and values written as &#44; and &#61;
             cvs_el = elem.find("CustomValuesStore")
             if cvs_el is not None and cvs_el.text:
                 custom = {}
                 for pair in cvs_el.text.strip().strip(",").split(","):
                     if "=" in pair:
                         k, v = pair.split("=", 1)
-                        k, v = k.strip(), v.strip()
+                        k, v = decode_custom_value(k.strip()), decode_custom_value(v.strip())
                         if k and v:
                             custom[k] = v
                 if custom:

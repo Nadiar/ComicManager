@@ -1011,6 +1011,30 @@ class ImportLibraryTests(TempDirMixin, TestCase):
         self.assertEqual(dict(Comic.objects.values_list("number", "story_arc")),
                          {"1": "Court of Owls", "2": "Night of Owls"})
 
+    def test_comicdb_custom_values_are_decoded(self):
+        lib = self.path("lib")
+        make_cbz(os.path.join(lib, "Pub", "Vader 001.cbz"),
+                 comicinfo="<ComicInfo><Series>Vader</Series><Number>1</Number></ComicInfo>")
+        comicdb = self._comicdb(("B:\\Comics\\ComicRack\\Pub\\Vader 001.cbz",
+                                 "<Series>Vader</Series><CustomValuesStore>,SW=Black&amp;#44; White &amp; Red,"
+                                 "a&amp;#61;b=c,comicvine_issue=5</CustomValuesStore>"))
+        self._import(lib, comicdb=comicdb)
+        self.assertEqual(Comic.objects.get().custom_values,
+                         {"SW": "Black, White & Red", "a=b": "c", "comicvine_issue": "5"})
+
+    def test_migration_decodes_custom_values_imported_before(self):
+        import importlib
+        from django.apps import apps
+        migration = importlib.import_module("apps.core.migrations.0023_decode_custom_value_char_refs")
+        encoded = Comic.objects.create(series="Vader", custom_values={"SW": "Black&#44; White & Red", "a&#61;b": "c"})
+        plain = Comic.objects.create(series="Saga", custom_values={"comicvine_issue": "5"})
+        stamp = plain.updated_at
+        migration.decode_char_refs(apps, None)
+        encoded.refresh_from_db()
+        plain.refresh_from_db()
+        self.assertEqual(encoded.custom_values, {"SW": "Black, White & Red", "a=b": "c"})
+        self.assertEqual(plain.updated_at, stamp)
+
     def test_comicdb_from_any_comicrack_folder(self):
         lib = self.path("lib")
         make_cbz(os.path.join(lib, "Pub", "Series", "Tagged 001.cbz"),
