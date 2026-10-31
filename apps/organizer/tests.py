@@ -244,6 +244,18 @@ class MissingFileTests(TestCase):
         comic.refresh_from_db()
         self.assertEqual(comic.file_path, target)
 
+    def test_sync_flags_a_comic_whose_file_belongs_to_another_instead_of_deleting_it(self):
+        from apps.organizer.services import sync_library_paths
+        target = make_cbz(os.path.join(self.tmp, "Pub", "Sample Hero", "Sample Hero #001.cbz"))
+        owner = self._comic(target)
+        stale = self._comic(os.path.join(self.tmp, "old", "gone.cbz"), notes="Only copy of these notes")
+        result = sync_library_paths()
+        stale.refresh_from_db()
+        self.assertTrue(stale.has_flag("file_missing"))
+        self.assertEqual(stale.notes, "Only copy of these notes")
+        self.assertEqual(result["flagged_missing"], 1)
+        self.assertEqual(Comic.objects.get(pk=owner.pk).file_path, target)
+
 
 class DefaultProfileTests(TestCase):
 

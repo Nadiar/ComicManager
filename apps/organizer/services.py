@@ -566,6 +566,8 @@ def sync_library_paths() -> dict:
     1. Check the organizer's computed target path
     2. If not there, scan the target folder for a matching CBZ by series+number
     3. Update the DB if the file is found
+    4. If the file found belongs to another record, flag this one file_missing
+       instead of deleting it, so Path Audit offers to relink or remove it
 
     Returns:
         Dict with sync results
@@ -587,7 +589,7 @@ def sync_library_paths() -> dict:
     total = len(comics)
     already_ok = 0
     synced = 0
-    removed_dupes = 0
+    flagged_missing = 0
     not_found = 0
     errors = []
 
@@ -623,12 +625,15 @@ def sync_library_paths() -> dict:
                 path_to_comic[found_path] = comic.pk
                 synced += 1
             elif found_path and found_path in path_to_comic:
-                # File already belongs to another record - this is a stale dupe
+                # The file belongs to another record. This one is probably a stale
+                # duplicate, but its metadata may be all there is: flag it like
+                # the untagged scan does, so it is never deleted without a look
                 other_pk = path_to_comic[found_path]
                 if other_pk != comic.pk:
-                    comic.delete()
-                    path_to_comic.pop(comic.file_path, None)
-                    removed_dupes += 1
+                    if not comic.has_flag("file_missing"):
+                        comic.add_flag("file_missing")
+                        comic.save(update_fields=["flags"])
+                    flagged_missing += 1
             else:
                 not_found += 1
                 errors.append(
@@ -643,12 +648,12 @@ def sync_library_paths() -> dict:
         "success": True,
         "message": (
             f"Scanned {total} comics: {synced} paths synced, "
-            f"{removed_dupes} stale duplicates removed, "
+            f"{flagged_missing} flagged as missing (their file belongs to another comic), "
             f"{already_ok} already correct, {not_found} not found"
         ),
         "total": total,
         "synced": synced,
-        "removed_dupes": removed_dupes,
+        "flagged_missing": flagged_missing,
         "already_ok": already_ok,
         "not_found": not_found,
         "errors": errors,

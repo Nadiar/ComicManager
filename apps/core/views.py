@@ -2595,7 +2595,7 @@ def sync_library_paths(request):
         "message": result["message"],
         "total": result["total"],
         "synced": result["synced"],
-        "removed_dupes": result["removed_dupes"],
+        "flagged_missing": result["flagged_missing"],
         "already_ok": result["already_ok"],
         "not_found": result["not_found"],
         "errors": result["errors"],
