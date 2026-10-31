@@ -248,6 +248,65 @@ class ComicInfoWriteTests(TempDirMixin, TestCase):
         self.assertEqual(comic.number, "2")
 
 
+class PageAttributeTests(TempDirMixin, TestCase):
+    """A rewrite keeps the page attributes ComicRack set, such as Type and Bookmark (P8.12)."""
+
+    def _write(self, pages, with_size=True):
+        from apps.core.sample_data import PAGE_COLORS, page_image
+        sizes = [len(page_image(PAGE_COLORS[i])) for i in range(3)]
+        self.assertEqual(len(set(sizes)), 3)
+        entries = "".join(
+            "<Page " + " ".join(f'{k}="{v}"' for k, v in
+                                ({"Image": i, **({"ImageSize": sizes[i]} if with_size else {}), **attrs}).items()) + " />"
+            for i, attrs in enumerate(pages))
+        p = make_cbz(self.path("a.cbz"), ["001.jpg", "002.jpg", "003.jpg"],
+                     comicinfo=f"<ComicInfo><Series>Sample Hero</Series><Pages>{entries}</Pages></ComicInfo>")
+        self.comic = Comic.objects.create(file_path=p, series="Sample Hero", number="1")
+        return p, sizes
+
+    def _pages(self, p):
+        from defusedxml.ElementTree import fromstring
+        self.assertTrue(write_comicinfo_xml(p, self.comic))
+        with zipfile.ZipFile(p) as zf:
+            root = fromstring(zf.read("ComicInfo.xml"))
+        return [dict(e.attrib) for e in root.find("Pages").findall("Page")]
+
+    def _attrs(self, pages, *keys):
+        return [{k: page[k] for k in keys if k in page} for page in pages]
+
+    def test_attributes_follow_their_image_after_a_reorder(self):
+        p, sizes = self._write([{"Type": "FrontCover", "Key": "k0"},
+                                {"Bookmark": "Chapter 1", "DoublePage": "true"},
+                                {"Type": "Deleted"}])
+        self.assertTrue(cbz_utils.reorder_pages(p, [0, 2, 1]))
+        pages = self._pages(p)
+        self.assertEqual(self._attrs(pages, "Type", "Key", "Bookmark", "DoublePage"),
+                         [{"Type": "FrontCover", "Key": "k0"}, {"Type": "Deleted"},
+                          {"Bookmark": "Chapter 1", "DoublePage": "true"}])
+        self.assertEqual([pg["ImageSize"] for pg in pages], [str(sizes[i]) for i in (0, 2, 1)])
+        self.assertEqual(page_colors(p), [0, 2, 1])
+
+    def test_the_first_page_is_the_only_front_cover(self):
+        p, _ = self._write([{"Type": "FrontCover", "Key": "k0"}, {"Bookmark": "Chapter 1"}, {}])
+        self.assertTrue(cbz_utils.reorder_pages(p, [1, 0, 2]))
+        self.assertEqual(self._attrs(self._pages(p), "Type", "Key", "Bookmark"),
+                         [{"Type": "FrontCover", "Bookmark": "Chapter 1"}, {"Key": "k0"}, {}])
+
+    def test_without_image_size_attributes_stay_by_position(self):
+        p, sizes = self._write([{"Type": "FrontCover"}, {"Bookmark": "Chapter 1"}, {"Type": "Deleted"}],
+                               with_size=False)
+        pages = self._pages(p)
+        self.assertEqual(self._attrs(pages, "Type", "Bookmark"),
+                         [{"Type": "FrontCover"}, {"Bookmark": "Chapter 1"}, {"Type": "Deleted"}])
+        self.assertEqual([pg["ImageSize"] for pg in pages], [str(s) for s in sizes])
+
+    def test_without_image_size_a_changed_page_count_drops_them(self):
+        p, _ = self._write([{"Type": "FrontCover"}, {"Bookmark": "Chapter 1"}, {"Type": "Deleted"}],
+                           with_size=False)
+        self.assertTrue(cbz_utils.delete_pages(p, [2]))
+        self.assertEqual(self._attrs(self._pages(p), "Type", "Bookmark"), [{"Type": "FrontCover"}, {}])
+
+
 class ImprintTests(TempDirMixin, TestCase):
 
     def test_imprint_is_written_after_publisher_and_read_back(self):

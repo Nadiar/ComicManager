@@ -452,10 +452,53 @@ _STANDARD_XML_FIELDS = set(FIELD_MAP.keys()) | {
 }
 
 
-def _build_pages_element(cbz_path: str) -> list[dict] | None:
-    """Read image dimensions from a CBZ file for the Pages element.
+def _existing_pages(zf) -> list[dict]:
+    """The attributes of each <Page> in the archive's current ComicInfo.xml, in page order."""
+    name = next((n for n in zf.namelist() if n.lower() == "comicinfo.xml"), None)
+    if name is None:
+        return []
+    try:
+        pages_elem = _safe_fromstring(zf.read(name)).find("Pages")
+    except Exception:
+        return []
+    if pages_elem is None:
+        return []
+    pages = [dict(p.attrib) for p in pages_elem.findall("Page")]
+    pages.sort(key=lambda p: int(p["Image"]) if p.get("Image", "").isdigit() else len(pages))
+    return pages
 
-    Returns a list of page dicts with Image, ImageWidth, ImageHeight, and Type.
+
+def _carried_page_attributes(old_pages: list[dict], sizes: list[int]) -> list[dict]:
+    """
+    The attributes a rewrite must keep for each current page: what ComicRack
+    and other tools set, such as Type (Deleted hides a page), Bookmark,
+    DoublePage and Key. Pages written with ImageSize are matched by it, so the
+    attributes follow their image after pages were added, deleted or
+    reordered; without it they are only matched by position, and only when
+    the page count is unchanged.
+    """
+    if old_pages and all(p.get("ImageSize") for p in old_pages):
+        by_size = {}
+        for page in old_pages:
+            by_size.setdefault(page["ImageSize"], []).append(page)
+        matched = []
+        for size in sizes:
+            candidates = by_size.get(str(size))
+            matched.append(candidates.pop(0) if candidates else {})
+    elif len(old_pages) == len(sizes):
+        matched = old_pages
+    else:
+        matched = [{}] * len(sizes)
+    measured = {"Image", "ImageSize", "ImageWidth", "ImageHeight"}
+    return [{k: v for k, v in page.items() if k not in measured} for page in matched]
+
+
+def _build_pages_element(cbz_path: str) -> list[dict] | None:
+    """Read image sizes and dimensions from a CBZ file for the Pages element.
+
+    Returns a list of page dicts with Image, ImageSize, ImageWidth, ImageHeight,
+    the attributes the file's current ComicInfo.xml has for that page, and
+    Type FrontCover on the first page.
     """
     from io import BytesIO
     try:
@@ -473,9 +516,11 @@ def _build_pages_element(cbz_path: str) -> list[dict] | None:
             if not image_files:
                 return None
 
+            sizes = [zf.getinfo(name).file_size for name in image_files]
+            carried = _carried_page_attributes(_existing_pages(zf), sizes)
             pages = []
             for idx, name in enumerate(image_files):
-                page = {"Image": str(idx)}
+                page = {"Image": str(idx), "ImageSize": str(sizes[idx])}
                 try:
                     with zf.open(name) as f:
                         img = Image.open(BytesIO(f.read()))
@@ -483,8 +528,13 @@ def _build_pages_element(cbz_path: str) -> list[dict] | None:
                         page["ImageHeight"] = str(img.height)
                 except Exception:
                     pass
+                page.update(carried[idx])
+                # The first page is the cover, also when the page manager put
+                # another page first, so it is the only FrontCover
                 if idx == 0:
                     page["Type"] = "FrontCover"
+                elif page.get("Type") == "FrontCover":
+                    del page["Type"]
                 pages.append(page)
             return pages
     except (zipfile.BadZipFile, OSError):
