@@ -12,7 +12,7 @@ from django.utils.html import escape, strip_tags
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST, require_GET
 
-from .models import Comic, QueuedTask, get_setting
+from .models import STALE_Q, Comic, QueuedTask, get_setting
 from .task_queue import enqueue
 from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS
 from .cbz_utils import insert_variant_covers
@@ -212,8 +212,7 @@ def _build_comic_list_queryset(params):
     if needs_reformat:
         comics = comics.filter(needs_reformat=True)
     if stale:
-        from django.db.models import F as _F
-        comics = comics.filter(last_written__isnull=False, updated_at__gt=_F("last_written"))
+        comics = comics.filter(STALE_Q)
     if year_min:
         try:
             comics = comics.filter(year__gte=int(year_min))
@@ -2668,17 +2667,9 @@ def write_all_comics(request):
 @require_POST
 def write_stale_comics(request):
     """
-    Dispatch a Celery task to rewrite ComicInfo.xml for all stale written comics
-    (state=written, updated_at > last_written).
+    Dispatch a Celery task to rewrite ComicInfo.xml for all stale comics (STALE_Q).
     """
-    from celery.result import AsyncResult
-    from django.db.models import F
-
-
-    count = Comic.objects.filter(
-        state=Comic.STATE_WRITTEN,
-        last_written__isnull=False,
-    ).filter(updated_at__gt=F("last_written")).count()
+    count = Comic.objects.filter(STALE_Q).count()
 
     if count == 0:
         return JsonResponse({

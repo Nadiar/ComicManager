@@ -14,6 +14,8 @@
 
 - **Twisted had known vulnerabilities**: The image used Twisted 26.4.0, which Daphne (it serves the live updates) pulls in, and a vulnerability scan found 3 high and 2 medium issues in it. The image now uses Twisted 26.10.0, which fixes them.
 
+- **Write Stale found nothing to write**: The dashboard listed comics under Stale Metadata, but **Write Stale** said "No stale comics to write", because it looked for them in the Write step, and a written comic moves on to Done. It now writes the comics the dashboard counts. Those are only comics in Write or Done: a comic sent back to an earlier step is written again when it gets to Write, so it no longer counts as stale, and Write Stale no longer writes it and sets it to Done, which skipped the steps in between.
+
 ## [1.1.2]
 
 Bug fixes and a few new features. This release replaces 1.1.1, which was only published as an early test image (`:1.1.1`); everything in it is included here. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint or story arc yet: run `backfill_from_files` before writing them (see below). Moves are now refused for organizer profiles whose base folder is outside `/comics/library`, such as a Windows path kept from a ComicRack `.lop` import; the profile list shows which profiles to edit.

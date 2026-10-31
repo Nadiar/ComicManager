@@ -3,7 +3,7 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.http import require_POST
 from django.db.models import Count, Q
 from django.utils import timezone
-from apps.core.models import Comic
+from apps.core.models import STALE_Q, Comic
 from .models import SmartList
 from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS
 from apps.core.task_queue import enqueue
@@ -216,11 +216,7 @@ def index(request):
     needs_reorganize_count = Comic.objects.filter(needs_reorganize=True).count()
 
     # Stale metadata queue (written before but DB updated since)
-    from django.db.models import F
-    stale_count = Comic.objects.filter(
-        last_written__isnull=False,
-        updated_at__gt=F("last_written"),
-    ).count()
+    stale_count = Comic.objects.filter(STALE_Q).count()
 
     # Maintenance: duplicates
     from apps.duplicates.models import DuplicateGroup
