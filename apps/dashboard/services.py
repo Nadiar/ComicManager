@@ -1,7 +1,7 @@
 import sqlite3
 from django.conf import settings
-from django.db.models import BooleanField, Case, F, Q, Value, When
-from apps.core.models import Comic
+from django.db.models import BooleanField, Case, Q, Value, When
+from apps.core.models import STALE_Q, Comic
 from apps.core.utils import natural_number_annotation
 
 
@@ -145,7 +145,7 @@ def build_queryset(smart_list):
     # Annotate is_stale: True when written before but DB has since changed
     qs = qs.annotate(
         is_stale=Case(
-            When(last_written__isnull=False, updated_at__gt=F("last_written"), then=Value(True)),
+            When(STALE_Q, then=Value(True)),
             default=Value(False),
             output_field=BooleanField(),
         )

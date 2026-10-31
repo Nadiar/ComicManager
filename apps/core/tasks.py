@@ -19,19 +19,12 @@ from .task_base import ProgressTask, request_cancel, is_cancelled, clear_cancel
 
 def _write_queue_qs(filter_mode):
     """Return a queryset of comic PKs eligible for the given write filter."""
-    from .models import Comic
-    from django.db.models import F
+    from .models import Comic, STALE_Q
 
     if filter_mode == "all":
         return Comic.objects.filter(state=Comic.STATE_WRITTEN).values_list("pk", flat=True)
     if filter_mode == "stale":
-        return (
-            Comic.objects.filter(
-                last_written__isnull=False,
-                updated_at__gt=F("last_written"),
-            )
-            .values_list("pk", flat=True)
-        )
+        return Comic.objects.filter(STALE_Q).values_list("pk", flat=True)
     if filter_mode == "missing":
         return (
             Comic.objects.filter(

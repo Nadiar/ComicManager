@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.db.models import F, Q
 
 
 class Comic(models.Model):
@@ -202,6 +203,12 @@ class Comic(models.Model):
     def is_flag_accepted(self, flag_name: str) -> bool:
         """Check if a flag is permanently suppressed for this comic."""
         return bool(self.accepted_flags.get(flag_name, False))
+
+
+# Stale Metadata: written before and changed since, in Write or Done, where writing the file is the next step. A comic
+# sent back to an earlier step is written again when it gets to Write; Write Stale would set it to Done (BUG.83).
+STALE_STATES = [Comic.STATE_WRITTEN, Comic.STATE_DONE]
+STALE_Q = Q(state__in=STALE_STATES, last_written__isnull=False, updated_at__gt=F("last_written"))
 
 
 class Setting(models.Model):

@@ -59,7 +59,7 @@ The backup holds only the index and the old metadata, usually a few kilobytes. M
 After a comic has been written, you might continue to edit its metadata in ComicManager (e.g. correcting a typo, changing a genre tag).
 
 ComicManager tracks exactly when `ComicInfo.xml` was last written using a `last_written` timestamp. If you make a metadata edit, the database is updated immediately, but the file is not.
-- **Stale Metadata Widget**: Comics whose database `updated_at` time is newer than their `last_written` time are automatically surfaced in the Maintenance tab of your dashboard.
+- **Stale Metadata Widget**: Comics in Write or Done whose database `updated_at` time is newer than their `last_written` time are automatically surfaced in the Maintenance tab of your dashboard, and **Write Stale** writes them. A comic sent back to an earlier step is not counted: it is written again when it gets to Write.
 - **Missing ComicInfo.xml Widget**: Surface comics that are in the Written state but somehow lost their internal XML (or had it manually removed).
 
 This lets you comfortably edit data knowing that you can just click **Write Stale** later to sync all changes back into the physical files at once.
