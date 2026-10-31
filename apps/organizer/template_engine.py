@@ -56,6 +56,35 @@ TEMPLATE_FIELD_MAP = {
 }
 
 
+def template_fields(template: str) -> tuple[set, set]:
+    """
+    The Comic fields and custom values a folder or file template reads, as (fields, custom value keys).
+
+    Follows get_placeholder_value: Custom(X), field[N] and field[N][f|l], a padding suffix (number3,
+    altNumber2, volume0), the special fields, and the custom value fallback for unknown names.
+    """
+    fields, custom = set(), set()
+    for spec in re.findall(r'<([^>]+)>', template or ""):
+        if spec.startswith("Custom(") and spec.endswith(")"):
+            custom.add(spec[7:-1])
+            continue
+        match = re.match(r'^(.+?)\[(\d+)\](?:\[([fl])\])?$', spec) or re.match(r'^(.+?)(\d+)$', spec)
+        field = match.group(1) if match else spec
+        model_attr = TEMPLATE_FIELD_MAP.get(field.lower())
+        if model_attr == "_storyarc":
+            fields.add("story_arc")
+        elif model_attr == "_altnumber":
+            custom.add("AlternateNumber")
+        elif model_attr == "_startyear":
+            custom.add("StartYear")
+            fields.add("year")
+        elif model_attr:
+            fields.add(model_attr)
+        else:
+            custom.add(field)
+    return fields, custom
+
+
 def render_template(template: str, comic: Comic, profile: OrganizerProfile) -> str:
     """
     Render a template string with comic metadata.

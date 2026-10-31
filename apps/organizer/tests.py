@@ -570,3 +570,97 @@ class BaseFolderGuardTests(TestCase):
                                 {"name": "Default", "folder_template": "{<series>}", "file_template": "{<series>}",
                                  "base_folder": "D:\\Comics", "is_enabled": "on"}, follow=True)
         self.assertContains(resp, "Moves with this profile are refused")
+
+
+class ReorganizeFlagTests(TestCase):
+    """Done comics are flagged for re-organizing like the other library states (RE.8)."""
+
+    def _comic(self, state):
+        return Comic.objects.create(series="Sandman", number="1", publisher="DC Comics", state=state,
+                                    medium=Comic.MEDIUM_DIGITAL, file_path=f"/comics/library/{state}.cbz")
+
+    def test_metadata_change_flags_done_comics(self):
+        flagged = [self._comic(state) for state in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE)]
+        not_in_library = self._comic("tagging")
+        for comic in flagged + [not_in_library]:
+            comic.publisher = "Vertigo"
+            comic.save()
+        flags = dict(Comic.objects.values_list("state", "needs_reorganize"))
+        self.assertEqual(flags, {Comic.STATE_ORGANIZED: True, Comic.STATE_WRITTEN: True,
+                                 Comic.STATE_DONE: True, "tagging": False})
+
+    def test_profile_template_change_flags_done_comics(self):
+        profile = OrganizerProfile.objects.create(name="Mine", folder_template="{<series>}", file_template="{<series>}")
+        done = self._comic(Comic.STATE_DONE)
+        profile.folder_template = "{<publisher>}/{<series>}"
+        profile.save()
+        done.refresh_from_db()
+        self.assertTrue(done.needs_reorganize)
+
+
+class PathFieldTests(TestCase):
+    """A metadata change marks a library comic Needs Re-organize only when a profile's templates or match rules
+    use that field, from any profile (RE.9)."""
+
+    def _comic(self, name="a", **fields):
+        return Comic.objects.create(series="Sandman", number="1", publisher="DC Comics", state=Comic.STATE_DONE,
+                                    medium=Comic.MEDIUM_DIGITAL, file_path=f"/comics/library/{name}.cbz", **fields)
+
+    def _marked_after(self, comic, **changes):
+        for field, value in changes.items():
+            setattr(comic, field, value)
+        comic.save()
+        comic.refresh_from_db()
+        return comic.needs_reorganize
+
+    def test_fields_from_templates_and_rules(self):
+        from apps.organizer.services import path_fields
+        OrganizerProfile.objects.create(
+            name="Arcs", folder_template="{<publisher>}/{<storyarc>}",
+            file_template="{<series>}{ #<number3>}{ - <writer[1][l]>}{ <Custom(Era)>}{ <altNumber2>}{ <Printing>}",
+            exclude_rules={"operator": "All", "mode": "Only", "rules": [
+                {"type": "rule", "field": "Format", "operator": "is", "value": "TPB"},
+                {"type": "group", "operator": "Any", "rules": [
+                    {"type": "rule", "field": "Custom(Line)", "operator": "is", "value": "Black Label"}]},
+            ]})
+        fields, custom = path_fields()
+        self.assertLessEqual({"publisher", "story_arc", "series", "number", "writer", "format"}, fields)
+        self.assertEqual(custom, {"Era", "AlternateNumber", "Printing", "Line"})
+        # the Default profile's templates count too
+        self.assertLessEqual({"volume", "year"}, fields)
+        self.assertNotIn("imprint", fields)
+
+    def test_disabled_profiles_dont_count(self):
+        from apps.organizer.services import path_fields
+        OrganizerProfile.objects.create(name="Off", is_enabled=False, folder_template="{<imprint>}",
+                                        file_template="{<series>}")
+        self.assertNotIn("imprint", path_fields()[0])
+
+    def test_a_field_no_profile_uses_does_not_mark(self):
+        self.assertFalse(self._marked_after(self._comic(), story_arc="Preludes and Nocturnes", imprint="Vertigo"))
+
+    def test_a_field_a_profile_uses_marks(self):
+        # number is in the Default profile's file name
+        self.assertTrue(self._marked_after(self._comic("a"), number="2"))
+        OrganizerProfile.objects.create(name="Arcs", folder_template="{<storyarc>}", file_template="{<series>}")
+        self.assertTrue(self._marked_after(self._comic("b"), story_arc="Preludes and Nocturnes"))
+
+    def test_a_custom_value_a_template_uses_marks(self):
+        OrganizerProfile.objects.create(name="Era", folder_template="{<series>}", file_template="{<Custom(Era)>}")
+        comic = self._comic(custom_values={"comicvine_issue": "1"})
+        self.assertFalse(self._marked_after(comic, custom_values={"comicvine_issue": "2"}))
+        self.assertTrue(self._marked_after(comic, custom_values={"comicvine_issue": "2", "Era": "Golden Age"}))
+
+    def test_saves_that_cant_change_the_path_dont_read_the_profiles(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        done = self._comic("a")
+        tagging = self._comic("b")
+        Comic.objects.filter(pk=tagging.pk).update(state="tagging")
+        tagging.refresh_from_db()
+        with CaptureQueriesContext(connection) as ctx:
+            done.flags = {"is_pdf": True}
+            done.save(update_fields=["flags"])
+            tagging.publisher = "Vertigo"
+            tagging.save()
+        self.assertFalse([q for q in ctx.captured_queries if "organizer_organizerprofile" in q["sql"]])

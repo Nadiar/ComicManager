@@ -1,8 +1,8 @@
 """
 Organizer signals.
 
-Flags all organized/written comics for re-organization when an
-OrganizerProfile template changes, since the computed paths may differ.
+Flags all comics in the library (Move, Write to CBZ, Done) for re-organization
+when an OrganizerProfile template changes, since the computed paths may differ.
 """
 
 from django.db.models.signals import pre_save
@@ -19,7 +19,7 @@ _TEMPLATE_FIELDS = frozenset({"folder_template", "file_template", "base_folder"}
 def flag_all_on_profile_template_change(sender, instance, **kwargs):
     """
     When a path-determining field changes on an OrganizerProfile, mark every
-    organized/written digital comic as needing re-organization.
+    digital comic in the library as needing re-organization.
 
     We use pre_save (not post_save) so we can compare old vs new template
     values before the change is committed.
@@ -39,6 +39,6 @@ def flag_all_on_profile_template_change(sender, instance, **kwargs):
     from apps.core.models import Comic
 
     Comic.objects.filter(
-        state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN],
+        state__in=[Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE],
         medium=Comic.MEDIUM_DIGITAL,
     ).exclude(file_path="").exclude(file_path__isnull=True).update(needs_reorganize=True)

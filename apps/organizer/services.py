@@ -14,9 +14,9 @@ from django.db import transaction
 from apps.core.archives import rename_no_clobber
 from apps.core.models import Comic
 
-from .engine import find_matching_profile, preview_profile_matches
+from .engine import find_matching_profile, preview_profile_matches, rule_fields
 from .models import OrganizerProfile
-from .template_engine import generate_paths
+from .template_engine import generate_paths, template_fields
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +112,13 @@ def _safe_move(old_path: str, new_path: str, allowed_root: str) -> None:
 
 
 DEFAULT_PROFILE_NAME = "Default"
+_DEFAULT_PROFILE = {
+    "priority": 9999,  # evaluated last; only catches what nothing else does
+    "is_enabled": True,
+    "folder_template": "{<publisher>}/{<series>}{ (<volume>)}",
+    "file_template": "{<series>}{ #<number>}{ (<year>)}",
+    "base_folder": LIBRARY_BASE,
+}
 
 
 def get_default_profile() -> OrganizerProfile:
@@ -121,18 +128,30 @@ def get_default_profile() -> OrganizerProfile:
     organizing never falls back to a second, divergent path builder — there is
     exactly one path pipeline (generate_paths/sanitize_filename) for every comic.
     """
-    profile, _ = OrganizerProfile.objects.get_or_create(
-        name=DEFAULT_PROFILE_NAME,
-        defaults={
-            "priority": 9999,  # evaluated last; only catches what nothing else does
-            "is_enabled": True,
-            "folder_template": "{<publisher>}/{<series>}{ (<volume>)}",
-            "file_template": "{<series>}{ #<number>}{ (<year>)}",
-            "base_folder": LIBRARY_BASE,
-            "exclude_rules": {},
-        },
-    )
+    profile, _ = OrganizerProfile.objects.get_or_create(name=DEFAULT_PROFILE_NAME, defaults=_DEFAULT_PROFILE)
     return profile
+
+
+def path_fields() -> tuple[frozenset, frozenset]:
+    """
+    The Comic fields and custom values that can change a comic's path (RE.9), as (fields, custom value keys):
+    those the folder and file templates and the match rules of every enabled profile read, plus the Default
+    profile's, which organizing falls back to even when it is disabled. Any profile counts, not only the one
+    the comic matches: a comic marked for a field its own profile doesn't use keeps its path on Re-organize.
+    """
+    from django.db.models import Q
+
+    profiles = list(OrganizerProfile.objects.filter(Q(is_enabled=True) | Q(name=DEFAULT_PROFILE_NAME))
+                    .only("name", "folder_template", "file_template", "exclude_rules"))
+    if not any(p.name == DEFAULT_PROFILE_NAME for p in profiles):
+        profiles.append(OrganizerProfile(name=DEFAULT_PROFILE_NAME, **_DEFAULT_PROFILE))
+    fields, custom = set(), set()
+    for profile in profiles:
+        for used, used_custom in (template_fields(profile.folder_template), template_fields(profile.file_template),
+                                  rule_fields(profile.exclude_rules)):
+            fields |= used
+            custom |= used_custom
+    return frozenset(fields & {f.name for f in Comic._meta.concrete_fields}), frozenset(custom)
 
 
 def organize_comic(comic: Comic, dry_run: bool = False, force: bool = False) -> dict:

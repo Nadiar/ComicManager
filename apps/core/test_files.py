@@ -343,6 +343,10 @@ class ImprintTests(TempDirMixin, TestCase):
     def test_backfill_fills_only_empty_fields_and_leaves_files_alone(self):
         from io import StringIO
         from django.core.management import call_command
+        from apps.organizer.models import OrganizerProfile
+        # a profile that uses the imprint, and none that uses the story arc (RE.9)
+        OrganizerProfile.objects.create(name="Imprints", folder_template="{<publisher>}/{<imprint>}",
+                                        file_template="{<series>}")
         xml = ("<ComicInfo><Publisher>DC Comics</Publisher><Imprint>Vertigo</Imprint>"
                "<StoryArc>Preludes and Nocturnes</StoryArc></ComicInfo>")
         filled = Comic.objects.create(file_path=make_cbz(self.path("a.cbz"), comicinfo=xml),

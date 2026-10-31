@@ -91,7 +91,7 @@ Issues that block a comic from properly proceeding through the pipeline.
 ### Maintenance
 Issues that affect comics already deep in the pipeline (or fully written) that need your attention.
 - **Duplicates:** Potential duplicates detected by ComicVine ID, Series/Number match, or cover image hashing.
-- **Needs Re-organize:** Metadata was updated, meaning the current file path is now incorrect.
+- **Needs Re-organize:** A field an organizer profile uses (in a template or a match rule) changed, so the file may belong somewhere else. **Re-organize** moves it, or only clears the flag when the path is still right.
 - **Needs Re-format:** The issue count for the volume changed, so count-based formatting (e.g., One-Shot vs. Limited Series) needs recalculation.
 - **Stale Metadata / Missing ComicInfo:** The database has newer information than what is currently written inside the CBZ file.
 - **Count Mismatch:** Disagreement between owned issues on the total volume count.

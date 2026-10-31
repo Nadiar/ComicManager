@@ -178,7 +178,7 @@ docker compose exec web python manage.py backfill_from_files
 | _(none)_ | Set the empty imprints and story arcs from each comic's `ComicInfo.xml` |
 | `--dry-run` | Only list the values that would be set |
 
-Imported comics that get an imprint are marked **Needs Re-organize**, as after editing the publisher. If an organizer profile uses `{<imprint>}`, check the new paths on the Path Audit page before running **Re-organize**.
+Imported comics that get an imprint or a story arc are marked **Needs Re-organize** when an organizer profile uses `{<imprint>}` or `{<storyarc>}` (in a template or a match rule). Check the new paths on the Path Audit page before running **Re-organize**. Without such a profile, nothing is marked, since their paths don't change.
 
 ---
 

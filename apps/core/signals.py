@@ -1,56 +1,70 @@
+from functools import cache
+
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 
 
-# Fields that affect the library organizer's computed path
-_PATH_RELEVANT_FIELDS = frozenset({"publisher", "imprint", "series", "format", "main_character_or_team", "volume"})
+@cache
+def _possible_path_fields():
+    """
+    Every Comic field an organizer template or match rule could read. A save that writes none of
+    them (update_fields) can't change a comic's path, so it is skipped without reading anything.
+    """
+    from apps.organizer.engine import FIELD_MAP
+    from apps.organizer.template_engine import TEMPLATE_FIELD_MAP
+    from .models import Comic
+
+    names = {*TEMPLATE_FIELD_MAP.values(), *FIELD_MAP.values(), "story_arc", "custom_values"}
+    return frozenset(names & {f.name for f in Comic._meta.concrete_fields})
 
 
 @receiver(pre_save)
 def _capture_path_fields_before_save(sender, instance, update_fields, **kwargs):
     """
-    Store the current values of path-relevant fields before saving.
+    Store the current values of the fields and custom values the organizer profiles use (RE.9)
+    before saving.
 
-    Called for all models; filters to Comic instances in organized/written state.
+    Called for all models; filters to Comic instances in the library (Move, Write
+    to CBZ or Done).
     Stored as `_pre_save_path_snapshot` on the instance for use by the
-    post_save handler. Uses `.only()` to minimise the extra DB read.
+    post_save handler: ({field: value}, {custom value key: value}).
     """
     from .models import Comic
 
     if sender is not Comic:
         return
+    instance._pre_save_path_snapshot = None
     if instance.pk is None:
-        instance._pre_save_path_snapshot = None
         return
 
-    # Skip if none of the relevant fields are being written
-    if update_fields is not None and not _PATH_RELEVANT_FIELDS.intersection(update_fields):
-        instance._pre_save_path_snapshot = None
+    # Skip if none of the fields a profile could use are being written
+    possible = _possible_path_fields()
+    if update_fields is not None and not possible.intersection(update_fields):
         return
 
     try:
-        old = Comic.objects.only(*_PATH_RELEVANT_FIELDS, "state", "medium", "file_path").get(pk=instance.pk)
+        old = Comic.objects.only(*possible, "state", "medium", "file_path").get(pk=instance.pk)
     except Comic.DoesNotExist:
-        instance._pre_save_path_snapshot = None
         return
 
     # Only track changes for comics that are already in the organized library
-    if old.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
-        instance._pre_save_path_snapshot = None
+    if old.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE):
         return
 
     if old.medium != Comic.MEDIUM_DIGITAL or not old.file_path:
-        instance._pre_save_path_snapshot = None
         return
 
-    instance._pre_save_path_snapshot = {f: getattr(old, f) for f in _PATH_RELEVANT_FIELDS}
+    from apps.organizer.services import path_fields
+    fields, custom = path_fields()
+    old_custom = old.custom_values or {}
+    instance._pre_save_path_snapshot = ({f: getattr(old, f) for f in fields}, {k: old_custom.get(k) for k in custom})
 
 
 @receiver(post_save)
 def flag_needs_reorganize_on_metadata_change(sender, instance, created, **kwargs):
     """
-    Set needs_reorganize=True when a path-relevant field changes on an
-    organized or written digital comic.
+    Set needs_reorganize=True when a field or custom value an organizer profile
+    uses changes on a digital comic in the library (Move, Write to CBZ or Done).
 
     Uses the snapshot captured by _capture_path_fields_before_save. Writes
     via QuerySet.update() to avoid triggering another post_save cycle.
@@ -60,18 +74,19 @@ def flag_needs_reorganize_on_metadata_change(sender, instance, created, **kwargs
     if sender is not Comic or created:
         return
 
-    if instance.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN):
+    if instance.state not in (Comic.STATE_ORGANIZED, Comic.STATE_WRITTEN, Comic.STATE_DONE):
         return
 
     snapshot = getattr(instance, "_pre_save_path_snapshot", None)
     if snapshot is None:
         return
 
-    for field in _PATH_RELEVANT_FIELDS:
-        if getattr(instance, field) != snapshot.get(field):
-            if not instance.needs_reorganize:
-                Comic.objects.filter(pk=instance.pk).update(needs_reorganize=True)
-            return
+    fields, custom = snapshot
+    new_custom = instance.custom_values or {}
+    if (any(getattr(instance, f) != value for f, value in fields.items())
+            or any(new_custom.get(k) != value for k, value in custom.items())):
+        if not instance.needs_reorganize:
+            Comic.objects.filter(pk=instance.pk).update(needs_reorganize=True)
 
 
 def seed_default_settings(sender, **kwargs):

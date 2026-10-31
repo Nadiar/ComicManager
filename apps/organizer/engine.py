@@ -224,6 +224,25 @@ def get_field_value(comic: Comic, field_name: str) -> str:
     return comic.custom_values.get(field_name, "")
 
 
+def rule_fields(rules: dict) -> tuple[set, set]:
+    """The Comic fields and custom values a profile's match rules read, as (fields, custom value keys)."""
+    fields, custom = set(), set()
+    for item in (rules or {}).get("rules", []):
+        if item.get("type", "rule") == "group":
+            group_fields, group_custom = rule_fields(item)
+            fields |= group_fields
+            custom |= group_custom
+            continue
+        field_name = item.get("field", "")
+        if field_name in FIELD_MAP:
+            fields.add(FIELD_MAP[field_name])
+        elif field_name.startswith("Custom(") and field_name.endswith(")"):
+            custom.add(field_name[7:-1])
+        elif field_name:
+            custom.add(field_name)
+    return fields, custom
+
+
 def find_matching_profile(comic: Comic) -> OrganizerProfile | None:
     """
     Find the first enabled profile that matches the comic.
