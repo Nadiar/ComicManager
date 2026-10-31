@@ -526,6 +526,66 @@ class InterruptedWriteTests(TempDirMixin, TestCase):
         with open(p, "rb") as f:
             self.assertEqual(f.read(), original)
 
+    def test_backup_is_dropped_when_the_file_was_replaced(self):
+        p = make_cbz(self.path("a.cbz"), comicinfo="<ComicInfo><Series>Old</Series></ComicInfo>")
+        comic = Comic.objects.create(file_path=p, series="New", number="1", publisher="Pub")
+        self._interrupt(p, comic)
+        # A new version of the comic replaces the broken file before the next write
+        make_cbz(p, ["001.jpg", "002.jpg", "003.jpg", "004.jpg"],
+                 comicinfo="<ComicInfo><Series>Replaced</Series></ComicInfo>")
+        with self.assertLogs("apps.core.utils", "WARNING"):
+            self.assertFalse(restore_index_backup(p))
+        self.assertEqual(page_colors(p), [0, 1, 2, 3])
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+        self.assertTrue(write_comicinfo_xml(p, comic))
+        self.assertEqual(page_colors(p), [0, 1, 2, 3])
+
+    def test_backup_is_dropped_for_a_different_broken_file(self):
+        p = make_cbz(self.path("a.cbz"), comicinfo="<ComicInfo><Series>Old</Series></ComicInfo>")
+        comic = Comic.objects.create(file_path=p, series="New", number="1", publisher="Pub")
+        self._interrupt(p, comic)
+        with open(p, "wb") as f:
+            f.write(b"a different, damaged download" * 100)
+        with self.assertLogs("apps.core.utils", "WARNING"):
+            self.assertFalse(restore_index_backup(p))
+        with open(p, "rb") as f:
+            self.assertEqual(f.read(), b"a different, damaged download" * 100)
+
+    def test_backup_left_after_a_finished_write_is_dropped(self):
+        from apps.core import utils
+        p = make_cbz(self.path("a.cbz"), comicinfo="<ComicInfo><Series>Old</Series></ComicInfo>")
+        comic = Comic.objects.create(file_path=p, series="New", number="1", publisher="Pub")
+        backup = utils._index_backup_path(p)
+        utils._save_index_backup(p)
+        with open(backup, "rb") as f:
+            saved = f.read()
+        os.remove(backup)
+        self.assertTrue(write_comicinfo_xml(p, comic))
+        # As if the worker died after syncing the patched archive, before removing the backup
+        with open(backup, "wb") as f:
+            f.write(saved)
+        with self.assertLogs("apps.core.utils", "WARNING"):
+            self.assertFalse(restore_index_backup(p))
+        self.assertEqual(read_comicinfo_xml(p).get("series"), "New")
+        self.assertEqual(os.listdir(self.tmp), ["a.cbz"])
+
+    def test_backup_from_an_older_version_still_restores(self):
+        from apps.core import utils
+        p = make_cbz(self.path("a.cbz"), comicinfo="<ComicInfo><Series>Old</Series></ComicInfo>")
+        with open(p, "rb") as f:
+            original = f.read()
+        comic = Comic.objects.create(file_path=p, series="New", number="1", publisher="Pub")
+        self._interrupt(p, comic)
+        backup = utils._index_backup_path(p)
+        with open(backup, "rb") as f:
+            saved = f.read()
+        # Older backups are the offset followed by the tail, without the magic and digest
+        with open(backup, "wb") as f:
+            f.write(saved[8:16] + saved[48:])
+        self.assertTrue(restore_index_backup(p))
+        with open(p, "rb") as f:
+            self.assertEqual(f.read(), original)
+
     def test_successful_write_leaves_no_backup(self):
         p = make_cbz(self.path("a.cbz"))
         comic = Comic.objects.create(file_path=p, series="New", number="1", publisher="Pub")

@@ -7,6 +7,7 @@ files embedded in CBZ archives.
 
 import errno
 import fcntl
+import logging
 import os
 import re
 import shutil
@@ -22,6 +23,8 @@ from django.db.models.expressions import RawSQL
 from django.utils.html import strip_tags
 
 from .models import Comic
+
+logger = logging.getLogger(__name__)
 
 
 def html_to_text(html: str) -> str:
@@ -693,6 +696,28 @@ def _index_backup_path(zip_path: str) -> str:
     return os.path.join(folder, f".{name}.cm-index")
 
 
+# Index backups start with this, then the patch offset, then a digest of the
+# bytes before it. Older backups start with the offset.
+_INDEX_MAGIC = b"CMIDX2\x00\x00"
+_INDEX_SAMPLE = 64 * 1024
+
+
+def _prefix_digest(f, start: int) -> bytes:
+    """
+    A digest of the first and the last 64 KiB before the patch offset. An
+    in-place patch never writes there, so they are unchanged in an archive an
+    interrupted write left behind, and differ when the file was replaced.
+    """
+    import hashlib
+
+    digest = hashlib.sha256()
+    f.seek(0)
+    digest.update(f.read(min(_INDEX_SAMPLE, start)))
+    f.seek(max(0, start - _INDEX_SAMPLE))
+    digest.update(f.read(start - max(0, start - _INDEX_SAMPLE)))
+    return digest.digest()
+
+
 def _fsync_file(path: str) -> None:
     """fsync a file, or a folder (to persist a rename inside it)."""
     fd = os.open(path, os.O_RDONLY)
@@ -718,8 +743,10 @@ def _save_index_backup(zip_path: str) -> str:
     size = os.path.getsize(zip_path)
     backup = _index_backup_path(zip_path)
     with open(zip_path, "rb") as src, open(backup, "wb") as out:
-        src.seek(start)
+        out.write(_INDEX_MAGIC)
         out.write(start.to_bytes(8, "little"))
+        out.write(_prefix_digest(src, start))
+        src.seek(start)
         out.write(src.read(size - start))
         out.flush()
         os.fsync(out.fileno())
@@ -730,13 +757,37 @@ def restore_index_backup(zip_path: str) -> bool:
     """
     Undo an interrupted in-place ComicInfo write using the saved index.
     Returns True if a backup was found and the archive was restored.
+
+    An interrupted write leaves an archive that does not open, with the bytes
+    before the patch offset unchanged. A backup is only used then: if the
+    archive opens, the write finished or the file was replaced, and if those
+    bytes differ, it was replaced. Putting the old tail back would break it,
+    so the backup is dropped instead.
     """
     backup = _index_backup_path(zip_path)
     if not os.path.exists(backup):
         return False
     with open(backup, "rb") as f:
-        start = int.from_bytes(f.read(8), "little")
+        head = f.read(8)
+        if head == _INDEX_MAGIC:
+            start = int.from_bytes(f.read(8), "little")
+            digest = f.read(32)
+        else:
+            # Saved by an older version, without the digest
+            start, digest = int.from_bytes(head, "little"), None
         tail = f.read()
+    try:
+        zipfile.ZipFile(zip_path, "r").close()
+        broken = False
+    except zipfile.BadZipFile:
+        broken = True
+    with open(zip_path, "rb") as f:
+        size = f.seek(0, os.SEEK_END)
+        belongs = broken and size >= start and (digest is None or _prefix_digest(f, start) == digest)
+    if not belongs:
+        logger.warning("Dropped %s: %s is not the archive an interrupted write left behind", backup, zip_path)
+        os.remove(backup)
+        return False
     with open(zip_path, "r+b") as f:
         f.truncate(start)
         f.seek(start)
