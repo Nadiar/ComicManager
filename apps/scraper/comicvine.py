@@ -246,6 +246,16 @@ class ComicVineScraper:
         """Get a read-only connection to the CV database."""
         return sqlite3.connect(f"file:{self.db_path}?immutable=1", uri=True)
 
+    @staticmethod
+    def _has_covers(conn) -> bool:
+        """
+        Whether this comicvine.db has the comic_covers table. Some copies leave
+        it out; matching then works without cover hashes and cover URLs.
+        """
+        return conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'comic_covers'"
+        ).fetchone() is not None
+
     def match_by_hash(self, phash: int, ahash: int, max_distance: int = 10) -> list[CVMatch]:
         """
         Find matching comics by cover image hash.
@@ -628,6 +638,9 @@ class ComicVineScraper:
             then official covers (/0/4/), then others by id.
         """
         conn = self._get_connection()
+        if not self._has_covers(conn):
+            conn.close()
+            return []
         cursor = conn.cursor()
 
         # Order by: official covers first (/0/4/ path), then by id
@@ -721,12 +734,15 @@ class ComicVineScraper:
         For hash matches, the matched cover (already in cover_url) is placed first.
         For metadata matches, official covers (/0/4/) are prioritized.
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
         issue_ids = [m.issue_id for m in matches]
         if not issue_ids:
             return matches
+
+        conn = self._get_connection()
+        if not self._has_covers(conn):
+            conn.close()
+            return matches
+        cursor = conn.cursor()
 
         placeholders = ",".join("?" * len(issue_ids))
         # Order by: official covers first (/0/4/ path), then by id

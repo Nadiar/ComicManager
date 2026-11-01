@@ -311,6 +311,41 @@ class NoLocalDbTests(TestCase):
                 self.assertTrue(resp.json()["rate_limited"], action)
 
 
+
+class NoCoversTableTests(TestCase):
+    """A comicvine.db without comic_covers skips the cover URLs instead of failing (P2.21)."""
+
+    def _db(self, with_covers):
+        import os
+        import shutil
+        import sqlite3
+        import tempfile
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        db = os.path.join(tmp, "comicvine.db")
+        conn = sqlite3.connect(db)
+        conn.execute("CREATE TABLE cv_volume (id INTEGER PRIMARY KEY)")
+        if with_covers:
+            conn.execute("CREATE TABLE comic_covers (id INTEGER PRIMARY KEY, cvid INTEGER, cv_url TEXT)")
+            conn.execute("INSERT INTO comic_covers (cvid, cv_url) VALUES (7, 'https://example.com/0/4/7.jpg')")
+        conn.commit()
+        conn.close()
+        from apps.scraper.comicvine import ComicVineScraper
+        return ComicVineScraper(db_path=db)
+
+    def test_without_the_table(self):
+        scraper = self._db(with_covers=False)
+        match = _make_match(issue_id=7)
+        self.assertEqual(scraper.enrich_matches_with_covers([match]), [match])
+        self.assertIsNone(match.cover_url)
+        self.assertEqual(scraper.get_all_covers(7), [])
+
+    def test_with_the_table(self):
+        scraper = self._db(with_covers=True)
+        match = scraper.enrich_matches_with_covers([_make_match(issue_id=7)])[0]
+        self.assertEqual(match.cover_url, "https://example.com/0/4/7.jpg")
+        self.assertEqual(scraper.get_all_covers(7), ["https://example.com/0/4/7.jpg"])
+
 class FakeComicVine:
     """Stands in for ComicVineScraper's API methods and counts the calls."""
 
