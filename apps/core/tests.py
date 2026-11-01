@@ -337,3 +337,30 @@ class SearchTests(TestCase):
         Comic.objects.create(series="Batman", number="1", publisher="DC Comics", state="tagging")
         found = _build_comic_list_queryset(QueryDict("q=vertigo")).values_list("series", flat=True)
         self.assertEqual(list(found), ["Sandman"])
+
+
+class InlineProposedYearTests(TestCase):
+    """Proposed Year is editable in place in the New list, like the other proposed values, and saved as a number."""
+
+    def setUp(self):
+        from apps.core.models import Comic
+        self.comic = Comic.objects.create(proposed_series="Saga", proposed_number="40", state="new")
+        self.url = f"/comics/{self.comic.pk}/inline-field/"
+
+    def _post(self, value):
+        from django.test import Client
+        Client().post(self.url, {"field": "proposed_year", "value": value})
+        self.comic.refresh_from_db()
+        return self.comic.proposed_year
+
+    def test_year_saves_as_a_number(self):
+        self.assertEqual(self._post("2016"), 2016)
+        self.assertIsNone(self._post(""))
+        self.assertIsNone(self._post("20x6"))
+
+    def test_the_new_list_and_the_input_offer_it(self):
+        from django.test import Client
+        client = Client()
+        self.assertIn("field=proposed_year", client.get("/comics/?state=new").content.decode())
+        form = client.get(self.url + "?field=proposed_year").content.decode()
+        self.assertIn('type="number"', form)

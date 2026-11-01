@@ -45,7 +45,7 @@ def _mark_recommended(matches):
 
 
 # Columns editable inline on the STATE_NEW list
-_INLINE_EDITABLE_FIELDS = {"proposed_series", "proposed_number", "proposed_volume", "publisher", "format"}
+_INLINE_EDITABLE_FIELDS = {"proposed_series", "proposed_number", "proposed_volume", "proposed_year", "publisher", "format"}
 
 # Flag display names for the UI
 FLAG_LABELS = {
@@ -3331,7 +3331,7 @@ def comic_inline_field(request, pk):
         if field not in _INLINE_EDITABLE_FIELDS:
             return HttpResponse("Invalid field", status=400)
 
-        if field == "proposed_volume":
+        if field in ("proposed_volume", "proposed_year"):
             try:
                 value = int(value) if value else None
             except ValueError:

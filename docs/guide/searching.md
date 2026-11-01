@@ -135,6 +135,7 @@ On the `/comics/?state=new` list, several fields are editable directly in the ta
 - Proposed Series
 - Proposed Number
 - Proposed Volume
+- Proposed Year
 - Publisher
 - Format
 

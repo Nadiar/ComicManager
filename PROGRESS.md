@@ -285,6 +285,7 @@
 - [x] [UI.36] Free-text search on `/comics/` did not include Imprint. Fixed in v1.1.3.
 - [ ] [UI.37] Mass edit: change metadata fields on many selected comics at once. Today there is only the per-comic edit page, and tagging rules can only set fixed values (Month and Day are not rule fields, and no action copies one field into another). Planned together with P2.24. (Requested on Reddit)
 - [ ] [UI.38] At 1280 px wide, the Refresh Credits and Compare All Sources buttons are wider than their column in the comic page's Actions panel and stick out of it.
+- [x] [UI.42] Proposed Year was the only proposed value in the New list that could not be edited in place (`_INLINE_EDITABLE_FIELDS` in `apps/core/views.py`), so a misread year meant opening the comic's edit page. Fixed in v1.1.3: it is in the set and saved as a number like Proposed Vol (empty or not a number saves nothing), with a number input.
 
 ## Major Issues / Bugs
 

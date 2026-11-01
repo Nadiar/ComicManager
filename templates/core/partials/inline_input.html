@@ -15,7 +15,7 @@
     <option value="{{ choice }}"{% if choice == current_value %} selected{% endif %}>{{ choice }}</option>
     {% endfor %}
   </select>
-  {% elif field == "proposed_volume" %}
+  {% elif field == "proposed_volume" or field == "proposed_year" %}
   <input type="number"
          name="value"
          value="{{ current_value }}"
