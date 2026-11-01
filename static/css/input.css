@@ -177,6 +177,8 @@ html, body {
 .cm-btn.err:hover { filter: brightness(1.08); }
 .cm-btn.sm { height: 22px; padding: 0 7px; font-size: 11px; border-radius: 4px; }
 .cm-btn.lg { height: 34px; padding: 0 14px; font-size: 13px; }
+/* Button grids in narrow panels: long labels wrap instead of sticking out */
+.cm-btn-grid > .cm-btn { white-space: normal; height: auto; min-height: 28px; padding: 4px 8px; line-height: 1.2; text-align: center; }
 
 .cm-icon-btn {
   width: 28px;
