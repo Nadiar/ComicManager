@@ -204,10 +204,22 @@ def match_not_starts_with(field_value: str, rule_value: str) -> bool:
     return not field_value.lower().startswith(rule_value.lower())
 
 
+_DOTNET_NAMED_GROUP = re.compile(r"\(\?<(?=[A-Za-z_])")
+
+
+def _python_regex(pattern: str) -> str:
+    """
+    Turn ComicRack's .NET named groups, (?<name>...), into Python's (?P<name>...).
+    Only a group name follows "(?<": lookbehinds, (?<=...) and (?<!...), stay as
+    they are.
+    """
+    return _DOTNET_NAMED_GROUP.sub("(?P<", pattern)
+
+
 def match_regex(field_value: str, rule_value: str) -> bool:
     """Regular expression match."""
     try:
-        pattern = re.compile(rule_value, re.IGNORECASE)
+        pattern = re.compile(_python_regex(rule_value), re.IGNORECASE)
         return bool(pattern.search(field_value))
     except re.error:
         return False
@@ -216,7 +228,7 @@ def match_regex(field_value: str, rule_value: str) -> bool:
 def match_not_regex(field_value: str, rule_value: str) -> bool:
     """Negative regular expression match."""
     try:
-        pattern = re.compile(rule_value, re.IGNORECASE)
+        pattern = re.compile(_python_regex(rule_value), re.IGNORECASE)
         return not bool(pattern.search(field_value))
     except re.error:
         return True  # If regex is invalid, consider it not matching
@@ -342,9 +354,8 @@ def action_regex_var_replace(comic: Comic, field_name: str, value: str) -> str |
     """
     old_value = get_comic_field_value(comic, field_name)
     try:
-        # Convert Python-style named groups: (?P<name>...) is standard Python
-        # but DataManager uses (?<name>...) style
-        pattern = value.replace("(?<", "(?P<")
+        # DataManager uses .NET's (?<name>...) for named groups
+        pattern = _python_regex(value)
         match = re.search(pattern, old_value, re.IGNORECASE)
         if match:
             # Use the first named group's value, or the full match
@@ -368,7 +379,7 @@ def action_regex_var_append(comic: Comic, field_name: str, value: str) -> str | 
     """
     old_value = get_comic_field_value(comic, field_name)
     try:
-        pattern = value.replace("(?<", "(?P<")
+        pattern = _python_regex(value)
         # The pattern should be applied to the field itself
         match = re.search(pattern, old_value, re.IGNORECASE)
         if match:
