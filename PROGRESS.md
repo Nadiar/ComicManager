@@ -282,7 +282,7 @@
 - [x] [UI.33] Actions sidebar on comic details page should have a run pipeline button (should let the user confirm the comic, before running the rest of the pipeline[This is not possible with current workflow action. Button is normal pipeline. Use scrape button for confirm scape.]). 
 - [x] [UI.34] Comics details page is missing action buttons for dedupe.
 - [x] [UI.35] The Audit Log page's action filter only searched the newest 2000 lines and called 2000 the total. It searches the whole log and shows the real total now, and a comic's Pipeline history loads about 9 times faster on a large log. Fixed in v1.1.0.
-- [ ] [UI.36] Free-text search on `/comics/` does not include Imprint.
+- [x] [UI.36] Free-text search on `/comics/` did not include Imprint. Fixed in v1.1.3.
 - [ ] [UI.37] Mass edit: change metadata fields on many selected comics at once. Today there is only the per-comic edit page, and tagging rules can only set fixed values (Month and Day are not rule fields, and no action copies one field into another). Planned together with P2.24. (Requested on Reddit)
 - [ ] [UI.38] At 1280 px wide, the Refresh Credits and Compare All Sources buttons are wider than their column in the comic page's Actions panel and stick out of it.
 

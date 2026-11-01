@@ -35,7 +35,7 @@ The dropdown has three save actions at the bottom:
 
 The search box queries across all meaningful text fields simultaneously:
 
-- Series, title, publisher, issue number
+- Series, title, publisher, imprint, issue number
 - Writer, penciller, inker, colorist, letterer, cover artist, editor
 - Characters, teams, genre, notes
 

@@ -324,3 +324,16 @@ class DefaultQueueTests(TestCase):
         self.assertEqual(app.conf.task_default_queue, "serial")
         route = app.amqp.router.route({}, "celery.backend_cleanup")
         self.assertEqual(route["queue"].name, "serial")
+
+
+class SearchTests(TestCase):
+    """The free-text search on the comic list covers the Imprint (UI.36)."""
+
+    def test_search_finds_imprint(self):
+        from django.http import QueryDict
+        from apps.core.models import Comic
+        from apps.core.views import _build_comic_list_queryset
+        Comic.objects.create(series="Sandman", number="1", publisher="DC Comics", imprint="Vertigo", state="tagging")
+        Comic.objects.create(series="Batman", number="1", publisher="DC Comics", state="tagging")
+        found = _build_comic_list_queryset(QueryDict("q=vertigo")).values_list("series", flat=True)
+        self.assertEqual(list(found), ["Sandman"])

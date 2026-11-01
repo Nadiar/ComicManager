@@ -162,6 +162,7 @@ def _build_comic_list_queryset(params):
                     Q(series__icontains=base_text) |
                     Q(title__icontains=base_text) |
                     Q(publisher__icontains=base_text) |
+                    Q(imprint__icontains=base_text) |
                     Q(number__icontains=base_text) |
                     Q(writer__icontains=base_text) |
                     Q(penciller__icontains=base_text) |
