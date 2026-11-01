@@ -185,11 +185,6 @@ def scan_au_paths_task(self):
     skipped = 0
     errors = []
 
-    self.update_state(
-        state="PROGRESS",
-        meta={"current": 0, "total": total, "flagged": 0, "skipped": 0, "errors": []},
-    )
-
     for i, comic_id in enumerate(all_ids):
         if self.is_cancelled():
             self.clear_cancel()
@@ -197,6 +192,19 @@ def scan_au_paths_task(self):
                 "scanned": i, "flagged": flagged, "skipped": skipped,
                 "total": total, "errors": errors, "cancelled": True,
             }
+
+        # Report before each comic: most are skipped with continue below, so a
+        # report at the end of the loop never came and the counter stayed at 0
+        self.update_state(
+            state="PROGRESS",
+            meta={
+                "current": i,
+                "total": total,
+                "flagged": flagged,
+                "skipped": skipped,
+                "errors": errors,
+            },
+        )
 
         try:
             comic = Comic.objects.get(pk=comic_id)
@@ -239,17 +247,6 @@ def scan_au_paths_task(self):
 
         except Exception as e:
             errors.append(f"{comic.series} #{comic.number}: {str(e)}")
-
-        self.update_state(
-            state="PROGRESS",
-            meta={
-                "current": i + 1,
-                "total": total,
-                "flagged": flagged,
-                "skipped": skipped,
-                "errors": errors,
-            },
-        )
 
     return {
         "scanned": total,

@@ -676,3 +676,29 @@ class PathFieldTests(TestCase):
             tagging.publisher = "Vertigo"
             tagging.save()
         self.assertFalse([q for q in ctx.captured_queries if "organizer_organizerprofile" in q["sql"]])
+
+
+class AuScanProgressTests(TestCase):
+    """The AU scan reports progress for every comic, also the skipped ones (FI.11)."""
+
+    def test_progress_counts_skipped_comics(self):
+        from unittest.mock import patch
+        from apps.core.task_base import ProgressTask
+        from apps.organizer.tasks import scan_au_paths_task
+        from apps.tagging.models import DataManagerRuleset
+        DataManagerRuleset.objects.create(
+            name="Batman", rules=[{"field": "Series", "modifier": "Is", "value": "No such series"}],
+            actions=[{"field": "MainCharacterOrTeam", "modifier": "SetValue", "value": "Batman"}])
+        for n in range(1, 4):
+            Comic.objects.create(series="Elseworlds", number=str(n), state=Comic.STATE_DONE,
+                                 medium=Comic.MEDIUM_DIGITAL,
+                                 file_path=f"/comics/library/Alternate Universe/Elseworlds {n}.cbz")
+        seen = []
+
+        def record(task, *args, **kwargs):
+            seen.append(kwargs["meta"]["current"])
+
+        with patch.object(ProgressTask, "update_state", record):
+            result = scan_au_paths_task.apply().result
+        self.assertEqual(result["skipped"], 3)
+        self.assertEqual(seen, [0, 1, 2])

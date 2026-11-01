@@ -30,6 +30,8 @@
 
 - **A comicvine.db without cover data broke the scrape window**: Some copies of comicvine.db leave out the `comic_covers` table. Matching already worked without it, but the scrape window's preview and **Search Alt Covers** failed with `no such table: comic_covers`. They now skip the cover images, and Search Alt Covers asks the API.
 
+- **The AU Scan progress stayed at 0**: **Run Scan** on the AU Scan page only counted comics it flagged, and most are skipped, so the progress showed 0 until the scan was done. It now counts every comic.
+
 ## [1.1.2]
 
 Bug fixes and a few new features. This release replaces 1.1.1, which was only published as an early test image (`:1.1.1`); everything in it is included here. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint or story arc yet: run `backfill_from_files` before writing them (see below). Moves are now refused for organizer profiles whose base folder is outside `/comics/library`, such as a Windows path kept from a ComicRack `.lop` import; the profile list shows which profiles to edit.
