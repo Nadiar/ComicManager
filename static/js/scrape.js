@@ -3,6 +3,7 @@ let _scrapeOnSuccess = null;
 let _scrapeOnSkip = null;
 let _scrapeOnCancel = null;
 let _scrapeBatch = false;
+let _scrapeKeepOpen = false;
 window._scrapeHandled = false;
 
 let _scrapeApiAllMatches = [];
@@ -18,13 +19,15 @@ function openScrapeModal(pk, opts) {
   _scrapeOnSkip    = opts.onSkip    || null;
   _scrapeOnCancel  = opts.onCancel  || null;
   _scrapeBatch     = !!(opts.batch);
+  _scrapeKeepOpen  = !!(opts.keepOpen);
   window._scrapeHandled = false;
 
   const skipBtn = document.getElementById('scrape-skip-btn');
   skipBtn.style.display = opts.skipEnabled ? '' : 'none';
 
   _scrapeReset();
-  document.getElementById('scrape-modal').showModal();
+  const modal = document.getElementById('scrape-modal');
+  if (!modal.open) modal.showModal();
   document.getElementById('scrape-local-cover').src = `/comics/${pk}/cover/`;
 
   fetch(`/comics/${pk}/scrape/preview/?force=1`)
@@ -76,7 +79,28 @@ function _scrapeShowSearch(comic) {
   if (inducksSection) inducksSection.style.display = 'flex';
 }
 
+// While a pick is saved in the Confirm-each loop the window stays open but
+// can't be clicked, so a second pick or a Skip can't overtake the save
+function _scrapeSaving(on) {
+  const box = document.querySelector('#scrape-modal .modal-box');
+  box.style.pointerEvents = on ? 'none' : '';
+  box.style.opacity = on ? '.6' : '';
+  document.getElementById('scrape-loading').style.display = on ? 'flex' : 'none';
+  document.querySelector('#scrape-loading span:last-child').textContent = on ? 'Saving...' : 'Searching ComicVine...';
+}
+
+function _scrapeSaveFailed(message) {
+  if (!_scrapeKeepOpen) {
+    if (typeof showMsgToast === 'function') showMsgToast(message, 'error');
+    return;
+  }
+  _scrapeSaving(false);
+  document.getElementById('scrape-error').style.display = '';
+  document.getElementById('scrape-error-text').textContent = message;
+}
+
 function _scrapeReset() {
+  _scrapeSaving(false);
   document.getElementById('scrape-loading').style.display = 'flex';
   document.getElementById('scrape-error').style.display = 'none';
   document.getElementById('scrape-local-matches').innerHTML = '';
@@ -361,8 +385,14 @@ function scrapeMatchStoryDirect() {
 }
 
 function scrapeSelectMatch(issueId, source, issuecode, storycode) {
-  window._scrapeHandled = true;
-  document.getElementById('scrape-modal').close();
+  // In the Confirm-each loop the next comic opens in the same window, and a
+  // failed save shows its error there, so the comic can be picked again or skipped
+  if (_scrapeKeepOpen) {
+    _scrapeSaving(true);
+  } else {
+    window._scrapeHandled = true;
+    document.getElementById('scrape-modal').close();
+  }
 
   const base = source === 'inducks'
     ? { source: 'inducks', ...(issuecode ? { issuecode } : {}), ...(storycode ? { storycode } : {}) }
@@ -379,12 +409,10 @@ function scrapeSelectMatch(issueId, source, issuecode, storycode) {
     if (data.success) {
       if (_scrapeOnSuccess) _scrapeOnSuccess(data);
     } else {
-      if (typeof showMsgToast === 'function') showMsgToast('Scrape failed: ' + (data.error || 'Unknown error'), 'error');
+      _scrapeSaveFailed('Scrape failed: ' + (data.error || 'Unknown error'));
     }
   })
-  .catch(err => {
-    if (typeof showMsgToast === 'function') showMsgToast('Network error: ' + err.message, 'error');
-  });
+  .catch(err => _scrapeSaveFailed('Network error: ' + err.message));
 }
 
 function scrapeSkip() {

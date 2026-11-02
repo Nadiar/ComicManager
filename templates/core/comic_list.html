@@ -971,7 +971,9 @@ function scrapeAllComics(btn) {
 
 function processNextScrape() {
   if (scrapeQueue.length === 0) {
-    // Done with all comics
+    // Done with all comics. The window stays open after a pick in the loop
+    const modal = document.getElementById('scrape-modal');
+    if (modal.open) { window._scrapeHandled = true; modal.close(); }
     if (currentScrapeBtn) {
       currentScrapeBtn.classList.add('ok');
       currentScrapeBtn.innerHTML = `Done (${scrapeStats.matched} matched, ${scrapeStats.skipped} skipped)`;
@@ -1003,6 +1005,7 @@ function openListScrapeModal(pk, btn) {
   openScrapeModal(pk, {
     skipEnabled: true,
     batch: true,
+    keepOpen: scrapeQueue.length > 0,
     onSuccess: function(data) {
       updateRowAfterScrape(btn, data);
       scrapeStats.matched++;
