@@ -455,6 +455,16 @@ class CopyOnWriteWriteTests(TempDirMixin, TestCase):
 class InterruptedWriteTests(TempDirMixin, TestCase):
     """An in-place ComicInfo write that dies halfway must be recoverable."""
 
+    def setUp(self):
+        super().setUp()
+        from unittest.mock import patch
+        from apps.core import utils
+        # The in-place write is the one with the index backup; on btrfs or XFS
+        # the write would patch a reflink clone instead
+        patcher = patch.object(utils, "_try_reflink", return_value=False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _interrupt(self, p, comic):
         from unittest.mock import patch
         from apps.core import utils
