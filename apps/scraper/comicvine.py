@@ -358,8 +358,12 @@ class ComicVineScraper:
             return []
 
         combined = phash_dists[candidate_indices] + ahash_dists[candidate_indices]
-        order = np.argsort(combined)[:limit]
-        top_indices = candidate_indices[order]
+        ordered = candidate_indices[np.argsort(combined, kind="stable")]
+        # comic_covers can hold several rows for one issue (the same cover
+        # uploaded twice, or variants that look alike): keep each issue once,
+        # at its closest cover, so the limit counts different issues
+        _, first = np.unique(cache["cvids"][ordered], return_index=True)
+        top_indices = ordered[np.sort(first)][:limit]
 
         candidate_cvids = cache["cvids"][top_indices].tolist()
         candidate_pd    = phash_dists[top_indices].tolist()

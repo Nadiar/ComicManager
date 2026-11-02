@@ -231,6 +231,25 @@ class HashCacheTests(TestCase):
             matches = scraper.match_by_hash_fast(self.HASH, self.HASH, max_distance=0)
             self.assertEqual([(m.issue_id, m.match_score) for m in matches], [(1188248, 0)])
 
+    def test_an_issue_with_several_close_covers_is_listed_once(self):
+        import sqlite3
+        import tempfile
+        from apps.scraper.comicvine import ComicVineScraper
+
+        signed = lambda v: v - (1 << 64) if v >= 1 << 63 else v  # noqa: E731
+        with tempfile.TemporaryDirectory() as d:
+            path = self._make_db(d, signed(self.HASH), signed(self.HASH))
+            conn = sqlite3.connect(path)
+            conn.execute("INSERT INTO cv_issue VALUES (1188249, 139839, NULL, '58', '2026-09-16', NULL, NULL)")
+            conn.executemany("INSERT INTO comic_covers (cvid, cv_url, ct_phash, ct_ahash) VALUES (?, ?, ?, ?)", [
+                (1188248, "https://example.com/57-again.jpg", signed(self.HASH ^ 0b11), signed(self.HASH ^ 0b11)),
+                (1188249, "https://example.com/58.jpg", signed(self.HASH ^ 0b1111), signed(self.HASH ^ 0b1111)),
+            ])
+            conn.commit()
+            conn.close()
+            matches = ComicVineScraper(path).match_by_hash_fast(self.HASH, self.HASH, max_distance=8, limit=2)
+        self.assertEqual([(m.issue_id, m.match_score) for m in matches], [(1188248, 0), (1188249, 8)])
+
     def test_unreadable_hash_gives_no_matches(self):
         import tempfile
         from apps.scraper.comicvine import ComicVineScraper
