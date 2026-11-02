@@ -1017,14 +1017,13 @@ function openListScrapeModal(pk, btn) {
       if (scrapeQueue.length > 0) { scrapeQueue.shift(); processNextScrape(); }
     },
     onCancel: function() {
+      // Skip has its own button, so closing the window ends the loop
       if (scrapeQueue.length > 0) {
-        if (btn) {
-          btn.style.color = 'var(--cm-warn)'; btn.style.borderColor = 'var(--cm-warn)';
-          btn.innerHTML = 'Skipped';
+        scrapeQueue = [];
+        if (currentScrapeBtn) {
+          currentScrapeBtn.innerHTML = `Stopped (${scrapeStats.matched} matched, ${scrapeStats.skipped} skipped)`;
         }
-        scrapeStats.skipped++;
-        scrapeQueue.shift();
-        processNextScrape();
+        setTimeout(() => window.location.reload(), 1500);
       }
     },
   });

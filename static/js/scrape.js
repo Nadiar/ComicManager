@@ -405,6 +405,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('scrape-modal')?.addEventListener('close', () => {
+    // The close event comes a moment after close(). If the window is open
+    // again by then (the next comic in the Confirm-each loop), it belongs to
+    // the comic before and is not a Cancel
+    if (document.getElementById('scrape-modal').open) return;
     if (window._scrapeHandled) { window._scrapeHandled = false; return; }
     if (_scrapeOnCancel) _scrapeOnCancel();
   });
