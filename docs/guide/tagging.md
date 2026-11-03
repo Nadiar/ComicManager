@@ -63,7 +63,7 @@ You can find my `dataman.dat` file at my [ComicRack_Scripts](https://gitea.baere
 
 ## Exporting Rulesets
 
-Go to **Tagging** and click **Export DataManager**. This downloads a `.dat` file generated from the current database state. It includes all rulesets, including ones you created or edited in the UI, not just the originally imported file. The exported file can be re-imported into ComicManager or used as a backup.
+Go to **Tagging** and click **Export DataManager**. This downloads a `.dat` file generated from the current database state. It includes every enabled ruleset, including ones you created or edited in the UI, not just the originally imported file. Disabled rulesets are left out, so enable any you want in the file before exporting. The exported file can be re-imported into ComicManager or used as a backup of the enabled rulesets.
 
 ## Ruleset Duplicate
 

@@ -1,6 +1,6 @@
 # The Philosophy of ComicManager
 
-ComicManager is a personal project built to solve a specific problem: managing a large comic collection with metadata and filesystem organization on Linux. Gaming on Linux has finally caught up with Windows, but ComicRack was the last thing keeping me on Windows. I have my workflow well documented at [comicrack.baerentsen.space](https://comicrack.baerentsen.space/Introduction/) and figured I could rebuild it as a self-hosted web app that runs in Docker on any OS.
+ComicManager is a personal project built to solve a specific problem: managing a large comic collection with metadata and filesystem organization on Linux. Gaming on Linux has finally caught up with Windows, but ComicRack was the last thing keeping me on Windows. I have my workflow well documented at [comicrack.baerentsen.space](https://comicrack.baerentsen.space/Introduction/) and figured I could rebuild it as a self-hosted web app that runs in Docker. It is built and tested on Linux. Windows, including Docker Desktop on Windows, is not supported.
 
 ## What This Is (and Isn't)
 
@@ -21,10 +21,15 @@ All output files are CBZ. ComicManager will convert CBR and CB7 archives to CBZ,
 Every written file includes a `ComicInfo.xml` embedded in the CBZ archive. The schema follows a combination of the original ComicRack definition and the community-maintained [anansi-project/comicinfo](https://github.com/anansi-project/comicinfo) standard. If new standards are developed, I'm open to implement them.  ComicRackCE's [ComicBook.xml](https://github.com/maforget/ComicRackCE/discussions/260)looks promising, but a schema hasn't been released yet. 
 
 ### Metadata Sources: ComicVine and I.N.D.U.C.K.S. Only
-ComicManager supports two external metadata sources. No other sources will be added.
+ComicManager supports two external metadata sources, and no others are planned right now.
 
 - **ComicVine**: the primary source for most comics. Requires a local database file (`comicvine.db` + `latest.mcl`) or an API key. The `latest.mcl` file is updated daily and available at [gitea.baerentsen.space](https://gitea.baerentsen.space/FrederikBaerentsen/ComicRack_Scripts/src/branch/master/Update%20Missing). A proof-of-concept offline ComicVine database was posted here: [An offline ComicVine tagger (r/comicrackusers)](https://old.reddit.com/r/comicrackusers/comments/1q7rex8/here_it_is_an_offline_comicvine_tagger_for/). Do not open issues on this repository asking where to get the database. 
 - **I.N.D.U.C.K.S.**: a great alternative to ComicVine for Disney comics. The database is built from the official ISV export at [inducks.org/inducks/isv.tgz](https://inducks.org/inducks/isv.tgz). You need to extract the archive and build the SQLite database yourself using the `createtables.sql` included in the archive. Do not open issues on this repository asking for how to create the database.
+
+### Local Network Only
+ComicManager has no login and no user accounts. Anyone who can open it can change your metadata and move or delete your files, so run it on your local network over plain HTTP, and don't expose it to the internet.
+
+HTTPS is not supported, and neither are reverse proxies that add it: pages load, but saving and every action fail with "CSRF verification failed". A reverse proxy over plain HTTP works, as long as it passes the `Host` header through and that host name is in `ALLOWED_HOSTS`.
 
 ---
 

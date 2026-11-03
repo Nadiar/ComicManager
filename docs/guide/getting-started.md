@@ -213,6 +213,10 @@ To save typing, set `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` in 
 
 ## Troubleshooting
 
+### Saving fails with "CSRF verification failed"
+
+Pages load, but saving and every action fail with a 403 error saying `CSRF verification failed` or `Origin checking failed`. This happens when ComicManager is opened over HTTPS, usually through a reverse proxy. That isn't supported (see [Local Network Only](/guide/philosophy#local-network-only)): open it directly over HTTP on your local network, for example `http://192.168.1.50:8381`, or use a reverse proxy over plain HTTP that passes the `Host` header through, with that host name in `ALLOWED_HOSTS`.
+
 ### Worker security warning on startup
 
 The `worker` container may log warnings like:
