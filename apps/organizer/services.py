@@ -84,8 +84,9 @@ def _safe_move(old_path: str, new_path: str, allowed_root: str) -> None:
     # are separate volumes) cannot be linked: copy to a hidden temp file next
     # to the destination first, so a crash never leaves a half-copied comic
     # under the real name. Filesystems without hard links (SMB shares, exFAT,
-    # Windows drives under Docker Desktop) also land here, so the temp file is
-    # renamed into place when it cannot be linked either.
+    # Windows drives under Docker Desktop) rename the file itself instead, the
+    # same check-then-rename the copy ends with, and fall back to the copy when
+    # that rename fails too (a share that spans disks, say).
     try:
         os.link(old_path, new_path)
     except FileExistsError:
@@ -93,6 +94,14 @@ def _safe_move(old_path: str, new_path: str, allowed_root: str) -> None:
     except OSError as e:
         if e.errno not in (errno.EXDEV, errno.EPERM, errno.ENOTSUP):
             raise
+        if e.errno != errno.EXDEV:
+            try:
+                rename_no_clobber(old_path, new_path)
+                return
+            except FileExistsError:
+                raise overwrite_error
+            except OSError:
+                pass
         tmp_path = os.path.join(os.path.dirname(new_path), f".cm-move-{os.path.basename(new_path)}.tmp")
         try:
             shutil.copy2(old_path, tmp_path)

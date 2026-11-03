@@ -127,7 +127,7 @@ class SafeMoveTests(SimpleTestCase):
         return patch("apps.organizer.services.os.link",
                      side_effect=OSError(errno.EPERM, "Operation not permitted"))
 
-    def test_move_without_hard_links_renames_the_temp_file(self):
+    def test_move_without_hard_links_moves_the_file(self):
         with tempfile.TemporaryDirectory() as d:
             src = os.path.join(d, "src.cbz")
             dst = os.path.join(d, "sub", "dst.cbz")
@@ -140,6 +140,46 @@ class SafeMoveTests(SimpleTestCase):
             self.assertEqual(os.listdir(os.path.dirname(dst)), ["dst.cbz"])
             with open(dst) as f:
                 self.assertEqual(f.read(), "source")
+
+    def test_move_without_hard_links_renames_instead_of_copying(self):
+        # P7.26: on one filesystem a rename does the move; copying every byte is only needed between filesystems
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src.cbz")
+            dst = os.path.join(d, "sub", "dst.cbz")
+            os.makedirs(os.path.dirname(dst))
+            with open(src, "w") as f:
+                f.write("source")
+            with self._no_hard_links(), patch("apps.organizer.services.shutil.copy2") as copy:
+                _safe_move(src, dst, d)
+            copy.assert_not_called()
+            self.assertFalse(os.path.exists(src))
+            with open(dst) as f:
+                self.assertEqual(f.read(), "source")
+
+    def test_move_without_hard_links_copies_when_the_rename_fails(self):
+        import errno
+        from unittest.mock import patch
+        real_rename = os.rename
+        calls = []
+
+        def rename(a, b):
+            calls.append(a)
+            if len(calls) == 1:  # the original can't be renamed there (another disk of a share, say)
+                raise OSError(errno.EXDEV, "Invalid cross-device link")
+            return real_rename(a, b)
+
+        with tempfile.TemporaryDirectory() as d:
+            src = os.path.join(d, "src.cbz")
+            dst = os.path.join(d, "dst.cbz")
+            with open(src, "w") as f:
+                f.write("source")
+            with self._no_hard_links(), patch("apps.organizer.services.os.rename", side_effect=rename):
+                _safe_move(src, dst, d)
+            self.assertEqual(os.listdir(d), ["dst.cbz"])
+            with open(dst) as f:
+                self.assertEqual(f.read(), "source")
+            self.assertIn(".cm-move-", calls[1])
 
     def test_move_without_hard_links_never_overwrites(self):
         with tempfile.TemporaryDirectory() as d:
