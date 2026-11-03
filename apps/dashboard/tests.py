@@ -240,3 +240,39 @@ class NestedSmartListGroupTests(TestCase):
         edit = self.client.get(f"/smartlists/{SmartList.objects.get(name='nested').pk}/edit/")
         self.assertContains(edit, "MAX_GROUP_DEPTH")
         self.assertContains(edit, 'id="existing-filters"')
+
+
+class DashboardCountsTests(TestCase):
+    """The dashboard's comic counts come from one pass over the comics table (#18)."""
+
+    def test_counts_and_comic_queries(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        Comic.objects.create(series="A", state="tagging", flags={"corrupted_archive": True, "count_mismatch": True})
+        Comic.objects.create(series="B", state="tagging", flags={"corrupted_archive": True}, needs_reformat=True)
+        Comic.objects.create(series="C", state="scrape", flags={"scrape_skipped": True})
+        Comic.objects.create(proposed_series="New", state="new", file_format="cbz", medium="digital")
+        Comic.objects.create(proposed_series="Old", state="new", file_format="cbr", medium="digital",
+                             flags={"needs_conversion": True})
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = Client().get("/")
+        self.assertEqual(response.status_code, 200)
+
+        c = response.context
+        queue = {item["flag"]: item["count"] for item in c["review_queue"]}
+        self.assertEqual(queue["corrupted_archive"], 2)
+        self.assertEqual(queue["needs_reformat"], 1)
+        self.assertEqual(c["flagged_count"], 4)  # count_mismatch alone is a maintenance flag
+        self.assertEqual(c["count_mismatch_count"], 1)
+        self.assertEqual(c["stats"]["total"], 5)
+        self.assertEqual(c["stats"]["new_cbr_count"], 1)
+        self.assertEqual(c["stats"]["scrape_skipped"], 1)
+        self.assertEqual(c["new_comics_total"], 1)
+        self.assertEqual(c["new_comics_non_cbz"], 1)
+
+        # The aggregate, the state counts, the new comics list and the week history; it was
+        # about 40 before, one per flag
+        comic_queries = [q for q in ctx.captured_queries if 'FROM "core_comic"' in q["sql"]]
+        self.assertLessEqual(len(comic_queries), 6, [q["sql"][:120] for q in comic_queries])

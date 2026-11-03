@@ -11,14 +11,60 @@ from .services import build_queryset, get_missing_issues, search_cv_volumes
 
 
 def index(request):
+    from datetime import timedelta
+    from apps.core.models import get_setting
+
+    # Every comic count on the page comes from one pass over the comics table (#18).
+    # A COUNT per flag read the whole table each time: seconds with 100,000+ comics.
+    flag_keys = [
+        "corrupted_archive", "file_missing", "low_page_count", "is_pdf", "no_series", "cover_only",
+        "needs_conversion", "is_zip", "missing_count", "count_mismatch", "count_updated",
+        "metadata_mismatch", "scrape_no_match", "scrape_error", "missing_format", "scrape_skipped",
+        "unknown_publisher", "format_mismatch_in_volume", "cv_volume_conflict",
+    ]
+    flag_q = {k: Q(**{f"flags__{k}": True}) for k in flag_keys}
+    # Active flags only: the maintenance flags (count_mismatch, format_mismatch_in_volume,
+    # cv_volume_conflict, needs_reformat) live in the Maintenance tab
+    active_flags_q = Q()
+    for k in flag_keys:
+        if k not in ("count_mismatch", "format_mismatch_in_volume", "cv_volume_conflict"):
+            active_flags_q |= flag_q[k]
+    # New comics panel: CBZ only, non-empty proposed_series
+    new_q = (Q(state=Comic.STATE_NEW, file_format="cbz", medium=Comic.MEDIUM_DIGITAL)
+             & ~Q(proposed_series__isnull=True) & ~Q(proposed_series=""))
+    zero_day_hours = int(get_setting("scrape_0day_hours", 24))
+    counts = Comic.objects.aggregate(
+        n_total=Count("pk"),
+        n_digital=Count("pk", filter=Q(medium="digital")),
+        n_physical=Count("pk", filter=Q(medium="physical")),
+        n_new=Count("pk", filter=Q(state="new")),
+        n_written=Count("pk", filter=Q(state="done")),
+        n_new_cbr=Count("pk", filter=Q(state="new") & flag_q["needs_conversion"]),
+        n_scrape_skipped_in_scrape=Count("pk", filter=Q(state="scrape") & flag_q["scrape_skipped"]),
+        n_flagged=Count("pk", filter=active_flags_q),
+        n_needs_reformat=Count("pk", filter=Q(needs_reformat=True)),
+        n_needs_reorganize=Count("pk", filter=Q(needs_reorganize=True)),
+        # written before, but the database changed since
+        n_stale=Count("pk", filter=STALE_Q),
+        # written digital comics that never had ComicInfo.xml written
+        n_missing_comicinfo=Count("pk", filter=Q(
+            state=Comic.STATE_WRITTEN, medium=Comic.MEDIUM_DIGITAL, last_written__isnull=True)),
+        n_new_comics=Count("pk", filter=new_q),
+        n_new_comics_0day=Count("pk", filter=new_q & Q(
+            imported_at__gte=timezone.now() - timedelta(hours=zero_day_hours))),
+        n_new_comics_non_cbz=Count("pk", filter=Q(
+            state=Comic.STATE_NEW, medium=Comic.MEDIUM_DIGITAL) & ~Q(file_format="cbz")),
+        **{f"n_{k}": Count("pk", filter=q) for k, q in flag_q.items()},
+    )
+
     stats = {
-        "total":     Comic.objects.count(),
-        "digital":   Comic.objects.filter(medium="digital").count(),
-        "physical":  Comic.objects.filter(medium="physical").count(),
-        "new":       Comic.objects.filter(state="new").count(),
-        "written":   Comic.objects.filter(state="done").count(),
-        "new_cbr_count": Comic.objects.filter(state="new", flags__needs_conversion=True).count(),
-        "scrape_skipped": Comic.objects.filter(state="scrape", flags__scrape_skipped=True).count(),
+        "total":     counts["n_total"],
+        "digital":   counts["n_digital"],
+        "physical":  counts["n_physical"],
+        "new":       counts["n_new"],
+        "written":   counts["n_written"],
+        "new_cbr_count": counts["n_new_cbr"],
+        "scrape_skipped": counts["n_scrape_skipped_in_scrape"],
     }
 
     # Get counts per workflow state
@@ -45,133 +91,133 @@ def index(request):
             "flag": "corrupted_archive",
             "label": "Corrupted Archive",
             "description": "CBZ file is corrupted or truncated and cannot be opened",
-            "count": Comic.objects.filter(flags__corrupted_archive=True).count(),
+            "count": counts["n_corrupted_archive"],
             "action": "review",
         },
         {
             "flag": "file_missing",
             "label": "File Missing",
             "description": "The file is missing on disk; its metadata was kept",
-            "count": Comic.objects.filter(flags__file_missing=True).count(),
+            "count": counts["n_file_missing"],
             "action": "review",
         },
         {
             "flag": "low_page_count",
             "label": "Low Page Count",
             "description": "Less than 5 pages - likely incomplete",
-            "count": Comic.objects.filter(flags__low_page_count=True).count(),
+            "count": counts["n_low_page_count"],
             "action": "delete",
         },
         {
             "flag": "is_pdf",
             "label": "PDF Files",
             "description": "PDF format needs manual review",
-            "count": Comic.objects.filter(flags__is_pdf=True).count(),
+            "count": counts["n_is_pdf"],
             "action": "review",
         },
         {
             "flag": "no_series",
             "label": "No Series Parsed",
             "description": "Couldn't extract series name from filename",
-            "count": Comic.objects.filter(flags__no_series=True).count(),
+            "count": counts["n_no_series"],
             "action": "edit",
         },
         {
             "flag": "cover_only",
             "label": "Cover Only",
             "description": "Likely just a cover image (≤3 pages)",
-            "count": Comic.objects.filter(flags__cover_only=True).count(),
+            "count": counts["n_cover_only"],
             "action": "delete",
         },
         {
             "flag": "needs_conversion",
             "label": "Needs Conversion",
             "description": "CBR/CB7 files need conversion to CBZ",
-            "count": Comic.objects.filter(flags__needs_conversion=True).count(),
+            "count": counts["n_needs_conversion"],
             "action": "convert",
         },
         {
             "flag": "is_zip",
             "label": "ZIP Files",
             "description": "ZIP files that can be renamed to CBZ (same format)",
-            "count": Comic.objects.filter(flags__is_zip=True).count(),
+            "count": counts["n_is_zip"],
             "action": "convert",
         },
         {
             "flag": "missing_count",
             "label": "Missing Issue Count",
             "description": "Scraped but missing issue count from ComicVine",
-            "count": Comic.objects.filter(flags__missing_count=True).count(),
+            "count": counts["n_missing_count"],
             "action": "populate",
         },
         {
             "flag": "count_mismatch",
             "label": "Count Mismatch",
             "description": "Comics in same volume disagree on issue count",
-            "count": Comic.objects.filter(flags__count_mismatch=True).count(),
+            "count": counts["n_count_mismatch"],
             "action": "review",
         },
         {
             "flag": "count_updated",
             "label": "Count Updated",
             "description": "Issue count changed. Needs ComicInfo.xml rewrite.",
-            "count": Comic.objects.filter(flags__count_updated=True).count(),
+            "count": counts["n_count_updated"],
             "action": "rewrite",
         },
         {
             "flag": "metadata_mismatch",
             "label": "Metadata Mismatch",
             "description": "Series name doesn't match the ComicVine volume. Needs re-scrape.",
-            "count": Comic.objects.filter(flags__metadata_mismatch=True).count(),
+            "count": counts["n_metadata_mismatch"],
             "action": "review",
         },
         {
             "flag": "scrape_no_match",
             "label": "Scrape: No Match",
             "description": "No ComicVine match found. Needs manual matching or skip.",
-            "count": Comic.objects.filter(flags__scrape_no_match=True).count(),
+            "count": counts["n_scrape_no_match"],
             "action": "review",
         },
         {
             "flag": "scrape_error",
             "label": "Scrape: Error",
             "description": "Exception during scraping (API unavailable, hash failure, etc.)",
-            "count": Comic.objects.filter(flags__scrape_error=True).count(),
+            "count": counts["n_scrape_error"],
             "action": "review",
         },
         {
             "flag": "missing_format",
             "label": "Missing Format",
             "description": "Format detection returned no result. Needs manual format assignment.",
-            "count": Comic.objects.filter(flags__missing_format=True).count(),
+            "count": counts["n_missing_format"],
             "action": "edit",
         },
         {
             "flag": "scrape_skipped",
             "label": "Scrape: Skipped",
             "description": "Marked to be skipped by batch scraping. Review or un-skip when ready.",
-            "count": Comic.objects.filter(flags__scrape_skipped=True).count(),
+            "count": counts["n_scrape_skipped"],
             "action": "review",
         },
         {
             "flag": "unknown_publisher",
             "label": "Unknown Publisher",
             "description": "Publisher not covered by any tagging ruleset. Create a ruleset or review.",
-            "count": Comic.objects.filter(flags__unknown_publisher=True).count(),
+            "count": counts["n_unknown_publisher"],
             "action": "review",
         },
         {
             "flag": "format_mismatch_in_volume",
             "label": "Format Mismatch in Volume",
             "description": "Comics linked to the same CV volume have conflicting formats",
-            "count": Comic.objects.filter(flags__format_mismatch_in_volume=True).count(),
+            "count": counts["n_format_mismatch_in_volume"],
             "action": "detect_format_conflicts",
         },
         {
             "flag": "cv_volume_conflict",
             "label": "CV Volume Conflict",
             "description": "Comics with the same Series+Volume+Format are linked to different CV volumes",
-            "count": Comic.objects.filter(flags__cv_volume_conflict=True).count(),
+            "count": counts["n_cv_volume_conflict"],
             "action": "detect_format_conflicts",
         },
         {
@@ -179,44 +225,24 @@ def index(request):
             "link": "/comics/format/",
             "label": "Format Upgrade Needed",
             "description": "Issue count changed. Format should be upgraded (e.g. One-Shot to Limited Series).",
-            "count": Comic.objects.filter(needs_reformat=True).count(),
+            "count": counts["n_needs_reformat"],
             "action": "reformat",
         },
     ]
 
-    # Active flags only — excludes maintenance flags (count_mismatch, format_mismatch_in_volume,
-    # cv_volume_conflict, needs_reformat) which live in the Maintenance tab
-    _active_flags_q = (
-        Q(flags__corrupted_archive=True) |
-        Q(flags__file_missing=True) |
-        Q(flags__low_page_count=True) |
-        Q(flags__is_pdf=True) |
-        Q(flags__no_series=True) |
-        Q(flags__cover_only=True) |
-        Q(flags__needs_conversion=True) |
-        Q(flags__is_zip=True) |
-        Q(flags__missing_count=True) |
-        Q(flags__count_updated=True) |
-        Q(flags__metadata_mismatch=True) |
-        Q(flags__scrape_no_match=True) |
-        Q(flags__scrape_error=True) |
-        Q(flags__missing_format=True) |
-        Q(flags__scrape_skipped=True) |
-        Q(flags__unknown_publisher=True)
-    )
-    flagged_count = Comic.objects.filter(_active_flags_q).count()
+    flagged_count = counts["n_flagged"]
 
     # Maintenance: moved from Active tab
-    count_mismatch_count = Comic.objects.filter(flags__count_mismatch=True).count()
-    format_mismatch_count = Comic.objects.filter(flags__format_mismatch_in_volume=True).count()
-    cv_volume_conflict_count = Comic.objects.filter(flags__cv_volume_conflict=True).count()
-    needs_reformat_count = Comic.objects.filter(needs_reformat=True).count()
+    count_mismatch_count = counts["n_count_mismatch"]
+    format_mismatch_count = counts["n_format_mismatch_in_volume"]
+    cv_volume_conflict_count = counts["n_cv_volume_conflict"]
+    needs_reformat_count = counts["n_needs_reformat"]
 
     # Needs-reorganize queue
-    needs_reorganize_count = Comic.objects.filter(needs_reorganize=True).count()
+    needs_reorganize_count = counts["n_needs_reorganize"]
 
     # Stale metadata queue (written before but DB updated since)
-    stale_count = Comic.objects.filter(STALE_Q).count()
+    stale_count = counts["n_stale"]
 
     # Maintenance: duplicates
     from apps.duplicates.models import DuplicateGroup
@@ -229,11 +255,7 @@ def index(request):
     )
 
     # Maintenance: written digital comics that have never had ComicInfo.xml written
-    missing_comicinfo_count = Comic.objects.filter(
-        state=Comic.STATE_WRITTEN,
-        medium=Comic.MEDIUM_DIGITAL,
-        last_written__isnull=True,
-    ).count()
+    missing_comicinfo_count = counts["n_missing_comicinfo"]
 
     maintenance_count = (
         dup_total + needs_reorganize_count + stale_count + missing_comicinfo_count +
@@ -241,24 +263,10 @@ def index(request):
     )
 
     # New comics panel (CBZ only, non-empty proposed_series)
-    from apps.core.models import get_setting
-    from django.utils import timezone
-    from datetime import timedelta
-
-    _new_qs = (
-        Comic.objects.filter(state=Comic.STATE_NEW, file_format="cbz", medium=Comic.MEDIUM_DIGITAL)
-        .exclude(proposed_series__isnull=True).exclude(proposed_series="")
-        .order_by("-imported_at")
-    )
-    new_comics = list(_new_qs[:8])
-    new_comics_total = _new_qs.count()
-    new_comics_non_cbz = Comic.objects.filter(
-        state=Comic.STATE_NEW, medium=Comic.MEDIUM_DIGITAL
-    ).exclude(file_format="cbz").count()
-
-    zero_day_hours = int(get_setting("scrape_0day_hours", 24))
-    _0day_cutoff = timezone.now() - timedelta(hours=zero_day_hours)
-    new_comics_0day_count = _new_qs.filter(imported_at__gte=_0day_cutoff).count()
+    new_comics = list(Comic.objects.filter(new_q).order_by("-imported_at")[:8])
+    new_comics_total = counts["n_new_comics"]
+    new_comics_non_cbz = counts["n_new_comics_non_cbz"]
+    new_comics_0day_count = counts["n_new_comics_0day"]
 
     # Smart lists for dashboard
     dashboard_smartlists = []
