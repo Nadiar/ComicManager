@@ -42,6 +42,8 @@
 
 - **The dashboard was slow on large libraries (#18)**: The dashboard counted each flag and figure with its own query, about 40 of them, and each one read the whole comics table, so with 100,000+ comics it took seconds to open. All the counts now come from one query.
 
+- **The comic list was slow on large libraries (#18)**: Every page change, sort or filter counted each flag for the filter rail with two queries over the whole comics table, even though only the list was redrawn. The flags are counted in one query now, and only when the whole page loads.
+
 ## [1.1.2]
 
 Bug fixes and a few new features. This release replaces 1.1.1, which was only published as an early test image (`:1.1.1`); everything in it is included here. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint or story arc yet: run `backfill_from_files` before writing them (see below). Moves are now refused for organizer profiles whose base folder is outside `/comics/library`, such as a Windows path kept from a ComicRack `.lop` import; the profile list shows which profiles to edit.

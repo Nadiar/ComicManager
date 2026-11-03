@@ -339,6 +339,38 @@ class SearchTests(TestCase):
         self.assertEqual(list(found), ["Sandman"])
 
 
+class ComicListRailQueryTests(TestCase):
+    """The comic list's filter rail counts every flag in one query, and HTMX requests skip it (#18)."""
+
+    def setUp(self):
+        from apps.core.models import Comic
+        Comic.objects.create(series="A", state="tagging", flags={"is_pdf": True, "needs_conversion": True})
+        Comic.objects.create(series="B", state="tagging", flags={"is_pdf": True})
+
+    def _get(self, **headers):
+        from django.db import connection
+        from django.test import Client
+        from django.test.utils import CaptureQueriesContext
+        with CaptureQueriesContext(connection) as ctx:
+            response = Client().get("/comics/", **headers)
+        flag_queries = [q["sql"] for q in ctx.captured_queries if '"flags" ->' in q["sql"]]
+        return response, flag_queries
+
+    def test_full_page_counts_flags_in_one_query(self):
+        response, flag_queries = self._get()
+        counts = {f["key"]: f["count"] for f in response.context["flag_counts"]}
+        self.assertEqual(counts, {"is_pdf": 2, "needs_conversion": 1})
+        self.assertEqual(response.context["needs_conversion_count"], 1)
+        self.assertEqual(response.context["is_zip_count"], 0)
+        # was a count and an exists() for each of the 17 flags
+        self.assertEqual(len(flag_queries), 1, flag_queries)
+
+    def test_htmx_request_skips_the_rail(self):
+        response, flag_queries = self._get(HTTP_HX_REQUEST="true")
+        self.assertNotIn("flag_counts", response.context)
+        self.assertEqual(flag_queries, [])
+
+
 class InlineProposedYearTests(TestCase):
     """Proposed Year is editable in place in the New list, like the other proposed values, and saved as a number."""
 

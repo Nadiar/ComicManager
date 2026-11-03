@@ -247,6 +247,42 @@ def _build_comic_list_queryset(params):
     return comics
 
 
+def _filter_rail_context():
+    """Dropdown values and counts for the comic list's filter rail and Convert buttons."""
+    from django.db.models import Count, Q
+
+    # One pass over the comics table for all flags, instead of a count and an exists() per
+    # flag, each reading the whole table (#18)
+    flag_n = Comic.objects.aggregate(
+        **{f"f_{k}": Count("pk", filter=Q(**{f"flags__{k}": True})) for k in FLAG_LABELS}
+    )
+    state_count_qs = dict(Comic.objects.values_list("state").annotate(n=Count("pk")))
+    return {
+        "publishers": Comic.objects.exclude(publisher__isnull=True).exclude(publisher="")
+            .values_list("publisher", flat=True).distinct().order_by("publisher"),
+        "formats": Comic.objects.exclude(format__isnull=True).exclude(format="")
+            .values_list("format", flat=True).distinct().order_by("format"),
+        "publisher_counts": list(
+            Comic.objects.exclude(publisher="").exclude(publisher__isnull=True)
+            .values("publisher").annotate(n=Count("pk")).order_by("-n")[:10]
+        ),
+        "state_counts": [
+            {"state": key, "label": label, "count": state_count_qs.get(key, 0)}
+            for key, label in WORKFLOW_STATES
+        ],
+        "format_counts": list(
+            Comic.objects.exclude(format="").exclude(format__isnull=True)
+            .values("format").annotate(n=Count("pk")).order_by("-n")
+        ),
+        "flag_counts": [
+            {"key": k, "label": v, "count": flag_n[f"f_{k}"]}
+            for k, v in FLAG_LABELS.items() if flag_n[f"f_{k}"]
+        ],
+        "needs_conversion_count": flag_n["f_needs_conversion"],
+        "is_zip_count": flag_n["f_is_zip"],
+    }
+
+
 def comic_list(request):
     from django.db.models import Q
     from django.core.paginator import Paginator
@@ -337,34 +373,9 @@ def comic_list(request):
     page_number = request.GET.get("page", 1)
     page_obj = paginator.get_page(page_number)
 
-    # Get distinct values for filter dropdowns
-    publishers = Comic.objects.exclude(publisher__isnull=True).exclude(publisher="").values_list("publisher", flat=True).distinct().order_by("publisher")
-    formats = Comic.objects.exclude(format__isnull=True).exclude(format="").values_list("format", flat=True).distinct().order_by("format")
-
-    # Filter rail data
-    from django.db.models import Count as DbCount
-    publisher_counts = list(
-        Comic.objects.exclude(publisher="").exclude(publisher__isnull=True)
-        .values("publisher").annotate(n=DbCount("pk")).order_by("-n")[:10]
-    )
-    state_count_qs = dict(Comic.objects.values_list("state").annotate(n=DbCount("pk")))
-    state_counts = [
-        {"state": key, "label": label, "count": state_count_qs.get(key, 0)}
-        for key, label in WORKFLOW_STATES
-    ]
-    format_counts = list(
-        Comic.objects.exclude(format="").exclude(format__isnull=True)
-        .values("format").annotate(n=DbCount("pk")).order_by("-n")
-    )
-    flag_counts = [
-        {"key": k, "label": v, "count": Comic.objects.filter(**{f"flags__{k}": True}).count()}
-        for k, v in FLAG_LABELS.items()
-        if Comic.objects.filter(**{f"flags__{k}": True}).exists()
-    ]
-
-    # Count comics needing conversion (for "Convert All" button)
-    needs_conversion_count = Comic.objects.filter(flags__needs_conversion=True).count()
-    is_zip_count = Comic.objects.filter(flags__is_zip=True).count()
+    # The filter rail and the Convert buttons are only on the full page, so HTMX requests
+    # (paging, sorting, filtering) skip their queries (#18)
+    rail = {} if request.htmx else _filter_rail_context()
 
     # Build query string without page param (for pagination links)
     query_params = request.GET.copy()
@@ -401,15 +412,8 @@ def comic_list(request):
         "current_year_min": year_min,
         "current_year_max": year_max,
         "flag_label": FLAG_LABELS.get(flag, flag),
-        "publisher_counts": publisher_counts,
-        "state_counts": state_counts,
-        "format_counts": format_counts,
-        "flag_counts": flag_counts,
-        "needs_conversion_count": needs_conversion_count,
-        "is_zip_count": is_zip_count,
+        **rail,
         "workflow_states": WORKFLOW_STATES,
-        "publishers": publishers,
-        "formats": formats,
         "active_columns": active_columns,
         "all_columns": dict(sorted(COLUMNS_REGISTRY.items(), key=lambda x: x[1]["label"])),
         "inline_editable_cols": list(_INLINE_EDITABLE_FIELDS),
