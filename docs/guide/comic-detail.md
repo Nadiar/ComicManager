@@ -57,8 +57,8 @@ The actions card contains buttons for every pipeline operation that can be run o
 | **Write** | Writes the current metadata to `ComicInfo.xml` inside the CBZ |
 | **Manage Pages** | Opens the [page manager](/guide/page-manager) for reordering, deleting or adding pages |
 | **Refresh File Info** | Re-reads file size, page count, and cover hashes from disk. If any values changed the page reloads automatically. The button label reflects the hash outcome: **Up to date** (CBZ, hashes current), **No cover image** (CBZ but cover could not be read), or **No hashes (format)** (PDF, CBR, and other non-CBZ formats do not support cover hashing). |
-| **Refresh Credits** | Re-fetches credits from ComicVine |
-| **Search Alt Covers** | Searches ComicVine for alternate cover images |
+| **Refresh Credits** | Re-fetches credits from ComicVine: from the local comicvine.db, or from the ComicVine API when there is no local database or the issue is not in it |
+| **Search Alt Covers** | Searches ComicVine for alternate cover images, in the local comicvine.db or, without one, through the ComicVine API |
 | **Compare All Sources** | Opens a side-by-side comparison of all available scrape sources |
 | **Export as JSON** | Downloads the comic's full metadata as a JSON file |
 | **Delete Comic** | Permanently removes the comic from the database and deletes the file from disk |

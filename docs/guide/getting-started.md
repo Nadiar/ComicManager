@@ -258,6 +258,17 @@ Profile "Marvel" has the base folder "B:\Comics\ComicRack", which is outside the
 
 The profile was most likely imported from a ComicRack `.lop` file with an earlier version, which kept ComicRack's Windows path. Comics are only moved into `/comics/library`, so the move is refused and the file is not touched. Open **Organizer**, where the profile list shows the profiles in question, and set their **Base Folder** to `/comics/library` or a folder inside it. To organize onto another drive, mount it inside the library folder in `docker-compose.yml`, for example at `/comics/library/Manga`. See [Base Folders from ComicRack](/guide/organizing#base-folders-from-comicrack).
 
+### Move Files fails with "Operation not permitted" on a .cm-move file
+
+The error reads like this:
+
+```
+[Errno 1] Operation not permitted: '/comics/library/.../.cm-move-Name #25 (2009).cbz.tmp'
+-> '/comics/library/.../Name #25 (2009).cbz'
+```
+
+Versions before 1.1.2 needed hard links to move a file, so every move failed on a drive without them: SMB and CIFS shares, exFAT, Windows drives under Docker Desktop, and Unraid shares with hard link support turned off. Update ComicManager (see [Updating](#updating)); moves work without hard links since 1.1.2. The original file is not touched by the failed move, and the hidden `.cm-move-*.tmp` file is removed.
+
 ### import_library says no ComicDb.xml entry matches
 
 With `--comicdb`, the import stops before importing anything when no entry in `ComicDb.xml` matches a `.cbz` file in the library folder. It shows the first path in `ComicDb.xml` to compare with. Entries match by the end of their path, so the library folder must hold the same folders and file names as ComicRack's library folder. A `ComicDb.xml` saved before the files were moved or renamed does not match them. If you passed `--comicdb-root`, check that it is the folder as `ComicDb.xml` writes it, for example `B:\Comics\ComicRack`. See the `--comicdb` description under [CLI import commands](#cli-import-commands).

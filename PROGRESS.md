@@ -427,6 +427,7 @@
 - [x] [DOC.9] CHANGELOG.md does not list the publisher allow and block lists (P2.18), which were added after v1.1.0 was tagged. Added to the v1.1.2 section.
 - [x] [DOC.10] The docs container had no restart policy, so it stayed down after a reboot. `docs/docker-compose.yml` has `restart: unless-stopped` now.
 - [x] [DOC.11] The docs image failed a vulnerability scan (1 critical, 2 high) even when built on the newest `nginx:alpine`: that image lagged behind Alpine's fixes for curl, libcurl and brotli-libs. None of them were reachable (nginx links neither, only the `curl` tool and freetype use them). `docs/Dockerfile` runs `apk upgrade --no-cache` in the nginx stage, so a rebuild gets Alpine's fixed packages. The scan is now 0 critical, 0 high.
+- [x] [DOC.12] Docs gaps found while checking the docs for 1.1.2: `writing.md` listed story arcs under Custom Values and `organizing.md` said `{<storyarc>}` comes from custom values (it reads the Story Arc field, `template_engine.py`), and used `{<Custom(StoryArc)>}` as an example. Troubleshooting had no entry for the `Operation not permitted` error on a `.cm-move-*.tmp` file from before 1.1.2 (P7.21), and the comic page guide did not say that Refresh Credits and Search Alt Covers use the ComicVine API without a local comicvine.db. Fixed in v1.1.3.
 
 ## Future Improvements
 

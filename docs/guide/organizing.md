@@ -185,7 +185,7 @@ All variables use angle brackets around the field name: `{<field>}`.
 | `{<coverartist>}` | Cover artist | `Greg Capullo` |
 | `{<editor>}` | Editor | `Katie Kubert` |
 | `{<count>}` | Total issue count | `60` |
-| `{<storyarc>}` | Story arc name (from custom values) | `Court of Owls` |
+| `{<storyarc>}` | Story arc name | `Court of Owls` |
 | `{<altnumber>}` | Alternate number (from custom values) | `12.1` |
 | `{<startyear>}` | Series start year (from custom values) | `2011` |
 
@@ -196,7 +196,7 @@ Access any custom value field with `{<Custom(key)>}`:
 ```
 {<Custom(comicvine_issue)>}   -> the ComicVine issue ID
 {<Custom(comicvine_volume)>}  -> the ComicVine volume ID
-{<Custom(StoryArc)>}          -> story arc name
+{<Custom(AlternateNumber)>}   -> alternate number
 ```
 
 Imprint is a standard field, not a custom value. Use `{<imprint>}`, not `{<Custom(Imprint)>}`. Since 1.1.2, an `Imprint` custom value is moved into the Imprint field when you upgrade, so a profile that still uses `{<Custom(Imprint)>}` gets an empty value and leaves out the imprint folder.

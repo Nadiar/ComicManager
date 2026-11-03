@@ -75,5 +75,5 @@ Comics in the Written state that have somehow lost their `ComicInfo.xml` (for ex
 ## ComicInfo.xml Advanced Features
 
 - **Summary Formatting**: ComicManager preserves paragraph breaks and removes messy HTML tags from your summaries, ensuring they are readable in any comic reader.
-- **Custom Values**: Any metadata not covered by standard `ComicInfo.xml` fields (story arcs, scrape source, ComicVine IDs, DataManager flags) is stored in a `<CustomValues>` block inside the XML.
+- **Custom Values**: Any metadata not covered by standard `ComicInfo.xml` fields (scrape source, ComicVine IDs, DataManager flags) is stored in a `<CustomValues>` block inside the XML.
 - **ComicVine reference**: If the Notes field is empty, ComicManager writes a short reference like `Scraped metadata from ComicVine [CVDB12345].` so the source match is traceable from any reader. This mirrors the convention ComicRack's ComicVine scraper uses to record the same match, so the reference works in either application.
