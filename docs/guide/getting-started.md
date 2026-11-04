@@ -191,6 +191,8 @@ docker compose up -d
 
 Migrations run automatically on restart.
 
+`IMAGE_TAG` in `.env` picks the image: `latest` (the default) or a version such as `1.1.3` are releases. `dev` is built from the dev branch for testing the next release. It can break, and it can run database migrations a release doesn't have yet, so going back to `latest` may not work: back up the database before trying it, and don't run it on a library you care about.
+
 ---
 
 ## Development mode
