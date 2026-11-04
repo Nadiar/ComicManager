@@ -5,7 +5,7 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from apps.core.models import STALE_Q, Comic
 from .models import SmartList
-from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS
+from apps.core.utils import COLUMNS_REGISTRY, DEFAULT_COLUMNS, int_param
 from apps.core.task_queue import enqueue
 from .services import build_queryset, get_missing_issues, search_cv_volumes
 
@@ -1202,7 +1202,7 @@ def smartlist_detail(request, pk):
     total_count = comics.count()
 
     # Paginate
-    per_page = int(request.GET.get("per_page", 100))
+    per_page = int_param(request.GET, "per_page", 100)
     per_page = min(max(per_page, 25), 500)
     paginator = Paginator(comics, per_page)
     page_number = request.GET.get("page", 1)

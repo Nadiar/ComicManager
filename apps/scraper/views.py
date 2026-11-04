@@ -9,7 +9,7 @@ from django.views.decorators.http import require_http_methods
 from django.utils.html import escape
 
 from apps.core.models import Comic
-from apps.core.utils import natural_number_annotation
+from apps.core.utils import int_param, natural_number_annotation
 from apps.scraper.comicvine import ComicVineScraper, CVMatch
 from apps.scraper.hasher import extract_cover_hashes
 from apps.scraper.services import metadata_alignment_score as _metadata_alignment_score
@@ -44,8 +44,8 @@ def scrape_dry_run(request):
     Run scraper in dry-run mode and return results as HTML.
     Uses streaming response for real-time output.
     """
-    limit = int(request.GET.get("limit", 2))
-    max_distance = int(request.GET.get("max_distance", 10))
+    limit = int_param(request.GET, "limit", 2)
+    max_distance = int_param(request.GET, "max_distance", 10)
 
     def generate():
         yield '<div class="font-mono text-sm space-y-4">\n'

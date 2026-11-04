@@ -46,6 +46,8 @@
 
 - **The duplicate review page could not load tens of thousands of groups (#18)**: It built every pending group at once, with a database query per group. It now shows 100 groups per page, with First, Prev, Next and Last.
 
+- **Text in a number in the address gave a server error**: `per_page` on the comic list and Smart List pages, and `limit` and `max_distance` on the scraper's dry run, gave a server error for anything but a number. They now fall back to their defaults.
+
 ## [1.1.2]
 
 Bug fixes and a few new features. This release replaces 1.1.1, which was only published as an early test image (`:1.1.1`); everything in it is included here. Back up the database before upgrading. The upgrade runs one migration, which adds the Imprint field and moves any `Imprint` custom value into it. If an organizer profile uses `{<Custom(Imprint)>}`, change it to `{<imprint>}` after upgrading, otherwise the imprint folder is left out. Tagging rules or Smart Lists that use an `Imprint` custom value need the same change to the new Imprint field. Comics imported with an earlier version have no imprint or story arc yet: run `backfill_from_files` before writing them (see below). Moves are now refused for organizer profiles whose base folder is outside `/comics/library`, such as a Windows path kept from a ComicRack `.lop` import; the profile list shows which profiles to edit.

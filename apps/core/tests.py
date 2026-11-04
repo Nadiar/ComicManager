@@ -371,6 +371,25 @@ class ComicListRailQueryTests(TestCase):
         self.assertEqual(flag_queries, [])
 
 
+class NumberParamTests(TestCase):
+    """Text in a number parameter is ignored instead of giving a server error (AC.12)."""
+
+    def test_int_param(self):
+        from apps.core.utils import int_param
+        self.assertEqual(int_param({"n": "12"}, "n", 5), 12)
+        self.assertEqual(int_param({"n": "abc"}, "n", 5), 5)
+        self.assertEqual(int_param({}, "n", 5), 5)
+
+    def test_pages_ignore_text_in_number_params(self):
+        from django.test import Client
+        from apps.dashboard.models import SmartList
+        smartlist = SmartList.objects.create(name="All")
+        client = Client()
+        for url in ("/comics/?per_page=abc", f"/smartlists/{smartlist.pk}/?per_page=abc",
+                    "/scraper/dry-run/?limit=abc&max_distance=x"):
+            self.assertEqual(client.get(url).status_code, 200, url)
+
+
 class InlineProposedYearTests(TestCase):
     """Proposed Year is editable in place in the New list, like the other proposed values, and saved as a number."""
 

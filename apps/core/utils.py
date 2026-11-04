@@ -59,6 +59,14 @@ def natural_number_annotation():
     )
 
 
+def int_param(params, name, default):
+    """A whole-number query parameter, or the default when it is missing or not a number."""
+    try:
+        return int(params.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
 def natural_sort_key(comic):
     """Python sort key for natural number ordering on Comic instances."""
     num = comic.number or ""

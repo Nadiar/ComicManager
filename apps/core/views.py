@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST, require_GET
 
 from .models import STALE_Q, Comic, QueuedTask, get_setting
 from .task_queue import enqueue
-from .utils import natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS
+from .utils import int_param, natural_number_annotation, natural_sort_key, html_to_text, COLUMNS_REGISTRY, DEFAULT_COLUMNS, STATE_NEW_DEFAULT_COLUMNS
 from .cbz_utils import insert_variant_covers
 from apps.scraper.comicvine import ComicVineScraper, ComicVineRateLimitError
 from apps.scraper.inducks import InducksScraper, is_inducks_available
@@ -367,7 +367,7 @@ def comic_list(request):
         comics = comics.order_by(*order_fields)
 
     # Paginate (100 per page)
-    per_page = int(request.GET.get("per_page", 100))
+    per_page = int_param(request.GET, "per_page", 100)
     per_page = min(max(per_page, 25), 500)  # Clamp between 25 and 500
     paginator = Paginator(comics, per_page)
     page_number = request.GET.get("page", 1)
