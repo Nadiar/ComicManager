@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.0]
+
+Bug fixes, and the dashboard, the comic list and the duplicate review are much faster on large libraries. Back up the database before upgrading. The upgrade runs one migration, which decodes the commas and equals signs in custom values imported from ComicRack's `ComicDb.xml` (see below). Comics it changes show as Stale Metadata if their file was already written, so writing them again puts the right values in the file.
 
 ### Fixed
 
@@ -47,6 +49,14 @@
 - **The duplicate review page could not load tens of thousands of groups (#18)**: It built every pending group at once, with a database query per group. It now shows 100 groups per page, with First, Prev, Next and Last.
 
 - **Text in a number in the address gave a server error**: `per_page` on the comic list and Smart List pages, and `limit` and `max_distance` on the scraper's dry run, gave a server error for anything but a number. They now fall back to their defaults.
+
+- **`sync_library_paths` could delete a comic's record**: When the file of a missing comic turned out to belong to another record, `sync_library_paths()` (run from the Django shell) deleted the missing comic's record. It now flags it File Missing instead, so Path Audit offers to relink or remove it.
+
+- **Cancel in the Confirm-each loop only skipped the comic (#15)**: With **Scrape All** and **Confirm each**, **Cancel**, the X, Esc or a click outside the scrape window only skipped the comic and opened the next one, so the only way out was reloading the page. Closing the window now ends the loop, and the button shows Stopped with the counts. **Skip** still moves on to the next comic.
+
+- **A failed save stalled the Confirm-each loop (#15)**: When saving a pick failed, the window had already closed and only a toast showed the error, so the loop never moved on and **Scrape All** kept spinning. In the loop the window now stays open between comics and shows the error, so the comic can be picked again or skipped.
+
+- **The cover match listed the same issue more than once**: When comicvine.db has several close covers for one issue, the scrape window listed it several times and auto-match had fewer other issues to choose from. Each issue is now listed once, at its closest cover.
 
 ## [1.1.2]
 

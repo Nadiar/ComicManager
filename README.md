@@ -54,7 +54,7 @@ A web application for managing large comic collections, both digital and physica
 
 ## Image tags
 
-- `latest` and version tags such as `1.1.3` are releases. Use these for your library.
+- `latest` and version tags such as `1.2.0` are releases. Use these for your library.
 - `dev` is built from the dev branch after each push, for trying out and testing what goes into the next release. It can break, it can change at any time, and it can run database migrations a release doesn't have yet, so going back to `latest` may not work. Back up the database before trying it, and don't run it on a library you care about. To try it, set `IMAGE_TAG=dev` in `.env`.
 
 ## Development
