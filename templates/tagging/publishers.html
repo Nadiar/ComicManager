@@ -41,7 +41,7 @@
             <a href="/comics/?publisher={{ pub.name|urlencode }}" style="color:var(--cm-accent); text-decoration:none; font-family:monospace;">{{ pub.comic_count }}</a>
           </td>
           <td style="padding:8px 10px; text-align:right;">
-            <a href="{% url 'tagging:ruleset_create' %}?publisher={{ pub.name|urlencode }}" class="cm-btn sm primary" cm-no-underline">Create Ruleset</a>
+            <a href="{% url 'tagging:ruleset_create' %}?publisher={{ pub.name|urlencode }}" class="cm-btn sm primary cm-no-underline">Create Ruleset</a>
           </td>
         </tr>
         {% endfor %}

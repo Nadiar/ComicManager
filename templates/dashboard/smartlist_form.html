@@ -7,7 +7,7 @@
 <!-- Header -->
 <div style="padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--cm-border);">
   <h1 class="cm-page-title">{% if mode == 'edit' %}Edit{% else %}Create{% endif %} Smart List</h1>
-  <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" cm-no-underline">Back to Lists</a>
+  <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost cm-no-underline">Back to Lists</a>
 </div>
 
 
@@ -117,7 +117,7 @@
               onclick="showConfirm('Delete this smart list?', () => this.closest('form').submit(), 'Delete', true)">Delete</button>
     </form>
     {% endif %}
-    <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
+    <a href="{% url 'dashboard:smartlist_index' %}" class="cm-btn sm ghost cm-no-underline">Cancel</a>
     <button type="submit" class="cm-btn sm primary">{% if mode == 'edit' %}Save Changes{% else %}Create Smart List{% endif %}</button>
   </div>
 </form>

@@ -11,12 +11,12 @@
     <h1 class="cm-page-title">Batch Audit Log</h1>
     <p style="font-size:12px; color:var(--cm-fg-3); margin:4px 0 0;" class="mono tnum">{{ total_count }} entr{{ total_count|pluralize:"y,ies" }} total{% if shown_count < total_count %}, newest {{ shown_count }} shown{% endif %}</p>
   </div>
-  <a href="{% url 'settings:index' %}" class="cm-btn sm ghost" cm-no-underline">Back to Settings</a>
+  <a href="{% url 'settings:index' %}" class="cm-btn sm ghost cm-no-underline">Back to Settings</a>
 </div>
 
 <!-- Action filter tabs -->
 <div style="padding:10px 16px; display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--cm-border);">
-  <a href="{% url 'settings:log' %}" class="cm-btn sm {% if not action_filter %}primary{% else %}ghost{% endif %}" cm-no-underline">All</a>
+  <a href="{% url 'settings:log' %}" class="cm-btn sm {% if not action_filter %}primary{% else %}ghost{% endif %} cm-no-underline">All</a>
   {% for action in actions %}
   <a href="{% url 'settings:log' %}?action={{ action }}"
      class="cm-btn sm {% if action_filter == action %}primary{% else %}ghost{% endif %}"
@@ -40,13 +40,13 @@
   <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ shown_count }}</span></span>
   <div style="display:flex; gap:3px;">
     {% if page_obj.has_previous %}
-    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost" cm-no-underline">First</a>
-    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" cm-no-underline">Prev</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost cm-no-underline">First</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost cm-no-underline">Prev</a>
     {% endif %}
     <span class="cm-btn sm primary" style="cursor:default;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
     {% if page_obj.has_next %}
-    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" cm-no-underline">Next</a>
-    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" cm-no-underline">Last</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost cm-no-underline">Next</a>
+    <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost cm-no-underline">Last</a>
     {% endif %}
   </div>
 </div>
@@ -165,13 +165,13 @@
 {% if page_obj.paginator.num_pages > 1 %}
 <div style="padding:10px 16px; display:flex; justify-content:center; gap:3px; border-top:1px solid var(--cm-border);">
   {% if page_obj.has_previous %}
-  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost" cm-no-underline">First</a>
-  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost" cm-no-underline">Prev</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page=1" class="cm-btn sm ghost cm-no-underline">First</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost cm-no-underline">Prev</a>
   {% endif %}
   <span class="cm-btn sm primary" style="cursor:default;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
   {% if page_obj.has_next %}
-  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost" cm-no-underline">Next</a>
-  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost" cm-no-underline">Last</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.next_page_number }}" class="cm-btn sm ghost cm-no-underline">Next</a>
+  <a href="?{% if action_filter %}action={{ action_filter }}&{% endif %}page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost cm-no-underline">Last</a>
   {% endif %}
 </div>
 {% endif %}

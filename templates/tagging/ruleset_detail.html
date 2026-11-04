@@ -19,7 +19,7 @@
     </div>
   </div>
   <div style="display:flex; gap:8px; flex-shrink:0;">
-    <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="cm-btn sm primary" cm-no-underline">Edit</a>
+    <a href="{% url 'tagging:ruleset_edit' ruleset.pk %}" class="cm-btn sm primary cm-no-underline">Edit</a>
     <form method="post" action="{% url 'tagging:ruleset_duplicate' ruleset.pk %}" class="inline">
       {% csrf_token %}
       <button type="submit" class="cm-btn sm ghost">Duplicate</button>

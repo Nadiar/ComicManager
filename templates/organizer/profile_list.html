@@ -8,9 +8,9 @@
 <div class="cm-page-header">
   <h1 class="cm-page-title">File Organizer Profiles</h1>
   <div style="display:flex; gap:8px;">
-    <a href="{% url 'organizer:import' %}" class="cm-btn sm ghost" cm-no-underline">Import .lop</a>
-    {% if profiles %}<a href="{% url 'organizer:export' %}" class="cm-btn sm ghost" cm-no-underline">Export .lop</a>{% endif %}
-    <a href="{% url 'organizer:profile_create' %}" class="cm-btn sm primary" cm-no-underline">New Profile</a>
+    <a href="{% url 'organizer:import' %}" class="cm-btn sm ghost cm-no-underline">Import .lop</a>
+    {% if profiles %}<a href="{% url 'organizer:export' %}" class="cm-btn sm ghost cm-no-underline">Export .lop</a>{% endif %}
+    <a href="{% url 'organizer:profile_create' %}" class="cm-btn sm primary cm-no-underline">New Profile</a>
   </div>
 </div>
 
@@ -92,7 +92,7 @@
           </td>
           <td style="padding:8px 12px;">
             <div style="display:flex; gap:4px;">
-              <a href="{% url 'organizer:profile_edit' profile.pk %}" class="cm-btn sm ghost" cm-no-underline">Edit</a>
+              <a href="{% url 'organizer:profile_edit' profile.pk %}" class="cm-btn sm ghost cm-no-underline">Edit</a>
               <button onclick="toggleProfile({{ profile.pk }}, this)" class="cm-btn sm ghost">
                 {% if profile.is_enabled %}Disable{% else %}Enable{% endif %}
               </button>

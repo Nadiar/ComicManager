@@ -9,7 +9,7 @@
   <h1 class="cm-page-title">
     {% if is_create %}New Profile{% else %}Edit Profile{% endif %}
   </h1>
-  <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
+  <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost cm-no-underline">Cancel</a>
 </div>
 
 
@@ -133,7 +133,7 @@
     <button type="submit" class="cm-btn sm primary">
       {% if is_create %}Create Profile{% else %}Save Changes{% endif %}
     </button>
-    <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
+    <a href="{% url 'organizer:profile_list' %}" class="cm-btn sm ghost cm-no-underline">Cancel</a>
   </div>
 </form>
 

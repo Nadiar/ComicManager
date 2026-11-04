@@ -260,7 +260,7 @@
 
     <!-- Submit -->
     <div style="display:flex; justify-content:flex-end; gap:8px; padding-bottom:24px;">
-      <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost" cm-no-underline">Cancel</a>
+      <a href="/comics/{{ comic.pk }}/" class="cm-btn sm ghost cm-no-underline">Cancel</a>
       {% if comic.is_digital and comic.file_path %}
       <button type="submit" name="write_xml" value="1" class="cm-btn sm">Save + Write XML</button>
       {% endif %}
