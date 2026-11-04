@@ -95,6 +95,22 @@
   {% for group in groups %}
   {% include "duplicates/partials/group_card.html" with group=group %}
   {% endfor %}
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--cm-fg-3);">
+    <span>Showing <span class="mono tnum">{{ page_obj.start_index }}–{{ page_obj.end_index }}</span> of <span class="mono tnum">{{ page_obj.paginator.count }}</span> groups</span>
+    <div style="display:flex; gap:3px;">
+      {% if page_obj.has_previous %}
+      <a href="?method={{ method_filter }}&page=1" class="cm-btn sm ghost cm-no-underline">First</a>
+      <a href="?method={{ method_filter }}&page={{ page_obj.previous_page_number }}" class="cm-btn sm ghost cm-no-underline">Prev</a>
+      {% endif %}
+      <span class="cm-btn sm primary" style="cursor:default;">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+      <a href="?method={{ method_filter }}&page={{ page_obj.next_page_number }}" class="cm-btn sm ghost cm-no-underline">Next</a>
+      <a href="?method={{ method_filter }}&page={{ page_obj.paginator.num_pages }}" class="cm-btn sm ghost cm-no-underline">Last</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
   {% else %}
   <div style="padding:48px 0; text-align:center; color:var(--cm-fg-3); font-size:14px;">
     {% if method_filter == "all" %}

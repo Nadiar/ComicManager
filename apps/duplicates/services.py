@@ -10,6 +10,7 @@ from collections import defaultdict
 from typing import Optional
 
 from django.db import transaction
+from django.db.models import Count, Prefetch, Q
 from django.utils import timezone
 
 from apps.core.models import Comic
@@ -1173,22 +1174,51 @@ def _check_group_resolved(group: DuplicateGroup):
 # ============================================================================
 
 
-def get_pending_groups() -> list[dict]:
+def _with_pending_count(groups):
+    return groups.annotate(n_pending=Count(
+        "memberships", filter=Q(memberships__resolution=DuplicateGroupMembership.RESOLUTION_PENDING)
+    ))
+
+
+def pending_groups_queryset():
     """
-    Get all pending duplicate groups with their comics for review.
+    Pending groups that still have 2+ pending comics, in review order.
     """
-    groups = DuplicateGroup.objects.filter(
-        status=DuplicateGroup.STATUS_PENDING
-    ).prefetch_related(
-        "memberships__comic"
-    ).order_by("detection_method", "-created_at")
+    return (
+        _with_pending_count(DuplicateGroup.objects.filter(status=DuplicateGroup.STATUS_PENDING))
+        .filter(n_pending__gte=2)
+        .order_by("detection_method", "-created_at")
+    )
+
+
+def resolve_single_comic_groups():
+    """
+    Auto-resolve pending groups with only 1 pending comic left.
+    """
+    singles = _with_pending_count(
+        DuplicateGroup.objects.filter(status=DuplicateGroup.STATUS_PENDING)
+    ).filter(n_pending=1)
+    for group in singles:
+        _check_group_resolved(group)
+
+
+def get_pending_groups(groups) -> list[dict]:
+    """
+    The given pending duplicate groups with their pending comics, for review.
+    """
+    # All pending memberships in one query, not one query per group (#18)
+    groups = groups.prefetch_related(Prefetch(
+        "memberships",
+        queryset=DuplicateGroupMembership.objects.filter(
+            resolution=DuplicateGroupMembership.RESOLUTION_PENDING
+        ).select_related("comic"),
+        to_attr="pending_memberships",
+    ))
 
     result = []
     for group in groups:
         comics_data = []
-        for membership in group.memberships.filter(
-            resolution=DuplicateGroupMembership.RESOLUTION_PENDING
-        ).select_related("comic"):
+        for membership in group.pending_memberships:
             comic = membership.comic
             comics_data.append({
                 "id": str(comic.pk),
@@ -1208,19 +1238,15 @@ def get_pending_groups() -> list[dict]:
                 "phash_distance": membership.phash_distance,
             })
 
-        if len(comics_data) >= 2:  # Only include groups with 2+ pending comics
-            result.append({
-                "id": str(group.pk),
-                "detection_method": group.detection_method,
-                "detection_method_display": group.get_detection_method_display(),
-                "match_key": group.match_key,
-                "comic_count": len(comics_data),
-                "comics": comics_data,
-                "created_at": group.created_at.isoformat(),
-            })
-        elif len(comics_data) == 1:
-            # Auto-resolve single-comic groups
-            _check_group_resolved(group)
+        result.append({
+            "id": str(group.pk),
+            "detection_method": group.detection_method,
+            "detection_method_display": group.get_detection_method_display(),
+            "match_key": group.match_key,
+            "comic_count": len(comics_data),
+            "comics": comics_data,
+            "created_at": group.created_at.isoformat(),
+        })
 
     return result
 

@@ -19,6 +19,8 @@ from .services import (
     resolve_delete,
     resolve_keep_all,
     get_pending_groups,
+    pending_groups_queryset,
+    resolve_single_comic_groups,
     get_duplicate_stats,
     get_resolution_history,
 )
@@ -28,27 +30,34 @@ def duplicate_review(request):
     """
     Main duplicate review page.
 
-    Shows pending duplicate groups, filterable by detection method.
+    Shows pending duplicate groups, filterable by detection method, 100 per page:
+    building every group made the page unusable with tens of thousands of them (#18).
     """
+    from django.core.paginator import Paginator
+    from django.db.models import Count
+
+    resolve_single_comic_groups()
     stats = get_duplicate_stats()
-    all_groups = get_pending_groups()
     method_filter = request.GET.get("method", "all")
 
-    groups = all_groups if method_filter == "all" else [
-        g for g in all_groups if g["detection_method"] == method_filter
-    ]
+    pending = pending_groups_queryset()
+    by_method = dict(
+        DuplicateGroup.objects.filter(pk__in=pending.values("pk"))
+        .values_list("detection_method").annotate(n=Count("pk"))
+    )
+    method_counts = {"all": sum(by_method.values())}
+    for method in ("cv_id", "metadata", "phash", "filename"):
+        method_counts[method] = by_method.get(method, 0)
 
-    method_counts = {
-        "all": len(all_groups),
-        "cv_id": sum(1 for g in all_groups if g["detection_method"] == "cv_id"),
-        "metadata": sum(1 for g in all_groups if g["detection_method"] == "metadata"),
-        "phash": sum(1 for g in all_groups if g["detection_method"] == "phash"),
-        "filename": sum(1 for g in all_groups if g["detection_method"] == "filename"),
-    }
+    if method_filter != "all":
+        pending = pending.filter(detection_method=method_filter)
+    page_obj = Paginator(pending, 100).get_page(request.GET.get("page"))
+    groups = get_pending_groups(page_obj.object_list)
 
     return render(request, "duplicates/review.html", {
         "stats": stats,
         "groups": groups,
+        "page_obj": page_obj,
         "method_filter": method_filter,
         "method_counts": method_counts,
         "method_tabs": [
@@ -58,7 +67,7 @@ def duplicate_review(request):
             ("Cover Hash", "phash"),
             ("Filename", "filename"),
         ],
-        "total_pending": len(all_groups),
+        "total_pending": method_counts["all"],
     })
 
 

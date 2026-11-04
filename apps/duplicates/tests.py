@@ -88,3 +88,62 @@ class PhashGroupingTests(TestCase):
         groups = detect_duplicates_by_phash([lib, c1, c2], max_distance=5, must_include={c1.pk, c2.pk})
         self.assertEqual(len(groups), 1)
         self.assertEqual({m.comic_id for m in groups[0].memberships.all()}, {lib.pk, c1.pk, c2.pk})
+
+
+class DuplicateReviewPageTests(TestCase):
+    """The review page shows 100 groups per page without a query per group (#18)."""
+
+    def _group(self, method, n_comics=2):
+        from apps.duplicates.models import DuplicateGroupMembership
+        group = DuplicateGroup.objects.create(detection_method=method, match_key=f"k{DuplicateGroup.objects.count()}")
+        DuplicateGroupMembership.objects.bulk_create(
+            DuplicateGroupMembership(group=group, comic=Comic.objects.create(series="S", number=str(i)))
+            for i in range(n_comics)
+        )
+        return group
+
+    def _get(self, query=""):
+        from django.db import connection
+        from django.test import Client
+        from django.test.utils import CaptureQueriesContext
+        with CaptureQueriesContext(connection) as ctx:
+            response = Client().get(f"/duplicates/{query}")
+        self.assertEqual(response.status_code, 200)
+        return response, len(ctx.captured_queries)
+
+    def test_queries_do_not_grow_with_the_groups(self):
+        for _ in range(2):
+            self._group(DuplicateGroup.DETECTION_METADATA)
+        self._get()  # the first request also creates the preference rows
+        _, two = self._get()
+        for _ in range(98):
+            self._group(DuplicateGroup.DETECTION_METADATA)
+        response, hundred = self._get()
+        self.assertEqual(len(response.context["groups"]), 100)
+        self.assertEqual(hundred, two)  # was one query per group
+
+    def test_pages_counts_and_single_comic_groups(self):
+        for _ in range(100):
+            self._group(DuplicateGroup.DETECTION_METADATA)
+        self._group(DuplicateGroup.DETECTION_PHASH)
+        single = self._group(DuplicateGroup.DETECTION_METADATA, n_comics=1)
+
+        response, _ = self._get()
+        c = response.context
+        self.assertEqual(c["method_counts"]["all"], 101)
+        self.assertEqual(c["method_counts"]["metadata"], 100)
+        self.assertEqual(c["method_counts"]["phash"], 1)
+        self.assertEqual(len(c["groups"]), 100)
+        self.assertTrue(all(g["comic_count"] == 2 for g in c["groups"]))
+        single.refresh_from_db()
+        self.assertEqual(single.status, DuplicateGroup.STATUS_RESOLVED)
+
+        # the 100 metadata groups fit on one page, so page 2 shows the last page
+        response, _ = self._get("?method=metadata&page=2")
+        self.assertEqual(response.context["page_obj"].number, 1)
+
+        response, _ = self._get("?page=2")
+        self.assertEqual(len(response.context["groups"]), 1)
+
+        response, _ = self._get("?method=phash&page=abc")
+        self.assertEqual(len(response.context["groups"]), 1)
