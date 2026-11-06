@@ -22,6 +22,7 @@
   <div class="cm-card">
     <div class="cm-card-body">
       <div class="flex flex-wrap gap-6 items-center">
+        {% if data.volume_info %}
         <div>
           <div class="text-sm cm-text-muted">Series</div>
           <div class="text-xl font-bold">{{ data.volume_info.name }}</div>
@@ -34,6 +35,12 @@
           <div class="text-sm cm-text-muted">Start Year</div>
           <div class="font-medium">{{ data.volume_info.start_year|default:"?" }}</div>
         </div>
+        {% else %}
+        <div>
+          <div class="text-sm cm-text-muted">Reading list</div>
+          <div class="text-xl font-bold">In reading order</div>
+        </div>
+        {% endif %}
         <div class="flex-1"></div>
         <div class="text-right">
           <div class="text-4xl font-bold" style="color:{% if data.completion == 100 %}var(--cm-ok){% elif data.completion >= 75 %}var(--cm-info){% elif data.completion >= 50 %}var(--cm-warn){% else %}var(--cm-err){% endif %};">
@@ -58,7 +65,7 @@
           <div style="font-size:18px; font-weight:700; color:var(--cm-err);">{{ data.missing_count }}</div>
         </div>
         <div class="cm-card-sm flex-1">
-          <div class="cm-stat-label">Total in CV</div>
+          <div class="cm-stat-label">{% if data.volume_info %}Total in CV{% else %}Total in list{% endif %}</div>
           <div style="font-size:18px; font-weight:700;">{{ data.total_count }}</div>
         </div>
       </div>
@@ -77,6 +84,7 @@
     <table class="cm-table">
       <thead>
         <tr class="cm-divider">
+          {% if not data.volume_info %}<th class="cm-th">Series</th>{% endif %}
           <th class="cm-th">Issue #</th>
           <th class="cm-th">Title</th>
           <th class="cm-th">Cover Date</th>
@@ -90,6 +98,7 @@
             style="{% if not issue.comic_pk %}background:var(--cm-err-dim);{% endif %}"
             onmouseenter="this.style.background='var(--cm-bg-2)'"
             onmouseleave="this.style.background='{% if not issue.comic_pk %}var(--cm-err-dim){% endif %}'">
+          {% if not data.volume_info %}<td style="padding:6px 10px;">{{ issue.series|default:"Not in local ComicVine data" }}</td>{% endif %}
           <td class="font-medium" style="padding:6px 10px;">#{{ issue.issue_number|default:"?" }}</td>
           <td class="max-w-md truncate" style="padding:6px 10px;">{{ issue.title|default:"-" }}</td>
           <td style="padding:6px 10px;">{{ issue.cover_date|default:"-" }}</td>
@@ -103,6 +112,8 @@
           <td style="padding:6px 10px;">
             {% if issue.comic_pk %}
             <a href="/comics/{{ issue.comic_pk }}/" class="cm-btn sm ghost cm-no-underline">View</a>
+            {% elif not data.volume_info %}
+            <a href="{{ issue.site_detail_url }}" target="_blank" rel="noopener" class="cm-btn sm ghost cm-no-underline">ComicVine ↗</a>
             {% endif %}
           </td>
         </tr>
@@ -114,7 +125,7 @@
   {% else %}
   <div class="cm-alert err">
     <span style="font-size:16px; line-height:1;">✕</span>
-    <span>Could not load volume data from ComicVine database.</span>
+    <span>Could not load issue data from the ComicVine database.</span>
   </div>
   {% endif %}
 </div>

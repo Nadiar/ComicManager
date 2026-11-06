@@ -2,6 +2,11 @@ import uuid
 from django.db import models
 
 
+def split_list_value(value):
+    """Values of an "is one of" rule: comma-separated, blanks dropped."""
+    return [item.strip() for item in str(value).split(",") if item.strip()]
+
+
 class SmartList(models.Model):
     """
     A saved, named query with filters on the Comic model.
@@ -62,3 +67,24 @@ class SmartList(models.Model):
     @property
     def has_cv_volume(self):
         return self.comicvine_volume_id is not None
+
+    @property
+    def reading_list_issue_ids(self):
+        """CV issue IDs from "CV Issue ID is one of" rules, in rule order (e.g. an imported reading list)."""
+        ids = []
+        pending = list(self.filters or [])
+        while pending:
+            item = pending.pop(0)
+            if "mode" in item:
+                pending[:0] = item.get("filters") or []
+            elif item.get("field") == "custom_values__comicvine_issue" and item.get("lookup") == "in":
+                ids += split_list_value(item.get("value", ""))
+        return list(dict.fromkeys(ids))
+
+    @property
+    def has_missing_issues(self):
+        return self.has_cv_volume or bool(self.reading_list_issue_ids)
+
+    @property
+    def completion_label(self):
+        return self.comicvine_volume_name if self.has_cv_volume else "Reading list"

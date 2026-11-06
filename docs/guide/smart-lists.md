@@ -136,6 +136,7 @@ Flag fields use the "equals" lookup. Set value to `true` to match flagged comics
 | `at most` | Numeric: less than or equal | Yes |
 | `is empty` | Field is null or unset | **No** |
 | `is not empty` | Field has any value | **No** |
+| `is one of` | Matches any of a comma-separated list of values | Yes |
 
 ::: tip is empty / is not empty
 These two lookups do not need a value. The value input hides automatically when you select them. If you choose a lookup that needs a value but leave the value blank, a warning appears on the filter row and that filter will be dropped when you save.
@@ -211,6 +212,10 @@ A Smart List can be linked to a ComicVine volume by searching for and selecting 
 - Clicking it opens `/smartlists/<pk>/missing/`, which shows every issue in the linked CV volume alongside your ownership status for each one.
 - Issues present in your library are shown with a link to the comic detail page. Issues you do not own are shown with the CV cover and a link to the ComicVine page.
 
+### Reading lists
+
+A Smart List with a **CV Issue ID** `is one of` rule (what a CBL reading list imports as) gets the same **Missing Issues** button without a linked volume. The page lists every issue in the rule's order, which is the reading order, with its series and number from the local `comicvine.db`. Issues the local ComicVine data doesn't have show as "Not in local ComicVine data" with a link to ComicVine.
+
 This is distinct from the per-comic **Series Audit** (which is anchored to a single comic's volume). The Smart List missing issues view is anchored to the list itself, making it useful for tracking a reading challenge, a specific run, or a pull list.
 
 ## Importing from ComicRack (CBL)
@@ -218,6 +223,8 @@ This is distinct from the per-comic **Series Audit** (which is anchored to a sin
 ComicRack smart lists exported as `.cbl` files can be imported directly. Click **Import CBL** on the Smart List Index page and upload the file.
 
 Supported matchers: Publisher, Imprint, Series, Title, Number, Volume, Year, Full Path, File Name, Format, Main Character/Team, Tags (mapped to Genre), Summary, and Custom Values. OR/AND groups are preserved. Unsupported matcher types are skipped with a warning shown on the edit page.
+
+ComicRack reading lists, which list their issues one by one instead of using matchers, import as an OR group: one **is one of** rule holding the ComicVine issue IDs (only scraped comics match), plus a series, number and volume rule for each issue without an ID. The list is sorted by the Smart List's sort field, not in the reading list's order. A file with neither matchers nor issues is rejected.
 
 If the CBL contains filter fields that are not recognised by ComicManager (for example, custom values not in the standard list), a mapping step is shown before the Smart List is created. For each unknown field you can either choose the correct internal field from a dropdown or skip all filters that use it.
 

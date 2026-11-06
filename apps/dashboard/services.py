@@ -3,6 +3,7 @@ from django.conf import settings
 from django.db.models import BooleanField, Case, Q, Value, When
 from apps.core.models import STALE_Q, Comic
 from apps.core.utils import natural_number_annotation
+from apps.dashboard.models import split_list_value
 
 
 # Whitelist of allowed Comic model fields for filtering
@@ -29,7 +30,7 @@ ALLOWED_LOOKUPS = {
     "exact", "iexact", "icontains", "contains",
     "istartswith", "iendswith",
     "gt", "gte", "lt", "lte",
-    "isnull",
+    "isnull", "in",
     "not_exact", "not_icontains", "not_isnull",
     "not_istartswith", "not_iendswith",
 }
@@ -56,6 +57,9 @@ def _coerce_value(value, lookup, field=""):
         if not value:
             return True
         return str(value).lower() in ("true", "1", "yes")
+
+    if lookup == "in":
+        return split_list_value(value)
 
     # Skip int coercion for JSONField lookups — values are stored as strings
     is_json_field = field.split("__")[0] in ALLOWED_JSON_PREFIXES
@@ -453,9 +457,83 @@ def get_missing_issues(smart_list):
     from a smart list object.
     Returns None if no CV volume is linked.
     """
-    if not smart_list.comicvine_volume_id:
-        return None
-    return get_volume_completion(smart_list.comicvine_volume_id)
+    if smart_list.comicvine_volume_id:
+        return get_volume_completion(smart_list.comicvine_volume_id)
+    issue_ids = smart_list.reading_list_issue_ids
+    return get_reading_list_completion(issue_ids) if issue_ids else None
+
+
+def _cv_issue_details(issue_ids):
+    """{issue_id: details} for the IDs found in comicvine.db; empty when it isn't available."""
+    from apps.scraper.cv_sources import _get_cv_db_path, is_cv_db_available
+
+    if not is_cv_db_available():
+        return {}
+    details = {}
+    conn = sqlite3.connect(f"file:{_get_cv_db_path()}?immutable=1", uri=True)
+    try:
+        for start in range(0, len(issue_ids), 500):
+            chunk = issue_ids[start:start + 500]
+            rows = conn.execute(f"""
+                SELECT i.id, i.issue_number, i.name, i.cover_date, i.site_detail_url, v.name, v.start_year
+                FROM cv_issue i LEFT JOIN cv_volume v ON v.id = i.volume_id
+                WHERE i.id IN ({",".join("?" * len(chunk))})
+            """, chunk)
+            for issue_id, number, title, cover_date, url, volume, start_year in rows:
+                details[issue_id] = {
+                    "issue_number": number,
+                    "title": title,
+                    "cover_date": cover_date,
+                    "site_detail_url": url,
+                    "series": f"{volume} ({start_year})" if start_year else volume,
+                }
+    finally:
+        conn.close()
+    return details
+
+
+def get_reading_list_completion(issue_ids):
+    """
+    Compare library holdings against a list of CV issue IDs, keeping the list's order.
+
+    Same shape as get_volume_completion(), with volume_info None and a "series" on each issue.
+    Issues missing from comicvine.db keep their ID and a ComicVine link.
+    """
+    ids = [int(i) for i in issue_ids if str(i).isdigit()]
+    details = _cv_issue_details(ids)
+    owned = {}
+    for comic in Comic.objects.filter(custom_values__comicvine_issue__in=[str(i) for i in ids]).values("pk", "custom_values"):
+        owned.setdefault(int(comic["custom_values"]["comicvine_issue"]), comic["pk"])
+
+    all_issues, owned_issues, missing_issues = [], [], []
+    for issue_id in ids:
+        issue = {
+            "issue_id": issue_id,
+            "issue_number": None,
+            "title": None,
+            "cover_date": None,
+            "series": None,
+            "site_detail_url": f"https://comicvine.gamespot.com/issue/4000-{issue_id}/",
+            **details.get(issue_id, {}),
+        }
+        if issue_id in owned:
+            issue["comic_pk"] = owned[issue_id]
+            owned_issues.append(issue)
+        else:
+            missing_issues.append(issue)
+        all_issues.append(issue)
+
+    total, owned_count = len(all_issues), len(owned_issues)
+    return {
+        "volume_info": None,
+        "all_issues": all_issues,
+        "owned_issues": owned_issues,
+        "missing_issues": missing_issues,
+        "total_count": total,
+        "owned_count": owned_count,
+        "missing_count": total - owned_count,
+        "completion": round((owned_count / total * 100), 1) if total > 0 else 0,
+    }
 
 
 def search_cv_volumes(query, limit=20):

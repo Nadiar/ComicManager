@@ -39,10 +39,10 @@
     {% endif %}
 
     <!-- CV completion bar -->
-    {% if item.smartlist.has_cv_volume %}
+    {% if item.smartlist.has_missing_issues %}
     <div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; font-size:11px; color:var(--cm-fg-3);">
-        <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">{{ item.smartlist.comicvine_volume_name }}</span>
+        <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;">{{ item.smartlist.completion_label }}</span>
         <span class="mono tnum" style="flex-shrink:0; margin-left:6px;">{{ item.owned|default:0 }}/{{ item.total_issues|default:0 }}</span>
       </div>
       <div style="background:var(--cm-bg-2); border-radius:3px; height:5px; overflow:hidden;">
@@ -53,7 +53,7 @@
 
     <!-- Actions -->
     <div style="display:flex; gap:6px; margin-top:auto; padding-top:4px;">
-      {% if item.smartlist.has_cv_volume %}
+      {% if item.smartlist.has_missing_issues %}
       <a href="{% url 'dashboard:smartlist_missing' item.smartlist.pk %}" class="cm-btn sm ghost" style="text-decoration:none; font-size:11px;">Missing</a>
       {% endif %}
       <div style="flex:1;"></div>

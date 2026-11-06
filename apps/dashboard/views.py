@@ -265,7 +265,7 @@ def index(request):
     for sl in SmartList.objects.filter(show_on_dashboard=True):
         qs = build_queryset(sl)
         entry = {"smartlist": sl, "count": qs.count()}
-        if sl.has_cv_volume:
+        if sl.has_missing_issues:
             missing_data = get_missing_issues(sl)
             if missing_data:
                 entry["completion"] = missing_data["completion"]
@@ -642,6 +642,7 @@ FILTER_LOOKUP_OPTIONS = [
     ("lte", "at most"),
     ("isnull", "is empty"),
     ("not_isnull", "is not empty"),
+    ("in", "is one of (comma-separated)"),
 ]
 
 SORT_OPTIONS = [
@@ -665,7 +666,7 @@ def smartlist_index(request):
     for sl in SmartList.objects.all():
         qs = build_queryset(sl)
         entry = {"smartlist": sl, "count": qs.count()}
-        if sl.has_cv_volume:
+        if sl.has_missing_issues:
             missing_data = get_missing_issues(sl)
             if missing_data:
                 entry["completion"] = missing_data["completion"]
@@ -804,7 +805,57 @@ def _parse_cbl(xml_bytes):
             if result is not None:
                 filters.append(result)
 
+    # Reading lists name their issues in <Books> instead of using matchers.
+    issue_ids, name_filters, unmatchable = [], [], 0
+    for book_el in root.iter("Book"):
+        issue_id = _cbl_book_issue_id(book_el)
+        if issue_id:
+            issue_ids.append(issue_id)
+            continue
+        name_filter = _cbl_book_name_filter(book_el)
+        if name_filter:
+            name_filters.append(name_filter)
+        else:
+            unmatchable += 1
+    # One "is one of" rule: a rule per issue made long lists take seconds to count.
+    book_filters = name_filters
+    if issue_ids:
+        book_filters = [{"field": "custom_values__comicvine_issue", "lookup": "in",
+                         "value": ",".join(issue_ids)}] + name_filters
+
+    if unmatchable:
+        warnings.append(f"Skipped {unmatchable} book(s) with no ComicVine issue ID or series")
+    if filters:
+        if book_filters:
+            warnings.append(f"Ignored {len(issue_ids) + len(name_filters)} book(s) listed alongside the smart list rules")
+    elif book_filters:
+        filters = [{"mode": "or", "filters": book_filters}]
+    else:
+        # An empty filter list would match the whole library.
+        raise ValueError("No smart list rules or books found in the file")
+
     return name, filters, warnings
+
+
+def _cbl_book_issue_id(book_el):
+    """ComicVine issue ID of a CBL <Book>, or None."""
+    for db_el in book_el.iter("Database"):
+        issue_id = (db_el.get("Issue") or "").strip()
+        if db_el.get("Name") == "cv" and issue_id:
+            return issue_id
+    return None
+
+
+def _cbl_book_name_filter(book_el):
+    """Filter for a CBL <Book> without an issue ID: series + number (+ volume), or None."""
+    leaves = [
+        {"field": field, "lookup": "exact", "value": value}
+        for field, attr in (("series", "Series"), ("number", "Number"), ("volume", "Volume"))
+        if (value := (book_el.get(attr) or "").strip())
+    ]
+    if not any(leaf["field"] == "series" for leaf in leaves):
+        return None
+    return {"mode": "and", "filters": leaves}
 
 
 def _collect_unknown_fields(filters, known_fields):
@@ -1202,7 +1253,7 @@ def smartlist_detail(request, pk):
 
     # Get completion info if CV volume is linked
     completion_data = None
-    if sl.has_cv_volume:
+    if sl.has_missing_issues:
         missing_data = get_missing_issues(sl)
         if missing_data:
             completion_data = {
@@ -1246,10 +1297,10 @@ def save_smartlist_columns(request, pk):
 
 
 def smartlist_missing(request, pk):
-    """Show missing issues comparison for a smart list with a CV volume."""
+    """Show missing issues for a smart list with a CV volume or a reading list."""
     sl = get_object_or_404(SmartList, pk=pk)
 
-    if not sl.has_cv_volume:
+    if not sl.has_missing_issues:
         return redirect("dashboard:smartlist_detail", pk=pk)
 
     missing_data = get_missing_issues(sl)
