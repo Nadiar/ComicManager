@@ -167,6 +167,7 @@ class CVMatch:
     teams: Optional[str] = None  # Comma-separated team names
     locations: Optional[str] = None  # Comma-separated location names
     story_arcs: Optional[str] = None  # Comma-separated story arc names
+    store_date: Optional[str] = None  # In-store (on sale) date; only the API lookup fills it in
 
 
 def _parse_credits_json(person_credits_json) -> dict[str, list[str]]:
@@ -539,6 +540,24 @@ class ComicVineScraper:
         cache = _load_hash_cache(self.db_path)
         rows = np.nonzero(cache["cvids"] == issue_id)[0]
         return [(int(cache["phashes"][i]), int(cache["ahashes"][i])) for i in rows]
+
+    def get_store_dates(self, issue_ids) -> dict[int, str]:
+        """In-store dates by issue ID, for the issues that have one in cv_issue."""
+        ids = list(issue_ids)
+        dates = {}
+        conn = self._get_connection()
+        try:
+            for start in range(0, len(ids), 500):
+                chunk = ids[start:start + 500]
+                rows = conn.execute(
+                    f"SELECT id, store_date FROM cv_issue WHERE id IN ({','.join('?' * len(chunk))})"
+                    " AND store_date IS NOT NULL AND store_date != ''",
+                    chunk,
+                )
+                dates.update(rows)
+        finally:
+            conn.close()
+        return dates
 
     def get_issue_details(self, issue_id: int) -> Optional[CVMatch]:
         """Get full details for a specific issue by ID, including credits."""
@@ -1050,7 +1069,7 @@ class ComicVineScraper:
         """Fetch full issue details from the ComicVine API, including credits."""
         data = self._api_request(f"issue/4000-{issue_id}", {
             "field_list": ",".join([
-                "id", "volume", "name", "issue_number", "cover_date",
+                "id", "volume", "name", "issue_number", "cover_date", "store_date",
                 "description", "image", "person_credits", "character_credits",
                 "team_credits", "location_credits", "story_arc_credits",
                 "site_detail_url", "associated_images",
@@ -1116,6 +1135,7 @@ class ComicVineScraper:
             issue_number=r.get("issue_number", ""),
             title=r.get("name"),
             cover_date=r.get("cover_date"),
+            store_date=r.get("store_date"),
             publisher=publisher,
             start_year=start_year,
             issue_count=issue_count,

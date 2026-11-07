@@ -62,6 +62,44 @@ def filter_by_publisher(matches):
     return [m for m in matches if publisher_allowed(m.publisher)]
 
 
+_STORE_DATE = re.compile(r"\d{4}-\d{2}-\d{2}$")
+
+
+def uses_store_date(publisher):
+    """
+    True when the publisher is in the in-store date list. Matched like the
+    publisher lists: a lowercased substring, so "Marvel" covers "Marvel Knights".
+    """
+    from apps.core.models import get_setting
+
+    raw = get_setting("scrape_store_date_publishers", "") or ""
+    names = [p.strip().lower() for p in raw.split(",") if p.strip()]
+    name = (publisher or "").strip().lower()
+    return bool(name) and any(n in name for n in names)
+
+
+def release_date(match):
+    """
+    The date Year, Month and Day are filled from: ComicVine's in-store date for
+    publishers in the in-store date list, when it has a valid one, otherwise the
+    cover date. Marvel and DC cover dates run about three months ahead.
+
+    API matches carry the in-store date; for local matches it is looked up in
+    comicvine.db. Many older issues have none, and some have junk like -0001-11-30.
+    """
+    if not uses_store_date(match.publisher):
+        return match.cover_date
+    store = match.store_date
+    if not store and match.issue_id:
+        from apps.scraper.comicvine import ComicVineScraper
+        from apps.scraper.cv_sources import is_cv_db_available
+        if is_cv_db_available():
+            store = ComicVineScraper().get_store_dates([match.issue_id]).get(match.issue_id)
+    if store and _STORE_DATE.match(store):
+        return store
+    return match.cover_date
+
+
 def normalize_issue_number(num):
     """Normalize issue number for comparison."""
     if not num:
@@ -668,9 +706,10 @@ def apply_cv_match(comic, match, scraper=None, insert_covers=True):
         except ValueError:
             pass
 
-    if match.cover_date:
+    date = release_date(match)
+    if date:
         try:
-            parts = match.cover_date.split("-")
+            parts = date.split("-")
             comic.year = int(parts[0])
             if len(parts) > 1:
                 comic.month = int(parts[1])

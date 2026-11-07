@@ -110,6 +110,77 @@ class ApplyCvMatchStoryArcTests(TestCase):
         self.assertEqual(parse_comicinfo_xml(xml.encode())["story_arc"], "Arc One, Arc Two")
 
 
+class StoreDateTests(TestCase):
+    """Publishers in the in-store date list get Year, Month and Day from the in-store date (#11)."""
+
+    def setUp(self):
+        Setting.objects.update_or_create(key="scrape_store_date_publishers",
+                                         defaults={"value": "Marvel, DC Comics", "type": "text"})
+
+    def _apply(self, **match):
+        comic = Comic.objects.create(series="X-Men", number="39", state="counted")
+        apply_cv_match(comic, _make_match(cover_date="2026-12-01", **match))
+        return comic.year, comic.month, comic.day
+
+    def test_listed_publisher_gets_the_in_store_date(self):
+        self.assertEqual(self._apply(publisher="Marvel", store_date="2026-10-14"), (2026, 10, 14))
+
+    def test_publisher_names_match_in_part(self):
+        self.assertTrue(services.uses_store_date("Marvel Knights"))
+        self.assertTrue(services.uses_store_date("dc comics"))
+        self.assertFalse(services.uses_store_date("Image"))
+        self.assertFalse(services.uses_store_date(None))
+
+    def test_other_publishers_keep_the_cover_date(self):
+        self.assertEqual(self._apply(publisher="Image", store_date="2026-10-14"), (2026, 12, 1))
+
+    def test_missing_or_broken_in_store_date_keeps_the_cover_date(self):
+        self.assertEqual(self._apply(publisher="Marvel", store_date="-0001-11-30"), (2026, 12, 1))
+        # No comicvine.db in the tests, so there is nothing to look up
+        self.assertEqual(self._apply(publisher="Marvel"), (2026, 12, 1))
+
+    def test_empty_list_keeps_the_cover_date(self):
+        Setting.objects.filter(key="scrape_store_date_publishers").update(value="")
+        self.assertEqual(self._apply(publisher="Marvel", store_date="2026-10-14"), (2026, 12, 1))
+
+    def test_local_matches_look_the_date_up_in_comicvine_db(self):
+        import os
+        import shutil
+        import sqlite3
+        import tempfile
+        from django.test import override_settings
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        db = os.path.join(tmp, "comicvine.db")
+        conn = sqlite3.connect(db)
+        conn.executescript(
+            "CREATE TABLE cv_volume (id INTEGER PRIMARY KEY);"
+            "CREATE TABLE cv_issue (id INTEGER PRIMARY KEY, store_date TEXT);"
+            "INSERT INTO cv_volume VALUES (1);"
+            "INSERT INTO cv_issue VALUES (7, '2026-10-14'), (8, NULL);"
+        )
+        conn.close()
+        Setting.objects.update_or_create(key="cv_db_path", defaults={"value": db, "type": "path"})
+        with override_settings(CV_DB_PATH=db):
+            self.assertEqual(self._apply(issue_id=7, publisher="Marvel"), (2026, 10, 14))
+            self.assertEqual(self._apply(issue_id=8, publisher="Marvel"), (2026, 12, 1))
+
+    def test_api_lookup_reads_the_in_store_date(self):
+        from unittest.mock import patch
+        from apps.scraper.comicvine import ComicVineScraper
+
+        def api(endpoint, params=None):
+            if endpoint.startswith("issue/"):
+                return {"results": {"id": 7, "volume": {"id": 424242, "name": "X-Men"}, "issue_number": "39",
+                                    "cover_date": "2026-12-01", "store_date": "2026-10-14"}}
+            return {"results": {"publisher": {"name": "Marvel"}, "start_year": "2024", "count_of_issues": 40}}
+
+        with patch.object(ComicVineScraper, "_api_request", side_effect=api) as request:
+            match = ComicVineScraper().get_issue_from_api(7)
+        self.assertEqual(match.store_date, "2026-10-14")
+        self.assertIn("store_date", request.call_args_list[0].args[1]["field_list"].split(","))
+
+
 class SharedCacheTests(TestCase):
     """The API budget must be shared by the web and worker processes (Redis)."""
 
