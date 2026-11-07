@@ -295,6 +295,26 @@ The **Search API** tab stays unfiltered because typing a query there is a delibe
 Changes take effect within 30 seconds. The lists are cached briefly so a large batch scrape does not re-read them for every candidate.
 :::
 
+## In-Store Dates
+
+ComicVine gives each issue a cover date and, for many issues, an in-store date: the day it went on sale. Scraping fills Year, Month and Day from the cover date. Marvel and DC cover dates run about two to three months ahead of the in-store date, so an issue that came out this week can have a date two months from now, and "recently released" views in Komga and other readers that use these fields put it in the wrong place.
+
+The setting **Use in-store date for** (`scrape_store_date_publishers`) under **Settings → Scraping** takes a comma-separated list of publishers. Comics matched to one of them get Year, Month and Day from the in-store date instead. Names are compared like the publisher lists: case-insensitively, as part of the publisher name, so `Marvel` also covers `Marvel Knights`.
+
+- Every scrape uses it: batch, pipeline, the scrape window and `manage.py scrape`.
+- When ComicVine has no in-store date for an issue, the cover date is used. Many older issues have none.
+- With a local comicvine.db, the in-store date is read from it. In API mode it comes with the issue details, so it costs no extra API calls.
+- Matching is not affected. Picking a match still compares the comic's year with the cover date.
+
+Comics scraped before their publisher was added to the list keep their cover date. `apply_store_dates` sets the in-store date on them, read from the local comicvine.db. In API mode, scrape them again instead.
+
+```bash
+docker compose exec web python manage.py apply_store_dates --dry-run
+docker compose exec web python manage.py apply_store_dates
+```
+
+Only comics with a ComicVine issue ID from a listed publisher are changed, and issues without an in-store date keep their date. Comics that ComicManager already wrote show as **Stale Metadata** on the dashboard; **Write Stale** puts the new dates into their files. Removing a publisher from the list does not change comics back: scrape them again to get the cover date.
+
 ## Batch Scraping
 
 The most common way to scrape is in bulk from the Dashboard.
@@ -368,7 +388,7 @@ The fields written to the comic depend on the scrape source.
 | `publisher` | Publisher name |
 | `count` | Total issue count in the volume |
 | `volume` | Series start year |
-| `year`, `month`, `day` | Parsed from cover date |
+| `year`, `month`, `day` | Parsed from the cover date, or from the in-store date for publishers in the in-store date list (see [In-Store Dates](#in-store-dates)) |
 | `summary` | Issue description (HTML stripped) |
 | `writer`, `penciller`, `inker`, `colorist`, `letterer`, `cover_artist`, `editor` | Person credits by role |
 | `characters`, `teams`, `locations` | From issue credits |

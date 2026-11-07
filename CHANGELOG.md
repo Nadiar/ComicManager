@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **In-store dates for chosen publishers (#11)**: Scraping fills Year, Month and Day from ComicVine's cover date, which for Marvel and DC runs two to three months ahead of the day an issue went on sale, so "recently released" views in Komga and similar readers were off. The new setting **Use in-store date for** under **Settings > Scraping** takes a list of publishers whose comics get the in-store date instead, when ComicVine has one. The `apply_store_dates` command sets it on comics scraped earlier, from the local comicvine.db. See In-Store Dates in the Scraping guide.
+
 ## [1.2.0]
 
 Bug fixes, and the dashboard, the comic list and the duplicate review are much faster on large libraries. Back up the database before upgrading. The upgrade runs one migration, which decodes the commas and equals signs in custom values imported from ComicRack's `ComicDb.xml` (see below). Comics it changes show as Stale Metadata if their file was already written, so writing them again puts the right values in the file.
