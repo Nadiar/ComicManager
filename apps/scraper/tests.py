@@ -110,6 +110,27 @@ class ApplyCvMatchStoryArcTests(TestCase):
         self.assertEqual(parse_comicinfo_xml(xml.encode())["story_arc"], "Arc One, Arc Two")
 
 
+def _local_cv_db(test, issues):
+    """A minimal comicvine.db with cv_issue rows (id, store_date), used as the local database."""
+    import os
+    import shutil
+    import sqlite3
+    import tempfile
+    from django.test import override_settings
+    tmp = tempfile.mkdtemp()
+    test.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+    db = os.path.join(tmp, "comicvine.db")
+    conn = sqlite3.connect(db)
+    conn.executescript("CREATE TABLE cv_volume (id INTEGER PRIMARY KEY);"
+                       "CREATE TABLE cv_issue (id INTEGER PRIMARY KEY, store_date TEXT);"
+                       "INSERT INTO cv_volume VALUES (1);")
+    conn.executemany("INSERT INTO cv_issue VALUES (?, ?)", issues)
+    conn.commit()
+    conn.close()
+    Setting.objects.update_or_create(key="cv_db_path", defaults={"value": db, "type": "path"})
+    test.enterContext(override_settings(CV_DB_PATH=db))
+
+
 class StoreDateTests(TestCase):
     """Publishers in the in-store date list get Year, Month and Day from the in-store date (#11)."""
 
@@ -144,26 +165,9 @@ class StoreDateTests(TestCase):
         self.assertEqual(self._apply(publisher="Marvel", store_date="2026-10-14"), (2026, 12, 1))
 
     def test_local_matches_look_the_date_up_in_comicvine_db(self):
-        import os
-        import shutil
-        import sqlite3
-        import tempfile
-        from django.test import override_settings
-        tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        db = os.path.join(tmp, "comicvine.db")
-        conn = sqlite3.connect(db)
-        conn.executescript(
-            "CREATE TABLE cv_volume (id INTEGER PRIMARY KEY);"
-            "CREATE TABLE cv_issue (id INTEGER PRIMARY KEY, store_date TEXT);"
-            "INSERT INTO cv_volume VALUES (1);"
-            "INSERT INTO cv_issue VALUES (7, '2026-10-14'), (8, NULL);"
-        )
-        conn.close()
-        Setting.objects.update_or_create(key="cv_db_path", defaults={"value": db, "type": "path"})
-        with override_settings(CV_DB_PATH=db):
-            self.assertEqual(self._apply(issue_id=7, publisher="Marvel"), (2026, 10, 14))
-            self.assertEqual(self._apply(issue_id=8, publisher="Marvel"), (2026, 12, 1))
+        _local_cv_db(self, [(7, "2026-10-14"), (8, None)])
+        self.assertEqual(self._apply(issue_id=7, publisher="Marvel"), (2026, 10, 14))
+        self.assertEqual(self._apply(issue_id=8, publisher="Marvel"), (2026, 12, 1))
 
     def test_api_lookup_reads_the_in_store_date(self):
         from unittest.mock import patch
@@ -180,6 +184,62 @@ class StoreDateTests(TestCase):
         self.assertEqual(match.store_date, "2026-10-14")
         self.assertIn("store_date", request.call_args_list[0].args[1]["field_list"].split(","))
 
+
+
+class ApplyStoreDatesCommandTests(TestCase):
+    """apply_store_dates sets the in-store date on comics scraped before the setting (#11)."""
+
+    def setUp(self):
+        Setting.objects.update_or_create(key="scrape_store_date_publishers",
+                                         defaults={"value": "Marvel", "type": "text"})
+
+    def _comic(self, publisher, issue_id, date=(2026, 12, 1)):
+        year, month, day = date
+        custom = {"comicvine_issue": issue_id} if issue_id is not None else {}
+        return Comic.objects.create(series="X-Men", number=str(issue_id), publisher=publisher,
+                                    year=year, month=month, day=day, custom_values=custom)
+
+    def _run(self, **options):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command("apply_store_dates", stdout=out, **options)
+        return out.getvalue()
+
+    def test_sets_the_in_store_date_on_listed_publishers_only(self):
+        _local_cv_db(self, [(7, "2026-10-14"), (8, None), (9, "-0001-11-30"), (10, "2026-10-14")])
+        changed = self._comic("Marvel Knights", "7")
+        number_id = self._comic("Marvel", 10)
+        no_date = self._comic("Marvel", "8")
+        junk = self._comic("Marvel", "9")
+        same = self._comic("Marvel", "7", date=(2026, 10, 14))
+        other = self._comic("Image", "7")
+        unscraped = self._comic("Marvel", None)
+
+        out = self._run(dry_run=True)
+        changed.refresh_from_db()
+        self.assertEqual(changed.month, 12)
+        self.assertIn("Would change 2026-12-01 to 2026-10-14: X-Men #7", out)
+
+        out = self._run()
+        dates = {c.pk: (c.year, c.month, c.day) for c in Comic.objects.all()}
+        self.assertEqual(dates[changed.pk], (2026, 10, 14))
+        self.assertEqual(dates[number_id.pk], (2026, 10, 14))
+        for kept in (no_date, junk, other, unscraped):
+            self.assertEqual(dates[kept.pk], (2026, 12, 1))
+        self.assertEqual(dates[same.pk], (2026, 10, 14))
+        self.assertIn("Checked 5 scraped comic(s)", out)
+        self.assertIn("1 already have their in-store date.", out)
+        self.assertIn("2 have no in-store date in comicvine.db", out)
+        self.assertIn("Changed the date of 2.", out)
+
+    def test_needs_the_list_and_a_local_database(self):
+        from django.core.management.base import CommandError
+        with self.assertRaisesRegex(CommandError, "No local comicvine.db"):
+            self._run()
+        Setting.objects.filter(key="scrape_store_date_publishers").update(value="")
+        with self.assertRaisesRegex(CommandError, "No publishers are set"):
+            self._run()
 
 class SharedCacheTests(TestCase):
     """The API budget must be shared by the web and worker processes (Redis)."""

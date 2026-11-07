@@ -65,17 +65,26 @@ def filter_by_publisher(matches):
 _STORE_DATE = re.compile(r"\d{4}-\d{2}-\d{2}$")
 
 
+def store_date_publishers():
+    """The lowercased names in the in-store date list (Settings > Scraping)."""
+    from apps.core.models import get_setting
+
+    raw = get_setting("scrape_store_date_publishers", "") or ""
+    return [p.strip().lower() for p in raw.split(",") if p.strip()]
+
+
 def uses_store_date(publisher):
     """
     True when the publisher is in the in-store date list. Matched like the
     publisher lists: a lowercased substring, so "Marvel" covers "Marvel Knights".
     """
-    from apps.core.models import get_setting
-
-    raw = get_setting("scrape_store_date_publishers", "") or ""
-    names = [p.strip().lower() for p in raw.split(",") if p.strip()]
     name = (publisher or "").strip().lower()
-    return bool(name) and any(n in name for n in names)
+    return bool(name) and any(n in name for n in store_date_publishers())
+
+
+def valid_store_date(value):
+    """The in-store date when it is a full YYYY-MM-DD date, otherwise None."""
+    return value if value and _STORE_DATE.match(value) else None
 
 
 def release_date(match):
@@ -95,9 +104,7 @@ def release_date(match):
         from apps.scraper.cv_sources import is_cv_db_available
         if is_cv_db_available():
             store = ComicVineScraper().get_store_dates([match.issue_id]).get(match.issue_id)
-    if store and _STORE_DATE.match(store):
-        return store
-    return match.cover_date
+    return valid_store_date(store) or match.cover_date
 
 
 def normalize_issue_number(num):
