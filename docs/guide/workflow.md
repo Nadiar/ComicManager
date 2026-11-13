@@ -21,7 +21,7 @@ The core of ComicManager is its structured 8-stage pipeline. Instead of a single
 
 ![In-line edit of values](/stage_new.png)
 
-When a file is first scanned, regex parsing extracts a proposed series, number, volume, and year without assuming anything about the filename. Review and edit these values inline before moving on. Accurate proposed values make ComicVine matching more reliable. Use the **Scan for Comics** button to import new files placed in the untagged drop folder since the last scan.
+When a file is first scanned, regex parsing extracts a proposed series, number, volume, and year without assuming anything about the filename. Review and edit these values inline before moving on. Accurate proposed values make ComicVine matching more reliable. Use the **Scan for Comics** button to import new files placed in the untagged drop folder since the last scan. **Scan Library** does the same for files that turned up in the library folder without going through ComicManager, for example files a downloader saved there: a CBZ whose ComicInfo.xml names a series is imported as finished (Write stage), every other file lands in New. The untagged folder is left to **Scan for Comics**, and records whose files are missing are not touched. To run it on a schedule, set **Library scan interval (hours)** in Settings → Library (0 turns it off).
 
 ### How proposed values are found
 

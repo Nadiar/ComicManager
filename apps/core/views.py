@@ -3050,6 +3050,13 @@ def scan_untagged(request):
     return JsonResponse({"success": True, "task_id": result.id, "message": "Scanning untagged folder in background"})
 
 
+@require_POST
+def scan_library(request):
+    """Queue a scan for library files that have no record yet."""
+    result = enqueue("scan_library", label="Scanning library")
+    return JsonResponse({"success": True, "task_id": result.id, "message": "Scanning library folder in background"})
+
+
 # =============================================================================
 # Refresh File Info
 # =============================================================================

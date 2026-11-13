@@ -114,6 +114,14 @@ CELERY_TASK_QUEUES = {
 # Tasks sent without a queue, like beat's daily celery.backend_cleanup, would
 # otherwise go to "celery", which the worker does not consume
 CELERY_TASK_DEFAULT_QUEUE = "serial"
+# Hourly check that queues a library scan when the library_scan_interval_hours
+# setting is on and the last scan is older than it
+CELERY_BEAT_SCHEDULE = {
+    "scheduled-library-scan": {
+        "task": "core.scheduled_library_scan",
+        "schedule": 3600,
+    },
+}
 CELERY_RESULT_EXTENDED = True
 
 # Shared cache in Redis, so the web and worker processes see the same values

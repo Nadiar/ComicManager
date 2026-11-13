@@ -165,7 +165,7 @@
   <a href="/comics/?view={{ current_view|default:'table' }}{% if filter_rail_open %}&amp;rail=1{% endif %}" class="cm-btn sm ghost" style="font-size:11px; text-decoration:none; padding:2px 8px;">× Clear</a>
   {% endif %}
   <div style="flex:1;"></div>
-  {% if current_state == 'new' %}<button type="button" class="cm-btn sm" onclick="scanForComics(this)">Scan for Comics</button>{% endif %}
+  {% if current_state == 'new' %}<button type="button" class="cm-btn sm" onclick="scanForComics(this)">Scan for Comics</button><button type="button" class="cm-btn sm" title="Add comic files in the library folder that have no record yet" onclick="scanForComics(this, '/comics/scan-library/', 'Scanning library')">Scan Library</button>{% endif %}
   {% if current_state == 'new' and comics %}<button type="button" class="cm-btn sm ok" onclick="acceptAllComics(this)">Accept All</button>{% endif %}
   {% if current_state == 'scrape' and comics or current_flag == 'metadata_mismatch' and comics %}
   <label style="display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer; flex-shrink:0;">
@@ -1074,11 +1074,11 @@ function updateRowAfterScrape(btn, data) {
   }
 }
 
-function scanForComics(btn) {
+function scanForComics(btn, url = '/comics/scan-untagged/', label = 'Scanning for comics') {
   btn.disabled = true;
   btn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Scanning...';
 
-  fetch('/comics/scan-untagged/', {
+  fetch(url, {
     method: 'POST',
     headers: {'X-CSRFToken': getCsrfToken()},
   })
@@ -1087,7 +1087,7 @@ function scanForComics(btn) {
     if (data.task_id) {
       btn.innerHTML = 'Running...';
       if (window.startTaskPolling) {
-        window.startTaskPolling(data.task_id, 'Scanning for comics');
+        window.startTaskPolling(data.task_id, label);
       }
     } else if (!data.success) {
       btn.innerHTML = data.error || 'Error';

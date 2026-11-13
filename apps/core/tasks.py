@@ -119,6 +119,58 @@ def scan_untagged_task(self):
     }
 
 
+@shared_task(bind=True, base=ProgressTask, name="core.scan_library", queue="import")
+def scan_library_task(self):
+    """Add comic files in the library folder that have no record yet."""
+    from .services import scan_library_folder
+
+    self.update_state(
+        state="PROGRESS",
+        meta={"current": 0, "total": 0, "processed": 0, "errors": []},
+    )
+
+    result = scan_library_folder()
+    imported = result["imported_tagged"] + result["imported_new"]
+
+    return {
+        "processed": imported,
+        "total": imported + result["skipped"],
+        "imported": imported,
+        "imported_tagged": result["imported_tagged"],
+        "imported_new": result["imported_new"],
+        "skipped": result["skipped"],
+        "errors": result["errors"],
+        "cancelled": False,
+    }
+
+
+@shared_task(name="core.scheduled_library_scan", queue="serial")
+def scheduled_library_scan_task():
+    """
+    Run by beat every hour: queue a library scan when the last one is older
+    than the library_scan_interval_hours setting (0 or unset turns it off).
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from .models import QueuedTask, get_setting
+    from .task_queue import enqueue
+
+    hours = get_setting("library_scan_interval_hours", 0) or 0
+    if hours <= 0:
+        return {"queued": False, "reason": "off"}
+
+    scans = QueuedTask.objects.filter(action="scan_library")
+    if scans.filter(state__in=QueuedTask.ACTIVE_STATES).exists():
+        return {"queued": False, "reason": "a library scan is already queued or running"}
+    if scans.filter(created_at__gt=timezone.now() - timedelta(hours=hours)).exists():
+        return {"queued": False, "reason": f"last library scan is less than {hours} hours old"}
+
+    enqueue("scan_library", label="Scanning library (scheduled)")
+    return {"queued": True}
+
+
 def _convert_comic_to_cbz(comic):
     """Convert a single CBR/CB7 comic to CBZ.
 

@@ -58,79 +58,144 @@ def scan_untagged_folder(path: str = None, dry_run: bool = False, cleanup: bool 
         if missing["skipped"]:
             result["errors"].append(missing["reason"])
 
-    # Find all comic files
-    extensions = (".cbz", ".cbr", ".cb7", ".pdf", ".zip")
     comic_files = [
         p for p in Path(untagged_path).rglob("*")
-        if p.suffix.lower() in extensions and not p.name.startswith(".") and p.is_file()
+        if p.suffix.lower() in COMIC_EXTENSIONS and not p.name.startswith(".") and p.is_file()
     ]
 
     for file_path in comic_files:
-        file_path_str = str(file_path)
-
         # Check if already imported
-        if Comic.objects.filter(file_path=file_path_str).exists():
+        if Comic.objects.filter(file_path=str(file_path)).exists():
             result["skipped"] += 1
             continue
 
         try:
-            # Parse filename for proposed metadata
-            parsed = parse_filename(file_path.stem)
-
-            # Get file info
-            file_stat = file_path.stat()
-            file_format = file_path.suffix.lower().lstrip(".")
-
-            # Extract page count for CBZ files
-            page_count = None
-            is_corrupted = False
-            if file_format == "cbz":
-                page_count, is_corrupted = _get_cbz_page_count(file_path)
-                if is_corrupted:
-                    # A RAR or 7-Zip archive named .cbz is not corrupted: record
-                    # its real format so it gets flagged for conversion
-                    from .archives import misnamed_format
-                    actual = misnamed_format(file_path)
-                    if actual:
-                        file_format, is_corrupted = actual, False
-            elif file_format == "zip":
-                # Renaming a .zip that is really a RAR or 7-Zip archive to
-                # .cbz would break it, so flag it for conversion instead
-                from .archives import misnamed_format
-                file_format = misnamed_format(file_path) or file_format
-
-            # Detect flags for review queue
-            flags = _detect_flags(
-                file_format=file_format,
-                page_count=page_count,
-                filename=file_path.name,
-                parsed=parsed,
-                is_corrupted=is_corrupted,
-            )
-
-            comic_data = {
-                "file_path": file_path_str,
-                "file_format": file_format,
-                "file_size": file_stat.st_size,
-                "page_count": page_count,
-                "state": Comic.STATE_NEW,
-                "medium": Comic.MEDIUM_DIGITAL,
-                "proposed_series": parsed.get("series"),
-                "proposed_number": parsed.get("number"),
-                "proposed_volume": parsed.get("volume"),
-                "proposed_year": parsed.get("year"),
-                "flags": flags,
-            }
-
+            comic_data = new_comic_data(file_path)
             if not dry_run:
                 Comic.objects.create(**comic_data)
-
             result["imported"] += 1
 
         except Exception as e:
             result["errors"].append(f"{file_path.name}: {str(e)}")
 
     return result
+
+
+COMIC_EXTENSIONS = (".cbz", ".cbr", ".cb7", ".pdf", ".zip")
+
+
+def new_comic_data(file_path: Path) -> dict:
+    """Fields for a new comic record (state 'new') from the file and its name."""
+    parsed = parse_filename(file_path.stem)
+    file_format = file_path.suffix.lower().lstrip(".")
+
+    # Extract page count for CBZ files
+    page_count = None
+    is_corrupted = False
+    if file_format == "cbz":
+        page_count, is_corrupted = _get_cbz_page_count(file_path)
+        if is_corrupted:
+            # A RAR or 7-Zip archive named .cbz is not corrupted: record
+            # its real format so it gets flagged for conversion
+            from .archives import misnamed_format
+            actual = misnamed_format(file_path)
+            if actual:
+                file_format, is_corrupted = actual, False
+    elif file_format == "zip":
+        # Renaming a .zip that is really a RAR or 7-Zip archive to
+        # .cbz would break it, so flag it for conversion instead
+        from .archives import misnamed_format
+        file_format = misnamed_format(file_path) or file_format
+
+    # Detect flags for review queue
+    flags = _detect_flags(
+        file_format=file_format,
+        page_count=page_count,
+        filename=file_path.name,
+        parsed=parsed,
+        is_corrupted=is_corrupted,
+    )
+
+    return {
+        "file_path": str(file_path),
+        "file_format": file_format,
+        "file_size": file_path.stat().st_size,
+        "page_count": page_count,
+        "state": Comic.STATE_NEW,
+        "medium": Comic.MEDIUM_DIGITAL,
+        "proposed_series": parsed.get("series"),
+        "proposed_number": parsed.get("number"),
+        "proposed_volume": parsed.get("volume"),
+        "proposed_year": parsed.get("year"),
+        "flags": flags,
+    }
+
+
+def scan_library_folder(path: str = None, untagged_path: str = None, dry_run: bool = False) -> dict:
+    """
+    Add comic files in the library folder that have no record yet, such as
+    files a downloader saved straight into the library.
+
+    A CBZ whose ComicInfo.xml names a series is imported as finished, the same
+    way as the import_library command (state 'write'). Every other file is
+    imported as new, the same way as the untagged scan, so it goes through the
+    pipeline. The untagged folder is skipped when it is inside the library:
+    the untagged scan owns it, and its records may use a different path to
+    the same files. Records whose files are missing are left alone; "Sync
+    library paths" handles moved files.
+
+    Returns a dict: imported_tagged, imported_new, skipped, errors.
+    """
+    from .utils import read_comicinfo_xml
+
+    library_path = path or getattr(settings, "LIBRARY_DIR", "/comics/library")
+    untagged_path = untagged_path or getattr(settings, "UNTAGGED_DIR", "/comics/untagged")
+    result = {"imported_tagged": 0, "imported_new": 0, "skipped": 0, "errors": [], "dry_run": dry_run}
+    if not os.path.isdir(library_path):
+        result["errors"].append(f"Library path does not exist: {library_path}")
+        return result
+
+    skip_dir = os.path.realpath(untagged_path)
+    known = set(Comic.objects.exclude(file_path__isnull=True).values_list("file_path", flat=True))
+
+    for file_path in _library_comic_files(library_path, skip_dir):
+        if str(file_path) in known:
+            result["skipped"] += 1
+            continue
+        try:
+            info = read_comicinfo_xml(str(file_path)) if file_path.suffix.lower() == ".cbz" else None
+            if info and info.get("series"):
+                comic_data = {
+                    **info,
+                    "file_path": str(file_path),
+                    "file_format": "cbz",
+                    "file_size": file_path.stat().st_size,
+                    "state": Comic.STATE_WRITTEN,
+                    "medium": Comic.MEDIUM_DIGITAL,
+                }
+                counter = "imported_tagged"
+            else:
+                comic_data = new_comic_data(file_path)
+                counter = "imported_new"
+            if not dry_run:
+                Comic.objects.create(**comic_data)
+            result[counter] += 1
+        except Exception as e:
+            result["errors"].append(f"{file_path.name}: {str(e)}")
+
+    return result
+
+
+def _library_comic_files(library_path: str, skip_dir: str):
+    """Comic files under library_path, leaving out hidden entries and skip_dir."""
+    for folder, dirs, files in os.walk(library_path):
+        dirs[:] = [
+            d for d in dirs
+            if not d.startswith(".") and os.path.realpath(os.path.join(folder, d)) != skip_dir
+        ]
+        for name in files:
+            if not name.startswith(".") and os.path.splitext(name)[1].lower() in COMIC_EXTENSIONS:
+                yield Path(folder, name)
 
 
 # Above this share of missing files the folder is assumed to be unmounted or

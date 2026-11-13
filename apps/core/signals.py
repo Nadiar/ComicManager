@@ -132,6 +132,7 @@ def seed_default_settings(sender, **kwargs):
         # Library
         dict(key="untagged_dir",          label="Untagged (drop) folder",      type="path",   group="Library",    help_text="Where new digital comics are dropped for import", value="/comics/untagged"),
         dict(key="library_dir",           label="Organized library folder",    type="path",   group="Library",    help_text="Where the Library Organizer moves finished comics", value="/comics/library"),
+        dict(key="library_scan_interval_hours", label="Library scan interval (hours)", type="int", group="Library", help_text="Every this many hours, add comic files in the library folder that have no record yet (for example files a downloader saved there). Files with a ComicInfo.xml are imported as finished, others as New. 0 turns the scheduled scan off.", value="0"),
         dict(key="cv_db_path",            label="ComicVine SQLite DB path",    type="path",   group="Library",    help_text="Path to your local ComicVine SQLite index", value="/cv_db/comicvine.db"),
         dict(key="cv_mcl_path",           label="ComicVine MCL file path",     type="path",   group="Library",    help_text="Path to latest.mcl (semicolon-delimited volume/issue index). Used for Series Audit when comicvine.db is unavailable.", value="/cv_db/latest.mcl"),
         dict(key="inducks_db_path",       label="Inducks SQLite DB path",     type="path",   group="Library",    help_text="Path to inducks.db (built from ISV files via download_isv.sh)", value="/cv_db/inducks.db"),

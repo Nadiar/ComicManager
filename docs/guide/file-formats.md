@@ -71,7 +71,7 @@ Some files have a `.cbz` or `.zip` extension but are really RAR or 7-Zip archive
 - **Untagged scan**: such a file is recorded with its real format and the `needs_conversion` flag instead of being reported as corrupted. **Convert** replaces it in place with a real CBZ (same file name).
 - **Untagged scan of a `.zip`**: the same check; **Convert** writes a real CBZ next to it and removes the `.zip`.
 - **Rezip** on a comic flagged as a corrupted archive converts it if it turns out to be RAR or 7-Zip.
-- **Library files** that are not in the database yet: run `convert_misnamed_archives`, then `import_library` (see [Getting Started](/guide/getting-started)).
+- **Library files** that are not in the database yet: **Scan Library** on the New stage adds them flagged for conversion. Or run `convert_misnamed_archives`, then `import_library` (see [Getting Started](/guide/getting-started)).
 
 ---
 

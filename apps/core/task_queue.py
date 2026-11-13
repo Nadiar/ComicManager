@@ -30,6 +30,7 @@ def _registry():
             "populate_counts": c.populate_counts_task,
             "detect_format_upgrades": c.detect_format_upgrades_task,
             "scan_untagged": c.scan_untagged_task,
+            "scan_library": c.scan_library_task,
             "audit_metadata": c.audit_metadata_task,
             "convert_cbr": c.convert_cbr_task,
             "convert_all_cbr": c.convert_all_cbr_task,
