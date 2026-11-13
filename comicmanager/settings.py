@@ -120,6 +120,7 @@ CELERY_BEAT_SCHEDULE = {
     "scheduled-library-scan": {
         "task": "core.scheduled_library_scan",
         "schedule": 3600,
+        "options": {"queue": "serial"},
     },
 }
 CELERY_RESULT_EXTENDED = True
