@@ -147,3 +147,56 @@ class ScheduledLibraryScanTests(TestCase):
         QueuedTask.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(hours=5))
         self.tick()
         enqueue.assert_not_called()
+
+
+class ImportFileTests(TestCase):
+    """POST /comics/import-file/: another application (a downloader) adds
+    one file it saved in the library, without a full library scan."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.library = os.path.join(self.tmp, "library")
+        self.untagged = os.path.join(self.tmp, "untagged")
+        os.makedirs(self.untagged)
+        self.enterContext(self.settings(LIBRARY_DIR=self.library, UNTAGGED_DIR=self.untagged))
+
+    def post(self, path):
+        return self.client.post("/comics/import-file/", {"path": path})
+
+    def test_imports_a_library_file_as_new_even_when_tagged(self):
+        path = make_cbz(os.path.join(self.library, "Sample Press", "Sample Hero 001.cbz"), comicinfo=TAGGED)
+        response = self.post(path)
+        self.assertEqual(response.status_code, 200)
+        comic = Comic.objects.get(file_path=path)
+        self.assertEqual(response.json(), {"success": True, "comic_id": str(comic.pk), "created": True})
+        self.assertEqual(comic.state, Comic.STATE_NEW)
+        self.assertEqual(comic.proposed_series, "Sample Hero")
+
+    def test_imports_a_file_in_the_untagged_folder(self):
+        path = make_cbz(os.path.join(self.untagged, "Sample Hero 002.cbz"))
+        self.assertEqual(self.post(path).status_code, 200)
+        self.assertTrue(Comic.objects.filter(file_path=path).exists())
+
+    def test_a_known_file_returns_its_comic(self):
+        path = make_cbz(os.path.join(self.library, "Sample Hero 003.cbz"))
+        known = Comic.objects.create(file_path=path, file_format="cbz", state=Comic.STATE_DONE)
+        response = self.post(path)
+        self.assertEqual(response.json(), {"success": True, "comic_id": str(known.pk), "created": False})
+        self.assertEqual(Comic.objects.count(), 1)
+
+    def test_refuses_paths_outside_the_comic_folders(self):
+        outside = make_cbz(os.path.join(self.tmp, "elsewhere", "Sample Hero 004.cbz"))
+        sneaky = os.path.join(self.library, "..", "elsewhere", "Sample Hero 004.cbz")
+        for path in (outside, sneaky):
+            self.assertEqual(self.post(path).status_code, 400, path)
+        self.assertFalse(Comic.objects.exists())
+
+    def test_refuses_missing_files_and_other_types(self):
+        os.makedirs(self.library)
+        notes = os.path.join(self.library, "notes.txt")
+        with open(notes, "w") as f:
+            f.write("x")
+        for path in (os.path.join(self.library, "Sample Hero 005.cbz"), notes, ""):
+            self.assertEqual(self.post(path).status_code, 400, path)
+        self.assertFalse(Comic.objects.exists())

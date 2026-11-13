@@ -186,6 +186,41 @@ def scan_library_folder(path: str = None, untagged_path: str = None, dry_run: bo
     return result
 
 
+class ImportFileError(ValueError):
+    """A file that import_file refuses."""
+
+
+def import_file(path: str) -> tuple[Comic, bool]:
+    """
+    Import one comic file in the library or untagged folder as new, where it
+    is. For applications that save files in the library themselves (a
+    downloader), so they don't need a full library scan. Unlike the library
+    scan, a tagged CBZ is imported as new too: a fresh download goes through
+    the pipeline.
+
+    Returns (comic, created): the existing comic when the file already has one.
+    Raises ImportFileError for a missing file, another file type, or a path
+    outside the library and untagged folders.
+    """
+    if not path:
+        raise ImportFileError("No path given")
+    real = os.path.realpath(path)
+    folders = [os.path.realpath(getattr(settings, name, default)) for name, default in (
+        ("LIBRARY_DIR", "/comics/library"), ("UNTAGGED_DIR", "/comics/untagged"))]
+    if not any(real.startswith(folder + os.sep) for folder in folders):
+        raise ImportFileError(f"Not in the library or untagged folder: {path}")
+    file_path = Path(path)
+    if file_path.suffix.lower() not in COMIC_EXTENSIONS or file_path.name.startswith("."):
+        raise ImportFileError(f"Not a comic file: {path}")
+    if not file_path.is_file():
+        raise ImportFileError(f"File not found: {path}")
+
+    existing = Comic.objects.filter(file_path=path).first()
+    if existing:
+        return existing, False
+    return Comic.objects.create(**new_comic_data(file_path)), True
+
+
 def _library_comic_files(library_path: str, skip_dir: str):
     """Comic files under library_path, leaving out hidden entries and skip_dir."""
     for folder, dirs, files in os.walk(library_path):

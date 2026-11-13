@@ -9,6 +9,7 @@ urlpatterns = [
     path("reset-column-layout/", views.reset_column_layout, name="reset_column_layout"),
     path("scan-untagged/", views.scan_untagged, name="scan_untagged"),
     path("scan-library/", views.scan_library, name="scan_library"),
+    path("import-file/", views.import_file, name="import_file"),
     path("convert-all/", views.convert_all_cbr, name="convert_all"),
     path("convert-all-zip/", views.convert_all_zip, name="convert_all_zip"),
     path("accept-all/", views.accept_all_comics, name="accept_all"),

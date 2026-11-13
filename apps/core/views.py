@@ -3057,6 +3057,18 @@ def scan_library(request):
     return JsonResponse({"success": True, "task_id": result.id, "message": "Scanning library folder in background"})
 
 
+@require_POST
+def import_file(request):
+    """Import one file in the library or untagged folder as new (see services.import_file)."""
+    from .services import ImportFileError, import_file as import_one
+
+    try:
+        comic, created = import_one(request.POST.get("path", ""))
+    except ImportFileError as e:
+        return JsonResponse({"success": False, "error": str(e)}, status=400)
+    return JsonResponse({"success": True, "comic_id": str(comic.pk), "created": created})
+
+
 # =============================================================================
 # Refresh File Info
 # =============================================================================
